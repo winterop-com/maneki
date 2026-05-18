@@ -1,0 +1,71 @@
+{
+  "name": "mediakit-desktop-electron",
+  "version": "0.1.0",
+  "description": "Electron sibling of the MediaKit desktop wrapper \u2014 for comparison with the Tauri build.",
+  "author": {
+    "name": "Morten Hansen",
+    "email": "morten@winterop.com"
+  },
+  "main": "src/main.js",
+  "private": true,
+  "type": "commonjs",
+  "scripts": {
+    "start": "electron .",
+    "build": "electron-builder --publish=never",
+    "build:mac": "electron-builder --mac --publish=never",
+    "build:linux": "electron-builder --linux --publish=never",
+    "build:win": "electron-builder --win --publish=never"
+  },
+  "dependencies": {
+    "electron-store": "^8.2.0"
+  },
+  "devDependencies": {
+    "electron": "^42.0.0",
+    "electron-builder": "^26.0.0"
+  },
+  "build": {
+    "appId": "com.winterop.mediakit.electron",
+    "productName": "MediaKit",
+    "artifactName": "MediaKit-Electron-${version}-${arch}.${ext}",
+    "asar": true,
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "src/**/*",
+      "../react/**/*"
+    ],
+    "extraResources": [
+      {
+        "from": "../react",
+        "to": "react"
+      }
+    ],
+    "mac": {
+      "category": "public.app-category.music",
+      "icon": "../tauri/src-tauri/icons/icon.icns",
+      "target": [
+        {
+          "target": "dmg",
+          "arch": [
+            "arm64"
+          ]
+        }
+      ]
+    },
+    "linux": {
+      "category": "Audio",
+      "icon": "../tauri/src-tauri/icons/icon.png",
+      "target": [
+        "AppImage",
+        "deb"
+      ]
+    },
+    "win": {
+      "icon": "../tauri/src-tauri/icons/icon.ico",
+      "target": [
+        "nsis"
+      ]
+    }
+  }
+}

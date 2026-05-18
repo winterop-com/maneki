@@ -1,0 +1,108 @@
+"""Propagate `pyproject.toml`'s version to the desktop wrappers.
+
+The Python package is the single source of truth for the project's
+version. The user-visible bundle metadata (Tauri `tauri.conf.json` and
+Electron `package.json`) needs to mirror it so the .app / .dmg
+artifacts report a consistent number — those values flow into
+Info.plist's `CFBundleShortVersionString`, the DMG filename
+(`MediaKit-Tauri-X.Y.Z-…dmg` / `MediaKit-Electron-X.Y.Z-…dmg`), and
+the macOS About window.
+
+We deliberately do NOT sync `desktop/tauri/src-tauri/Cargo.toml`'s
+`[package].version`. That field is internal Cargo metadata; nothing
+user-facing reads it. Bumping it on every release caused
+`Cargo.lock`'s `mediakit-desktop` entry to drift by one version
+because CI never runs `cargo build` to refresh the lock — every
+Python release left a stale lock entry that needed a follow-up
+chore PR. Pinning the crate at a stable internal version (currently
+0.1.0) decouples the lock from the project version and removes the
+drift entirely.
+
+Run via `make desktop-sync-version` (auto-invoked by the
+desktop-{tauri,electron}-build targets). Idempotent — safe to run
+multiple times; only writes files where the version has actually
+changed.
+"""
+
+from __future__ import annotations
+
+import json
+import re
+import sys
+import tomllib
+from pathlib import Path
+
+REPO_ROOT = Path(__file__).resolve().parents[1]
+
+
+def read_pyproject_version() -> str:
+    """Pull the `[project].version` string out of pyproject.toml."""
+    with (REPO_ROOT / "pyproject.toml").open("rb") as f:
+        data = tomllib.load(f)
+    version = data["project"]["version"]
+    if not isinstance(version, str) or not re.fullmatch(r"\d+\.\d+\.\d+(?:[\w.+-]*)?", version):
+        raise SystemExit(f"unexpected version shape: {version!r}")
+    return version
+
+
+def update_json_version(path: Path, version: str) -> bool:
+    """Update top-level `version` field in a JSON file. Returns True if changed."""
+    data = json.loads(path.read_text(encoding="utf-8"))
+    if data.get("version") == version:
+        return False
+    data["version"] = version
+    # Preserve indent style — tauri.conf.json + package.json both use 2 spaces.
+    path.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
+    return True
+
+
+_META_TAG_RE = re.compile(r'(<meta\s+name="mk-version"\s+content=")[^"]*(")')
+_SCRIPT_VERSION_RE = re.compile(r'(<script[^>]*\bsrc="[^"]*?\?v=)[^"]*(")')
+
+
+def update_html_meta_version(path: Path, version: str) -> bool:
+    """Update `<meta name=mk-version>` and `<script src=...?v=X.Y.Z>` busters.
+
+    The meta tag drives the login / topbar `vX.Y.Z` label. The `?v=` cache
+    buster on every script src forces Electron / Tauri webviews to
+    re-download the JS bundle on each release instead of running a stale
+    cached copy. Regex rather than a real HTML parser keeps this script
+    dependency-free.
+    """
+    text = path.read_text(encoding="utf-8")
+    new_text, meta_n = _META_TAG_RE.subn(rf"\g<1>{version}\g<2>", text)
+    if meta_n == 0:
+        raise SystemExit(f"meta[name=mk-version] not found in {path}")
+    new_text = _SCRIPT_VERSION_RE.sub(rf"\g<1>{version}\g<2>", new_text)
+    if new_text == text:
+        return False
+    path.write_text(new_text, encoding="utf-8")
+    return True
+
+
+def main() -> None:
+    """CLI entrypoint: sync user-visible desktop versions to pyproject.toml."""
+    version = read_pyproject_version()
+    print(f">>> Syncing desktop versions to {version}")
+    targets: list[tuple[Path, str]] = []
+    json_paths = [
+        REPO_ROOT / "desktop" / "tauri" / "src-tauri" / "tauri.conf.json",
+        REPO_ROOT / "desktop" / "electron" / "package.json",
+    ]
+    for path in json_paths:
+        if update_json_version(path, version):
+            targets.append((path, "updated"))
+        else:
+            targets.append((path, "already in sync"))
+    html_path = REPO_ROOT / "desktop" / "react" / "index.html"
+    if update_html_meta_version(html_path, version):
+        targets.append((html_path, "updated"))
+    else:
+        targets.append((html_path, "already in sync"))
+    for path, status in targets:
+        print(f"    {status:18} {path.relative_to(REPO_ROOT)}")
+    sys.exit(0)
+
+
+if __name__ == "__main__":
+    main()
