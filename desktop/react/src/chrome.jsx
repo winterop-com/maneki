@@ -97,11 +97,12 @@ function Sidebar({ section, setSection, ARTISTS, artistId, setArtistId, loaded, 
     });
   }, []);
 
-  // Sub-sections nested inside AUDIO. Pulled out so the top-level AUDIO
-  // collapse hides them all with one toggle.
+  // Sub-sections inside AUDIO are plain labels (no caret, no per-section
+  // collapse) - the AUDIO top-level toggle hides them all at once.
   const audioBody = (
     <div style={{ paddingLeft: 6 }}>
-      <CollapsibleSection keyId="radio" label="Radio" collapsed={collapsed.has("radio")} toggle={toggle}>
+      <div className="mk-pane-section">
+        <div className="mk-pane-label">Radio</div>
         <div
           className={"mk-nav-item" + (section === "stations" ? " active" : "")}
           onClick={() => setSection("stations")}
@@ -113,8 +114,9 @@ function Sidebar({ section, setSection, ARTISTS, artistId, setArtistId, loaded, 
           </svg>
           Stations
         </div>
-      </CollapsibleSection>
-      <CollapsibleSection keyId="starred" label="Starred" collapsed={collapsed.has("starred")} toggle={toggle}>
+      </div>
+      <div className="mk-pane-section">
+        <div className="mk-pane-label">Starred</div>
         <div
           className={"mk-nav-item" + (section === "starred" ? " active" : "")}
           onClick={() => setSection("starred")}
@@ -122,14 +124,12 @@ function Sidebar({ section, setSection, ARTISTS, artistId, setArtistId, loaded, 
           <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><path d="M12 21s-7.5-4.5-9.5-9.5C1 7 4.5 4 8 4c2 0 3.5 1 4 2 .5-1 2-2 4-2 3.5 0 7 3 5.5 7.5C19.5 16.5 12 21 12 21z"/></svg>
           Tracks
         </div>
-      </CollapsibleSection>
-      <CollapsibleSection
-        keyId="artists"
-        label="Artists"
-        collapsed={collapsed.has("artists")}
-        toggle={toggle}
-        extras={<span className="mk-count">({ARTISTS.length})</span>}
-      >
+      </div>
+      <div className="mk-pane-section mk-artists">
+        <div className="mk-pane-label" style={{ display: "flex", justifyContent: "space-between" }}>
+          <span>Artists</span>
+          <span className="mk-count">({ARTISTS.length})</span>
+        </div>
         <div className="mk-artist-list">
           {!loaded && [0,1,2,3].map((i) => <div key={i} className="mk-skel" style={{height: 14, margin: "6px 0"}}/>)}
           {loaded && ARTISTS.map((a) => (
@@ -142,7 +142,7 @@ function Sidebar({ section, setSection, ARTISTS, artistId, setArtistId, loaded, 
             </div>
           ))}
         </div>
-      </CollapsibleSection>
+      </div>
     </div>
   );
 
