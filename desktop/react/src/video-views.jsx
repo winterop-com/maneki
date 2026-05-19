@@ -31,10 +31,33 @@ function fmtSize(bytes) {
   return `${(bytes / 1e6).toFixed(0)} MB`;
 }
 
-// Primary video pane: list of every video the server knows about. Click a
-// row to set the selected video; the parent renders the player. In video
-// mode the SPA has no sidebar (the list IS the primary view), so this
-// pane fills the leftmost / largest column.
+// Group videos by their top-level subdirectory under <root>/videos/.
+// Files directly in `videos/` go into the "" bucket (rendered as "Videos");
+// `videos/movies/bat.mp4` goes into "movies", and so on. Anything below
+// the first directory keeps its full sub-path visible in the row's
+// secondary line so duplicate stems across folders are disambiguated.
+function groupVideosByFolder(videos) {
+  const groups = new Map();
+  for (const v of videos) {
+    const rel = v.rel_path || v.name;
+    const slash = rel.indexOf("/");
+    const key = slash === -1 ? "" : rel.slice(0, slash);
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push(v);
+  }
+  // Root bucket first, then alphabetical for the rest - keeps the list
+  // stable when folders are added.
+  return [...groups.entries()].sort((a, b) => {
+    if (a[0] === "") return -1;
+    if (b[0] === "") return 1;
+    return a[0].localeCompare(b[0]);
+  });
+}
+
+// Primary video pane: list of every video the server knows about,
+// grouped by top-level subfolder under <root>/videos/. Click a row to
+// set the selected video; the parent renders the player. In video mode
+// the SPA has no sidebar - the list IS the primary view.
 function VideosPane({ session, selectedId, onSelect }) {
   const [videos, setVideos] = useSt_vv(null);
   const [error, setError] = useSt_vv(null);
@@ -48,9 +71,10 @@ function VideosPane({ session, selectedId, onSelect }) {
     return () => { cancelled = true; };
   }, [session]);
 
+  const groups = videos === null ? null : groupVideosByFolder(videos);
+
   return (
     <div className="mk-pane mk-albums-pane">
-      <div className="mk-pane-label">Videos</div>
       {error !== null && <div className="mk-empty"><div className="mk-empty-title">{error}</div></div>}
       {error === null && videos === null && <div className="mk-empty"><div className="mk-empty-title">loading...</div></div>}
       {videos !== null && videos.length === 0 && (
@@ -65,39 +89,55 @@ function VideosPane({ session, selectedId, onSelect }) {
           <div className="mk-empty-sub">Add files under &lt;root&gt;/videos/ on the server.</div>
         </div>
       )}
-      {videos !== null && videos.length > 0 && (
-        <div className="mk-album-list">
-          {videos.map((v) => (
-            <div
-              key={v.id}
-              className={"mk-album-row" + (selectedId === v.id ? " active" : "")}
-              onClick={() => onSelect(v)}
-            >
-              <div className="mk-album-cover-sm" style={{
-                display: "flex", alignItems: "center", justifyContent: "center",
-                background: "var(--bg-elev2)", color: "var(--text-dim)",
-              }}>
-                <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.5">
-                  <rect x="2" y="6" width="20" height="12" rx="2"/>
-                  <path d="M10 9l5 3-5 3z" fill="currentColor"/>
-                </svg>
-              </div>
-              <div className="mk-album-meta">
-                <div className="mk-album-name">{v.name}</div>
-                <div className="mk-album-sub">
-                  <span className="mono">{fmtDuration(v.duration_s)}</span>
-                  <span className="mk-album-count">{fmtSize(v.size_bytes)}</span>
-                  {v.subtitles && v.subtitles.length > 0 && (
-                    <span className="mk-album-count" style={{ color: "var(--accent)" }}>
-                      {v.subtitles.length} sub{v.subtitles.length === 1 ? "" : "s"}
-                    </span>
-                  )}
+      {groups !== null && groups.length > 0 && groups.map(([folder, items]) => (
+        <div key={folder || "__root__"} className="mk-pane-section mk-video-group">
+          <div className="mk-pane-label mk-video-group-label">
+            {folder === "" ? "Videos" : folder}
+            <span className="mk-count"> ({items.length})</span>
+          </div>
+          <div className="mk-album-list">
+            {items.map((v) => {
+              // Sub-path beneath the first folder, e.g. "season-1/ep03.mkv".
+              // Hidden when there is no nesting (rel_path === filename).
+              const rel = v.rel_path || v.name;
+              const subPath = folder === "" ? null : rel.slice(folder.length + 1);
+              const showSubPath = subPath && subPath !== `${v.name}${rel.slice(rel.lastIndexOf("."))}`;
+              return (
+                <div
+                  key={v.id}
+                  className={"mk-album-row" + (selectedId === v.id ? " active" : "")}
+                  onClick={() => onSelect(v)}
+                >
+                  <img
+                    className="mk-album-cover-sm"
+                    src={window.MK_VIDEO.thumbnailUrl(session, v.id)}
+                    alt=""
+                    loading="lazy"
+                    style={{ objectFit: "cover", background: "var(--bg-elev2)" }}
+                  />
+                  <div className="mk-album-meta">
+                    <div className="mk-album-name">{v.name}</div>
+                    <div className="mk-album-sub">
+                      <span className="mono">{fmtDuration(v.duration_s)}</span>
+                      <span className="mk-album-count">{fmtSize(v.size_bytes)}</span>
+                      {v.subtitles && v.subtitles.length > 0 && (
+                        <span className="mk-album-count" style={{ color: "var(--accent)" }}>
+                          {v.subtitles.length} sub{v.subtitles.length === 1 ? "" : "s"}
+                        </span>
+                      )}
+                    </div>
+                    {showSubPath && (
+                      <div className="mk-album-sub mono" style={{ color: "var(--text-dim)", fontSize: 11, marginTop: 2 }}>
+                        {subPath}
+                      </div>
+                    )}
+                  </div>
                 </div>
-              </div>
-            </div>
-          ))}
+              );
+            })}
+          </div>
         </div>
-      )}
+      ))}
     </div>
   );
 }
@@ -110,16 +150,23 @@ function VideoPlayerPane({ session, video, onClose }) {
   const [subtitles, setSubtitles] = useSt_vv(video.subtitles || []);
 
   // Fetch subtitles list (the listing's `subtitles` field is summary;
-  // the endpoint may have more detail by the time we get here).
+  // the endpoint may have more detail by the time we get here). Note: we
+  // intentionally exclude `session` from the deps below - it's a fresh
+  // object reference on every App re-render (loadSession() parses
+  // localStorage each call), which would dispose + reinit the player
+  // every time the parent re-renders for unrelated state changes (e.g.
+  // opening the shortcuts overlay).
   useEff_vv(() => {
     let cancelled = false;
     window.MK_VIDEO.subtitles(session, video.id).then((data) => {
       if (!cancelled && Array.isArray(data)) setSubtitles(data);
     });
     return () => { cancelled = true; };
-  }, [session, video.id]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [video.id]);
 
   // Build / tear down the video.js player when the selected video changes.
+  // Deps: video.id only. See note above re: excluding `session`.
   useEff_vv(() => {
     const el = videoRef.current;
     if (el === null || typeof window.videojs !== "function") return undefined;
@@ -128,6 +175,16 @@ function VideoPlayerPane({ session, video, onClose }) {
       autoplay: false,
       preload: "auto",
       fluid: true,
+      // Contact-sheet poster: shows the video at a glance while paused
+      // (and during seek buffer stalls) instead of a blank canvas.
+      // Generated server-side; first request transcodes ~9 frames, then
+      // cached on disk under <root>/.mediakit/posters/.
+      poster: window.MK_VIDEO.posterUrl(session, video.id),
+      // Tell the browser to hide ALL its own chrome (URL bar, tab strip)
+      // when entering fullscreen. The default 'auto' lets Chrome keep
+      // the URL bar visible on macOS, which looks like the player isn't
+      // really fullscreen even though it is.
+      fullscreen: { options: { navigationUI: "hide" } },
       html5: { vhs: { overrideNative: true } },
     });
     player.src({
@@ -135,11 +192,17 @@ function VideoPlayerPane({ session, video, onClose }) {
       type: "application/x-mpegURL",
     });
     playerRef.current = player;
+    // Expose to app-level shortcut handler so the `f` key can toggle
+    // fullscreen on the actual video player instead of the audio
+    // visualizer overlay. Cleared in the cleanup below.
+    window.MK_VIDEO_PLAYER = player;
     return () => {
+      window.MK_VIDEO_PLAYER = null;
       try { player.dispose(); } catch { /* ignore */ }
       playerRef.current = null;
     };
-  }, [session, video.id]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [video.id]);
 
   return (
     <div className="mk-pane mk-tracks-pane" style={{ padding: 14 }}>

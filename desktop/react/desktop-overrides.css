@@ -17,9 +17,12 @@
  * detects `navigator.platform`.
  */
 
-body[data-platform="darwin"] .mk-topbar {
+body[data-platform="darwin"]:not([data-shell="browser"]) .mk-topbar {
   /* Push the entire topbar grid right of the traffic lights — three
-   * buttons + padding measure ~78px on standard window chrome. */
+   * buttons + padding measure ~78px on standard window chrome. Only
+   * applies inside the Tauri/Electron desktop wrappers; in a regular
+   * browser tab there are no traffic lights so the padding would just
+   * be dead space. */
   padding-left: 80px;
   /* The native title-bar buttons sit inside a 28px-tall strip; the
    * topbar's own 40px height already swallows that, but make the
@@ -351,6 +354,14 @@ body[data-platform="darwin"] .mk-fs-controls button {
   gap: 0;
   flex-shrink: 0;
 }
+/* Inside the Tauri / Electron desktop wrappers on macOS, the native
+   traffic-light buttons sit at the top-left of the window and would
+   overlap the AUDIO tab. The topbar pads itself down (above); the kind
+   rail lives outside .mk-shell so it needs the matching offset of its
+   own. Plain-browser tabs have no traffic lights, so no offset. */
+body[data-platform="darwin"]:not([data-shell="browser"]) .mk-kind-rail {
+  padding-top: 32px;
+}
 .mk-kind-tab {
   display: flex;
   align-items: center;
@@ -391,10 +402,52 @@ body[data-platform="darwin"] .mk-fs-controls button {
    between the search box (fixed 280px) and the brand. */
 .mk-root .mk-topbar {
   grid-template-columns: auto 1fr auto;
+  /* Pull the search-wrap flush with the kind-rail edge - the default
+     14px padding leaves a visible gap that reads as wasted space.
+     Right side keeps the padding so Sign-out doesn't kiss the window
+     edge. Desktop wrappers override padding-left back via the
+     traffic-light clearance rule above. */
+  padding-left: 6px;
 }
 .mk-root .mk-topbar-left {
   justify-self: start;
 }
 .mk-root .mk-topbar-right {
   justify-self: end;
+}
+
+/* Video-mode browse grid. Sidebar is null in video mode, so override the
+   default `220px 280px 1fr` audio grid: narrow video list on the left,
+   player gets all remaining width. Without this the player ends up in
+   the 280px column slot and looks like a thumbnail. */
+.mk-browse.mk-browse-video {
+  grid-template-columns: 320px 1fr;
+}
+
+/* The topbar search is wired to the audio library only; in video mode
+   it would silently search audio when the user clearly means "find a
+   video". Hide it until we wire kind-aware search. The search keyboard
+   shortcut (/) becomes a no-op which is acceptable for v0. */
+.mk-root[data-kind="video"] .mk-search-wrap {
+  display: none;
+}
+
+/* Tint the video.js player wrapper + <video> element with the app's
+   panel colour BEFORE any frame is decoded, so the empty player area
+   blends with the surrounding UI instead of standing out as a black
+   or grey rectangle. Chrome's default <video> background is a light
+   grey placeholder and video.js's default is solid black - either
+   reads as a placeholder bug next to the dark Tokyo-Night chrome.
+   Once frames arrive, the video pixels paint over this anyway. */
+.vjs-tech,
+.video-js,
+[data-vjs-player] {
+  background-color: var(--bg-elev, #1a1d2e);
+}
+/* In fullscreen the letterbox area should be solid black (cinema
+   convention - matches YouTube, Plex, Netflix). The panel tint above
+   would otherwise show as dark-blue bars beside / above the video. */
+.video-js.vjs-fullscreen,
+.video-js.vjs-fullscreen .vjs-tech {
+  background-color: #000;
 }

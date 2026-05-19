@@ -72,6 +72,14 @@
     subtitleUrl(_session, videoId, lang) {
       return `${videoApiBase()}/videos/${encodeURIComponent(videoId)}/subtitles/${encodeURIComponent(lang)}`;
     },
+
+    posterUrl(_session, videoId) {
+      return `${videoApiBase()}/videos/${encodeURIComponent(videoId)}/poster`;
+    },
+
+    thumbnailUrl(_session, videoId) {
+      return `${videoApiBase()}/videos/${encodeURIComponent(videoId)}/thumbnail`;
+    },
   };
 
   window.MK_VIDEO = MK_VIDEO;
