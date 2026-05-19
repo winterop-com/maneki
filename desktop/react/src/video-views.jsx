@@ -189,14 +189,12 @@ function VideoPlayerPane({ session, video, onClose }) {
     const el = videoRef.current;
     if (el === null || typeof window.videojs !== "function") return undefined;
     // Seed a smaller-than-default caption size BEFORE video.js init
-    // reads localStorage. video.js's 100% baseline is uncomfortably
-    // large at fullscreen and our previous attempts to override via
-    // setValues() or CSS either didn't apply (race with cue render)
-    // or broke the captions menu's "Text size" dropdown. This pre-
-    // seed writes the exact localStorage key video.js reads on init
-    // (`vjs-text-track-settings`) - but only when no user value
-    // exists yet, so anything the user picks from the menu after-
-    // wards wins on subsequent loads.
+    // reads localStorage. video.js's 100% baseline scales by player
+    // height; at 1080p+ fullscreen it eats a third of the screen.
+    // 0.50 (the menu's smallest preset) is still big in fullscreen,
+    // so go with the raw menu minimum AND apply it explicitly after
+    // init for good measure. Seed only writes when no user value
+    // exists, so anything picked from the menu afterwards wins.
     try {
       if (!window.localStorage.getItem("vjs-text-track-settings")) {
         window.localStorage.setItem(
@@ -252,14 +250,56 @@ function VideoPlayerPane({ session, video, onClose }) {
     // visualizer overlay. Cleared in the cleanup below.
     window.MK_VIDEO_PLAYER = player;
 
-    // Captions size: video.js's 100% baseline is bigger than feels
-    // right. Pre-seeding a smaller default via the textTrackSettings
-    // API doesn't actually apply (video.js's cue-render path reads
-    // settings late and partial setValues calls don't always land),
-    // so we lean on `persistTextTrackSettings: true` above instead:
-    // the user picks a size once from the captions-settings menu and
-    // it sticks across videos + reloads. Defaults to 100% on first
-    // visit.
+    // Captions size: also call setValues explicitly so video.js's
+    // initial cue render uses our smaller default even before it
+    // reads localStorage. The seed above covers persistence across
+    // reloads; this covers the current player's first frame.
+    try {
+      const settings = typeof player.textTrackSettings === "function"
+        ? player.textTrackSettings()
+        : player.textTrackSettings;
+      settings?.setValues?.({ fontPercent: "0.50" });
+      settings?.updateDisplay?.();
+    } catch (_e) {
+      // older video.js builds may not expose this; safe to skip.
+    }
+
+    // Rapid-scrub recovery. Fast-forwarding (right-arrow held / many
+    // quick presses) requests segments faster than ffmpeg produces
+    // them; video.js then blacklists the only playlist with "Playback
+    // cannot continue. No available working or supported playlists."
+    // and the player gets stuck in error state (picture frozen on
+    // last decoded frame, subtitles gone). For a single-playlist VOD
+    // there is no other playlist to fall back to, so blacklisting
+    // serves no purpose - just retry the same source. We listen for
+    // the player's `error` event, clear the error, and re-load the
+    // HLS URL at the position the player was trying to seek to.
+    const recoverFromBlacklist = () => {
+      try {
+        const err = player.error();
+        if (!err) return;
+        const msg = String(err.message || "");
+        // Match both video.js's wording and vhs's specific phrase.
+        if (!/playlists?|MEDIA_ERR_NETWORK|exhausted/i.test(msg)) return;
+        const lastTime = player.currentTime();
+        // Clear and reload. video.js refuses to do anything until
+        // error() is reset to null.
+        player.error(null);
+        player.src({
+          src: window.MK_VIDEO.hlsUrl(session, video.id),
+          type: "application/x-mpegURL",
+        });
+        player.one("loadedmetadata", () => {
+          try {
+            if (Number.isFinite(lastTime) && lastTime > 0) {
+              player.currentTime(lastTime);
+            }
+            player.play().catch(() => {});
+          } catch (_e) { /* dead player */ }
+        });
+      } catch (_e) { /* dead player */ }
+    };
+    player.on("error", recoverFromBlacklist);
 
     // Recovery for MSE buffer lockups. Two failure modes:
     //   1. alt-tab away, return, player stuck (browser throttles MSE
