@@ -508,8 +508,22 @@ def _range_response(path: Path, request: Request) -> Response:
         raise HTTPException(status_code=416, detail="only bytes ranges supported")
     start_str, _, end_str = ranges.partition("-")
     try:
-        start = int(start_str) if start_str else 0
-        end = int(end_str) if end_str else file_size - 1
+        if not start_str:
+            # Suffix range: "bytes=-N" means "the last N bytes" per
+            # RFC 7233 § 2.1, NOT "0 .. N". Some clients (mpv, exoplayer,
+            # media probes that fetch the moov atom at the file tail)
+            # depend on this; treating it as a prefix range returns the
+            # wrong bytes and breaks seeking / metadata detection.
+            if not end_str:
+                raise HTTPException(status_code=416, detail="malformed range")
+            suffix_len = int(end_str)
+            if suffix_len <= 0:
+                raise HTTPException(status_code=416, detail="malformed range")
+            start = max(0, file_size - suffix_len)
+            end = file_size - 1
+        else:
+            start = int(start_str)
+            end = int(end_str) if end_str else file_size - 1
     except ValueError as exc:
         raise HTTPException(status_code=416, detail="malformed range") from exc
 

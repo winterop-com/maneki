@@ -78,6 +78,41 @@ def test_stream_range_suffix_and_mid(client: TestClient) -> None:
     assert len(resp.content) == 100
 
 
+def test_stream_range_suffix_returns_last_N_bytes(client: TestClient) -> None:
+    """`Range: bytes=-N` is RFC 7233 suffix - the LAST N bytes, not 0..N.
+
+    Clients that probe the moov atom at the file tail (mpv, exoplayer,
+    some media probes) depend on this. Treating it as a prefix range
+    (the old behaviour) returned the wrong bytes and broke seeking.
+    """
+    entries = client.get("/api/videos").json()
+    video_id = entries[0]["id"]
+    resp = client.get(f"/api/videos/{video_id}/stream", headers={"Range": "bytes=-100"})
+    assert resp.status_code == 206
+    # Last 100 bytes of a 1024-byte file = bytes 924..1023
+    assert resp.headers["content-range"] == "bytes 924-1023/1024"
+    assert resp.headers["content-length"] == "100"
+    assert len(resp.content) == 100
+
+
+def test_stream_range_suffix_larger_than_file_clamps(client: TestClient) -> None:
+    """Asking for more suffix bytes than the file has returns the whole file (start clamped to 0)."""
+    entries = client.get("/api/videos").json()
+    video_id = entries[0]["id"]
+    resp = client.get(f"/api/videos/{video_id}/stream", headers={"Range": "bytes=-99999"})
+    assert resp.status_code == 206
+    assert resp.headers["content-range"] == "bytes 0-1023/1024"
+    assert resp.headers["content-length"] == "1024"
+
+
+def test_stream_range_zero_suffix_is_416(client: TestClient) -> None:
+    """`bytes=-0` is malformed (RFC says the suffix length must be > 0)."""
+    entries = client.get("/api/videos").json()
+    video_id = entries[0]["id"]
+    resp = client.get(f"/api/videos/{video_id}/stream", headers={"Range": "bytes=-0"})
+    assert resp.status_code == 416
+
+
 def test_stream_out_of_bounds_range_is_416(client: TestClient) -> None:
     entries = client.get("/api/videos").json()
     video_id = entries[0]["id"]
