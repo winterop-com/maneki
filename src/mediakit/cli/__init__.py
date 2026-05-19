@@ -26,14 +26,18 @@ from mediakit.library import (
 from mediakit.video.cli import app as video_app
 
 _APP_HELP = (
-    f"Self-hosted media toolkit (v{__version__}) - audio today, video next."
+    f"Self-hosted media toolkit (v{__version__}) - audio + video under one roof."
     """
+
+[bold]Top-level commands[/]
+
+  [cyan]mediakit serve[/]    Start the combined audio + video server (one process)
+  [cyan]mediakit library[/]  Summarise / scan one or more libraries
 
 [bold]Subcommand groups[/]
 
-  [cyan]mediakit library[/]  Summarise and scan configured libraries (audio + video)
-  [cyan]mediakit audio[/]    Music library: convert, audit, TUI, Subsonic server, web UI
-  [cyan]mediakit video[/]    Video server (base layer)
+  [cyan]mediakit audio[/]    Music: convert, audit, TUI, standalone Subsonic server, web UI
+  [cyan]mediakit video[/]    Video: standalone video server
 
 Pass [cyan]--help[/] after any group for its commands.
 
@@ -60,6 +64,41 @@ def _print_version(value: bool) -> None:
         return
     typer.echo(f"mediakit {__version__}")
     raise typer.Exit()
+
+
+@app.command("serve")
+def serve_cmd(
+    root: Annotated[Path, typer.Argument(help="Library root containing audio/ and/or videos/ subdirectories")],
+    host: Annotated[str, typer.Option("--host", help="Interface to bind")] = "127.0.0.1",
+    port: Annotated[int, typer.Option("--port", "-p", help="Port to bind")] = 8765,
+    audio_only: Annotated[bool, typer.Option("--audio-only", help="Mount only the audio (Subsonic) endpoints")] = False,
+    video_only: Annotated[bool, typer.Option("--video-only", help="Mount only the video endpoints")] = False,
+) -> None:
+    """Start the combined audio + video server.
+
+    Auto-detects what's at the root (audio/, videos/ subdirs) and mounts
+    the corresponding sub-apps. URL layout:
+
+      /capabilities         server identity + what's mounted
+      /audio/rest/*         Subsonic API (set this as the base URL in Subsonic clients)
+      /video/api/*          MediaKit-native video JSON API
+      /video/               throwaway demo HTML page
+    """
+    import uvicorn
+
+    from mediakit.serve_app import create_combined_app
+
+    if audio_only and video_only:
+        typer.echo("--audio-only and --video-only are mutually exclusive", err=True)
+        raise typer.Exit(code=2)
+
+    combined = create_combined_app(
+        root=root.resolve(),
+        enable_audio=not video_only,
+        enable_video=not audio_only,
+    )
+    typer.echo(f"mediakit serve - {root.resolve()} on http://{host}:{port}")
+    uvicorn.run(combined, host=host, port=port, log_level="info")
 
 
 @app.callback()

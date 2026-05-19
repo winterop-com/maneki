@@ -33,6 +33,9 @@ sudo apt install ffmpeg        # Debian / Ubuntu
 ## Quickstart
 
 ```bash
+# Unified — one process, one URL, both protocols (recommended):
+uvx mediakit serve ~/Downloads/library                     # audio on /audio/rest/*, video on /video/*
+
 # Shared across audio + video:
 uvx mediakit library summary ~/Downloads/library           # kind counts (audio + video)
 uvx mediakit library scan ~/Downloads/library              # full file inventory
@@ -41,11 +44,11 @@ uvx mediakit library scan ~/Downloads/library              # full file inventory
 uvx mediakit audio convert ./input ./output                          # convert rips
 uvx mediakit audio library audit ./output                            # audit
 uvx mediakit audio tui ./output                                      # TUI
-uvx mediakit audio serve ./output                                    # Subsonic server
+uvx mediakit audio serve ./output                                    # standalone Subsonic server
 uvx mediakit audio playlist gen ./output --seed <track> --minutes 60 # auto-generate a mix
 
-# Video (base layer):
-uvx mediakit video serve ~/Downloads/library                         # MediaKit-native HTTP API on :8765
+# Video (standalone):
+uvx mediakit video serve ~/Downloads/library                         # standalone video server on :8765
 ```
 
 ## Screenshots
