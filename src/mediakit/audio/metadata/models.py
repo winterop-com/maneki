@@ -6,8 +6,12 @@ from pathlib import Path
 
 from pydantic import BaseModel, ConfigDict, Field
 
+# .mp4 is intentionally absent: in a single-library setup a movie .mp4
+# would otherwise be treated as audio and turn the surrounding folder
+# into a phantom album. Audio-as-mp4 should use the canonical .m4a
+# extension (or .m4b for audiobooks).
 SUPPORTED_AUDIO_EXTS: frozenset[str] = frozenset(
-    {".flac", ".mp3", ".m4a", ".m4b", ".mp4", ".aac", ".ogg", ".opus", ".wav", ".aiff", ".aif"}
+    {".flac", ".mp3", ".m4a", ".m4b", ".aac", ".ogg", ".opus", ".wav", ".aiff", ".aif"}
 )
 
 

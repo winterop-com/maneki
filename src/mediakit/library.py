@@ -1,33 +1,44 @@
 """Cross-cutting library scan that summarises both audio and video under one root.
 
-`mediakit library [root]` calls into here. The shape stays small for the
-base layer: count audio + video files, report the subdir each was found in.
-Richer indexing (SQLite cache, audit, fix, retag) stays under the
-kind-specific subgroups (`mediakit audio library`, etc).
+`mediakit library [root]` calls into here. MediaKit treats a library as a
+single directory — the same root is scanned for both audio and video files
+(by extension). There is no `audio/`/`videos/` subdirectory convention;
+users point at one directory and the scanner finds what's there at any
+depth.
+
+The shape stays small for the base layer: count audio + video files under
+one root. Richer indexing (SQLite cache, audit, fix, retag) stays under
+the kind-specific subgroups (`mediakit audio library`, etc).
 """
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from collections.abc import Iterable, Iterator
 from pathlib import Path
 
-from mediakit.video.serve.scan import find_videos_dir
+from pydantic import BaseModel, ConfigDict
 
+# Mirrors mediakit.audio.metadata.SUPPORTED_AUDIO_EXTS (no .mp4 - the
+# .mp4 container is overwhelmingly used for video, so treating it as
+# audio in a single-library scan produces phantom albums). Includes
+# .wma and .ape which the metadata reader recognises read-only.
 AUDIO_EXTENSIONS = frozenset(
-    {".mp3", ".m4a", ".flac", ".wav", ".aiff", ".aif", ".ogg", ".opus", ".aac", ".wma", ".ape"}
+    {".mp3", ".m4a", ".m4b", ".flac", ".wav", ".aiff", ".aif", ".ogg", ".opus", ".aac", ".wma", ".ape"}
 )
 
-AUDIO_DIR_CANDIDATES = ("audio", "music")
+# Directory names we never descend into. Mirrors the video scanner's
+# skip list so summarise / scan_files don't walk the server's own
+# caches or git internals.
+_SCAN_SKIP_DIR_NAMES = frozenset({".mediakit", ".musickit", ".git", "__pycache__"})
 
 
-@dataclass(frozen=True)
-class LibrarySummary:
+class LibrarySummary(BaseModel):
     """A counted summary of one library root."""
 
+    model_config = ConfigDict(frozen=True, arbitrary_types_allowed=True)
+
     root: Path
-    audio_dir: Path | None
     audio_count: int
-    video_dir: Path | None
     video_count: int
 
     @property
@@ -36,59 +47,80 @@ class LibrarySummary:
         return self.audio_count == 0 and self.video_count == 0
 
 
-def find_audio_dir(root: Path) -> Path | None:
-    """Return the audio (or music) subdirectory under root, case-insensitive."""
-    if not root.is_dir():
-        return None
-    for child in root.iterdir():
-        if child.is_dir() and child.name.lower() in AUDIO_DIR_CANDIDATES:
-            return child
-    return None
-
-
-def count_files_with_extensions(directory: Path, extensions: frozenset[str]) -> int:
-    """Recursively count files under directory whose suffix is in extensions."""
-    if not directory.is_dir():
-        return 0
-    return sum(1 for path in directory.rglob("*") if path.is_file() and path.suffix.lower() in extensions)
-
-
-def summarize(root: Path) -> LibrarySummary:
-    """Scan a single library root and return per-kind file counts."""
-    audio_dir = find_audio_dir(root)
-    video_dir = find_videos_dir(root)
-    return LibrarySummary(
-        root=root,
-        audio_dir=audio_dir,
-        audio_count=count_files_with_extensions(audio_dir, AUDIO_EXTENSIONS) if audio_dir else 0,
-        video_dir=video_dir,
-        video_count=_count_videos(video_dir) if video_dir else 0,
-    )
-
-
-def summarize_many(roots: list[Path]) -> list[LibrarySummary]:
-    """Summarize a list of library roots."""
-    return [summarize(r) for r in roots]
-
-
-@dataclass(frozen=True)
-class FileEntry:
+class FileEntry(BaseModel):
     """One file found during a scan."""
+
+    model_config = ConfigDict(frozen=True, arbitrary_types_allowed=True)
 
     rel_path: Path
     size_bytes: int
     kind: str  # "audio" or "video"
 
 
-@dataclass(frozen=True)
-class ScanResult:
+class ScanResult(BaseModel):
     """Full file inventory for one library root."""
 
+    model_config = ConfigDict(frozen=True, arbitrary_types_allowed=True)
+
     root: Path
-    audio_dir: Path | None
-    video_dir: Path | None
     audio: list[FileEntry]
     video: list[FileEntry]
+
+
+def _iter_files(root: Path, extensions: frozenset[str]) -> Iterator[Path]:
+    """Yield every file under root whose suffix is in `extensions`.
+
+    Skips cache / VCS directories so a library walk never trips into
+    `.mediakit/` (server-managed cache) or `.git/`.
+    """
+    if not root.is_dir():
+        return
+    stack = [root]
+    while stack:
+        current = stack.pop()
+        try:
+            entries = list(current.iterdir())
+        except OSError:
+            continue
+        for child in entries:
+            if child.is_dir():
+                if child.name in _SCAN_SKIP_DIR_NAMES:
+                    continue
+                stack.append(child)
+            elif child.is_file() and child.suffix.lower() in extensions:
+                yield child
+
+
+def _count(root: Path, extensions: frozenset[str]) -> int:
+    return sum(1 for _ in _iter_files(root, extensions))
+
+
+def has_audio(root: Path) -> bool:
+    """True if there is at least one audio file anywhere under root."""
+    return next(_iter_files(root, AUDIO_EXTENSIONS), None) is not None
+
+
+def has_video(root: Path) -> bool:
+    """True if there is at least one video file anywhere under root."""
+    from mediakit.video.serve.scan import VIDEO_EXTENSIONS
+
+    return next(_iter_files(root, VIDEO_EXTENSIONS), None) is not None
+
+
+def summarize(root: Path) -> LibrarySummary:
+    """Scan a single library root and return per-kind file counts."""
+    from mediakit.video.serve.scan import VIDEO_EXTENSIONS
+
+    return LibrarySummary(
+        root=root,
+        audio_count=_count(root, AUDIO_EXTENSIONS),
+        video_count=_count(root, VIDEO_EXTENSIONS),
+    )
+
+
+def summarize_many(roots: Iterable[Path]) -> list[LibrarySummary]:
+    """Summarize a list of library roots."""
+    return [summarize(r) for r in roots]
 
 
 def scan_files(root: Path) -> ScanResult:
@@ -97,43 +129,28 @@ def scan_files(root: Path) -> ScanResult:
     Cheap: filesystem stat only, no ffprobe / no Mutagen / no DB write. Use this
     for an inventory dump. Persistent indexing (SQLite cache) is a later layer.
     """
-    audio_dir = find_audio_dir(root)
-    video_dir = find_videos_dir(root)
-    audio_entries = _walk(audio_dir, AUDIO_EXTENSIONS, kind="audio") if audio_dir else []
-    video_entries = _walk(video_dir, _video_extensions(), kind="video") if video_dir else []
+    from mediakit.video.serve.scan import VIDEO_EXTENSIONS
+
     return ScanResult(
         root=root,
-        audio_dir=audio_dir,
-        video_dir=video_dir,
-        audio=audio_entries,
-        video=video_entries,
+        audio=_walk(root, AUDIO_EXTENSIONS, kind="audio"),
+        video=_walk(root, VIDEO_EXTENSIONS, kind="video"),
     )
 
 
-def scan_many(roots: list[Path]) -> list[ScanResult]:
+def scan_many(roots: Iterable[Path]) -> list[ScanResult]:
     """Scan a list of library roots."""
     return [scan_files(r) for r in roots]
 
 
-def _walk(directory: Path, extensions: frozenset[str], kind: str) -> list[FileEntry]:
+def _walk(root: Path, extensions: frozenset[str], kind: str) -> list[FileEntry]:
     out: list[FileEntry] = []
-    for path in sorted(directory.rglob("*")):
-        if path.is_file() and path.suffix.lower() in extensions:
-            out.append(
-                FileEntry(
-                    rel_path=path.relative_to(directory),
-                    size_bytes=path.stat().st_size,
-                    kind=kind,
-                )
+    for path in sorted(_iter_files(root, extensions)):
+        out.append(
+            FileEntry(
+                rel_path=path.relative_to(root),
+                size_bytes=path.stat().st_size,
+                kind=kind,
             )
+        )
     return out
-
-
-def _count_videos(directory: Path) -> int:
-    return count_files_with_extensions(directory, _video_extensions())
-
-
-def _video_extensions() -> frozenset[str]:
-    from mediakit.video.serve.scan import VIDEO_EXTENSIONS
-
-    return VIDEO_EXTENSIONS
