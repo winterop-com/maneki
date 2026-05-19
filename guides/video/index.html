@@ -1,0 +1,1876 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="Convert messy audio rips into a clean tagged library; play locally or stream over Tailscale via a Subsonic-compatible server.">
+      
+      
+      
+        <link rel="canonical" href="https://winterop-com.github.io/maneki/guides/video/">
+      
+      
+        <link rel="prev" href="../playlist/">
+      
+      
+        <link rel="next" href="../desktop/">
+      
+      
+        
+      
+      
+      <link rel="icon" href="../../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.6">
+    
+    
+      
+        <title>Video pipeline - Maneki</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../assets/stylesheets/main.484c7ddc.min.css">
+      
+        
+        <link rel="stylesheet" href="../../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+      <link rel="stylesheet" href="../../assets/_mkdocstrings.css">
+    
+      <link rel="stylesheet" href="../../stylesheets/claude.css">
+    
+    <script>__md_scope=new URL("../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="slate" data-md-color-primary="indigo" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#video-pipeline" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../.." title="Maneki" class="md-header__button md-logo" aria-label="Maneki" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            Maneki
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Video pipeline
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+    
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+          <a href="javascript:void(0)" class="md-search__icon md-icon" title="Share" aria-label="Share" data-clipboard data-clipboard-text="" data-md-component="search-share" tabindex="-1">
+            
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M18 16.08c-.76 0-1.44.3-1.96.77L8.91 12.7c.05-.23.09-.46.09-.7s-.04-.47-.09-.7l7.05-4.11c.54.5 1.25.81 2.04.81a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3c0 .24.04.47.09.7L8.04 9.81C7.5 9.31 6.79 9 6 9a3 3 0 0 0-3 3 3 3 0 0 0 3 3c.79 0 1.5-.31 2.04-.81l7.12 4.15c-.05.21-.08.43-.08.66 0 1.61 1.31 2.91 2.92 2.91s2.92-1.3 2.92-2.91A2.92 2.92 0 0 0 18 16.08"/></svg>
+          </a>
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/winterop-com/maneki" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    winterop-com/maneki
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../.." title="Maneki" class="md-nav__button md-logo" aria-label="Maneki" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    Maneki
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/winterop-com/maneki" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    winterop-com/maneki
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../.." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../quickstart/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Quickstart
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Server
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Server
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../serve-unified/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    maneki serve
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../library/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    maneki library
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_4" >
+        
+          
+          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Audio
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Audio
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../convert/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    audio convert
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../audio-library/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    audio library
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../inspect/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    audio inspect
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../ui/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    audio ui
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../playlist/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    audio playlist
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+      
+        
+      
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_5" id="__nav_5_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Video
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_5_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_5">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Video
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Video pipeline
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Video pipeline
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#quick-start" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Quick start
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#endpoints" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Endpoints
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Endpoints">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#get-video" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        GET /video/
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#get-capabilities" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        GET /capabilities
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#get-videoapivideos" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        GET /video/api/videos
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#get-videoapivideosidstream" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        GET /video/api/videos/{id}/stream
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#get-videoapibrowsepathrel" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        GET /video/api/browse?path=&lt;rel&gt;
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#get-videoapivideosidposter" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        GET /video/api/videos/{id}/poster
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#get-videoapivideosidthumbnail" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        GET /video/api/videos/{id}/thumbnail
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#prewarm" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Prewarm
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#get-videoapivideosidplay" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        GET /video/api/videos/{id}/play
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#get-videoapivideosidhlsfilename" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        GET /video/api/videos/{id}/hls/{filename}
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#get-videoapivideosidsubtitles" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        GET /video/api/videos/{id}/subtitles
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#get-videoapivideosidsubtitleskey" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        GET /video/api/videos/{id}/subtitles/{key}
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#browser-compatibility" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Browser compatibility
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#why-the-base-layer" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Why the base layer
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#cli" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        CLI
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#see-also" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        See also
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_6" >
+        
+          
+          <label class="md-nav__link" for="__nav_6" id="__nav_6_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Clients
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_6_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_6">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Clients
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../desktop/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Desktop apps
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../mobile/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Mobile (Subsonic)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_7" >
+        
+          
+          <label class="md-nav__link" for="__nav_7" id="__nav_7_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Reference
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_7_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_7">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Reference
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Architecture
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../edge-cases/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Edge cases
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api-reference/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    API
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_8" >
+        
+          
+          <label class="md-nav__link" for="__nav_8" id="__nav_8_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Project
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_8_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_8">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Project
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../development/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Development
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../roadmap/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Roadmap
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#quick-start" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Quick start
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#endpoints" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Endpoints
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Endpoints">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#get-video" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        GET /video/
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#get-capabilities" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        GET /capabilities
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#get-videoapivideos" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        GET /video/api/videos
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#get-videoapivideosidstream" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        GET /video/api/videos/{id}/stream
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#get-videoapibrowsepathrel" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        GET /video/api/browse?path=&lt;rel&gt;
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#get-videoapivideosidposter" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        GET /video/api/videos/{id}/poster
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#get-videoapivideosidthumbnail" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        GET /video/api/videos/{id}/thumbnail
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#prewarm" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Prewarm
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#get-videoapivideosidplay" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        GET /video/api/videos/{id}/play
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#get-videoapivideosidhlsfilename" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        GET /video/api/videos/{id}/hls/{filename}
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#get-videoapivideosidsubtitles" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        GET /video/api/videos/{id}/subtitles
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#get-videoapivideosidsubtitleskey" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        GET /video/api/videos/{id}/subtitles/{key}
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#browser-compatibility" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Browser compatibility
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#why-the-base-layer" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Why the base layer
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#cli" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        CLI
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#see-also" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        See also
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+  
+
+
+<h1 id="video-pipeline">Video pipeline<a class="headerlink" href="#video-pipeline" title="Permanent link">&para;</a></h1>
+<p>When the library root contains video files, <code>maneki serve</code> mounts the video pipeline under <code>/video/*</code>. The server auto-detects what's in the root and mounts the kinds it finds. The pipeline ships:</p>
+<ul>
+<li>A throwaway HTML demo page at <code>/video/</code> that lists every video (with title, duration, and size) and plays the one you pick via HLS.</li>
+<li>Raw byte streaming with HTTP Range at <code>/video/api/videos/{id}/stream</code> (for external players like VLC / mpv).</li>
+<li>On-the-fly ffmpeg-piped fragmented-MP4 streaming at <code>/video/api/videos/{id}/play</code> (one-shot fMP4 — no seek, no total duration, but cheap).</li>
+<li>On-the-fly HLS at <code>/video/api/videos/{id}/hls/{filename}</code> (MPEG-TS segments transcoded on demand from a synthesised VOD manifest; recommended for browser playback because it gives the player full duration, seek-anywhere, and re-encodes when needed).</li>
+</ul>
+<p>The SPA at <code>/</code> (mount with <code>--ui</code>) is the primary client; the demo page is kept for quick debugging.</p>
+<h2 id="quick-start">Quick start<a class="headerlink" href="#quick-start" title="Permanent link">&para;</a></h2>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>maneki<span class="w"> </span>serve<span class="w"> </span>~/Downloads/library<span class="w"> </span>--ui
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="c1"># maneki serve - /Users/morteoh/Downloads/library on http://127.0.0.1:8765 (SPA at /, workers=auto)</span>
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="c1"># INFO:     Uvicorn running on http://127.0.0.1:8765</span>
+</code></pre></div>
+<p>Then in another terminal:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>curl<span class="w"> </span>-s<span class="w"> </span>http://127.0.0.1:8765/capabilities<span class="w"> </span><span class="p">|</span><span class="w"> </span>jq
+<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="c1"># {</span>
+<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a><span class="c1">#   &quot;server&quot;: &quot;maneki&quot;,</span>
+<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a><span class="c1">#   &quot;version&quot;: &quot;0.1.0&quot;,</span>
+<a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a><span class="c1">#   &quot;audio&quot;: true,</span>
+<a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a><span class="c1">#   &quot;video&quot;: true,</span>
+<a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a><span class="c1">#   &quot;endpoints&quot;: {</span>
+<a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a><span class="c1">#     &quot;audio_subsonic&quot;: &quot;/audio/rest&quot;,</span>
+<a id="__codelineno-1-9" name="__codelineno-1-9" href="#__codelineno-1-9"></a><span class="c1">#     &quot;video_api&quot;: &quot;/video/api&quot;,</span>
+<a id="__codelineno-1-10" name="__codelineno-1-10" href="#__codelineno-1-10"></a><span class="c1">#     &quot;auth_login&quot;: &quot;/auth/login&quot;</span>
+<a id="__codelineno-1-11" name="__codelineno-1-11" href="#__codelineno-1-11"></a><span class="c1">#   }</span>
+<a id="__codelineno-1-12" name="__codelineno-1-12" href="#__codelineno-1-12"></a><span class="c1"># }</span>
+<a id="__codelineno-1-13" name="__codelineno-1-13" href="#__codelineno-1-13"></a>
+<a id="__codelineno-1-14" name="__codelineno-1-14" href="#__codelineno-1-14"></a>curl<span class="w"> </span>-s<span class="w"> </span>http://127.0.0.1:8765/video/api/videos<span class="w"> </span><span class="p">|</span><span class="w"> </span>jq
+<a id="__codelineno-1-15" name="__codelineno-1-15" href="#__codelineno-1-15"></a><span class="c1"># [</span>
+<a id="__codelineno-1-16" name="__codelineno-1-16" href="#__codelineno-1-16"></a><span class="c1">#   {</span>
+<a id="__codelineno-1-17" name="__codelineno-1-17" href="#__codelineno-1-17"></a><span class="c1">#     &quot;id&quot;: &quot;movies-Some-Movie-2019-1080p&quot;,</span>
+<a id="__codelineno-1-18" name="__codelineno-1-18" href="#__codelineno-1-18"></a><span class="c1">#     &quot;name&quot;: &quot;Some.Movie.2019.1080p.BluRay.x264&quot;,</span>
+<a id="__codelineno-1-19" name="__codelineno-1-19" href="#__codelineno-1-19"></a><span class="c1">#     &quot;path&quot;: &quot;/Users/morteoh/Downloads/library/movies/Some.Movie.2019.1080p.BluRay.x264.mkv&quot;,</span>
+<a id="__codelineno-1-20" name="__codelineno-1-20" href="#__codelineno-1-20"></a><span class="c1">#     &quot;size_bytes&quot;: 2442979091,</span>
+<a id="__codelineno-1-21" name="__codelineno-1-21" href="#__codelineno-1-21"></a><span class="c1">#     &quot;rel_path&quot;: &quot;movies/Some.Movie.2019.1080p.BluRay.x264.mkv&quot;</span>
+<a id="__codelineno-1-22" name="__codelineno-1-22" href="#__codelineno-1-22"></a><span class="c1">#   },</span>
+<a id="__codelineno-1-23" name="__codelineno-1-23" href="#__codelineno-1-23"></a><span class="c1">#   ...</span>
+<a id="__codelineno-1-24" name="__codelineno-1-24" href="#__codelineno-1-24"></a><span class="c1"># ]</span>
+</code></pre></div>
+<p>Note <code>rel_path</code> is relative to the library root, not a subdirectory — there's no <code>videos/</code> convention.</p>
+<h2 id="endpoints">Endpoints<a class="headerlink" href="#endpoints" title="Permanent link">&para;</a></h2>
+<p>The server ships five endpoints — one HTML page, three JSON, one media stream.</p>
+<h3 id="get-video"><code>GET /video/</code><a class="headerlink" href="#get-video" title="Permanent link">&para;</a></h3>
+<p>Returns an HTML demo page (single-file, no build step, no frameworks). Lists every video found under the library root and plays the chosen one via the <code>/play</code> endpoint below. Visit <code>http://localhost:8765/video/</code> in any modern browser.</p>
+<p>The page exists to demonstrate the pipeline end-to-end without the React SPA wiring. It will be retired now that the SPA has a Video tab.</p>
+<h3 id="get-capabilities"><code>GET /capabilities</code><a class="headerlink" href="#get-capabilities" title="Permanent link">&para;</a></h3>
+<p>Server identity + which kinds are present at the root.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="p">{</span>
+<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="w">  </span><span class="nt">&quot;server&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;maneki&quot;</span><span class="p">,</span>
+<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="w">  </span><span class="nt">&quot;version&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;0.1.0&quot;</span><span class="p">,</span>
+<a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a><span class="w">  </span><span class="nt">&quot;audio&quot;</span><span class="p">:</span><span class="w"> </span><span class="kc">false</span><span class="p">,</span>
+<a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a><span class="w">  </span><span class="nt">&quot;video&quot;</span><span class="p">:</span><span class="w"> </span><span class="kc">true</span><span class="p">,</span>
+<a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a><span class="w">  </span><span class="nt">&quot;video_count&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">2</span>
+<a id="__codelineno-2-7" name="__codelineno-2-7" href="#__codelineno-2-7"></a><span class="p">}</span>
+</code></pre></div>
+<h3 id="get-videoapivideos"><code>GET /video/api/videos</code><a class="headerlink" href="#get-videoapivideos" title="Permanent link">&para;</a></h3>
+<p>Flat list of every video file anywhere under the library root. One entry per file:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="p">{</span>
+<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a><span class="w">  </span><span class="nt">&quot;id&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;movies-Some-Movie-2019-1080p-a3f1c2d4&quot;</span><span class="p">,</span>
+<a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a><span class="w">  </span><span class="nt">&quot;name&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;Some.Movie.2019.1080p.BluRay.x264&quot;</span><span class="p">,</span>
+<a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a><span class="w">  </span><span class="nt">&quot;path&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;/absolute/path/to/file.mkv&quot;</span><span class="p">,</span>
+<a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a><span class="w">  </span><span class="nt">&quot;size_bytes&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">2442979091</span><span class="p">,</span>
+<a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a><span class="w">  </span><span class="nt">&quot;rel_path&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;movies/Some.Movie.2019.1080p.BluRay.x264.mkv&quot;</span>
+<a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a><span class="p">}</span>
+</code></pre></div>
+<p>The <code>id</code> is <code>&lt;readable-slug&gt;-&lt;8-hex-sha256&gt;</code> derived from the relative path under the library root. The hash suffix is what makes the id collision-free: two paths that flatten to the same slug (<code>tv/ch01.mkv</code> and <code>tv-ch01.mkv</code> at the root, say) still get distinct ids. Ids stay stable across rescans until the file is renamed or moved.</p>
+<h3 id="get-videoapivideosidstream"><code>GET /video/api/videos/{id}/stream</code><a class="headerlink" href="#get-videoapivideosidstream" title="Permanent link">&para;</a></h3>
+<p>Serves the raw bytes with HTTP Range support, so a browser's <code>&lt;video&gt;</code> tag (or VLC, mpv, curl) can seek mid-file. Returns:</p>
+<ul>
+<li><code>200 OK</code> for the full file when no Range header is present</li>
+<li><code>206 Partial Content</code> with <code>Content-Range: bytes &lt;start&gt;-&lt;end&gt;/&lt;total&gt;</code> when a Range header is present</li>
+<li><code>404</code> for unknown ids</li>
+<li><code>416</code> for malformed or out-of-bounds Range headers</li>
+</ul>
+<p>No transcoding. The Content-Type is derived from the file extension (<code>video/x-matroska</code> for <code>.mkv</code>, <code>video/mp4</code> for <code>.mp4</code> / <code>.m4v</code>, etc).</p>
+<h3 id="get-videoapibrowsepathrel"><code>GET /video/api/browse?path=&lt;rel&gt;</code><a class="headerlink" href="#get-videoapibrowsepathrel" title="Permanent link">&para;</a></h3>
+<p>Folder navigator. Lists the immediate children of <code>&lt;root&gt;/&lt;rel&gt;/</code>: subdirectories that contain at least one video somewhere below them (with a descendant <code>video_count</code>), then video files in the current directory. Path is POSIX-style and relative to the library root; an empty path browses the root itself. The server's own <code>.maneki/</code> cache is always skipped.</p>
+<p>Response shape:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="p">{</span>
+<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a><span class="w">  </span><span class="nt">&quot;rel_path&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;tv/Show A&quot;</span><span class="p">,</span>
+<a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a><span class="w">  </span><span class="nt">&quot;crumbs&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">&quot;tv&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;Show A&quot;</span><span class="p">],</span>
+<a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a><span class="w">  </span><span class="nt">&quot;folders&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[{</span><span class="nt">&quot;name&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;Season 1&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;rel_path&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;tv/Show A/Season 1&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;video_count&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">13</span><span class="p">}],</span>
+<a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a><span class="w">  </span><span class="nt">&quot;videos&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[]</span>
+<a id="__codelineno-4-6" name="__codelineno-4-6" href="#__codelineno-4-6"></a><span class="p">}</span>
+</code></pre></div>
+<p>The SPA folder browser drives off this. Returns 404 when the path escapes the videos directory (path-traversal guard) or doesn't exist.</p>
+<h3 id="get-videoapivideosidposter"><code>GET /video/api/videos/{id}/poster</code><a class="headerlink" href="#get-videoapivideosidposter" title="Permanent link">&para;</a></h3>
+<p>Contact-sheet PNG: header strip with filename + codec/resolution/duration/size, then a 3×3 grid of timestamped frame thumbnails sampled across the middle 90% of the timeline. Used as the video.js player's <code>poster</code> so the paused player shows the video at a glance instead of a blank canvas.</p>
+<p>Lazy: first request transcodes ~9 frames via ffmpeg (~1–2s on a modern CPU); cached to <code>&lt;root&gt;/.maneki/posters/&lt;id&gt;.png</code> so re-requests are file-serve cheap. Returns 503 if ffmpeg or ffprobe is missing.</p>
+<h3 id="get-videoapivideosidthumbnail"><code>GET /video/api/videos/{id}/thumbnail</code><a class="headerlink" href="#get-videoapivideosidthumbnail" title="Permanent link">&para;</a></h3>
+<p>Single-frame JPEG sampled at ~30% into the timeline, scaled to 320px wide. Used for the row icon in the SPA video list. Much smaller payload than the full poster (~10 KB vs ~800 KB) so the list paints fast even with hundreds of videos. Cached to <code>&lt;root&gt;/.maneki/posters/&lt;id&gt;.thumb.jpg</code>.</p>
+<h3 id="prewarm">Prewarm<a class="headerlink" href="#prewarm" title="Permanent link">&para;</a></h3>
+<p>On startup the combined <code>maneki serve</code> walks the library once and, in the background, generates:</p>
+<ol>
+<li>Every missing thumbnail then poster (concurrency 2).</li>
+<li>Every missing HLS <code>seg-0.ts</code> (concurrency 1) so first-play of any video drops from 1-3s of cold ffmpeg to ~30ms of cache hit.</li>
+</ol>
+<p>Both tasks race to fill the cache while the server stays responsive. With a ~100-video library the thumbnail pass finishes in seconds, posters in a couple of minutes, and HLS seg-0 in a few minutes more (variable - depends on source resolution and codec). Re-runs are cheap because cached files are skipped.</p>
+<h3 id="get-videoapivideosidplay"><code>GET /video/api/videos/{id}/play</code><a class="headerlink" href="#get-videoapivideosidplay" title="Permanent link">&para;</a></h3>
+<p>ffmpeg-piped, fragmented-MP4 stream designed for browser <code>&lt;video&gt;</code> elements:</p>
+<ul>
+<li><strong>Video stream</strong>: copied through (no re-encode = cheap, no quality loss).</li>
+<li><strong>Audio</strong>: always re-encoded to stereo AAC at 192 kbps so browsers can play it. Source codecs like E-AC3 (Dolby Digital Plus, common in MKV releases) are not natively supported by Chrome / Firefox; this endpoint sidesteps that.</li>
+<li><strong>Container</strong>: fragmented MP4 with <code>moov</code> written upfront (<code>-movflags +frag_keyframe+empty_moov+default_base_moof</code>), so playback starts immediately rather than waiting for the file to finish.</li>
+</ul>
+<p>Returns <code>503 Service Unavailable</code> if <code>ffmpeg</code> is not on <code>PATH</code>. Returns <code>404</code> for unknown ids.</p>
+<p>Trade-offs: this endpoint streams one big fMP4 over one HTTP response. No <code>&lt;video&gt;</code> seek mid-file, no duration metadata (the player shows it as a live stream until ffmpeg finishes). For seek + duration + codec compatibility past audio, use the HLS endpoint below.</p>
+<h3 id="get-videoapivideosidhlsfilename"><code>GET /video/api/videos/{id}/hls/{filename}</code><a class="headerlink" href="#get-videoapivideosidhlsfilename" title="Permanent link">&para;</a></h3>
+<p>On-demand HLS. The manifest is synthesised upfront from ffprobe's duration (every segment URL + EXTINF + <code>#EXT-X-ENDLIST</code>), so the player gets a true VOD timeline immediately. Each segment is transcoded lazily on first request:</p>
+<ul>
+<li><code>index.m3u8</code>: built from the video's duration. Returned instantly. Marked <code>#EXT-X-PLAYLIST-TYPE:VOD</code> with <code>#EXT-X-ENDLIST</code> so video.js / Safari / hls.js show the scrub bar and allow seeking anywhere.</li>
+<li><code>seg-NNNN.ts</code>: spawns a short ffmpeg that seeks to <code>N * 6s</code>, encodes that 6s slice, and writes the segment to disk. Cached for the server lifetime. Typical transcode time: 0.5–1.5s per 6s segment on a modern CPU.</li>
+</ul>
+<p>Why MPEG-TS (.ts) and not fragmented MP4 (.m4s): per-segment ffmpeg runs each produce their own init segment, and the codec headers (<code>SPS/PPS</code>) differ subtly between invocations. fMP4 needs one shared init across every segment, so cross-segment playback breaks with MEDIA_ERR_DECODE. MPEG-TS segments carry their own headers and stitch cleanly.</p>
+<p>Encoding choices:
+- <strong>Video</strong>: always re-encoded with libx264 (<code>-preset veryfast -crf 23</code>) so each segment starts on a forced keyframe (<code>-force_key_frames expr:gte(t,0)</code>). Re-encoding costs a bit of CPU but lets segments be independently seekable - the price for any-position scrub on any source codec.
+- <strong>Audio</strong>: stereo AAC at 192 kbps.
+- <strong>Timestamps</strong>: <code>-copyts</code> + <code>-to</code> preserve absolute source-timeline PTS so each segment's playback position matches the manifest's EXTINF cumulative time. (Note: <code>-t duration</code> would mis-fire here - with <code>-copyts</code> the output PTS already starts at <code>start_s</code>, so <code>-t</code> is interpreted as "stop when output PTS hits duration" which is in the past for any segment past 0.)</p>
+<p>Returns <code>503</code> if ffmpeg is missing, <code>400</code> if the requested filename looks like a path-traversal attempt or has an unparseable segment index, <code>404</code> for unknown video ids or out-of-range segments, <code>500</code> if the ffmpeg subprocess fails (stderr tail is included in the detail).</p>
+<p><strong>v0 lifecycle limitation</strong>: segments are cached per video for the lifetime of the server process - no automatic cleanup. Restart the server to free the per-video temp directories under <code>/tmp/maneki-hls/&lt;id&gt;/</code>. A TTL + eviction layer is a follow-up.</p>
+<h3 id="get-videoapivideosidsubtitles"><code>GET /video/api/videos/{id}/subtitles</code><a class="headerlink" href="#get-videoapivideosidsubtitles" title="Permanent link">&para;</a></h3>
+<p>Returns the unified list of subtitle tracks for the video - both <code>.srt</code>/<code>.vtt</code> sidecars discovered next to the file AND text-based subtitle streams embedded in the container (subrip, ass, mov_text). Image-based codecs (PGS, DVD VobSub, DVB) are filtered out because they'd need OCR to become WebVTT.</p>
+<p>Each entry has a <code>track_id</code> like <code>sidecar:en</code> or <code>embed:2</code>, a human <code>label</code> for the picker ("English", "Japanese (SDH)"), a <code>lang</code> tag, and a <code>default</code> flag derived from the stream's disposition. The SPA renders one <code>&lt;track&gt;</code> element per entry; video.js exposes the language picker on the player chrome.</p>
+<h3 id="get-videoapivideosidsubtitleskey"><code>GET /video/api/videos/{id}/subtitles/{key}</code><a class="headerlink" href="#get-videoapivideosidsubtitleskey" title="Permanent link">&para;</a></h3>
+<p>Serves one subtitle track as WebVTT. <code>key</code> is either a sidecar language tag (<code>en</code>, <code>und</code>, ...) or <code>embed-&lt;stream_index&gt;</code> for embedded streams. Sidecars are converted on the fly (.srt → .vtt timestamps + header). Embedded streams are extracted via <code>ffmpeg -map 0:&lt;index&gt; -c:s webvtt</code> and the result is cached at <code>&lt;root&gt;/.maneki/subs/&lt;id&gt;/embed-&lt;N&gt;.vtt</code> so re-requests are file-serve cheap.</p>
+<h2 id="browser-compatibility">Browser compatibility<a class="headerlink" href="#browser-compatibility" title="Permanent link">&para;</a></h2>
+<p>What plays in a browser depends on the file's codecs:</p>
+<table>
+<thead>
+<tr>
+<th>Codec combo (typical)</th>
+<th>Safari</th>
+<th>Chrome</th>
+<th>Firefox</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>H.264 + AAC in MP4</td>
+<td>yes</td>
+<td>yes</td>
+<td>yes</td>
+</tr>
+<tr>
+<td>H.265 + AAC in MP4</td>
+<td>yes</td>
+<td>partial</td>
+<td>no</td>
+</tr>
+<tr>
+<td>H.264 + AAC in MKV</td>
+<td>varies</td>
+<td>no</td>
+<td>partial</td>
+</tr>
+<tr>
+<td>H.264 + E-AC3 (5.1) in MKV</td>
+<td>varies</td>
+<td>no</td>
+<td>no</td>
+</tr>
+<tr>
+<td>H.265 + DTS / TrueHD</td>
+<td>no</td>
+<td>no</td>
+<td>no</td>
+</tr>
+</tbody>
+</table>
+<p>The <code>/play</code> endpoint covers the audio-codec problem (E-AC3, AC-3, DTS, TrueHD → AAC) and the MKV container problem (remuxes to MP4). Video stream is copied through, so files whose <strong>video</strong> codec is incompatible (H.265 in non-Safari browsers, MPEG-2) still won't play via <code>/play</code> — for those, use the HLS endpoint which transcodes the video stream to H.264 when needed. The demo page at <code>/</code> uses HLS for this reason.</p>
+<p>For files that won't play even via HLS (rare — anything ffmpeg can decode, libx264 can re-encode), point an external player (VLC, mpv, Infuse) at the <code>/stream</code> URL.</p>
+<h2 id="why-the-base-layer">Why the base layer<a class="headerlink" href="#why-the-base-layer" title="Permanent link">&para;</a></h2>
+<p>Stage 2's video work is built in layers:</p>
+<ol>
+<li><strong>Base</strong> — scan, list, raw stream. Done.</li>
+<li><strong>Transcode + demo page</strong> — ffmpeg-piped fMP4 at <code>/play</code>, browser-friendly. Done.</li>
+<li><strong>HLS</strong> — on-demand MPEG-TS segments behind a synthesised VOD manifest. Seek anywhere, full duration, scrub bar works. Done.</li>
+<li><strong>SPA video views</strong> — the desktop web UI gets a real Video tab (vertical AUDIO/VIDEO rail) playing through video.js v8. Done.</li>
+<li><strong>Subtitle and audio-track pickers</strong> — sidecar <code>.srt</code> discovery + WebVTT conversion. Done. Embedded tracks and picker UI deferred.</li>
+<li><strong>House auth</strong> — bearer tokens at <code>/auth/login</code> protecting <code>/video/*</code> and future Maneki-native endpoints. Done.</li>
+</ol>
+<p>Each layer is independently demonstrable.</p>
+<h2 id="cli">CLI<a class="headerlink" href="#cli" title="Permanent link">&para;</a></h2>
+<p>The video pipeline rides on <code>maneki serve</code>; see <a href="../serve-unified/">the serve guide</a> for flags. The <code>maneki video</code> subgroup carries placeholders for tooling that doesn't belong on the serve command:</p>
+<ul>
+<li><code>maneki video convert</code> — no-op placeholder (reserved for organize / transcode semantics)</li>
+<li><code>maneki video library</code> — no-op placeholder (reserves the symmetric namespace with <code>maneki audio library</code>)</li>
+</ul>
+<h2 id="see-also">See also<a class="headerlink" href="#see-also" title="Permanent link">&para;</a></h2>
+<ul>
+<li><a href="../library/"><code>maneki library</code></a> — cross-cutting summary + scan that operates on both audio and video</li>
+<li><a href="../../architecture/">Architecture</a> — how the pieces fit together</li>
+</ul>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8z"/></svg>
+  Back to top
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["navigation.sections", "navigation.expand", "navigation.indexes", "navigation.top", "navigation.tracking", "toc.follow", "search.highlight", "search.share", "content.code.copy", "content.code.annotate"], "search": "../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../../assets/javascripts/bundle.79ae519e.min.js"></script>
+      
+    
+  </body>
+</html>
