@@ -1,176 +1,105 @@
-# `mediakit library`
+# Library
 
-Every operation that reads, mutates, or manages the converted library lives under `mediakit library`.
+`mediakit library` is the cross-cutting command that operates on a media library root containing both audio and video. It works across **multiple** library locations configured in `~/.config/mediakit/mediakit.toml`.
 
-```bash
-uvx mediakit library tree DIR              # rich.Tree of artists / albums / tracks
-uvx mediakit library audit DIR             # audit table with per-album warnings
-uvx mediakit library fix DIR               # apply deterministic fixes
-uvx mediakit library cover IMAGE DIR       # embed an image into every audio file
-uvx mediakit library cover-pick DIR        # semi-automated cover sourcing via musichoarders
-uvx mediakit library retag DIR             # in-place tag overrides
-uvx mediakit library index status DIR      # show index DB metadata + counts
-uvx mediakit library index drop DIR        # delete <DIR>/.mediakit/
-uvx mediakit library index rebuild DIR     # rebuild the index DB from scratch
-```
+For audio-specific deep operations (audit, retag, cover-pick, lyrics, ...) see [`mediakit audio library`](audio-library.md) — those stay under the audio subgroup.
 
-`DIR` is required for every subcommand.
+## Quick start
 
-## `tree` and `audit`
+Pass a path directly:
 
 ```bash
-uvx mediakit library tree   DIR [--json] [--no-cache] [--full-rescan]
-uvx mediakit library audit  DIR [--issues-only] [--json] [--no-cache] [--full-rescan]
+mediakit library summary ~/Downloads/library
+mediakit library scan ~/Downloads/library
 ```
 
-`tree` prints the `rich.Tree` view; `audit` prints the warnings table.
+Or configure one or more libraries once and skip the path:
 
+```toml
+# ~/.config/mediakit/mediakit.toml
+[libraries]
+locations = [
+  "~/Downloads/library",
+  "/Volumes/NAS/media",
+]
 ```
-Various Artists
-├── 1998 - Best Of Dance Hits of the 90-98s (18) ⚠
-└── 1998 - Party Hits (18) ⚠
 
-Imagine Dragons
-└── 2012 - Night Visions (11)
-```
-
-`--issues-only` on `audit` filters to flagged albums.
-
-### Audit rules
-
-Each rule appends to `album.warnings`. Multiple can fire on one album.
-
-| Rule | Triggers when |
-|---|---|
-| `no cover` | No embedded picture in any track AND no `cover.jpg` / `folder.jpg` / `front.jpg` sidecar. |
-| `low-res cover (Npx)` | Cover smaller than 500×500 px. |
-| `missing year` | No track has a `year` tag (after `_year_only` extraction). |
-| `mixed years: [...]` | Tracks disagree on year. |
-| `mixed album_artist: [...]` | Tracks disagree on album_artist (and the album isn't a compilation). |
-| `scene residue in album dir: '...'` | Album dirname has scene-rip residue (square brackets, FLAC tags, etc.). |
-| `scene residue in album tag: '...'` | Same in the ALBUM tag. |
-| `scene-domain artist dir: 'somesite.com'` | Artist directory looks like a scene-rip provenance string. |
-| `album dir is 'Unknown'` | Self-explanatory. |
-| `artist is 'Unknown Artist'` | Self-explanatory. |
-| `tag/path mismatch: tag=... dir=...` | The album's ALBUM tag doesn't match the directory name (NFC + casefold compare). |
-| `track gaps: missing [N, M, ...]` | Per-disc gaps — disc 1 missing track 4, etc. Smart enough to recognise continuous numbering across discs (mega-comps where disc 2's track 1 is numbered 10) and not flag those. |
-| `disc N track gaps: missing [...]` | Per-disc gaps on multi-disc albums. |
-| `no tracks read` | Album dir contains files but mutagen couldn't parse any. |
-
-## `fix`
+Then:
 
 ```bash
-uvx mediakit library fix DIR [--dry-run] [--prefer-dirname] [--no-cache] [--full-rescan]
+mediakit library              # summary across all configured locations
+mediakit library scan         # full inventory across all configured locations
 ```
 
-Applies the deterministic fixes:
+## Subcommands
 
-1. **Missing year** — query MusicBrainz for `(album, artist)`, accept the top match's date if score ≥ 90. Writes the year tag back to every track via `apply_tag_overrides`. Reflects in the in-memory model so the next step can see it.
-2. **Tag/path mismatch** — by default, **the tag wins**: the directory gets renamed to `naming.album_folder(tag_album, tag_year)`. Pass `--prefer-dirname` to invert: rewrite tags from the dir name (use this when you've hand-curated the dir layout and want tags to follow).
-3. The two fixes chain: missing-year fixes first so the rename below sees the new year.
+### `mediakit library`
 
-`--dry-run` prints what would change without writing anything.
+No subcommand. Summarises every library in `[libraries].locations`. Errors out with a helpful message if no config exists.
 
-Fixes that are NOT auto-applied:
-- Adding a missing cover — use `library cover-pick` (semi-automated) or `library cover IMAGE` (you provide the file).
-- Splitting an over-merged album — manual.
-- Re-tagging mixed-album_artist albums to a single value — `library retag` per dir.
+### `mediakit library summary [<path>]`
 
-## `cover` — embed an image
+Print kind counts for one library root, or for all configured locations if no path is given.
 
-```bash
-uvx mediakit library cover IMAGE DIR [--cover-max-edge PX] [--recursive/--no-recursive]
+Output:
+
+```
+Library: /Users/morteoh/Downloads/library
+  audio:     11 tracks   (audio/)
+  video:      2 files    (videos/)
 ```
 
-Embeds `IMAGE` (JPG/PNG) into every audio file under `DIR`. The image is normalised once (downscaled to fit the long-edge cap, JPEG-encoded for non-PNG sources) and then written to every supported audio file. Other tags are preserved — only the cover is replaced.
+### `mediakit library scan [<path>]`
 
-```bash
-uvx mediakit library cover ./output/Pink\ Floyd/1973\ -\ The\ Dark\ Side\ Of\ The\ Moon scan-of-the-LP.jpg
+Walk one library root (or all configured) and print every file found, grouped by kind. Cheap — filesystem stat only, no ffprobe / no Mutagen / no DB write. Use this as the inventory dump.
+
+Output:
+
+```
+Library: /Users/morteoh/Downloads/library
+
+  audio (audio/) - 11 tracks
+    Artist/Pearl Jam/2009 - Ten (Deluxe Edition)/01-01 - Once.m4a  (7.2 MB)
+    Artist/Pearl Jam/2009 - Ten (Deluxe Edition)/01-02 - Even Flow.m4a  (9.1 MB)
+    ...
+
+  video (videos/) - 2 files
+    The.Chair.Company.S01E01.1080p.mkv  (2.3 GB)
+    The.Chair.Company.S01E02.1080p.mkv  (2.3 GB)
 ```
 
-## `cover-pick` — semi-automated cover sourcing
+## Filesystem layout
 
-```bash
-uvx mediakit library cover-pick DIR [--all] [--no-embed] [--cover-max-edge PX] [--no-browser]
+`mediakit library` looks for two subdirectories under each library root:
+
+- **`audio/`** (or `music/`, case-insensitive) — music files. Recognised extensions: `.mp3`, `.m4a`, `.flac`, `.wav`, `.aiff`, `.aif`, `.ogg`, `.opus`, `.aac`, `.wma`, `.ape`.
+- **`videos/`** (or `video/`, case-insensitive) — video files. Recognised extensions: `.mkv`, `.mp4`, `.m4v`, `.webm`, `.mov`, `.avi`, `.ts`, `.m2ts`, `.wmv`.
+
+Both subdirectories are scanned recursively, so any internal organisation (artist / album folders for audio, `Movies/`+`Shows/` for video, or flat) works.
+
+If either subdir is missing, the summary or scan simply reports it (no audio, no video) and continues.
+
+## Config file (`~/.config/mediakit/mediakit.toml`)
+
+Schema (only the keys mediakit reads here are documented; audio-specific sections like `[server]` and `[acoustid]` live in the same file and are owned by the audio config):
+
+```toml
+[libraries]
+locations = [
+  "~/Downloads/library",
+  "/Volumes/NAS/media",
+]
 ```
 
-For each candidate album:
+`locations` is a list of paths. Tilde-expansion is applied so `~/Downloads/library` works as expected. Paths can be absolute or relative to the user's home; relative-to-cwd is not supported (be explicit).
 
-1. Print the album line + audit reason.
-2. Open the [musichoarders.xyz](https://covers.musichoarders.xyz/) pre-fill URL in your browser.
-3. Click any cover on the site to copy its URL (musichoarders' UI does this).
-4. Paste the URL back into the terminal — `s` to skip, `q` to quit.
-5. We download, validate, resize, save as `cover.jpg`, and (with `--embed`, default) re-embed into every track.
+## What this is not
 
-By default only flagged albums (no cover or low-res) are surfaced. Pass `--all` to walk every album.
+`mediakit library` is intentionally simple: it counts and lists files. It does not:
 
-Honours [musichoarders' integration policy](https://covers.musichoarders.xyz/) — never scrapes the site, just pre-fills the search and lets you pick.
+- index into a SQLite cache (that's the next layer — `mediakit serve` does its own indexing today; a persistent scan-into-cache verb may land later)
+- ffprobe video files (probe is on demand via the video server)
+- audit or fix audio metadata (use [`mediakit audio library audit`](audio-library.md))
+- extract artwork or subtitles (file inventory only)
 
-## `retag` — in-place tag overrides
-
-```bash
-uvx mediakit library retag DIR [--title T] [--artist A] [--album-artist AA] [--album AL] \
-                                   [--year YYYY] [--genre G] \
-                                   [--track-total N] [--disc-total N] \
-                                   [--recursive/--no-recursive] [--rename]
-```
-
-Only fields you explicitly pass are written; everything else is preserved (including covers, replaygain, MusicBrainz IDs). Useful when an album converted with the wrong name and you don't want to re-encode just to fix a tag.
-
-```bash
-uvx mediakit library retag path/to/album/01.m4a --year 1976
-uvx mediakit library retag path/to/album --track-total 12
-uvx mediakit library retag path/to/album --genre ''
-```
-
-`--rename` renames `DIR` to `YYYY - Album` based on the post-update tags after the retag completes.
-
-## `lyrics` — fetch synced lyrics from LRCLIB
-
-```bash
-uvx mediakit library lyrics fetch DIR                  # populate missing sidecars
-uvx mediakit library lyrics fetch DIR --dry-run        # show intent without hitting the network
-uvx mediakit library lyrics fetch DIR --all            # re-fetch every track (use sparingly)
-```
-
-For each track without lyrics — no embedded `\xa9lyr` / `USLT` / `LYRICS` tag and no existing `<track>.lrc` sidecar — query [LRCLIB](https://lrclib.net) (free, no API key) and, on a hit, write the result as `<track>.flac.lrc` (or whatever the audio suffix is). Synced bodies (`syncedLyrics` field) are preferred over plain when LRCLIB returns both.
-
-Sidecars take precedence over embedded tags on the next library scan, so user-edited `.lrc` files survive rescans untouched. The TUI's `l` keybind and the server's `/getLyricsBySongId` both pick up the populated lyrics automatically — synced bodies render with a live time-tracked highlight.
-
-The command exits non-zero if more than 10% of attempted fetches raise transport errors (HTTP 5xx, timeout, malformed JSON) — early signal of a network outage or LRCLIB API change. 404s ("no match in LRCLIB for this track") do not count toward the failure rate; common for live recordings, deep cuts, and non-English tracks.
-
-## `index` — manage the persistent SQLite cache
-
-The first scan of any library writes a SQLite cache at `<DIR>/.mediakit/index.db`. On every subsequent launch — `library`, `tui`, or `serve` — the in-memory `LibraryIndex` is hydrated from rows instead of re-reading every audio file's tags. A delta-validate pass then reconciles the DB against any filesystem changes that happened since the last run (added albums, removed albums, tag edits applied with another tool).
-
-The DB is fully derived from the filesystem, so it's always safe to delete.
-
-### Commands
-
-```bash
-uvx mediakit library index status  DIR     # schema version, library_root_abs, row counts, DB size
-uvx mediakit library index drop    DIR     # delete <DIR>/.mediakit/
-uvx mediakit library index rebuild DIR     # wipe + rebuild from scratch
-```
-
-`--no-cache` (on `tree` / `audit` / `fix` / `tui` / `serve`) skips the DB entirely — useful for read-only mounts where `<DIR>/.mediakit/` can't be created. `--full-rescan` (on the same set) rebuilds the index from scratch on this run. `cover-pick` uses the existing in-memory scan and doesn't expose either flag.
-
-### Schema
-
-| Table | Holds |
-|---|---|
-| `meta` | `schema_version`, `library_root_abs`, `mediakit_version`, `last_full_scan_at` |
-| `albums` | One row per album dir — tags, counts, `dir_mtime`, audit-relevant flags |
-| `tracks` | One row per audio file — tags, ReplayGain, `file_mtime`, `file_size` |
-| `track_genres` | `(track_id, genre)` pairs for multi-genre support |
-| `album_warnings` | `(album_id, warning)` pairs from the audit pass |
-
-Schema changes don't run migrations — `db.py` defines a `SCHEMA_VERSION` constant; if the on-disk version doesn't match, the DB is unlinked and rebuilt from scratch. The `mediakit_version` row records which release wrote the cache; **if the running mediakit version differs from the stamp, the DB is also rebuilt**. So upgrading mediakit (any version change) transparently invalidates and refreshes the cache on the next open — you never have to remember to run `library index rebuild` after `uv tool upgrade mediakit`. Running the same version twice in a row reuses the cache; if you ever see a rebuild without a version change, run with `MEDIAKIT_LOG_LEVEL=info` to see which gate (schema / root / version) failed.
-
-### Cold-start flow
-
-1. `open_db(root)` opens (or creates) `<DIR>/.mediakit/index.db`. Mismatched schema or relocated `library_root_abs` triggers an unlink + rebuild.
-2. If the DB has no `albums` rows → `scan_full(root, conn)` runs a fresh filesystem walk + audit and writes everything.
-3. Otherwise → `load(root, conn)` hydrates the Pydantic graph, then `validate(root, conn)` walks the filesystem, compares per-album `dir_mtime` and per-file `(file_mtime, file_size)` to detect deltas, and re-scans only the affected album dirs via `rescan_albums`.
-
-For the `serve` watcher, `--full-rescan` is what the Subsonic `startScan` endpoint triggers (per-file incremental updates land in a follow-up).
+Use it as the quick "what's in my library" overview.

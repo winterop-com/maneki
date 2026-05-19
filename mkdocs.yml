@@ -33,12 +33,16 @@ nav:
   - Quickstart: guides/quickstart.md
   - Commands:
       - convert: guides/convert.md
-      - library: guides/library.md
+      - audio library: guides/audio-library.md
       - inspect: guides/inspect.md
       - tui: guides/tui.md
       - serve: guides/serve.md
       - ui: guides/ui.md
       - playlist: guides/playlist.md
+  - Video:
+      - video serve: guides/video.md
+  - Shared:
+      - library (cross-cutting): guides/library.md
   - Clients:
       - Desktop apps: guides/desktop.md
       - Mobile (Subsonic): guides/mobile.md

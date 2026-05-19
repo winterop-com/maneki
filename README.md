@@ -6,7 +6,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Documentation](https://img.shields.io/badge/docs-mkdocs-blue.svg)](https://winterop-com.github.io/mediakit/)
 
-Python 3.13 CLI for converting audio rips into a clean tagged library, browsing and playing it via a Textual TUI, and streaming it over Tailscale via a Subsonic-compatible HTTP server.
+Python 3.13 CLI for a self-hosted media library — audio today (convert rips, browse via Textual TUI, stream via a Subsonic-compatible server), video next (`mediakit video serve` exposes a minimal MediaKit-native HTTP API; HLS, subtitle handling, and the web video player land in follow-up phases).
 
 ## Install
 
@@ -33,11 +33,19 @@ sudo apt install ffmpeg        # Debian / Ubuntu
 ## Quickstart
 
 ```bash
-uvx mediakit convert ./input ./output                          # convert
-uvx mediakit library audit ./output                            # audit
-uvx mediakit tui ./output                                      # TUI
-uvx mediakit serve ./output                                    # Subsonic server
-uvx mediakit playlist gen ./output --seed <track> --minutes 60 # auto-generate a mix
+# Shared across audio + video:
+uvx mediakit library summary ~/Downloads/library           # kind counts (audio + video)
+uvx mediakit library scan ~/Downloads/library              # full file inventory
+
+# Audio (lifted from MusicKit, now under the audio subgroup):
+uvx mediakit audio convert ./input ./output                          # convert rips
+uvx mediakit audio library audit ./output                            # audit
+uvx mediakit audio tui ./output                                      # TUI
+uvx mediakit audio serve ./output                                    # Subsonic server
+uvx mediakit audio playlist gen ./output --seed <track> --minutes 60 # auto-generate a mix
+
+# Video (base layer):
+uvx mediakit video serve ~/Downloads/library                         # MediaKit-native HTTP API on :8765
 ```
 
 ## Screenshots

@@ -6,7 +6,7 @@ A Subsonic-compatible HTTP server. Any modern Subsonic client (Symfonium, Amperf
 uvx mediakit serve TARGET_DIR [--host H] [--port P] [--user U] [--password P] [--no-mdns] [--no-watch] [--no-cache] [--full-rescan]
 ```
 
-`TARGET_DIR` is required. `--host 0.0.0.0`, `--port 4533`, credentials default to `admin`/`admin` with a yellow warning. `--no-cache` skips the persistent SQLite index at `<TARGET_DIR>/.mediakit/index.db`; `--full-rescan` rebuilds it from scratch on startup. See [`mediakit library index`](library.md#index-manage-the-persistent-sqlite-cache) for index management.
+`TARGET_DIR` is required. `--host 0.0.0.0`, `--port 4533`, credentials default to `admin`/`admin` with a yellow warning. `--no-cache` skips the persistent SQLite index at `<TARGET_DIR>/.mediakit/index.db`; `--full-rescan` rebuilds it from scratch on startup. See [`mediakit audio library index`](audio-library.md#index-manage-the-persistent-sqlite-cache) for index management.
 
 `mediakit serve` exposes only the Subsonic `/rest/*` surface. The browser UI ships separately as the `mediakit ui` command (since 0.20.0) — it static-serves the same SPA the desktop wrappers bundle, with a login picker that points at any Subsonic server. See [`mediakit ui`](ui.md).
 
@@ -156,7 +156,7 @@ These are stubs to keep clients quiet on features we don't track yet. They retur
 | `getLyrics?artist=&title=` | Legacy fuzzy lookup. Returns `{artist, title, value}`; empty value when no match (per spec — clients show "no lyrics available"). |
 | `getLyricsBySongId?id=` | OpenSubsonic structured shape. When the stored body looks like LRC (`[mm:ss.xx]` markers), promotes to `synced: true` with `[{start: ms, value: line}, ...]` — Symfonium and Amperfy display the highlight tracking real time. Otherwise returns `synced: false` with one line per text line. |
 
-Lyrics are sourced from a `<track>.lrc` sidecar (preferred) or the file's embedded `\xa9lyr` / `USLT` / `LYRICS` tag. Populate sidecars in bulk with [`mediakit library lyrics fetch`](library.md#lyrics--fetch-synced-lyrics-from-lrclib) — pulls from LRCLIB, writes per-track `.lrc` files. Synced lyrics light up automatically the next time the server's index gets reloaded.
+Lyrics are sourced from a `<track>.lrc` sidecar (preferred) or the file's embedded `\xa9lyr` / `USLT` / `LYRICS` tag. Populate sidecars in bulk with [`mediakit audio library lyrics fetch`](audio-library.md#lyrics--fetch-synced-lyrics-from-lrclib) — pulls from LRCLIB, writes per-track `.lrc` files. Synced lyrics light up automatically the next time the server's index gets reloaded.
 
 ### Internet radio
 

@@ -1,28 +1,39 @@
-"""Top-level mediakit CLI — dispatches into the audio and video subcommand groups.
+"""Top-level mediakit CLI - dispatches into the audio and video subcommand groups.
 
-The audio group is the entire lifted MusicKit CLI (convert, library, tui, serve,
-playlist, ui, ...). The video group is a stub for now; it will gain commands when
-the video server lands.
+Shared verbs (`library`, `serve` later) live at the top level. Kind-specific
+deep features stay under `mediakit audio <verb>` / `mediakit video <verb>`.
 """
 
 from __future__ import annotations
 
+from pathlib import Path
 from typing import Annotated
 
 import typer
 
 from mediakit import __version__
 from mediakit.audio.cli import app as audio_app
+from mediakit.config import config_path, load_library_locations
+from mediakit.library import (
+    FileEntry,
+    LibrarySummary,
+    ScanResult,
+    scan_files,
+    scan_many,
+    summarize,
+    summarize_many,
+)
 from mediakit.video.cli import app as video_app
 
 _APP_HELP = (
-    f"Self-hosted media toolkit (v{__version__}) — audio today, video next."
+    f"Self-hosted media toolkit (v{__version__}) - audio today, video next."
     """
 
 [bold]Subcommand groups[/]
 
-  [cyan]mediakit audio[/]   Music library: convert, audit, TUI, Subsonic server, web UI
-  [cyan]mediakit video[/]   Video library (planned - not yet wired up)
+  [cyan]mediakit library[/]  Summarise and scan configured libraries (audio + video)
+  [cyan]mediakit audio[/]    Music library: convert, audit, TUI, Subsonic server, web UI
+  [cyan]mediakit video[/]    Video server (base layer)
 
 Pass [cyan]--help[/] after any group for its commands.
 
@@ -66,6 +77,116 @@ def _global_options(
     del version
 
 
+library_app = typer.Typer(
+    no_args_is_help=False,
+    add_completion=False,
+    rich_markup_mode="rich",
+    invoke_without_command=True,
+    help="Summarise / scan one or more media libraries (audio + video).",
+)
+
+
+@library_app.callback(invoke_without_command=True)
+def _library_default(ctx: typer.Context) -> None:
+    """When invoked without a subcommand, summarise every configured library."""
+    if ctx.invoked_subcommand is not None:
+        return
+    locations = _resolve_library_locations()
+    _print_summaries(summarize_many(locations))
+
+
+@library_app.command("summary")
+def library_summary(
+    root: Annotated[
+        Path | None,
+        typer.Argument(help="One library root. Default: all configured locations."),
+    ] = None,
+) -> None:
+    """Summarise one or all configured libraries (kind counts)."""
+    if root is not None:
+        _print_summaries([summarize(root.resolve())])
+        return
+    locations = _resolve_library_locations()
+    _print_summaries(summarize_many(locations))
+
+
+@library_app.command("scan")
+def library_scan(
+    root: Annotated[
+        Path | None,
+        typer.Argument(help="One library root. Default: all configured locations."),
+    ] = None,
+) -> None:
+    """Walk one or all configured libraries and print every file found."""
+    if root is not None:
+        _print_scans([scan_files(root.resolve())])
+        return
+    locations = _resolve_library_locations()
+    _print_scans(scan_many(locations))
+
+
+def _resolve_library_locations() -> list[Path]:
+    locations = load_library_locations()
+    if not locations:
+        typer.echo(
+            f"no libraries configured. Create {config_path()} with:\n\n"
+            "  [libraries]\n"
+            '  locations = ["~/Downloads/library"]\n\n'
+            "Or pass a path: mediakit library [<path>] | mediakit library scan [<path>]",
+            err=True,
+        )
+        raise typer.Exit(code=1)
+    return locations
+
+
+def _print_summaries(summaries: list[LibrarySummary]) -> None:
+    for i, s in enumerate(summaries):
+        if i > 0:
+            typer.echo("")
+        typer.echo(f"Library: {s.root}")
+        if s.audio_dir is not None:
+            typer.echo(f"  audio: {s.audio_count:>6} tracks   ({s.audio_dir.name}/)")
+        else:
+            typer.echo("  audio:    (no audio/ or music/ subdir)")
+        if s.video_dir is not None:
+            typer.echo(f"  video: {s.video_count:>6} files    ({s.video_dir.name}/)")
+        else:
+            typer.echo("  video:    (no videos/ or video/ subdir)")
+
+
+def _print_scans(scans: list[ScanResult]) -> None:
+    for i, s in enumerate(scans):
+        if i > 0:
+            typer.echo("")
+        typer.echo(f"Library: {s.root}")
+        if s.audio_dir is not None:
+            typer.echo(f"\n  audio ({s.audio_dir.name}/) - {len(s.audio)} tracks")
+            for entry in s.audio:
+                typer.echo(f"    {entry.rel_path}  ({_fmt_size(entry.size_bytes)})")
+        if s.video_dir is not None:
+            typer.echo(f"\n  video ({s.video_dir.name}/) - {len(s.video)} files")
+            for entry in s.video:
+                typer.echo(f"    {entry.rel_path}  ({_fmt_size(entry.size_bytes)})")
+        if s.audio_dir is None and s.video_dir is None:
+            typer.echo("  (empty - no audio/ or videos/ subdir)")
+
+
+def _fmt_size(n: int) -> str:
+    """Render a byte count in a human-friendly unit."""
+    units = ["B", "KB", "MB", "GB", "TB"]
+    size = float(n)
+    for unit in units:
+        if size < 1024 or unit == units[-1]:
+            return f"{size:.1f} {unit}" if unit != "B" else f"{int(size)} {unit}"
+        size /= 1024
+    return f"{n} B"
+
+
+# Mark unused imports as touched (Typer registration handles the actual wiring).
+_ = (FileEntry,)
+
+
+app.add_typer(library_app, name="library")
 app.add_typer(
     audio_app,
     name="audio",
@@ -74,5 +195,5 @@ app.add_typer(
 app.add_typer(
     video_app,
     name="video",
-    help="Video library (planned).",
+    help="Video server (base layer).",
 )

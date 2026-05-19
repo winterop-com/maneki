@@ -19,7 +19,7 @@ uvx mediakit tui ./output --full-rescan                  # rebuild the index DB 
 
 Subsonic credentials are saved as a token + salt pair — never the raw password. Authentication on the wire uses the same Subsonic-spec `t` / `s` token mode, so the password never travels in a query string regardless of `--save-subsonic`. The saved block lives in `~/.config/mediakit/state.toml` (mode 0600); `--forget-subsonic` removes it.
 
-Local-library mode reuses the persistent SQLite index at `<DIR>/.mediakit/index.db` so the second launch skips the filesystem walk and tag read. See [`mediakit library index`](library.md#index-manage-the-persistent-sqlite-cache) for management commands and details.
+Local-library mode reuses the persistent SQLite index at `<DIR>/.mediakit/index.db` so the second launch skips the filesystem walk and tag read. See [`mediakit audio library index`](audio-library.md#index-manage-the-persistent-sqlite-cache) for management commands and details.
 
 ## Layout
 
@@ -128,7 +128,7 @@ Source precedence (set during the library scan):
 1. `<track>.lrc` sidecar next to the audio file (user-editable, survives rescans).
 2. Embedded `\xa9lyr` (MP4) / `USLT` (ID3) / `LYRICS` (FLAC Vorbis) tag, picked up by the same scan that reads other tags.
 
-Sidecars win over embedded so a manually-edited `.lrc` doesn't get overwritten by stale tag data on the next rescan. Populate sidecars in bulk with [`mediakit library lyrics fetch`](library.md#fetching-lyrics-from-lrclib) — that command pulls from [LRCLIB](https://lrclib.net) (free, no API key, returns synced lyrics for popular tracks).
+Sidecars win over embedded so a manually-edited `.lrc` doesn't get overwritten by stale tag data on the next rescan. Populate sidecars in bulk with [`mediakit audio library lyrics fetch`](audio-library.md#fetching-lyrics-from-lrclib) — that command pulls from [LRCLIB](https://lrclib.net) (free, no API key, returns synced lyrics for popular tracks).
 
 In Subsonic-client mode the TUI calls the server's `/getLyricsBySongId`; the server promotes LRC bodies to `synced: true` automatically, so the highlight tracks playback the same way local mode does.
 
