@@ -269,9 +269,22 @@ def _probe_duration_uncached(path: Path) -> float | None:
 
 
 def _make_id(rel_path: Path) -> str:
-    """Stable, URL-safe id from the file's path relative to the videos dir.
+    """Stable, URL-safe id from the file's path relative to the library root.
 
-    Keeps the stem readable so logs are debuggable; replaces path separators
-    with hyphens so the id is a single slug.
+    Format: `<slug>-<8-hex-hash>` where:
+      - `slug` keeps the existing readable transformation (extension stripped,
+        `/` -> `-`) so server logs and cache filenames stay debuggable.
+      - The 8-hex SHA256 prefix of the full rel_path makes the id
+        collision-free: paths like `tv/ch01.mkv` and `tv-ch01.mkv` (a
+        literal hyphen in a flat filename) used to collapse to the same
+        slug `tv-ch01`, and the first match won at lookup time — so the
+        second video was unreachable AND its HLS / poster / subtitle
+        cache entries collided with the first's. The hash suffix breaks
+        the tie deterministically.
     """
-    return rel_path.with_suffix("").as_posix().replace("/", "-")
+    import hashlib
+
+    full = rel_path.as_posix()
+    digest = hashlib.sha256(full.encode("utf-8")).hexdigest()[:8]
+    slug = rel_path.with_suffix("").as_posix().replace("/", "-")
+    return f"{slug}-{digest}"

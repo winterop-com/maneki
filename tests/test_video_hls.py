@@ -41,7 +41,10 @@ def test_hls_503_when_ffmpeg_missing(monkeypatch: pytest.MonkeyPatch, client: Te
     import shutil
 
     monkeypatch.setattr(shutil, "which", lambda _: None)
-    resp = client.get("/api/videos/movie/hls/index.m3u8")
+    # ID format includes a stable hash suffix - fetch it from the list
+    # rather than hard-coding.
+    video_id = client.get("/api/videos").json()[0]["id"]
+    resp = client.get(f"/api/videos/{video_id}/hls/index.m3u8")
     assert resp.status_code == 503
     assert "ffmpeg" in resp.json()["detail"]
 

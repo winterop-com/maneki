@@ -107,6 +107,25 @@ def test_scan_videos_skips_mediakit_cache_dir(tmp_path: Path) -> None:
     assert rel_paths == ["real.mkv"]
 
 
+def test_scan_video_ids_do_not_collide_across_slug_aliases(tmp_path: Path) -> None:
+    """`tv/ch01.mkv` and `tv-ch01.mkv` must get distinct IDs.
+
+    The old scheme just replaced `/` with `-`, so a literal-hyphen flat
+    filename collided with a nested file of the same stem. With single-
+    library recursive scanning this is easy to hit (an episode in tv/
+    plus a stray rip at the root with a hyphenated name) and the
+    collision made one video unreachable AND silently cross-wired
+    every cache keyed by video_id (HLS segments, posters, subtitles).
+    """
+    (tmp_path / "tv").mkdir()
+    (tmp_path / "tv" / "ch01.mkv").write_bytes(b"\x1a\x45\xdf\xa3a")
+    (tmp_path / "tv-ch01.mkv").write_bytes(b"\x1a\x45\xdf\xa3b")
+    entries = scan_videos(tmp_path)
+    ids = [e["id"] for e in entries]
+    assert len(ids) == 2
+    assert len(set(ids)) == 2, f"id collision: {ids}"
+
+
 def test_scan_videos_picks_up_new_extensions(tmp_path: Path) -> None:
     """The expanded extension set covers .flv, .mpg, .vob etc."""
     (tmp_path / "old.flv").write_bytes(b"FLV\x01")
