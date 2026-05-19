@@ -64,9 +64,34 @@ function App() {
   const [resuming, setResuming] = uS(() => !!window.MK_API?.loadSession?.());
 
   // Browse selection
-  const [section, setSection] = uS("library"); // "library" | "stations" | "starred"
+  const [section, setSection] = uS("library"); // "library" | "stations" | "starred" | "videos"
   const [artistId, setArtistId] = uS(null);
   const [albumId, setAlbumId] = uS(null);
+
+  // Video — `hasVideo` is null until the capability probe completes (then
+  // `true` for MediaKit servers with /video/api/* or `false` for everything
+  // else, including non-MediaKit Subsonic servers like Navidrome). The
+  // sidebar's VIDEO section is hidden when hasVideo !== true.
+  // hasAudio defaults to true because the user got here via Subsonic auth -
+  // they wouldn't have logged in if there were no audio. cap probe overrides
+  // when /capabilities reports otherwise (e.g. video-only mediakit server,
+  // if/when login becomes optional). hasVideo defaults to false and only
+  // flips on when /capabilities confirms a video mount on this origin.
+  const [hasAudio, setHasAudio] = uS(true);
+  const [hasVideo, setHasVideo] = uS(false);
+  const [selectedVideo, setSelectedVideo] = uS(null);
+  React.useEffect(() => {
+    const session = window.MK_API?.loadSession?.();
+    if (!session || typeof window.MK_VIDEO?.capabilities !== "function") return;
+    window.MK_VIDEO.capabilities(session).then((caps) => {
+      setHasVideo(caps?.video === true);
+      // Only override hasAudio if the server explicitly says audio:false
+      // (a mediakit serve --video-only). Non-MediaKit Subsonic servers
+      // skip /capabilities entirely and we keep the default true.
+      if (caps && typeof caps.audio === "boolean") setHasAudio(caps.audio);
+    });
+  }, []);
+  const session = window.MK_API?.loadSession?.() || null;
 
   // Star state (per-track keyed "artistId/albumId/trackN")
   const [starred, setStarred] = uS(() => {
@@ -490,6 +515,8 @@ function App() {
         fullscreenViz={fullscreenViz} setFullscreenViz={setFullscreenViz}
         shuffle={shuffle} repeat={repeat}
         setShowLyrics={setShowLyrics}
+        hasAudio={hasAudio} hasVideo={hasVideo} session={session}
+        selectedVideo={selectedVideo} setSelectedVideo={setSelectedVideo}
       />
 
       <window.MK_SearchDropdown

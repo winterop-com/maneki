@@ -35,12 +35,73 @@ function TopBar({ user, q, setQ, onFocusSearch, onSignOut, searchInputRef }) {
   );
 }
 
-// Sidebar with library navigation (Radio, Starred, Artists).
-function Sidebar({ section, setSection, ARTISTS, artistId, setArtistId, loaded }) {
+// Sidebar collapse state: list of section keys the user has clicked closed.
+// Persists in localStorage so a "video-only" or "music-only" user only sets
+// it once.
+const MK_SIDEBAR_COLLAPSED_KEY = "mediakit.sidebar.collapsed";
+
+function readCollapsedSet() {
+  try {
+    const raw = localStorage.getItem(MK_SIDEBAR_COLLAPSED_KEY);
+    if (!raw) return new Set();
+    return new Set(JSON.parse(raw));
+  } catch {
+    return new Set();
+  }
+}
+
+function writeCollapsedSet(s) {
+  localStorage.setItem(MK_SIDEBAR_COLLAPSED_KEY, JSON.stringify(Array.from(s)));
+}
+
+// Collapsible section header + body. Header is a click target with a caret
+// that flips on collapse. Children are hidden when collapsed; the header
+// stays visible so the user can re-expand.
+function CollapsibleSection({ keyId, label, collapsed, toggle, children, extras }) {
   return (
-    <div className="mk-sidebar mk-pane">
-      <div className="mk-pane-section">
-        <div className="mk-pane-label">Radio</div>
+    <div className="mk-pane-section">
+      <div
+        className="mk-pane-label"
+        onClick={() => toggle(keyId)}
+        style={{ cursor: "pointer", userSelect: "none", display: "flex", alignItems: "center", justifyContent: "space-between" }}
+      >
+        <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+          <span style={{ fontSize: 9, color: "var(--text-dim)", width: 8, display: "inline-block" }}>
+            {collapsed ? "▶" : "▼"}
+          </span>
+          {label}
+        </span>
+        {extras}
+      </div>
+      {!collapsed && children}
+    </div>
+  );
+}
+
+// Sidebar with two top-level kind groups (AUDIO + VIDEO). Each group has
+// its own collapsible header so the user can hide everything for a kind in
+// one click. Sub-sections (Radio / Starred / Artists for audio) are
+// rendered inside the AUDIO group; collapsing AUDIO hides them all.
+//
+// hasAudio / hasVideo control whether each kind's group is rendered at
+// all. They come from /capabilities (or default-true for backwards compat
+// against non-MediaKit Subsonic servers that don't expose /capabilities).
+function Sidebar({ section, setSection, ARTISTS, artistId, setArtistId, loaded, hasAudio, hasVideo }) {
+  const [collapsed, setCollapsed] = React.useState(readCollapsedSet);
+  const toggle = React.useCallback((key) => {
+    setCollapsed((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key); else next.add(key);
+      writeCollapsedSet(next);
+      return next;
+    });
+  }, []);
+
+  // Sub-sections nested inside AUDIO. Pulled out so the top-level AUDIO
+  // collapse hides them all with one toggle.
+  const audioBody = (
+    <div style={{ paddingLeft: 6 }}>
+      <CollapsibleSection keyId="radio" label="Radio" collapsed={collapsed.has("radio")} toggle={toggle}>
         <div
           className={"mk-nav-item" + (section === "stations" ? " active" : "")}
           onClick={() => setSection("stations")}
@@ -52,9 +113,8 @@ function Sidebar({ section, setSection, ARTISTS, artistId, setArtistId, loaded }
           </svg>
           Stations
         </div>
-      </div>
-      <div className="mk-pane-section">
-        <div className="mk-pane-label">Starred</div>
+      </CollapsibleSection>
+      <CollapsibleSection keyId="starred" label="Starred" collapsed={collapsed.has("starred")} toggle={toggle}>
         <div
           className={"mk-nav-item" + (section === "starred" ? " active" : "")}
           onClick={() => setSection("starred")}
@@ -62,9 +122,14 @@ function Sidebar({ section, setSection, ARTISTS, artistId, setArtistId, loaded }
           <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><path d="M12 21s-7.5-4.5-9.5-9.5C1 7 4.5 4 8 4c2 0 3.5 1 4 2 .5-1 2-2 4-2 3.5 0 7 3 5.5 7.5C19.5 16.5 12 21 12 21z"/></svg>
           Tracks
         </div>
-      </div>
-      <div className="mk-pane-section mk-artists">
-        <div className="mk-pane-label">Artists <span className="mk-count">({ARTISTS.length})</span></div>
+      </CollapsibleSection>
+      <CollapsibleSection
+        keyId="artists"
+        label="Artists"
+        collapsed={collapsed.has("artists")}
+        toggle={toggle}
+        extras={<span className="mk-count">({ARTISTS.length})</span>}
+      >
         <div className="mk-artist-list">
           {!loaded && [0,1,2,3].map((i) => <div key={i} className="mk-skel" style={{height: 14, margin: "6px 0"}}/>)}
           {loaded && ARTISTS.map((a) => (
@@ -77,7 +142,31 @@ function Sidebar({ section, setSection, ARTISTS, artistId, setArtistId, loaded }
             </div>
           ))}
         </div>
-      </div>
+      </CollapsibleSection>
+    </div>
+  );
+
+  return (
+    <div className="mk-sidebar mk-pane">
+      {hasAudio && (
+        <CollapsibleSection keyId="audio" label="Audio" collapsed={collapsed.has("audio")} toggle={toggle}>
+          {audioBody}
+        </CollapsibleSection>
+      )}
+      {hasVideo && (
+        <CollapsibleSection keyId="video" label="Video" collapsed={collapsed.has("video")} toggle={toggle}>
+          <div
+            className={"mk-nav-item" + (section === "videos" ? " active" : "")}
+            onClick={() => setSection("videos")}
+          >
+            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2">
+              <rect x="2" y="6" width="20" height="12" rx="2"/>
+              <path d="M10 9l5 3-5 3z" fill="currentColor" stroke="none"/>
+            </svg>
+            Videos
+          </div>
+        </CollapsibleSection>
+      )}
     </div>
   );
 }
@@ -516,13 +605,16 @@ function MainArea(props) {
     />
   );
 
+  const { hasAudio, hasVideo, session, selectedVideo, setSelectedVideo } = props;
   const browse = (
     <div className="mk-browse">
-      <Sidebar section={section} setSection={setSection} ARTISTS={ARTISTS} artistId={artistId} setArtistId={(id) => { setSection("library"); setArtistId(id); }} loaded={loaded}/>
+      <Sidebar section={section} setSection={setSection} ARTISTS={ARTISTS} artistId={artistId} setArtistId={(id) => { setSection("library"); setArtistId(id); }} loaded={loaded} hasAudio={hasAudio} hasVideo={hasVideo}/>
       {section === "library" && <AlbumsPane artist={artist} albumId={albumId} setAlbumId={setAlbumId} loaded={loaded}/>}
       {section === "library" && <TracksPane artist={artist} album={album} playTrack={playTrack} now={now} isStarred={isStarred} toggleStar={toggleStar} loaded={loaded}/>}
       {section === "stations" && <StationsPane STATIONS={STATIONS} playStation={playStation} now={now} loaded={loaded}/>}
       {section === "starred" && <StarredPane starredTracks={starredTracks} playTrack={playTrack} toggleStar={toggleStar}/>}
+      {section === "videos" && session && <MK_VideosPane session={session} selectedId={selectedVideo?.id} onSelect={setSelectedVideo}/>}
+      {section === "videos" && session && selectedVideo && <MK_VideoPlayerPane session={session} video={selectedVideo} onClose={() => setSelectedVideo(null)}/>}
     </div>
   );
 

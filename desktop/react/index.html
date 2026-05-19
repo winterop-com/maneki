@@ -14,6 +14,10 @@
        override designer-output styles without editing them. Survives
        the next design-zip drop. -->
   <link rel="stylesheet" href="desktop-overrides.css" />
+  <!-- video.js v10 (CDN). Wraps HLS internally; no separate hls.js needed.
+       Used by the VIDEO section's player pane (src/video-views.jsx). -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/video.js@10/dist/video-js.min.css" />
+  <script src="https://cdn.jsdelivr.net/npm/video.js@10/dist/video.min.js" defer></script>
   <script>
     // Tag the platform on <body> so desktop-overrides.css can apply
     // macOS-only rules (traffic-light clearance, app-region: drag).
@@ -118,6 +122,7 @@
   <script src="src/_md5.js?v=0.1.0"></script>
   <script src="src/_api.js?v=0.1.0"></script>
   <script src="src/_audio.js?v=0.1.0"></script>
+  <script src="src/_video.js?v=0.1.0"></script>
 
   <!-- Designer artifact. Dependency order: data → covers → visualizer →
        views → overlays → tweaks-panel → chrome → app. Each declares
@@ -130,6 +135,7 @@
   <script type="text/babel" data-presets="react" src="src/overlays.jsx?v=0.1.0"></script>
   <script type="text/babel" data-presets="react" src="src/tweaks-panel.jsx?v=0.1.0"></script>
   <script type="text/babel" data-presets="react" src="src/chrome.jsx?v=0.1.0"></script>
+  <script type="text/babel" data-presets="react" src="src/video-views.jsx?v=0.1.0"></script>
   <script type="text/babel" data-presets="react" src="src/app.jsx?v=0.1.0"></script>
 
   <!-- Wiring layer (continued) — _wiring.jsx monkey-patches the
