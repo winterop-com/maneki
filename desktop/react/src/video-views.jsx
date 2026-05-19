@@ -228,33 +228,46 @@ function VideoPlayerPane({ session, video, onClose }) {
     // visualizer overlay. Cleared in the cleanup below.
     window.MK_VIDEO_PLAYER = player;
 
-    // Recovery for the alt-tab-then-stuck case. When a tab is
-    // backgrounded for a while, browsers throttle MSE and the player
-    // can end up waiting on a sourceBuffer update that never arrives -
-    // visible as a permanent buffering spinner after returning to the
-    // tab. The fix is a tiny "nudge": when visibility flips back to
-    // visible and the player is waiting, seek forward by a few ms to
-    // force MSE to re-evaluate its buffer + request the next segment.
-    // Without this, the user has to hit play/scrub manually to get
-    // unstuck.
-    const onVisibility = () => {
-      if (document.visibilityState !== "visible") return;
-      // Only nudge if we're actually waiting AND were trying to play.
-      // `player.readyState() < 3` (HAVE_FUTURE_DATA) is the canonical
-      // "waiting" check; combined with `!paused()` it means the player
-      // wants to play but can't.
+    // Recovery for MSE buffer lockups. Two failure modes:
+    //   1. alt-tab away, return, player stuck (browser throttles MSE
+    //      when backgrounded)
+    //   2. mid-playback the SourceBuffer update never resolves and the
+    //      player just sits on a spinner indefinitely
+    // Same fix for both: nudge currentTime by 10ms to force MSE to
+    // discard stale state + re-request segments. Triggered by both a
+    // visibilitychange event AND a `waiting`-too-long timer so the
+    // foreground-stuck case is also covered.
+    const nudge = () => {
       try {
         if (!player.paused() && player.readyState() < 3) {
           const t = player.currentTime();
-          // Microseek - small enough to be imperceptible, large enough
-          // to invalidate MSE's stale buffer state.
           player.currentTime(t + 0.01);
         }
-      } catch { /* player disposed or torn down */ }
+      } catch { /* player disposed */ }
+    };
+
+    const onVisibility = () => {
+      if (document.visibilityState === "visible") nudge();
     };
     document.addEventListener("visibilitychange", onVisibility);
 
+    // Watchdog: if `waiting` persists for >5s and the player wants to
+    // play, nudge automatically. cleared every time playback resumes.
+    let stallTimer = null;
+    const armStallTimer = () => {
+      if (stallTimer) clearTimeout(stallTimer);
+      stallTimer = setTimeout(nudge, 5000);
+    };
+    const cancelStallTimer = () => {
+      if (stallTimer) { clearTimeout(stallTimer); stallTimer = null; }
+    };
+    player.on("waiting", armStallTimer);
+    player.on("playing", cancelStallTimer);
+    player.on("pause", cancelStallTimer);
+    player.on("ended", cancelStallTimer);
+
     return () => {
+      cancelStallTimer();
       document.removeEventListener("visibilitychange", onVisibility);
       window.MK_VIDEO_PLAYER = null;
       try { player.dispose(); } catch { /* ignore */ }
