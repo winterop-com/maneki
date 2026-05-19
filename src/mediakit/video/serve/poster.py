@@ -387,19 +387,19 @@ class PosterManager:
         *,
         max_concurrency: int = 2,
     ) -> None:
-        """Generate every missing thumbnail + poster in the background.
+        """Warm caches for every video: subtitle probe, thumbnail, poster.
 
-        Walks the supplied video listing and ensures both assets exist on
-        disk. Thumbnails first (they're what the browser shows on the
-        list rows, ~10 KB and ~100ms each); posters after (only used
-        once the user opens a video). Both kinds run through a small
-        worker pool so the host's CPU isn't pegged while a real
-        transcode might be in flight.
+        Walks the supplied video listing and ensures all three are
+        ready. Embedded-subtitle probes go first because the browse
+        listing reads them synchronously - warming them up front means
+        cold browse-after-restart is instant. Thumbnails next (row
+        icons); posters last (only visible after a row is clicked).
 
-        Designed to be fire-and-forget from the FastAPI startup hook -
-        callers should `asyncio.create_task(manager.prewarm(...))` so
-        the server is responsive while warming proceeds. Exceptions per
-        entry are swallowed (logged would be better; v0 is silent).
+        Both ffmpeg / ffprobe steps run through a small worker pool so
+        the host's CPU isn't pegged while real playback might be in
+        flight. Designed to be fire-and-forget from the FastAPI startup
+        hook - callers should
+        `asyncio.create_task(manager.prewarm(...))`.
 
         Each entry is a dict with keys: id, path, size_bytes, name,
         duration_s. Matches VideoEntry.
@@ -407,6 +407,17 @@ class PosterManager:
         if not entries:
             return
         sem = asyncio.Semaphore(max_concurrency)
+
+        async def _probe_subs(entry: dict[str, object]) -> None:
+            # The probe itself is sync (subprocess.run blocks), so run
+            # it in a thread to keep the event loop responsive.
+            from mediakit.video.serve.subtitles import probe_embedded_subtitles
+
+            async with sem:
+                try:
+                    await asyncio.to_thread(probe_embedded_subtitles, Path(str(entry["path"])))
+                except Exception:  # noqa: BLE001
+                    pass
 
         async def _thumb(entry: dict[str, object]) -> None:
             async with sem:
@@ -432,7 +443,6 @@ class PosterManager:
                 except Exception:  # noqa: BLE001
                     pass
 
-        # Thumbnails first so the row icons fill in fastest; posters
-        # follow because they're only visible after a row is clicked.
+        await asyncio.gather(*(_probe_subs(e) for e in entries))
         await asyncio.gather(*(_thumb(e) for e in entries))
         await asyncio.gather(*(_poster(e) for e in entries))

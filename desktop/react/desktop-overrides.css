@@ -526,3 +526,27 @@ body[data-platform="darwin"]:not([data-shell="browser"]) .mk-kind-rail {
   outline: none;
   box-shadow: none;
 }
+
+/* Subtitle styling - match mpv's clean look: white sans-serif text on a
+   transparent background with a thin black outline + a soft drop
+   shadow, instead of video.js's default opaque black box. The outline
+   is faked with four `text-shadow`s pointing in each diagonal so the
+   characters stay legible against bright + dark scenes alike.
+   `!important` is needed because video.js sets background-color and
+   font-family inline on the cue container; the user "captions
+   settings" menu still wins over this if they explicitly pick a font
+   or colour. */
+.video-js .vjs-text-track-display .vjs-text-track-cue,
+.video-js .vjs-text-track-display .vjs-text-track-cue > div {
+  background: transparent !important;
+  background-color: transparent !important;
+  color: #fff !important;
+  font-family: "JetBrains Mono NL", "JetBrains Mono", "SF Mono", ui-monospace, Menlo, monospace !important;
+  font-weight: 500 !important;
+  text-shadow:
+    -1px -1px 0 #000,
+    1px -1px 0 #000,
+    -1px 1px 0 #000,
+    1px 1px 0 #000,
+    0 1px 3px rgba(0, 0, 0, 0.85) !important;
+}

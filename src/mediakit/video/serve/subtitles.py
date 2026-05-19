@@ -39,6 +39,13 @@ SUBTITLE_EXTENSIONS = frozenset({".srt", ".vtt"})
 # text, which is a separate problem.
 TEXT_SUBTITLE_CODECS = frozenset({"subrip", "srt", "ass", "ssa", "mov_text", "webvtt"})
 
+# Per-path embedded-subtitle cache. ffprobe per file is ~50-100ms so a
+# 100-video browse listing would take seconds on every call. The cache
+# is filled by `probe_embedded_subtitles()` and survives the process
+# lifetime. The prewarm task at server startup walks every video and
+# populates this proactively so the first browse-after-restart is fast.
+_EMBEDDED_CACHE: dict[str, tuple[EmbeddedSubtitle, ...]] = {}
+
 
 class SubtitleSidecar(BaseModel):
     """One subtitle file associated with a video."""
@@ -159,9 +166,17 @@ def probe_embedded_subtitles(video_path: Path) -> list[EmbeddedSubtitle]:
     image-based codecs (PGS, DVD VobSub, DVB) since they need OCR rather
     than transcode to become WebVTT.
 
+    Cached per-path for the process lifetime - the prewarm task at
+    startup populates this proactively so interactive browse + player
+    open don't pay the ffprobe cost.
+
     Returns an empty list when ffprobe is missing, the file can't be
     parsed, or no usable subtitle streams exist.
     """
+    key = str(video_path)
+    cached = _EMBEDDED_CACHE.get(key)
+    if cached is not None:
+        return list(cached)
     if not video_path.is_file():
         return []
     ffprobe = shutil.which("ffprobe")
@@ -212,6 +227,7 @@ def probe_embedded_subtitles(video_path: Path) -> list[EmbeddedSubtitle]:
                 forced=bool(disp.get("forced")),
             )
         )
+    _EMBEDDED_CACHE[key] = tuple(out)
     return out
 
 

@@ -147,13 +147,14 @@ def browse_dir(root: Path, rel_path: str = "") -> BrowseResponse | None:
                 )
             )
         elif child.is_file() and child.suffix.lower() in VIDEO_EXTENSIONS:
-            # Note: we intentionally don't probe embedded subtitle streams
-            # here. ffprobe on every file is ~50-100ms, which makes a
-            # 100-video browse listing take seconds. The per-video
-            # /subtitles endpoint does the embedded probe on demand when
-            # the player opens. The summary count below is sidecars only
-            # until we have a persistent SQLite index for video metadata.
+            from mediakit.video.serve.subtitles import probe_embedded_subtitles
+
+            # Embedded subtitle probe is ~50-100ms via ffprobe but the
+            # result is process-cached (per-path), so this is fast after
+            # the prewarm task warms it. Cold first browse pays the
+            # ffprobe cost; subsequent calls are instant.
             sidecars = discover_sidecars(child)
+            embedded = probe_embedded_subtitles(child)
             videos.append(
                 VideoEntry(
                     id=_make_id(child_rel),
@@ -162,7 +163,14 @@ def browse_dir(root: Path, rel_path: str = "") -> BrowseResponse | None:
                     size_bytes=child.stat().st_size,
                     rel_path=child_rel.as_posix(),
                     duration_s=probe_duration(child),
-                    subtitles=[SubtitleSummary(lang=s.language, format=s.fmt) for s in sidecars],
+                    subtitles=[
+                        SubtitleSummary(lang=s.language, format=s.fmt)
+                        for s in sidecars
+                    ]
+                    + [
+                        SubtitleSummary(lang=e.language, format=e.codec_name)
+                        for e in embedded
+                    ],
                 )
             )
 

@@ -147,7 +147,7 @@ function VideosPane({ session, selectedId, onSelect }) {
                   <span className="mk-album-count">{fmtSize(v.size_bytes)}</span>
                   {v.subtitles && v.subtitles.length > 0 && (
                     <span className="mk-album-count" style={{ color: "var(--accent)" }}>
-                      {v.subtitles.length} sub{v.subtitles.length === 1 ? "" : "s"}
+                      {v.subtitles.length} subtitle{v.subtitles.length === 1 ? "" : "s"}
                     </span>
                   )}
                 </div>
@@ -203,7 +203,20 @@ function VideoPlayerPane({ session, video, onClose }) {
       // the URL bar visible on macOS, which looks like the player isn't
       // really fullscreen even though it is.
       fullscreen: { options: { navigationUI: "hide" } },
-      html5: { vhs: { overrideNative: true } },
+      html5: {
+        vhs: { overrideNative: true },
+        // Use video.js's text-track UI rather than the browser's native
+        // one - the native UI varies per browser and doesn't surface a
+        // visible button in the control bar. With this off, the
+        // SubsCapsButton renders the menu (track picker + "subtitles
+        // settings" submenu for font/size/color).
+        nativeTextTracks: false,
+      },
+      controlBar: {
+        // Explicit so the menu is always wired even if a future
+        // video.js default drops it.
+        subsCapsButton: true,
+      },
     });
     player.src({
       src: window.MK_VIDEO.hlsUrl(session, video.id),
@@ -222,6 +235,42 @@ function VideoPlayerPane({ session, video, onClose }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [video.id]);
 
+  // Register subtitle tracks with the player. Doing this AFTER the
+  // player is initialized (instead of via JSX <track> children) avoids
+  // a race where video.js's SubsCapsButton wouldn't see tracks that
+  // React appended later. addRemoteTextTrack also lets us update the
+  // list when the /subtitles fetch resolves with embedded entries that
+  // weren't in the initial listing summary.
+  useEff_vv(() => {
+    const player = playerRef.current;
+    if (!player || subtitles.length === 0) return undefined;
+    const added = [];
+    for (const sub of subtitles) {
+      const src = sub.track_id
+        ? window.MK_VIDEO.subtitleTrackUrl(session, video.id, sub.track_id)
+        : window.MK_VIDEO.subtitleUrl(session, video.id, sub.lang);
+      // kind=captions (not subtitles) so video.js exposes the
+      // "captions settings" submenu (font / size / colour).
+      const track = player.addRemoteTextTrack(
+        {
+          kind: "captions",
+          src,
+          srclang: sub.lang === "und" ? "" : sub.lang,
+          label: sub.label || (sub.lang === "und" ? "Subtitles" : sub.lang.toUpperCase()),
+          default: !!sub.default,
+        },
+        false, // manualCleanup=false: video.js drops these on dispose
+      );
+      added.push(track);
+    }
+    return () => {
+      for (const t of added) {
+        try { player.removeRemoteTextTrack(t); } catch { /* ignore */ }
+      }
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [subtitles, video.id]);
+
   return (
     <div className="mk-pane mk-tracks-pane" style={{ padding: 14 }}>
       <div className="mk-pane-label" style={{
@@ -237,24 +286,10 @@ function VideoPlayerPane({ session, video, onClose }) {
           playsInline
           crossOrigin="anonymous"
         >
-          {subtitles.map((sub) => {
-            // Prefer the new track_id+url pair; fall back to the old
-            // lang-only shape so a freshly-deployed SPA against an
-            // older server (or vice versa) doesn't break.
-            const src = sub.track_id
-              ? window.MK_VIDEO.subtitleTrackUrl(session, video.id, sub.track_id)
-              : window.MK_VIDEO.subtitleUrl(session, video.id, sub.lang);
-            return (
-              <track
-                key={sub.track_id || sub.lang}
-                kind="subtitles"
-                srcLang={sub.lang === "und" ? undefined : sub.lang}
-                label={sub.label || (sub.lang === "und" ? "Subtitles" : sub.lang.toUpperCase())}
-                src={src}
-                default={sub.default || (subtitles.length === 1 && sub.lang === "und")}
-              />
-            );
-          })}
+          {/* Subtitle <track> children are registered programmatically
+              via player.addRemoteTextTrack() in the useEffect above so
+              video.js's SubsCapsButton reliably sees them. JSX-rendered
+              tracks were racy with the player init. */}
         </video>
       </div>
     </div>
