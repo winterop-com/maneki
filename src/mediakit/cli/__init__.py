@@ -73,6 +73,10 @@ def serve_cmd(
     port: Annotated[int, typer.Option("--port", "-p", help="Port to bind")] = 8765,
     audio_only: Annotated[bool, typer.Option("--audio-only", help="Mount only the audio (Subsonic) endpoints")] = False,
     video_only: Annotated[bool, typer.Option("--video-only", help="Mount only the video endpoints")] = False,
+    auth: Annotated[
+        bool,
+        typer.Option("--auth", help="Require bearer-token auth on /video/* (Subsonic keeps its own auth)"),
+    ] = False,
 ) -> None:
     """Start the combined audio + video server.
 
@@ -80,9 +84,15 @@ def serve_cmd(
     the corresponding sub-apps. URL layout:
 
       /capabilities         server identity + what's mounted
+      POST /auth/login      exchange credentials for a bearer token
+      GET /auth/me          echo back the authed user (requires bearer)
       /audio/rest/*         Subsonic API (set this as the base URL in Subsonic clients)
       /video/api/*          MediaKit-native video JSON API
-      /video/               throwaway demo HTML page
+      /video/               throwaway demo HTML page (works without auth)
+
+    Pass --auth to require Authorization: Bearer <token> on /video/*. The
+    demo page at /video/ doesn't speak the auth flow yet, so --auth and the
+    demo are currently mutually exclusive in practice.
     """
     import uvicorn
 
@@ -96,8 +106,10 @@ def serve_cmd(
         root=root.resolve(),
         enable_audio=not video_only,
         enable_video=not audio_only,
+        enable_auth=auth,
     )
-    typer.echo(f"mediakit serve - {root.resolve()} on http://{host}:{port}")
+    auth_note = " (auth required on /video/*)" if auth else ""
+    typer.echo(f"mediakit serve - {root.resolve()} on http://{host}:{port}{auth_note}")
     uvicorn.run(combined, host=host, port=port, log_level="info")
 
 

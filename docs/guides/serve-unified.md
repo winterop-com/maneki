@@ -31,9 +31,11 @@ curl -s http://127.0.0.1:8765/capabilities | jq
 ## URL layout
 
 ```
-host:port/capabilities         server identity + which kinds are mounted
-host:port/audio/rest/*         Subsonic API (audio = Subsonic, mounted here)
-host:port/video/api/*          MediaKit-native video JSON API
+host:port/capabilities          server identity + which kinds are mounted (public)
+host:port/auth/login            POST username + password -> bearer token
+host:port/auth/me               GET /me with Bearer header -> who you are
+host:port/audio/rest/*          Subsonic API (its own auth grammar; unaffected by --auth)
+host:port/video/api/*           MediaKit-native video JSON API
 host:port/video/                throwaway demo HTML page (retired when SPA lands)
 ```
 
@@ -66,22 +68,51 @@ mediakit serve <root> --video-only      # mount only video, even if audio/ exist
 ## Options
 
 ```
-mediakit serve <root> [--host HOST] [--port PORT] [--audio-only | --video-only]
+mediakit serve <root> [--host HOST] [--port PORT] [--audio-only | --video-only] [--auth]
 
   <root>          Library root containing audio/ and/or videos/ subdirectories
   --host HOST     Interface to bind (default 127.0.0.1)
   --port PORT     Port to bind (default 8765)
   --audio-only    Mount only the audio (Subsonic) endpoints
   --video-only    Mount only the video endpoints
+  --auth          Require bearer-token auth on /video/* endpoints
 ```
 
 The defaults bind to localhost on port 8765. To expose on the LAN or Tailscale, pass `--host 0.0.0.0`.
 
-## Auth (current state)
+## Auth
 
-The audio (Subsonic) mount uses the same credential resolution as standalone [`mediakit audio serve`](serve.md): TOML config at `~/.config/mediakit/mediakit.toml` `[server]` section, falling back to `admin`/`admin` with a yellow warning at startup.
+**The audio (Subsonic) mount** keeps its own auth grammar (salt + token query params per the Subsonic spec). Credentials resolve from `~/.config/mediakit/mediakit.toml` `[server]` section, falling back to `admin`/`admin` with a yellow warning at startup. This is unchanged by `--auth`.
 
-The video and `/capabilities` endpoints have **no auth** in the current base layer. A unified bearer-token auth at `/auth/login` is in the Stage 2 plan but not yet built — until it lands, restrict exposure to localhost or trusted networks (Tailscale / VPN).
+**The MediaKit-native endpoints** (`/video/*` today, more later) optionally require a bearer token. Auth is off by default so the demo page keeps working. Enable with `--auth`:
+
+```bash
+mediakit serve ~/Downloads/library --auth
+```
+
+When auth is on:
+
+1. `POST /auth/login` with `{username, password}` returns a token + expiry.
+2. Send `Authorization: Bearer <token>` on every request to `/video/*`.
+3. `/capabilities`, `/auth/login`, the audio mount, and the demo page at `/video/` stay public.
+
+```bash
+# Get a token
+TOKEN=$(curl -sS -X POST http://localhost:8765/auth/login \
+  -H 'Content-Type: application/json' \
+  -d '{"username":"admin","password":"admin"}' \
+  | jq -r .token)
+
+# Use it
+curl -H "Authorization: Bearer $TOKEN" http://localhost:8765/video/api/videos
+curl -H "Authorization: Bearer $TOKEN" http://localhost:8765/auth/me
+```
+
+Tokens live in memory and expire after 24 hours (or when the server restarts).
+
+The demo page at `/video/` does NOT yet drive the login flow, so when `--auth` is on the demo can't play videos. Use the API directly until the SPA video tab lands.
+
+Same credentials as the audio Subsonic mount — one password sourced from the same TOML.
 
 ## Configuring multiple libraries
 
