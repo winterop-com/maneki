@@ -18,7 +18,13 @@ function LoginView({ onConnect, themeMode, busyLabel }) {
   // result; either true means "found a local MediaKit, hide URL".
   const [autoDetected, setAutoDetected] = useSt_v(null);  // null | "same-origin" | "localhost" | "none"
   const [detectedBase, setDetectedBase] = useSt_v("");
-  const isDesktop = window.location.protocol === "file:" || window.location.protocol === "tauri:";
+  // Desktop = Tauri or Electron wrapper. Can't rely on
+  // window.location.protocol because Tauri 2 serves the SPA from
+  // http://tauri.localhost/ (not file:// or tauri://) so a
+  // protocol check would say "browser". Check for the runtime
+  // globals instead. index.html sets body.dataset.shell from the
+  // same signals, so this stays in sync with the CSS rules.
+  const isDesktop = !!window.__TAURI__ || (navigator.userAgent || "").toLowerCase().includes("electron/");
   // Just the base URL - no /audio mount suffix. The wiring layer
   // probes /capabilities on submit and appends /audio itself when
   // it confirms the server is mediakit. For 3rd-party Subsonic
