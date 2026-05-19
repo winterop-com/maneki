@@ -150,7 +150,7 @@ uvx mediakit serve ./output
 
 By default this:
 
-- binds `0.0.0.0:4533` (LAN + Tailscale)
+- binds `127.0.0.1:8765` (LAN + Tailscale)
 - starts a filesystem watcher for auto-rescan (drops new albums in →
   visible to clients within seconds)
 - advertises itself on mDNS as `_subsonic._tcp.local`
@@ -160,9 +160,9 @@ You'll see a startup banner like:
 
 ```
 mediakit serve — Subsonic API for ~/Music
-  bind: 0.0.0.0:4533
-  LAN:  http://192.168.1.42:4533
-  Tailscale: http://mlaptop.tail4a4b9a.ts.net:4533
+  bind: 127.0.0.1:8765
+  LAN:  http://192.168.1.42:8765
+  Tailscale: http://mlaptop.tail4a4b9a.ts.net:8765
 
 scanning library…
    142 artists, 318 albums, 4521 tracks
@@ -207,20 +207,27 @@ In Tailscale settings, enable **Use Tailscale DNS** so the
 Quick check from a browser on the iPhone:
 
 ```
-http://mlaptop.tail4a4b9a.ts.net:4533/
+http://mlaptop.tail4a4b9a.ts.net:8765/
 ```
 
-You should see a JSON probe response like:
+Visit `/capabilities` and you should see a JSON probe response like:
 
 ```json
 {
-  "name": "mediakit",
+  "server": "mediakit",
   "version": "0.1.0",
-  "type": "subsonic-compatible",
-  "api": "/rest/",
-  "spec": "https://opensubsonic.netlify.app/docs/api-reference/"
+  "audio": true,
+  "video": true,
+  "auth_required": false,
+  "endpoints": {
+    "audio_subsonic": "/audio/rest",
+    "video_api": "/video/api",
+    "auth_login": "/auth/login"
+  }
 }
 ```
+
+The `audio` / `video` flags reflect what mediakit found at the library root — only mounted kinds are reported.
 
 If that loads, the iPhone can reach the server.
 
@@ -235,7 +242,7 @@ synced lyrics.)
 
 Open Amperfy → first-launch screen prompts for a server. Fill in:
 
-- **Server URL**: `http://mlaptop.tail4a4b9a.ts.net:4533` (your Mac's
+- **Server URL**: `http://mlaptop.tail4a4b9a.ts.net:8765` (your Mac's
   Tailscale URL — no trailing slash, no `/rest`).
 - **Username**: `admin` (or whatever you put in `mediakit.toml`).
 - **Password**: `admin` (or whatever you put in `mediakit.toml`).
@@ -247,8 +254,9 @@ and `/rest/getArtists` to populate the library. On first connect with a
 If login fails, the most common causes are:
 
 - Tailscale not connected on the iPhone (check the menu icon).
-- Wrong port (mediakit serve uses 4533 by default; some other Subsonic
-  servers use 4040).
+- Wrong port (`mediakit serve` listens on 8765 by default; Navidrome
+  uses 4533, AirSonic uses 4040 — match whatever your server prints
+  at startup).
 - HTTPS expected but not configured. Default `serve` is plain HTTP. If
   Amperfy asks for HTTPS, leave the URL as `http://` and accept the
   insecure-warning toggle in Amperfy's settings — fine over Tailscale,

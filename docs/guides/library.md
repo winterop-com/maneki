@@ -51,12 +51,12 @@ Dispatch by extension:
 - **Video file** — ffprobe-driven file / container info, video streams (codec, resolution, fps, bitrate, profile / pix_fmt), audio streams (codec, channels, sample rate, language, title), subtitle streams (codec, language, default / forced flags).
 
 ```bash
-mediakit library inspect ~/Downloads/library/videos/tv/ch01.mkv
+mediakit library inspect ~/Downloads/library/tv/ch01.mkv
 ```
 
 ```
                               File
-  path       /Users/morteoh/Downloads/library/videos/tv/ch01.mkv
+  path       /Users/morteoh/Downloads/library/tv/ch01.mkv
   container  Matroska / WebM
   duration   32:31
   size       2.3 GiB

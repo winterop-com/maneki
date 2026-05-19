@@ -60,7 +60,7 @@ Drag a `.dmg` into your Finder or double-click the `.app` directly.
 ## Connecting
 
 1. Launch the app — you get a login screen.
-2. Server URL: `http://<host>:4533` (or whatever your Subsonic-compatible
+2. Server URL: `http://<host>:8765` (or whatever your Subsonic-compatible
    server runs on). No `/rest` suffix.
 3. Username + password: same credentials as `mediakit serve`'s config.
 4. The app connects, fetches the artist list, and remembers the
@@ -107,7 +107,7 @@ the wrapper's window to pick up changes.
 
 ## Trade-offs vs. the browser
 
-The browser at `http://<host>:4533/web` does most of the same things —
+The browser at `http://<host>:8765/` does most of the same things —
 why use the desktop apps? Three reasons:
 
 1. **No tab.** A standalone window with the visualizer running in the

@@ -11,7 +11,7 @@ This guide walks through the four clients that work well in 2026.
 1. Run `mediakit serve` somewhere your phone can reach (Tailscale, LAN, or
    a public URL behind a reverse proxy).
 2. Install one of the apps below.
-3. Point it at `http(s)://<host>:4533/rest`, with the username + password
+3. Point it at `http(s)://<host>:8765/rest`, with the username + password
    from `~/.config/mediakit/mediakit.toml` (or `MEDIAKIT_SERVER__USERNAME`
    / `MEDIAKIT_SERVER__PASSWORD`).
 4. Stream.
@@ -24,7 +24,7 @@ the things to double-check are:
 - **Reachable from the phone.** Localhost won't work; the phone needs to
   resolve the host. The easiest answer is [Tailscale] (the phone joins
   the same tailnet as the server, then connects to
-  `http://<machine-name>:4533`). LAN works too if the phone is on
+  `http://<machine-name>:8765`). LAN works too if the phone is on
   the same Wi-Fi.
 - **Username + password set.** The default `admin` / `admin` will
   authenticate, but every client persists credentials, so use the same
@@ -44,7 +44,7 @@ Polished, free, supported. Best general-purpose client.
    from the App Store.
 2. Settings → Servers → Add Server.
 3. Fill in:
-   - **Server Address**: `http://<host>:4533` (no trailing `/rest`)
+   - **Server Address**: `http://<host>:8765` (no trailing `/rest`)
    - **Username**: from `mediakit.toml`
    - **Password**: from `mediakit.toml`
 4. Save. play:Sub does the salted-token handshake; if the credentials
@@ -69,7 +69,7 @@ Paid (~5 EUR), best-in-class UI.
 1. Install [Symfonium](https://play.google.com/store/apps/details?id=app.symfonik.music_player)
    from Play.
 2. Settings → Sources → Add → Subsonic.
-3. URL: `http://<host>:4533`, plus user + password.
+3. URL: `http://<host>:8765`, plus user + password.
 4. Save → Sync. Syncing pulls a metadata index; subsequent browsing is
    offline-aware.
 
@@ -94,7 +94,7 @@ Free, open source, works on phone + Android Auto.
 ### "Could not connect"
 
 - Confirm the server is reachable from the phone:
-  `curl http://<host>:4533/rest/ping?u=<user>&p=<password>` from a
+  `curl http://<host>:8765/rest/ping?u=<user>&p=<password>` from a
   laptop on the same network.
 - Don't include `/rest` in the URL field — the apps append it.
 
@@ -110,7 +110,7 @@ Free, open source, works on phone + Android Auto.
 
 - The server only sees what's under the path you launched it with:
   `mediakit serve /path/to/Music`. Verify
-  `curl 'http://<host>:4533/rest/getArtists?u=...&p=...&f=json'` returns
+  `curl 'http://<host>:8765/rest/getArtists?u=...&p=...&f=json'` returns
   a non-empty list.
 - If `getArtists` returns content but the app's empty, force-rescan
   inside the app (most have a "Sync" or "Refresh server" action).

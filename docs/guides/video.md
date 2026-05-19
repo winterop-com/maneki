@@ -78,7 +78,7 @@ Flat list of every video file anywhere under the library root. One entry per fil
 
 ```json
 {
-  "id": "movies-Some-Movie-2019-1080p",
+  "id": "movies-Some-Movie-2019-1080p-a3f1c2d4",
   "name": "Some.Movie.2019.1080p.BluRay.x264",
   "path": "/absolute/path/to/file.mkv",
   "size_bytes": 2442979091,
@@ -86,7 +86,7 @@ Flat list of every video file anywhere under the library root. One entry per fil
 }
 ```
 
-The `id` is derived from the relative path under the library root — stable across rescans until the file is renamed or moved.
+The `id` is `<readable-slug>-<8-hex-sha256>` derived from the relative path under the library root. The hash suffix is what makes the id collision-free: two paths that flatten to the same slug (`tv/ch01.mkv` and `tv-ch01.mkv` at the root, say) still get distinct ids. Ids stay stable across rescans until the file is renamed or moved.
 
 ### `GET /video/api/videos/{id}/stream`
 

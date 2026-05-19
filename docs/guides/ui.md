@@ -5,7 +5,7 @@ Static-serve the desktop SPA as a local web client against any Subsonic-compatib
 ```bash
 mediakit audio ui                                       # opens http://localhost:1888
 mediakit audio ui --port 8080                           # different port
-mediakit audio ui --url http://macair:4533 \            # pre-fill the picker
+mediakit audio ui --url http://macair:8765 \            # pre-fill the picker
             --user admin --password admin
 mediakit audio ui --no-open                             # skip auto-opening the browser
 ```
@@ -28,7 +28,7 @@ Both surfaces share the same SPA — the visual + interaction is identical. The 
 Optional `--url / --user / --password` get serialised into the page URL as query parameters that the picker reads on load. Useful for shell aliases or shortcuts:
 
 ```bash
-alias mkmac='mediakit audio ui --url http://macair:4533 --user admin --password admin'
+alias mkmac='mediakit audio ui --url http://macair:8765 --user admin --password admin'
 ```
 
 Password ends up in shell history this way — fine for a local LAN setup, less great for shared machines.
