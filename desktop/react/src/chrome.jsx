@@ -35,11 +35,11 @@ function TopBar({ user, q, setQ, onFocusSearch, onSignOut, searchInputRef }) {
   );
 }
 
-// Vertical kind-rail: the leftmost column when both audio + video are
-// available. Single-click switches the entire SPA between "play music" and
-// "watch a movie" modes. Hidden when only one kind is present.
-function KindRail({ kind, setKind, hasAudio, hasVideo }) {
-  if (!(hasAudio && hasVideo)) return null;
+// Vertical kind-rail: the leftmost column. The parent gates rendering on
+// hasAudio && hasVideo, so this component just renders the two tabs.
+// Labels are typeset vertically (writing-mode rotation) - no icon, just
+// the kind name large and clear.
+function KindRail({ kind, setKind }) {
   return (
     <div className="mk-kind-rail">
       <button
@@ -48,12 +48,7 @@ function KindRail({ kind, setKind, hasAudio, hasVideo }) {
         onClick={() => setKind("audio")}
         title="Audio"
       >
-        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2">
-          <path d="M9 17V5l12-2v12"/>
-          <circle cx="6" cy="17" r="3"/>
-          <circle cx="18" cy="15" r="3"/>
-        </svg>
-        <span className="mk-kind-label">Audio</span>
+        <span className="mk-kind-label">AUDIO</span>
       </button>
       <button
         type="button"
@@ -61,40 +56,19 @@ function KindRail({ kind, setKind, hasAudio, hasVideo }) {
         onClick={() => setKind("video")}
         title="Video"
       >
-        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2">
-          <rect x="2" y="6" width="20" height="12" rx="2"/>
-          <path d="M10 9l5 3-5 3z" fill="currentColor" stroke="none"/>
-        </svg>
-        <span className="mk-kind-label">Video</span>
+        <span className="mk-kind-label">VIDEO</span>
       </button>
     </div>
   );
 }
 
 // Sidebar - per-kind. Audio mode shows Radio / Starred / Artists.
-// Video mode shows just the Videos nav (the right pane fills with the list
-// + player). No collapsibles, no nesting - the kind rail to the left is
-// the only "hide everything for this kind" switch.
+// Video mode renders nothing here - the video list IS the primary view, so
+// there's no need for a sidebar nav with a single "Videos" item. When
+// movies / shows / continue-watching land later, a video sidebar with
+// real nav items can come back.
 function Sidebar({ kind, section, setSection, ARTISTS, artistId, setArtistId, loaded }) {
-  if (kind === "video") {
-    return (
-      <div className="mk-sidebar mk-pane">
-        <div className="mk-pane-section">
-          <div className="mk-pane-label">Library</div>
-          <div
-            className={"mk-nav-item" + (section === "videos" ? " active" : "")}
-            onClick={() => setSection("videos")}
-          >
-            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2">
-              <rect x="2" y="6" width="20" height="12" rx="2"/>
-              <path d="M10 9l5 3-5 3z" fill="currentColor" stroke="none"/>
-            </svg>
-            Videos
-          </div>
-        </div>
-      </div>
-    );
-  }
+  if (kind === "video") return null;
   return (
     <div className="mk-sidebar mk-pane">
       <div className="mk-pane-section">

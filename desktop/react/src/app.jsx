@@ -80,9 +80,14 @@ function App() {
   const [kind, setKind] = uS("audio");
   const [selectedVideo, setSelectedVideo] = uS(null);
   React.useEffect(() => {
+    window.__mkProbe = { stage: "effect-fired" };
     const session = window.MK_API?.loadSession?.();
-    if (!session || typeof window.MK_VIDEO?.capabilities !== "function") return;
+    if (!session || typeof window.MK_VIDEO?.capabilities !== "function") {
+      window.__mkProbe = { stage: "no-session-or-mk-video", session: !!session };
+      return;
+    }
     window.MK_VIDEO.capabilities(session).then((caps) => {
+      window.__mkProbe = { stage: "caps-received", caps };
       setHasVideo(caps?.video === true);
       if (caps && typeof caps.audio === "boolean") setHasAudio(caps.audio);
     });

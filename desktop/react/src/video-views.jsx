@@ -31,8 +31,10 @@ function fmtSize(bytes) {
   return `${(bytes / 1e6).toFixed(0)} MB`;
 }
 
-// Middle pane: list of every video the server knows about. Click a row
-// to set the selected video; the parent renders the player.
+// Primary video pane: list of every video the server knows about. Click a
+// row to set the selected video; the parent renders the player. In video
+// mode the SPA has no sidebar (the list IS the primary view), so this
+// pane fills the leftmost / largest column.
 function VideosPane({ session, selectedId, onSelect }) {
   const [videos, setVideos] = useSt_vv(null);
   const [error, setError] = useSt_vv(null);
