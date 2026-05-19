@@ -11,6 +11,7 @@
   },
   "dependencies": {
     "hls.js": "^1.5.13",
+    "js-md5": "^0.8.3",
     "react": "^19.0.0",
     "react-dom": "^19.0.0"
   },

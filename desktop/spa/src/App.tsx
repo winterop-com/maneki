@@ -53,8 +53,12 @@ function AppRoot(): React.ReactElement {
     );
   }
 
-  if (caps.auth_required && !isAuthenticated) {
-    return <LoginScreen />;
+  // Login is required whenever the server has at least one authenticated
+  // surface for the SPA to consume - audio (Subsonic) or auth-required
+  // video. A video-only server with --auth off needs no login.
+  const needsLogin = caps.audio || caps.auth_required;
+  if (needsLogin && !isAuthenticated) {
+    return <LoginScreen capabilities={caps} />;
   }
 
   return <AppShell capabilities={caps} />;

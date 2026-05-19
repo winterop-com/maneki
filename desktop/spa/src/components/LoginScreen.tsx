@@ -1,13 +1,26 @@
 /**
- * Login form shown when the server reports auth_required=true and no token
- * is stored. POSTs to /auth/login; on success, AuthProvider stores the token
- * and the rest of the app renders.
+ * Single login form fills both the Subsonic salt-token (for /audio/rest/*)
+ * and the MediaKit bearer (for /video/* when --auth is on). User enters
+ * password once; the auth context handles both derivations.
  */
 
 import { useState } from "react";
 import { useAuth } from "../state/auth";
+import type { Capabilities } from "../state/capabilities";
 
-export function LoginScreen(): React.ReactElement {
+interface LoginScreenProps {
+  capabilities: Capabilities;
+}
+
+function helpFor(capabilities: Capabilities): string {
+  const sides: string[] = [];
+  if (capabilities.audio) sides.push("audio (Subsonic)");
+  if (capabilities.auth_required) sides.push("video (MediaKit bearer)");
+  if (sides.length === 0) return "the server has nothing to authenticate against";
+  return `signs you into ${sides.join(" + ")}`;
+}
+
+export function LoginScreen({ capabilities }: LoginScreenProps): React.ReactElement {
   const { login } = useAuth();
   const [username, setUsername] = useState("admin");
   const [password, setPassword] = useState("");
@@ -19,7 +32,7 @@ export function LoginScreen(): React.ReactElement {
     setError(null);
     setBusy(true);
     try {
-      await login(username, password);
+      await login(capabilities, username, password);
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     } finally {
@@ -30,7 +43,7 @@ export function LoginScreen(): React.ReactElement {
   return (
     <main className="login">
       <h1>mediakit</h1>
-      <p className="subtitle">sign in to continue</p>
+      <p className="subtitle">{helpFor(capabilities)}</p>
       <form onSubmit={(e) => void onSubmit(e)}>
         <label>
           username
