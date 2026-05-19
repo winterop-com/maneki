@@ -417,11 +417,13 @@ body[data-platform="darwin"]:not([data-shell="browser"]) .mk-kind-rail {
 }
 
 /* Video-mode browse grid. Sidebar is null in video mode, so override the
-   default `220px 280px 1fr` audio grid: narrow video list on the left,
-   player gets all remaining width. Without this the player ends up in
-   the 280px column slot and looks like a thumbnail. */
+   default `220px 280px 1fr` audio grid: video list on the left, player
+   gets the rest. The list column is wider than feels strictly necessary
+   for the player preview because (a) real-world filenames are long and
+   want the room, (b) the player is usually opened fullscreen anyway so
+   the in-pane preview is secondary. */
 .mk-browse.mk-browse-video {
-  grid-template-columns: 320px 1fr;
+  grid-template-columns: 480px 1fr;
 }
 
 /* Pane scroll for the video browser - it's a single long list (current
@@ -508,4 +510,19 @@ body[data-platform="darwin"]:not([data-shell="browser"]) .mk-kind-rail {
 .video-js.vjs-fullscreen,
 .video-js.vjs-fullscreen .vjs-tech {
   background-color: #000;
+}
+
+/* Drop the browser's default focus outline on the player surface - it
+   appears as a stark blue rectangle around the video after any click
+   on the canvas. Focus rings on the actual interactive controls (the
+   buttons / scrub bar / volume slider inside .vjs-control-bar) stay,
+   so keyboard a11y is unaffected. */
+.video-js:focus,
+.video-js:focus-visible,
+.vjs-tech:focus,
+.vjs-tech:focus-visible,
+[data-vjs-player]:focus,
+[data-vjs-player]:focus-visible {
+  outline: none;
+  box-shadow: none;
 }
