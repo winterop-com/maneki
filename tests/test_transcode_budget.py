@@ -8,7 +8,6 @@ import pytest
 
 from mediakit.video.serve.transcode_budget import TranscodeBudget, default_workers
 
-
 pytestmark = pytest.mark.asyncio
 
 
@@ -166,9 +165,7 @@ async def test_quiet_period_resets_on_unpause() -> None:
     await bg_task
 
     waited_from_last_fg = bg_started_at[0] - last_fg_ended_at[-1]
-    assert waited_from_last_fg >= 0.35, (
-        f"bg started {waited_from_last_fg:.3f}s after most recent fg, expected >= 0.35"
-    )
+    assert waited_from_last_fg >= 0.35, f"bg started {waited_from_last_fg:.3f}s after most recent fg, expected >= 0.35"
 
 
 async def test_state_reflects_in_flight_counts() -> None:

@@ -53,8 +53,6 @@ def _ffmpeg_path() -> str:
     return path
 
 
-
-
 class SegmentSpec(BaseModel):
     """Position of a single segment in the source timeline."""
 

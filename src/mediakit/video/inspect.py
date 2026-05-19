@@ -138,11 +138,11 @@ def _parse_ffprobe(raw: dict[str, object]) -> VideoProbe:
                 subs.append(_parse_subtitle(s))
     if isinstance(fmt, dict):
         fmt_tags_raw = fmt.get("tags") if isinstance(fmt.get("tags"), dict) else {}
-        tags = {
-            str(k).lower(): str(v)
-            for k, v in fmt_tags_raw.items()
-            if v is not None and str(v).strip()
-        } if isinstance(fmt_tags_raw, dict) else {}
+        tags = (
+            {str(k).lower(): str(v) for k, v in fmt_tags_raw.items() if v is not None and str(v).strip()}
+            if isinstance(fmt_tags_raw, dict)
+            else {}
+        )
         fmt_info = FormatInfo(
             format_name=_str_or_none(fmt.get("format_long_name") or fmt.get("format_name")),
             duration_s=_float_or_none(fmt.get("duration")),
@@ -151,9 +151,7 @@ def _parse_ffprobe(raw: dict[str, object]) -> VideoProbe:
             tags=tags,
         )
     else:
-        fmt_info = FormatInfo(
-            format_name=None, duration_s=None, bitrate_bps=None, size_bytes=None, tags={}
-        )
+        fmt_info = FormatInfo(format_name=None, duration_s=None, bitrate_bps=None, size_bytes=None, tags={})
     return VideoProbe(format=fmt_info, video=video, audio=audio, subtitles=subs)
 
 
@@ -221,6 +219,8 @@ def _str_or_default(v: object, default: str) -> str:
 def _int_or_none(v: object) -> int | None:
     if v is None:
         return None
+    if not isinstance(v, (int, str, bytes)):
+        return None
     try:
         return int(v)
     except (TypeError, ValueError):
@@ -235,6 +235,8 @@ def _int_or_default(v: object, default: int) -> int:
 def _float_or_none(v: object) -> float | None:
     if v is None:
         return None
+    if not isinstance(v, (int, float, str, bytes)):
+        return None
     try:
         return float(v)
     except (TypeError, ValueError):
@@ -247,7 +249,7 @@ def inspect_video_file(path: Path, *, console: Console) -> None:
     if probe is None:
         console.print(f"[red]Could not probe[/red] {path} (ffprobe missing or file unreadable)")
         return
-    panels: list[object] = [_render_file_panel(path, probe.format)]
+    panels: list[Panel] = [_render_file_panel(path, probe.format)]
     if probe.video:
         panels.append(_render_video_panel(probe.video))
     if probe.audio:

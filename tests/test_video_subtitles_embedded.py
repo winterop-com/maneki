@@ -82,9 +82,7 @@ def test_probe_returns_text_streams(monkeypatch: pytest.MonkeyPatch, video_file:
     assert result[1].title == "Japanese (full)"
 
 
-def test_probe_filters_image_based_codecs(
-    monkeypatch: pytest.MonkeyPatch, video_file: Path
-) -> None:
+def test_probe_filters_image_based_codecs(monkeypatch: pytest.MonkeyPatch, video_file: Path) -> None:
     """PGS, DVD VobSub etc. need OCR - we don't surface them."""
     monkeypatch.setattr(
         "mediakit.video.serve.subtitles.shutil.which",
@@ -119,16 +117,12 @@ def test_probe_filters_image_based_codecs(
     assert [s.codec_name for s in result] == ["subrip"]
 
 
-def test_probe_without_ffprobe_returns_empty(
-    monkeypatch: pytest.MonkeyPatch, video_file: Path
-) -> None:
+def test_probe_without_ffprobe_returns_empty(monkeypatch: pytest.MonkeyPatch, video_file: Path) -> None:
     monkeypatch.setattr("mediakit.video.serve.subtitles.shutil.which", lambda _: None)
     assert probe_embedded_subtitles(video_file) == []
 
 
-def test_probe_handles_missing_tags(
-    monkeypatch: pytest.MonkeyPatch, video_file: Path
-) -> None:
+def test_probe_handles_missing_tags(monkeypatch: pytest.MonkeyPatch, video_file: Path) -> None:
     monkeypatch.setattr(
         "mediakit.video.serve.subtitles.shutil.which",
         lambda _: "/usr/bin/ffprobe",
@@ -167,11 +161,7 @@ def test_shift_vtt_timestamps_subtracts_offset() -> None:
 
 def test_shift_vtt_timestamps_clamps_at_zero() -> None:
     """Negative results clamp to 00:00:00.000 - no negative timestamps."""
-    src = (
-        "WEBVTT\n\n"
-        "00:00:00.050 --> 00:00:02.000\n"
-        "Early cue.\n"
-    )
+    src = "WEBVTT\n\n00:00:00.050 --> 00:00:02.000\nEarly cue.\n"
     shifted = shift_vtt_timestamps(src, -0.100)
     assert "00:00:00.000 --> 00:00:01.900" in shifted
 

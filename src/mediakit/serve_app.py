@@ -99,6 +99,10 @@ def create_combined_app(
             credentials are resolved from ~/.config/mediakit/mediakit.toml,
             falling back to admin/admin. Tests pass this explicitly to avoid
             leaking state from shared class-level config caches.
+        transcode_workers: cap on concurrent background ffmpeg jobs
+            (prewarm, neighbour prefetch, poster generation). None uses
+            the TranscodeBudget default (cpu_count // 2, capped at 4).
+            Foreground player requests always preempt background work.
     """
     audio_present = has_audio(root)
     video_present = has_video(root)

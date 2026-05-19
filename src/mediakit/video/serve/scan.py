@@ -15,6 +15,7 @@ from __future__ import annotations
 import json
 import shutil
 import subprocess
+from collections.abc import Iterator
 from pathlib import Path
 from typing import TypedDict
 
@@ -24,11 +25,30 @@ from typing import TypedDict
 # captures, .ogv/.asf older container formats, .divx packaged
 # files). Subtitle-image-only codecs are still filtered downstream
 # by ffmpeg, not here.
-VIDEO_EXTENSIONS = frozenset({
-    ".mkv", ".mp4", ".m4v", ".webm", ".mov", ".avi", ".ts", ".m2ts",
-    ".mts", ".wmv", ".flv", ".mpg", ".mpeg", ".vob", ".ogv", ".ogg",
-    ".3gp", ".3g2", ".asf", ".divx",
-})
+VIDEO_EXTENSIONS = frozenset(
+    {
+        ".mkv",
+        ".mp4",
+        ".m4v",
+        ".webm",
+        ".mov",
+        ".avi",
+        ".ts",
+        ".m2ts",
+        ".mts",
+        ".wmv",
+        ".flv",
+        ".mpg",
+        ".mpeg",
+        ".vob",
+        ".ogv",
+        ".ogg",
+        ".3gp",
+        ".3g2",
+        ".asf",
+        ".divx",
+    }
+)
 
 # Directories we never descend into when scanning. `.mediakit` is the
 # server's own cache (poster art, SQLite index, HLS segments — none
@@ -75,7 +95,7 @@ class BrowseResponse(TypedDict):
     videos: list[VideoEntry]
 
 
-def _iter_video_files(root: Path):
+def _iter_video_files(root: Path) -> Iterator[Path]:
     """Yield every video file under root, skipping internal cache dirs."""
     if not root.is_dir():
         return
@@ -193,14 +213,8 @@ def browse_dir(root: Path, rel_path: str = "") -> BrowseResponse | None:
                     size_bytes=child.stat().st_size,
                     rel_path=child_rel.as_posix(),
                     duration_s=probe_duration(child),
-                    subtitles=[
-                        SubtitleSummary(lang=s.language, format=s.fmt)
-                        for s in sidecars
-                    ]
-                    + [
-                        SubtitleSummary(lang=e.language, format=e.codec_name)
-                        for e in embedded
-                    ],
+                    subtitles=[SubtitleSummary(lang=s.language, format=s.fmt) for s in sidecars]
+                    + [SubtitleSummary(lang=e.language, format=e.codec_name) for e in embedded],
                 )
             )
 

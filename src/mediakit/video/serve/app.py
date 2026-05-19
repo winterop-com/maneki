@@ -267,7 +267,7 @@ def create_app(root: Path, *, budget: TranscodeBudget | None = None) -> FastAPI:
         video_path = Path(entry["path"])
         if key.startswith("embed-"):
             try:
-                idx = int(key[len("embed-"):])
+                idx = int(key[len("embed-") :])
             except ValueError as exc:
                 raise HTTPException(status_code=400, detail="invalid embed key") from exc
             # Make sure the index actually corresponds to a probed track
@@ -384,23 +384,44 @@ def _pick_sidecar(sidecars: list[SubtitleSidecar], lang: str) -> SubtitleSidecar
 # Short ISO-639 -> readable name map for the SPA's subtitle picker. Not
 # exhaustive - falls back to the raw tag for anything not listed.
 _LANG_NAMES = {
-    "en": "English", "eng": "English",
-    "fr": "French", "fre": "French", "fra": "French",
-    "de": "German", "ger": "German", "deu": "German",
-    "es": "Spanish", "spa": "Spanish",
-    "it": "Italian", "ita": "Italian",
-    "pt": "Portuguese", "por": "Portuguese",
-    "ja": "Japanese", "jpn": "Japanese",
-    "ko": "Korean", "kor": "Korean",
-    "zh": "Chinese", "chi": "Chinese", "zho": "Chinese",
-    "ru": "Russian", "rus": "Russian",
-    "ar": "Arabic", "ara": "Arabic",
-    "nl": "Dutch", "dut": "Dutch", "nld": "Dutch",
-    "sv": "Swedish", "swe": "Swedish",
-    "no": "Norwegian", "nor": "Norwegian",
-    "da": "Danish", "dan": "Danish",
-    "fi": "Finnish", "fin": "Finnish",
-    "pl": "Polish", "pol": "Polish",
+    "en": "English",
+    "eng": "English",
+    "fr": "French",
+    "fre": "French",
+    "fra": "French",
+    "de": "German",
+    "ger": "German",
+    "deu": "German",
+    "es": "Spanish",
+    "spa": "Spanish",
+    "it": "Italian",
+    "ita": "Italian",
+    "pt": "Portuguese",
+    "por": "Portuguese",
+    "ja": "Japanese",
+    "jpn": "Japanese",
+    "ko": "Korean",
+    "kor": "Korean",
+    "zh": "Chinese",
+    "chi": "Chinese",
+    "zho": "Chinese",
+    "ru": "Russian",
+    "rus": "Russian",
+    "ar": "Arabic",
+    "ara": "Arabic",
+    "nl": "Dutch",
+    "dut": "Dutch",
+    "nld": "Dutch",
+    "sv": "Swedish",
+    "swe": "Swedish",
+    "no": "Norwegian",
+    "nor": "Norwegian",
+    "da": "Danish",
+    "dan": "Danish",
+    "fi": "Finnish",
+    "fin": "Finnish",
+    "pl": "Polish",
+    "pol": "Polish",
     "und": "Subtitles",
 }
 
@@ -415,9 +436,15 @@ _ENGLISH_LANGS = frozenset({"en", "eng"})
 # like "Picollo" or "Soccer".
 _SDH_PATTERNS = (
     "sdh",
-    "(cc)", "[cc]", " cc", "cc ",
+    "(cc)",
+    "[cc]",
+    " cc",
+    "cc ",
     "hearing impaired",
-    "hoh ", " hoh", "(hoh)", "[hoh]",
+    "hoh ",
+    " hoh",
+    "(hoh)",
+    "[hoh]",
 )
 
 
@@ -447,13 +474,17 @@ def _apply_default_priority(tracks: list[dict[str, object]]) -> None:
         return
     sidecars = [t for t in tracks if t.get("kind") == "sidecar"]
     if sidecars:
-        chosen: dict[str, object] | None = next(
-            (t for t in sidecars if _is_english(t) and _looks_like_sdh(t)),
-            None,
-        ) or next(
-            (t for t in sidecars if _is_english(t)),
-            None,
-        ) or sidecars[0]
+        chosen: dict[str, object] | None = (
+            next(
+                (t for t in sidecars if _is_english(t) and _looks_like_sdh(t)),
+                None,
+            )
+            or next(
+                (t for t in sidecars if _is_english(t)),
+                None,
+            )
+            or sidecars[0]
+        )
     else:
         chosen = next(
             (t for t in tracks if _is_english(t) and _looks_like_sdh(t)),
