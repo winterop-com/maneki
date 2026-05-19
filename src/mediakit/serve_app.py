@@ -146,6 +146,12 @@ def create_combined_app(
         _mount_video(combined, root)
 
     if enable_ui:
+        # Mount the SPA at "/" LAST. FastAPI/Starlette match routes in
+        # registration order, so /capabilities, /auth/*, /audio/*, and
+        # /video/* already registered above keep priority. Every other
+        # path falls through to StaticFiles, which (html=True) serves
+        # index.html for "/" and the matching file for "/src/...". No
+        # redirect needed - visiting http://host:port/ lands on the SPA.
         _mount_ui(combined, ui_dir)
 
     return combined
@@ -231,11 +237,13 @@ def _mount_video(combined: FastAPI, library_root: Path) -> None:
 
 
 def _mount_ui(combined: FastAPI, ui_dir: Path | None) -> None:
-    """Mount the React SPA (desktop/react/) at /ui/.
+    """Mount the React SPA (desktop/react/) at the application root.
 
-    The SPA is the MusicKit-lifted Subsonic client (Babel-standalone JSX,
-    no build step required). Once video views are added in-tree it'll also
-    handle /video/api/*.
+    Must be the LAST mount registered - StaticFiles at "/" catches every
+    path not already claimed by a higher-priority route (/capabilities,
+    /auth/*, /audio/*, /video/*), so those must be in place before this
+    runs. `html=True` serves index.html for "/" and the matching file
+    for asset paths like "/src/app.jsx".
 
     Looks for desktop/react/ relative to this file's repo location, or
     accepts an explicit ui_dir override. Raises at startup so a missing
@@ -246,7 +254,7 @@ def _mount_ui(combined: FastAPI, ui_dir: Path | None) -> None:
         raise RuntimeError(
             f"--ui requested but no SPA at {chosen}. The SPA lives at desktop/react/ in the source tree."
         )
-    combined.mount("/ui", StaticFiles(directory=chosen, html=True), name="spa")
+    combined.mount("/", StaticFiles(directory=chosen, html=True), name="spa")
 
 
 def _discover_react_dir() -> Path | None:
