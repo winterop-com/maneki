@@ -5,7 +5,7 @@
 - A throwaway HTML demo page at `/` that lists every video (with title, duration, and size) and plays the one you pick via HLS.
 - Raw byte streaming with HTTP Range at `/api/videos/{id}/stream` (for external players like VLC / mpv).
 - On-the-fly ffmpeg-piped fragmented-MP4 streaming at `/api/videos/{id}/play` (one-shot fMP4 — no seek, no total duration, but cheap).
-- On-the-fly HLS at `/api/videos/{id}/hls/{filename}` (fMP4 segments + incrementally-written playlist; recommended for browser playback because it gives the player a real timeline, seek, and codec re-encode when needed).
+- On-the-fly HLS at `/api/videos/{id}/hls/{filename}` (MPEG-TS segments transcoded on demand from a synthesised VOD manifest; recommended for browser playback because it gives the player full duration, seek-anywhere, and re-encodes when needed).
 
 No SPA integration yet — that lands as a follow-up layer.
 
@@ -95,6 +95,16 @@ Serves the raw bytes with HTTP Range support, so a browser's `<video>` tag (or V
 
 No transcoding. The Content-Type is derived from the file extension (`video/x-matroska` for `.mkv`, `video/mp4` for `.mp4` / `.m4v`, etc).
 
+### `GET /api/videos/{id}/poster`
+
+Contact-sheet PNG: header strip with filename + codec/resolution/duration/size, then a 3×3 grid of timestamped frame thumbnails sampled across the middle 90% of the timeline. Used as the video.js player's `poster` so the paused player shows the video at a glance instead of a blank canvas.
+
+Lazy: first request transcodes ~9 frames via ffmpeg (~1–2s on a modern CPU); cached to `<root>/.mediakit/posters/<id>.png` so re-requests are file-serve cheap. Returns 503 if ffmpeg or ffprobe is missing.
+
+### `GET /api/videos/{id}/thumbnail`
+
+Single-frame JPEG sampled at ~30% into the timeline, scaled to 320px wide. Used for the row icon in the SPA video list. Much smaller payload than the full poster (~10 KB vs ~800 KB) so the list paints fast even with hundreds of videos. Cached to `<root>/.mediakit/posters/<id>.thumb.jpg`.
+
 ### `GET /api/videos/{id}/play`
 
 ffmpeg-piped, fragmented-MP4 stream designed for browser `<video>` elements:
@@ -109,18 +119,21 @@ Trade-offs: this endpoint streams one big fMP4 over one HTTP response. No `<vide
 
 ### `GET /api/videos/{id}/hls/{filename}`
 
-On-the-fly HLS transcode. The first request to `/hls/index.m3u8` lazily spawns ffmpeg into a per-video temp directory; subsequent requests for `index.m3u8`, `init.mp4`, and `seg-NNNN.m4s` segments are served as files as ffmpeg produces them.
+On-demand HLS. The manifest is synthesised upfront from ffprobe's duration (every segment URL + EXTINF + `#EXT-X-ENDLIST`), so the player gets a true VOD timeline immediately. Each segment is transcoded lazily on first request:
 
-- **Video stream**: copied through when the source codec is H.264 (cheap, no quality loss). Otherwise transcoded to H.264 via libx264 at `-preset veryfast -crf 23`.
-- **Audio**: always re-encoded to stereo AAC at 192 kbps.
-- **Segments**: fragmented MP4 (`.m4s`) for browser native compatibility + a shared `init.mp4` segment with the codec metadata.
-- **Playlist**: written incrementally; clients can start playback as soon as the first segment is ready. When ffmpeg finishes the input, `#EXT-X-ENDLIST` is appended and the player gets a final, seekable timeline.
+- `index.m3u8`: built from the video's duration. Returned instantly. Marked `#EXT-X-PLAYLIST-TYPE:VOD` with `#EXT-X-ENDLIST` so video.js / Safari / hls.js show the scrub bar and allow seeking anywhere.
+- `seg-NNNN.ts`: spawns a short ffmpeg that seeks to `N * 6s`, encodes that 6s slice, and writes the segment to disk. Cached for the server lifetime. Typical transcode time: 0.5–1.5s per 6s segment on a modern CPU.
 
-Use this when the source codec is H.265 / VP9 / MPEG-2 (anything not H.264) — the `/play` endpoint only remuxes, this endpoint re-encodes video as needed.
+Why MPEG-TS (.ts) and not fragmented MP4 (.m4s): per-segment ffmpeg runs each produce their own init segment, and the codec headers (`SPS/PPS`) differ subtly between invocations. fMP4 needs one shared init across every segment, so cross-segment playback breaks with MEDIA_ERR_DECODE. MPEG-TS segments carry their own headers and stitch cleanly.
 
-Returns `503` if ffmpeg is missing, `400` if the requested filename looks like a path-traversal attempt, `404` for unknown video ids, `504` if the requested file doesn't materialise within 60s (first request only; subsequent requests are fast once ffmpeg is producing).
+Encoding choices:
+- **Video**: always re-encoded with libx264 (`-preset veryfast -crf 23`) so each segment starts on a forced keyframe (`-force_key_frames expr:gte(t,0)`). Re-encoding costs a bit of CPU but lets segments be independently seekable - the price for any-position scrub on any source codec.
+- **Audio**: stereo AAC at 192 kbps.
+- **Timestamps**: `-copyts` + `-to` preserve absolute source-timeline PTS so each segment's playback position matches the manifest's EXTINF cumulative time. (Note: `-t duration` would mis-fire here - with `-copyts` the output PTS already starts at `start_s`, so `-t` is interpreted as "stop when output PTS hits duration" which is in the past for any segment past 0.)
 
-**v0 lifecycle limitation**: HLS sessions live for the entire server-process lifetime — no automatic cleanup. Restart the server to free the per-video temp directories under `/tmp/mediakit-hls/<id>/`. A TTL + eviction layer is a follow-up.
+Returns `503` if ffmpeg is missing, `400` if the requested filename looks like a path-traversal attempt or has an unparseable segment index, `404` for unknown video ids or out-of-range segments, `500` if the ffmpeg subprocess fails (stderr tail is included in the detail).
+
+**v0 lifecycle limitation**: segments are cached per video for the lifetime of the server process - no automatic cleanup. Restart the server to free the per-video temp directories under `/tmp/mediakit-hls/<id>/`. A TTL + eviction layer is a follow-up.
 
 ## Browser compatibility
 
@@ -144,10 +157,10 @@ Stage 2's video work is built in layers:
 
 1. **Base** — scan, list, raw stream. Done.
 2. **Transcode + demo page** — ffmpeg-piped fMP4 at `/play`, browser-friendly. Done.
-3. **HLS** (current) — on-the-fly HLS playlist + fMP4 segments with full video re-encode when needed. Demo page upgraded to use HLS for seek + duration. Done.
-4. **SPA video views** — the desktop web UI gets a real Video tab listing movies / shows / episodes; the throwaway `/` demo page is retired.
-5. **Subtitle and audio-track pickers** — embedded + sidecar.
-6. **House auth** — bearer tokens at `/auth/login` protecting `/video/*` and future MediaKit-native endpoints.
+3. **HLS** — on-demand MPEG-TS segments behind a synthesised VOD manifest. Seek anywhere, full duration, scrub bar works. Done.
+4. **SPA video views** — the desktop web UI gets a real Video tab (vertical AUDIO/VIDEO rail) playing through video.js v8. Done.
+5. **Subtitle and audio-track pickers** — sidecar `.srt` discovery + WebVTT conversion. Done. Embedded tracks and picker UI deferred.
+6. **House auth** — bearer tokens at `/auth/login` protecting `/video/*` and future MediaKit-native endpoints. Done.
 
 Each layer is independently demonstrable.
 
