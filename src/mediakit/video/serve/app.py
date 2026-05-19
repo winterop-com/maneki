@@ -255,7 +255,7 @@ def create_app(root: Path, *, budget: TranscodeBudget | None = None) -> FastAPI:
         return Response(content=body, media_type="text/vtt; charset=utf-8")
 
     @app.get("/api/videos/{video_id}/hls/{filename}")
-    async def hls_file(video_id: str, filename: str) -> Response:
+    async def hls_file(video_id: str, filename: str, request: Request) -> Response:
         """Serve an HLS playlist, init segment, or fMP4 segment.
 
         - `index.m3u8`: synthesised from ffprobe duration. Returned
@@ -309,9 +309,11 @@ def create_app(root: Path, *, budget: TranscodeBudget | None = None) -> FastAPI:
                         watcher.cancel()
                     if work not in done and not work.done():
                         work.cancel()
-                # Drain cancelled tasks so warnings don't leak.
+                # Drain cancelled tasks so warnings don't leak. Note:
+                # CancelledError is a BaseException subclass in 3.8+,
+                # so plain `suppress(Exception)` doesn't cover it.
                 for task in (watcher, work):
-                    with contextlib.suppress(Exception):
+                    with contextlib.suppress(asyncio.CancelledError, Exception):
                         await task
                 if watcher in done and work not in done:
                     raise HTTPException(status_code=499, detail="client disconnected")
