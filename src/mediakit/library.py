@@ -18,13 +18,14 @@ from pathlib import Path
 
 from pydantic import BaseModel, ConfigDict
 
-# Mirrors mediakit.audio.metadata.SUPPORTED_AUDIO_EXTS (no .mp4 - the
-# .mp4 container is overwhelmingly used for video, so treating it as
-# audio in a single-library scan produces phantom albums). Includes
-# .wma and .ape which the metadata reader recognises read-only.
-AUDIO_EXTENSIONS = frozenset(
-    {".mp3", ".m4a", ".m4b", ".flac", ".wav", ".aiff", ".aif", ".ogg", ".opus", ".aac", ".wma", ".ape"}
-)
+from mediakit.audio.metadata import SUPPORTED_AUDIO_EXTS
+
+# Single source of truth - reuse the Subsonic-side audio extension set
+# directly. Drifting these apart caused a subtle bug where has_audio()
+# would return True on a .wma-only library (was previously listed here
+# but not in SUPPORTED_AUDIO_EXTS), the audio mount was created, and
+# then the Subsonic library scan found zero tracks.
+AUDIO_EXTENSIONS = SUPPORTED_AUDIO_EXTS
 
 # Directory names we never descend into. Mirrors the video scanner's
 # skip list so summarise / scan_files don't walk the server's own

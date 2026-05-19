@@ -128,3 +128,31 @@ def test_mp4_is_video_not_audio(mixed_root: Path) -> None:
     # video_count, not audio_count.
     assert s.video_count == 2
     assert s.audio_count == 1
+
+
+def test_ogg_is_audio_not_video(tmp_path: Path) -> None:
+    """`.ogg` is Vorbis audio - must NOT be in the video extension set.
+
+    Regression test: when .ogg appeared in both AUDIO and VIDEO extension
+    sets, an Ogg Vorbis library would get both /audio/rest/* AND
+    /video/api/* mounts, and the same files would be listed by both
+    scanners. The video pipeline would then choke trying to ffprobe
+    audio-only Ogg files as videos.
+    """
+    (tmp_path / "song.ogg").write_bytes(b"OggS\x00" + b"x" * 32)
+    s = summarize(tmp_path)
+    assert s.audio_count == 1
+    assert s.video_count == 0
+
+
+def test_library_and_subsonic_audio_extension_sets_agree() -> None:
+    """`library.AUDIO_EXTENSIONS` must equal `audio.metadata.SUPPORTED_AUDIO_EXTS`.
+
+    They are kept in sync as a single import - drifting them apart
+    causes silent bugs (e.g. has_audio() returns True on a library
+    that the Subsonic scanner then finds empty).
+    """
+    from mediakit.audio.metadata import SUPPORTED_AUDIO_EXTS
+    from mediakit.library import AUDIO_EXTENSIONS
+
+    assert AUDIO_EXTENSIONS == SUPPORTED_AUDIO_EXTS

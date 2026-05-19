@@ -417,7 +417,11 @@ function VideoSearchPane({ session, q, selectedId, onSelect }) {
                 <div className="mk-album-sub">
                   <span className="mono">{fmtDuration(v.duration_s)}</span>
                   <span className="mk-album-count">{fmtSize(v.size_bytes)}</span>
-                  {v.rel_path && v.rel_path !== v.name + ".mkv" && (
+                  {/* Show rel_path as a dim trailing hint when the file
+                      lives in a subfolder. Strip any extension before
+                      comparing - hard-coding ".mkv" caused mp4/webm/mov
+                      hits to always paint a redundant subtitle. */}
+                  {v.rel_path && v.rel_path.replace(/\.[^./]+$/, "") !== v.name && (
                     <span className="mk-album-count" style={{ opacity: 0.6 }}>
                       {v.rel_path}
                     </span>

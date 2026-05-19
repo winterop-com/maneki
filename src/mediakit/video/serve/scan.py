@@ -42,7 +42,6 @@ VIDEO_EXTENSIONS = frozenset(
         ".mpeg",
         ".vob",
         ".ogv",
-        ".ogg",
         ".3gp",
         ".3g2",
         ".asf",
