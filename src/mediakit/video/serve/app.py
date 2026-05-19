@@ -6,6 +6,7 @@ Endpoints:
 - GET /api/videos                flat list of files under <root>/videos/
 - GET /api/videos/{id}/stream    raw bytes (HTTP Range supported)
 - GET /api/videos/{id}/play      browser-compatible ffmpeg-piped fMP4
+- GET /api/videos/{id}/hls/{filename}   HLS playlist + fMP4 segments
 """
 
 from __future__ import annotations
@@ -18,12 +19,17 @@ from fastapi.responses import FileResponse, HTMLResponse, Response, StreamingRes
 
 from mediakit import __version__
 from mediakit.video.serve.demo import DEMO_HTML
+from mediakit.video.serve.hls import HLSManager
 from mediakit.video.serve.scan import VideoEntry, scan_videos
 from mediakit.video.serve.transcode import (
     FFmpegNotFoundError,
     assert_ffmpeg_available,
     transcode_to_mp4,
 )
+
+# Module-level HLS manager so sessions survive across requests within one
+# server process. Each create_app call gets its own (passed in via closure),
+# scoped to that app's lifetime.
 
 _MIME_BY_EXT: dict[str, str] = {
     ".mkv": "video/x-matroska",
@@ -47,6 +53,7 @@ def create_app(root: Path) -> FastAPI:
             for v0; SQLite cache is the next layer up).
     """
     app = FastAPI(title="mediakit-video", version=__version__)
+    hls_manager = HLSManager()
 
     @app.get("/", response_class=HTMLResponse)
     def demo_page() -> str:
@@ -95,7 +102,43 @@ def create_app(root: Path) -> FastAPI:
             headers={"Cache-Control": "no-cache"},
         )
 
+    @app.get("/api/videos/{video_id}/hls/{filename}")
+    async def hls_file(video_id: str, filename: str) -> Response:
+        """Serve an HLS playlist or fMP4 segment for the given video.
+
+        On first request (typically `index.m3u8`), spawns ffmpeg into a
+        per-video temp dir. Subsequent requests for segments are served
+        as files as soon as ffmpeg writes them. Segments take a moment
+        to appear at first - the request blocks up to ~10s for the
+        target file to materialise.
+        """
+        if "/" in filename or filename.startswith("."):
+            raise HTTPException(status_code=400, detail="invalid filename")
+        entry = _find(video_id, root)
+        try:
+            assert_ffmpeg_available()
+        except FFmpegNotFoundError as exc:
+            raise HTTPException(status_code=503, detail=str(exc)) from exc
+
+        session = await hls_manager.get_or_start(video_id, Path(entry["path"]))
+        # 60s covers ffmpeg startup + first-segment encode for typical 1080p H.264
+        # sources. Segments after the first appear faster (ffmpeg is steady-state by
+        # then) so callers can use shorter client-side timeouts if they want.
+        try:
+            target = await session.wait_for(filename, timeout=60.0)
+        except TimeoutError as exc:
+            raise HTTPException(status_code=504, detail=str(exc)) from exc
+        return FileResponse(target, media_type=_hls_media_type(filename))
+
     return app
+
+
+def _hls_media_type(filename: str) -> str:
+    if filename.endswith(".m3u8"):
+        return "application/vnd.apple.mpegurl"
+    if filename.endswith(".m4s") or filename == "init.mp4":
+        return "video/mp4"
+    return "application/octet-stream"
 
 
 def _find(video_id: str, root: Path) -> VideoEntry:
