@@ -1,7 +1,7 @@
 /**
- * Two-section sidebar nav. Section headers are clickable - collapse/expand
- * state survives reloads via localStorage. Sections are hidden entirely when
- * the server doesn't advertise that kind.
+ * Sidebar nav: two collapsible sections (Music, Video) using the legacy
+ * design's mk-sidebar / mk-pane-section / mk-pane-label / mk-nav-item
+ * classes so the look matches the rest of the SPA.
  */
 
 import { useCallback, useEffect, useState } from "react";
@@ -49,11 +49,11 @@ export function Nav({ capabilities, current, onSelect }: NavProps): React.ReactE
   }, []);
 
   return (
-    <nav className="nav">
+    <nav className="mk-sidebar mk-pane">
       {capabilities.audio && (
         <Section
           name="music"
-          label="MUSIC"
+          label="Music"
           collapsed={collapsed.has("music")}
           onToggle={() => toggle("music")}
         >
@@ -67,7 +67,7 @@ export function Nav({ capabilities, current, onSelect }: NavProps): React.ReactE
       {capabilities.video && (
         <Section
           name="video"
-          label="VIDEO"
+          label="Video"
           collapsed={collapsed.has("video")}
           onToggle={() => toggle("video")}
         >
@@ -92,12 +92,17 @@ interface SectionProps {
 
 function Section({ label, collapsed, onToggle, children }: SectionProps): React.ReactElement {
   return (
-    <div className="nav-section">
-      <button type="button" className="nav-header" onClick={onToggle} aria-expanded={!collapsed}>
-        <span className="caret">{collapsed ? "▶" : "▼"}</span>
+    <div className="mk-pane-section">
+      <button
+        type="button"
+        className="mk-pane-label mk-pane-toggle"
+        onClick={onToggle}
+        aria-expanded={!collapsed}
+      >
+        <span className="mk-caret">{collapsed ? "▶" : "▼"}</span>
         {label}
       </button>
-      {!collapsed && <ul className="nav-items">{children}</ul>}
+      {!collapsed && <div className="mk-pane-section-body">{children}</div>}
     </div>
   );
 }
@@ -110,14 +115,12 @@ interface NavItemProps {
 
 function NavItem({ label, selected, onClick }: NavItemProps): React.ReactElement {
   return (
-    <li>
-      <button
-        type="button"
-        className={selected ? "nav-item selected" : "nav-item"}
-        onClick={onClick}
-      >
-        {label}
-      </button>
-    </li>
+    <button
+      type="button"
+      className={"mk-nav-item" + (selected ? " active" : "")}
+      onClick={onClick}
+    >
+      {label}
+    </button>
   );
 }

@@ -1,29 +1,293 @@
-:root {
-  color-scheme: dark;
-  font-family: ui-sans-serif, system-ui, -apple-system, sans-serif;
-  font-size: 16px;
-  color: #ddd;
-  background: #111;
-}
+/* New SPA additions on top of the legacy MediaKit design system in
+ * legacy-design.css. Only rules NOT covered by the legacy CSS belong here:
+ * - SPA-specific layout adjustments (Vite-native shell quirks)
+ * - The new Video views (no equivalent in the old audio-only SPA)
+ * - Nav collapse caret + section body wrapper
+ *
+ * Design tokens (--accent / --bg / --text / etc.) all come from
+ * legacy-design.css so anything we add here automatically inherits the
+ * Tokyo-Night palette. */
 
-* {
-  box-sizing: border-box;
-}
-
+* { box-sizing: border-box; }
+html, body, #root { height: 100%; margin: 0; }
 body {
-  margin: 0;
-  min-height: 100vh;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--mk-font);
+  -webkit-font-smoothing: antialiased;
+  overflow: hidden;
 }
 
-button {
+/* ------- Two-pane SPA body ------- */
+
+.mk-spa-body {
+  display: grid;
+  grid-template-columns: 240px 1fr;
+  min-height: 0;
+}
+
+.mk-content {
+  padding: 16px 22px;
+  overflow-y: auto;
+}
+
+/* ------- Collapsible nav sections ------- */
+
+.mk-pane-toggle {
+  background: transparent;
+  border: 0;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+}
+
+.mk-pane-toggle:hover {
+  color: var(--text);
+}
+
+.mk-pane-toggle .mk-caret {
+  display: inline-block;
+  width: 0.8em;
+  font-size: 0.75em;
+  color: var(--text-dim);
+}
+
+.mk-pane-section-body {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-top: 4px;
+}
+
+/* mk-nav-item is a <button> in the new SPA, not the legacy <div>.
+   Re-assert button-reset bits the legacy CSS does not cover. */
+.mk-nav-item {
+  background: transparent;
+  border: 0;
+  width: 100%;
+  text-align: left;
+  font: inherit;
+  cursor: pointer;
+  color: var(--text);
+}
+
+/* ------- Video list (new in this SPA) ------- */
+
+.mk-video-list h2 {
+  font-weight: 500;
+  font-size: 18px;
+  margin: 0 0 12px;
+}
+
+.mk-video-rows {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 6px;
+}
+
+.mk-video-row {
+  display: block;
+  width: 100%;
+  padding: 10px 14px;
+  background: var(--bg-elev);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  text-align: left;
   font: inherit;
   color: inherit;
   cursor: pointer;
-  background: none;
-  border: none;
+  transition: background 100ms, border-color 100ms;
 }
 
-/* ------- Status / loading / error screens ------- */
+.mk-video-row:hover {
+  background: var(--panel-2, var(--panel));
+  border-color: var(--text-dim);
+}
+
+.mk-video-row .mk-video-title {
+  display: block;
+  color: var(--text);
+  font-size: 14px;
+}
+
+.mk-video-row .mk-video-meta {
+  display: block;
+  color: var(--text-soft);
+  font-size: 11px;
+  margin-top: 3px;
+  font-family: var(--mk-mono);
+}
+
+.mk-video-row .mk-sub-badge {
+  color: var(--accent);
+}
+
+/* ------- Video player (new in this SPA) ------- */
+
+.mk-video-player {
+  display: grid;
+  gap: 12px;
+}
+
+.mk-video-player-header {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.mk-video-player-header h2 {
+  margin: 0;
+  font-weight: 500;
+  font-size: 15px;
+}
+
+.mk-back-btn {
+  background: transparent;
+  border: 1px solid var(--line);
+  color: var(--text-soft);
+  font-family: var(--mk-mono);
+  font-size: 11px;
+  padding: 4px 10px;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.mk-back-btn:hover { color: var(--text); border-color: var(--text-dim); }
+
+.mk-video-player video {
+  width: 100%;
+  max-height: 78vh;
+  background: #000;
+  border-radius: 6px;
+}
+
+.mk-video-player-status {
+  color: var(--text-dim);
+  font-family: var(--mk-mono);
+  font-size: 11px;
+  margin: 0;
+}
+
+/* ------- Audio browse (4b) - simple list view using legacy tokens ------- */
+
+.mk-audio-browse h2 { font-weight: 500; font-size: 18px; margin: 0 0 12px; }
+
+.mk-cover-grid {
+  list-style: none;
+  margin: 12px 0 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: 12px;
+}
+
+.mk-cover-card {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  padding: 8px;
+  background: var(--bg-elev);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  text-align: left;
+  cursor: pointer;
+  color: inherit;
+  font: inherit;
+  transition: background 100ms;
+}
+
+.mk-cover-card:hover { background: var(--panel); }
+
+.mk-cover-img {
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  object-fit: cover;
+  background: var(--panel-2, var(--panel));
+  border-radius: 4px;
+  margin-bottom: 6px;
+}
+
+.mk-cover-img.empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 36px;
+  font-weight: 300;
+  color: var(--text-dim);
+}
+
+.mk-cover-title {
+  color: var(--text);
+  font-size: 13px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.mk-cover-meta {
+  color: var(--text-soft);
+  font-size: 11px;
+  font-family: var(--mk-mono);
+  margin-top: 2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.mk-track-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.mk-track-row {
+  display: grid;
+  grid-template-columns: 2.5rem 1fr auto;
+  width: 100%;
+  padding: 6px 10px;
+  background: transparent;
+  border: 0;
+  color: var(--text);
+  font: inherit;
+  cursor: pointer;
+  text-align: left;
+  border-radius: 4px;
+}
+
+.mk-track-row:hover { background: var(--row-hover); }
+
+.mk-track-num { color: var(--text-dim); font-family: var(--mk-mono); }
+.mk-track-time { color: var(--text-soft); font-family: var(--mk-mono); }
+
+.mk-album-header-row {
+  display: flex;
+  gap: 16px;
+  margin-bottom: 14px;
+  align-items: flex-end;
+}
+
+.mk-album-header-row img {
+  width: 180px;
+  height: 180px;
+  object-fit: cover;
+  border-radius: 4px;
+}
+
+.mk-album-header-row h2 { margin: 0 0 4px; }
+
+.mk-album-header-row .mk-album-line {
+  color: var(--text-soft);
+  font-size: 13px;
+}
+
+/* ------- Status / loading / error ------- */
 
 .status {
   max-width: 700px;
@@ -32,266 +296,6 @@ button {
 }
 
 .error {
-  color: #ff6464;
-  background: #2a1111;
-  padding: 0.6rem 0.8rem;
-  border-radius: 4px;
-  border: 1px solid #5a2222;
-}
-
-/* ------- Login ------- */
-
-.login {
-  max-width: 360px;
-  margin: 5rem auto;
-  padding: 0 1rem;
-}
-
-.login .subtitle {
-  color: #888;
-  margin-bottom: 1.5rem;
-}
-
-.login form {
-  display: grid;
-  gap: 1rem;
-}
-
-.login label {
-  display: grid;
-  gap: 0.3rem;
-  color: #888;
-  font-size: 0.85rem;
-}
-
-.login input {
-  font: inherit;
-  padding: 0.5rem 0.7rem;
-  background: #1c1c1c;
-  border: 1px solid #333;
-  border-radius: 4px;
-  color: #ddd;
-}
-
-.login input:focus {
-  outline: 1px solid #888;
-  border-color: #888;
-}
-
-.login button[type="submit"] {
-  padding: 0.6rem;
-  background: #2a4a8a;
-  border-radius: 4px;
-  color: #fff;
-  font-weight: 500;
-  transition: background 0.15s;
-}
-
-.login button[type="submit"]:hover:not(:disabled) {
-  background: #345abe;
-}
-
-.login button[type="submit"]:disabled {
-  opacity: 0.6;
-  cursor: default;
-}
-
-/* ------- Shell layout ------- */
-
-.shell {
-  display: grid;
-  grid-template-columns: 240px 1fr;
-  min-height: 100vh;
-}
-
-.sidebar {
-  background: #0c0c0c;
-  border-right: 1px solid #222;
-  padding: 1.2rem 0.8rem;
-  display: flex;
-  flex-direction: column;
-}
-
-.sidebar .brand {
-  font-size: 1.2rem;
-  font-weight: 500;
-  margin: 0 0.4rem 1.5rem;
-}
-
-.sidebar .logout {
-  margin-top: auto;
-  padding: 0.5rem 0.6rem;
-  font-size: 0.85rem;
-  color: #666;
-  text-align: left;
-}
-
-.sidebar .logout:hover {
-  color: #ddd;
-}
-
-/* ------- Nav ------- */
-
-.nav-section {
-  margin-bottom: 0.8rem;
-}
-
-.nav-header {
-  display: flex;
-  align-items: center;
-  gap: 0.4rem;
-  width: 100%;
-  padding: 0.3rem 0.4rem;
-  color: #888;
-  font-size: 0.75rem;
-  letter-spacing: 0.08em;
-  font-weight: 500;
-  text-align: left;
-}
-
-.nav-header:hover {
-  color: #ddd;
-}
-
-.nav-header .caret {
-  display: inline-block;
-  width: 0.8em;
-  font-size: 0.7em;
-}
-
-.nav-items {
-  list-style: none;
-  margin: 0.3rem 0 0;
-  padding: 0;
-}
-
-.nav-item {
-  width: 100%;
-  padding: 0.4rem 0.6rem 0.4rem 1.4rem;
-  font-size: 0.95rem;
-  color: #ccc;
-  border-radius: 3px;
-  text-align: left;
-}
-
-.nav-item:hover {
-  background: #1a1a1a;
-}
-
-.nav-item.selected {
-  background: #2a2a2a;
-  color: #fff;
-}
-
-/* ------- Content area ------- */
-
-.content {
-  padding: 1.5rem 2rem;
-}
-
-.content .header {
-  color: #666;
-  font-size: 0.85rem;
-  margin: 0 0 1.5rem;
-}
-
-.placeholder h2 {
-  font-weight: 500;
-  margin-top: 0;
-}
-
-.placeholder .endpoint {
-  color: #888;
-  font-size: 0.85rem;
-  font-family: ui-monospace, SFMono-Regular, "SF Mono", monospace;
-}
-
-/* ------- Video list ------- */
-
-.video-list h2 {
-  font-weight: 500;
-  margin-top: 0;
-}
-
-.video-list ul {
-  list-style: none;
-  margin: 1rem 0;
-  padding: 0;
-  display: grid;
-  gap: 0.5rem;
-}
-
-.video-row {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  width: 100%;
-  padding: 0.8rem 1rem;
-  background: #181818;
-  border-radius: 4px;
-  text-align: left;
-  transition: background 0.12s;
-}
-
-.video-row:hover {
-  background: #242424;
-}
-
-.video-row .title {
-  color: #eee;
-  font-size: 1rem;
-}
-
-.video-row .meta {
-  color: #888;
-  font-size: 0.8rem;
-  margin-top: 0.2rem;
-}
-
-.video-row .subtitle-badge {
-  color: #88aaff;
-}
-
-/* ------- Video player ------- */
-
-.video-player {
-  display: grid;
-  gap: 0.8rem;
-}
-
-.player-header {
-  display: flex;
-  align-items: center;
-  gap: 1rem;
-}
-
-.player-header h2 {
-  margin: 0;
-  font-weight: 500;
-  font-size: 1.05rem;
-}
-
-.player-back {
-  padding: 0.3rem 0.6rem;
-  color: #888;
-  border-radius: 3px;
-  font-size: 0.9rem;
-}
-
-.player-back:hover {
-  background: #1a1a1a;
-  color: #ddd;
-}
-
-.video-player video {
-  width: 100%;
-  max-height: 75vh;
-  background: #000;
-  border-radius: 4px;
-}
-
-.player-status {
-  color: #666;
-  font-size: 0.8rem;
-  margin: 0;
+  color: #e05050;
+  font-size: 12px;
 }

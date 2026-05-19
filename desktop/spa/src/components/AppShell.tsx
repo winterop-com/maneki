@@ -1,14 +1,15 @@
 /**
- * Two-pane layout: Nav on the left, view content on the right.
- *
- * Selecting a section item updates the current view. Routing is in-memory
- * for commit 2; URL-based routing (React Router) lands later if needed.
+ * Top-level shell: mk-topbar (brand + signed-in user + sign out) over a
+ * 2-pane mk-body (sidebar nav + content). Uses the legacy MediaKit design
+ * system classes (mk-shell / mk-topbar / mk-pane / ...) lifted from the
+ * old SPA, so the visual identity is consistent.
  */
 
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import type { Capabilities } from "../state/capabilities";
 import { useAuth } from "../state/auth";
 import type { Video } from "../state/videos";
+import { AudioBrowse } from "./audio/AudioBrowse";
 import { Nav } from "./Nav";
 import type { ViewId } from "./Nav";
 import { VideoList } from "./video/VideoList";
@@ -29,63 +30,67 @@ export function AppShell({ capabilities }: AppShellProps): React.ReactElement {
   const [view, setView] = useState<ViewId | null>(() => defaultViewFor(capabilities));
   const [playing, setPlaying] = useState<Video | null>(null);
 
-  const headerText = useMemo(() => {
-    const parts = [`${capabilities.server} v${capabilities.version}`];
-    if (session !== null) parts.push(`signed in as ${session.username}`);
-    return parts.join("  ·  ");
-  }, [capabilities, session]);
-
   const handleSelect = (next: ViewId): void => {
     setPlaying(null);
     setView(next);
   };
 
   return (
-    <div className="shell">
-      <aside className="sidebar">
-        <h1 className="brand">mediakit</h1>
+    <div className="mk-shell">
+      <div className="mk-topbar">
+        <div className="mk-topbar-left" />
+        <div className="mk-topbar-center">
+          <span className="mk-brand">mediakit</span>
+          <span className="mk-version">v{capabilities.version}</span>
+        </div>
+        <div className="mk-topbar-right">
+          {session !== null && <span className="mk-user">{session.username}</span>}
+          {session !== null && (
+            <button type="button" className="mk-signout" onClick={logout}>
+              Sign out
+            </button>
+          )}
+        </div>
+      </div>
+      <div className="mk-body mk-spa-body">
         <Nav capabilities={capabilities} current={view} onSelect={handleSelect} />
-        {session !== null && (
-          <button type="button" className="logout" onClick={logout}>
-            sign out
-          </button>
-        )}
-      </aside>
-      <main className="content">
-        <p className="header">{headerText}</p>
-        {playing !== null ? (
-          <VideoPlayer video={playing} onClose={() => setPlaying(null)} />
-        ) : (
-          <ViewBody view={view} capabilities={capabilities} onPlayVideo={setPlaying} />
-        )}
-      </main>
+        <main className="mk-pane mk-pane-wide mk-content">
+          {playing !== null ? (
+            <VideoPlayer video={playing} onClose={() => setPlaying(null)} />
+          ) : (
+            <ViewBody view={view} onPlayVideo={setPlaying} />
+          )}
+        </main>
+      </div>
     </div>
   );
 }
 
 interface ViewBodyProps {
   view: ViewId | null;
-  capabilities: Capabilities;
   onPlayVideo: (video: Video) => void;
 }
 
-function ViewBody({ view, capabilities, onPlayVideo }: ViewBodyProps): React.ReactElement {
+function ViewBody({ view, onPlayVideo }: ViewBodyProps): React.ReactElement {
   if (view === null) {
     return (
-      <section className="placeholder">
-        <h2>nothing to show</h2>
-        <p>This server reports no audio or video. Nothing to browse.</p>
-      </section>
+      <div className="mk-empty">
+        <div className="mk-empty-title">Nothing to show</div>
+        <div className="mk-empty-sub">This server reports no audio or video.</div>
+      </div>
     );
   }
   if (view === "video.overview") {
     return <VideoList onSelect={onPlayVideo} />;
   }
+  // music.overview - audio browse stack (artists -> albums -> tracks).
   return (
-    <section className="placeholder">
-      <h2>Music</h2>
-      <p>Music views land in commit 4 (ported from the old SPA's Subsonic client).</p>
-      <p className="endpoint">API: {capabilities.endpoints.audio_subsonic ?? "(disabled)"}</p>
-    </section>
+    <AudioBrowse
+      onPlayTrack={(track) => {
+        // commit 4c will replace this with real transport-bar wiring
+        // eslint-disable-next-line no-console
+        console.warn(`audio playback wiring lands in commit 4c (track: ${track.title})`);
+      }}
+    />
   );
 }

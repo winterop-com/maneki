@@ -1,7 +1,9 @@
 /**
- * Single login form fills both the Subsonic salt-token (for /audio/rest/*)
- * and the MediaKit bearer (for /video/* when --auth is on). User enters
- * password once; the auth context handles both derivations.
+ * Single login form fills both the audio (Subsonic mount, salt-token) and
+ * the video (MediaKit bearer, when --auth is on) auth surfaces.
+ *
+ * The form itself is MediaKit-branded - "Subsonic" is an implementation
+ * detail of the audio mount, not a user-facing concept.
  */
 
 import { useState } from "react";
@@ -12,12 +14,13 @@ interface LoginScreenProps {
   capabilities: Capabilities;
 }
 
-function helpFor(capabilities: Capabilities): string {
-  const sides: string[] = [];
-  if (capabilities.audio) sides.push("audio (Subsonic)");
-  if (capabilities.auth_required) sides.push("video (MediaKit bearer)");
-  if (sides.length === 0) return "the server has nothing to authenticate against";
-  return `signs you into ${sides.join(" + ")}`;
+function helpFor(caps: Capabilities): string {
+  if (caps.audio && caps.video) {
+    return "Sign in to browse and play your music and video libraries.";
+  }
+  if (caps.audio) return "Sign in to browse and play your music library.";
+  if (caps.video) return "Sign in to browse and play your video library.";
+  return "Sign in to continue.";
 }
 
 export function LoginScreen({ capabilities }: LoginScreenProps): React.ReactElement {
@@ -41,35 +44,47 @@ export function LoginScreen({ capabilities }: LoginScreenProps): React.ReactElem
   };
 
   return (
-    <main className="login">
-      <h1>mediakit</h1>
-      <p className="subtitle">{helpFor(capabilities)}</p>
-      <form onSubmit={(e) => void onSubmit(e)}>
-        <label>
-          username
-          <input
-            type="text"
-            value={username}
-            onChange={(e) => setUsername(e.target.value)}
-            autoFocus
-            autoComplete="username"
-            required
-          />
-        </label>
-        <label>
-          password
-          <input
-            type="password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            autoComplete="current-password"
-            required
-          />
-        </label>
-        {error !== null && <p className="error">{error}</p>}
-        <button type="submit" disabled={busy}>
-          {busy ? "signing in..." : "sign in"}
-        </button>
+    <main className="mk-login-shell">
+      <div className="mk-login-brand">
+        <div className="mk-login-logo">MediaKit</div>
+        <div className="mk-login-tag">
+          web · v{capabilities.version}
+        </div>
+      </div>
+      <form className="mk-login-card" onSubmit={(e) => void onSubmit(e)}>
+        <div className="mk-login-title">Sign in</div>
+        <div className="mk-login-help">{helpFor(capabilities)}</div>
+        <div className="mk-login-inner">
+          <label className="mk-field">
+            <span>Username</span>
+            <input
+              type="text"
+              value={username}
+              onChange={(e) => setUsername(e.target.value)}
+              autoFocus
+              autoComplete="username"
+              required
+            />
+          </label>
+          <label className="mk-field">
+            <span>Password</span>
+            <input
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              autoComplete="current-password"
+              required
+            />
+          </label>
+          {error !== null && <div className="mk-login-error">{error}</div>}
+          <button type="submit" className="mk-btn-primary" disabled={busy}>
+            {busy ? "Signing in…" : "Sign in"}
+          </button>
+          <div className="mk-login-foot">
+            Credentials are derived locally; the plaintext password never leaves this
+            page. Use HTTPS in production.
+          </div>
+        </div>
       </form>
     </main>
   );
