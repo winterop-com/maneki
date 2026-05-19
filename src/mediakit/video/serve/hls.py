@@ -181,26 +181,28 @@ class OnDemandHLS:
     async def _transcode_segment(self, idx: int) -> None:
         spec = self.segments[idx]
         self.session_dir.mkdir(parents=True, exist_ok=True)
-        # Each segment is encoded as an independent slice. ffmpeg's HLS
-        # muxer rebases the output PTS to start near 0 for the segment
-        # (no `-copyts`), and the playlist's cumulative EXTINF
-        # (SEG_LEN per segment) is what positions it in the player's
-        # currentTime. Two reasons we don't try to preserve absolute
-        # source PTS here:
+        # Each segment is encoded as an independent slice, but its output
+        # PTS is shifted with `-output_ts_offset` to exactly N*SEG_LEN.
+        # Together with EXTINF=SEG_LEN in the playlist, segments end up
+        # contiguous on the playback timeline:
         #
-        # 1. The previous `-copyts` version had segments with PTS like
-        #    60.018 instead of 60.000 (keyframe drift), creating a small
-        #    delta between segment PTS and playlist EXTINF time. VHS
-        #    tolerates this during uninterrupted playback but re-resolves
-        #    the timebase on tab-foreground + a fresh seek, producing
-        #    visible position jumps.
-        # 2. Per-segment rebased PTS works as long as we never declare
-        #    a discontinuity, and a single contiguous VOD doesn't have
-        #    any - every segment plays directly after the previous one.
+        #   seg-0 PTS [0, SEG_LEN]
+        #   seg-1 PTS [SEG_LEN, 2*SEG_LEN]
+        #   ...
         #
-        # `-force_key_frames expr:gte(t,0)` makes the first frame of each
-        # output a keyframe so the segment is independently decodable.
-        # `-avoid_negative_ts make_zero` ensures PTS never goes negative.
+        # This matters because MSE (the browser's SourceBuffer) rejects
+        # appended data whose PTS overlaps something already in the
+        # buffer with "DECODE_ERROR". Without the offset, every per-
+        # segment ffmpeg invocation produced segments starting near
+        # PTS=0, so seg-1 collided with seg-0 -> the player exhausted
+        # the playlist with "No available working or supported
+        # playlists" after the first segment.
+        #
+        # `-avoid_negative_ts disabled` is required: the default
+        # `make_zero` would undo our `-output_ts_offset` by shifting
+        # the minimum PTS back to 0. `disabled` lets the offset stand.
+        # `-force_key_frames expr:gte(t,0)` makes the first frame a
+        # keyframe so the segment is independently decodable.
         dummy_m3u8 = self.session_dir / f"_dummy_{idx}.m3u8"
         args = [
             _ffmpeg_path(),
@@ -213,12 +215,14 @@ class OnDemandHLS:
             str(self.input_path),
             "-t",
             f"{spec.duration_s:.6f}",
+            "-output_ts_offset",
+            f"{spec.start_s:.6f}",
             "-muxdelay",
             "0",
             "-muxpreload",
             "0",
             "-avoid_negative_ts",
-            "make_zero",
+            "disabled",
             "-c:v",
             "libx264",
             "-preset",
