@@ -82,6 +82,20 @@
       return `${videoApiBase()}/videos/${encodeURIComponent(videoId)}/subtitles/${encodeURIComponent(lang)}`;
     },
 
+    // Build a subtitle URL from the listing's track_id. Handles both
+    // sidecar ("sidecar:<lang>") and embedded ("embed:<index>") ids.
+    // We rebuild the URL on the SPA side (instead of using `url` from
+    // the listing) because the listing is generated INSIDE the video
+    // sub-app, which doesn't know its mount prefix (/video). This way
+    // we always go through the same `videoApiBase()` everything else
+    // uses, so prefix changes only need to update one place.
+    subtitleTrackUrl(_session, videoId, trackId) {
+      const tail = trackId.startsWith("sidecar:")
+        ? encodeURIComponent(trackId.slice("sidecar:".length))
+        : trackId.replace(":", "-"); // "embed:2" -> "embed-2"
+      return `${videoApiBase()}/videos/${encodeURIComponent(videoId)}/subtitles/${tail}`;
+    },
+
     posterUrl(_session, videoId) {
       return `${videoApiBase()}/videos/${encodeURIComponent(videoId)}/poster`;
     },

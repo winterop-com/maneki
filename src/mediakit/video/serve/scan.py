@@ -147,6 +147,12 @@ def browse_dir(root: Path, rel_path: str = "") -> BrowseResponse | None:
                 )
             )
         elif child.is_file() and child.suffix.lower() in VIDEO_EXTENSIONS:
+            # Note: we intentionally don't probe embedded subtitle streams
+            # here. ffprobe on every file is ~50-100ms, which makes a
+            # 100-video browse listing take seconds. The per-video
+            # /subtitles endpoint does the embedded probe on demand when
+            # the player opens. The summary count below is sidecars only
+            # until we have a persistent SQLite index for video metadata.
             sidecars = discover_sidecars(child)
             videos.append(
                 VideoEntry(

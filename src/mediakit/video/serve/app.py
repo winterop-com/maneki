@@ -23,8 +23,10 @@ from mediakit.video.serve.hls import HLSManager
 from mediakit.video.serve.poster import PosterManager
 from mediakit.video.serve.scan import BrowseResponse, VideoEntry, browse_dir, scan_videos
 from mediakit.video.serve.subtitles import (
+    SubtitleCache,
     SubtitleSidecar,
     discover_sidecars,
+    probe_embedded_subtitles,
     to_webvtt,
 )
 from mediakit.video.serve.transcode import (
@@ -63,6 +65,7 @@ def create_app(root: Path) -> FastAPI:
     # Posters live under <root>/.mediakit/posters/ - library-local cache
     # so they survive server restarts and follow the library if moved.
     poster_manager = PosterManager(cache_dir=root / ".mediakit" / "posters")
+    subtitle_cache = SubtitleCache(cache_dir=root / ".mediakit" / "subs")
     # Exposed on app.state so callers running this app as a mounted
     # sub-app (mediakit serve --ui) can trigger prewarm from their own
     # lifespan - FastAPI does NOT run sub-app lifespans automatically.
@@ -168,27 +171,74 @@ def create_app(root: Path) -> FastAPI:
         return FileResponse(path, media_type="image/jpeg")
 
     @app.get("/api/videos/{video_id}/subtitles")
-    def list_subtitles(video_id: str) -> list[dict[str, str]]:
-        """List subtitle sidecars discovered next to the video file."""
-        entry = _find(video_id, root)
-        sidecars = discover_sidecars(Path(entry["path"]))
-        return [
-            {
-                "lang": s.language,
-                "format": s.fmt,
-                "url": f"/api/videos/{video_id}/subtitles/{s.language}",
-            }
-            for s in sidecars
-        ]
+    def list_subtitles(video_id: str) -> list[dict[str, object]]:
+        """List sidecar + embedded subtitle tracks usable by the player.
 
-    @app.get("/api/videos/{video_id}/subtitles/{lang}")
-    def stream_subtitle(video_id: str, lang: str) -> Response:
-        """Serve the requested subtitle as WebVTT (.srt is converted on the fly)."""
+        Each entry carries a stable `track_id`, a human label (suitable
+        for the player's language picker), and a `url` the SPA can wire
+        straight to a <track src=...> element. Image-based embedded
+        codecs (PGS, VobSub) are filtered out upstream.
+        """
         entry = _find(video_id, root)
-        sidecars = discover_sidecars(Path(entry["path"]))
-        match = _pick_sidecar(sidecars, lang)
+        video_path = Path(entry["path"])
+        tracks: list[dict[str, object]] = []
+        for s in discover_sidecars(video_path):
+            tracks.append(
+                {
+                    "track_id": f"sidecar:{s.language}",
+                    "kind": "sidecar",
+                    "lang": s.language,
+                    "label": _track_label(s.language, None),
+                    "format": s.fmt,
+                    "default": False,
+                    "url": f"/api/videos/{video_id}/subtitles/{s.language}",
+                }
+            )
+        for e in probe_embedded_subtitles(video_path):
+            tracks.append(
+                {
+                    "track_id": f"embed:{e.stream_index}",
+                    "kind": "embedded",
+                    "lang": e.language,
+                    "label": _track_label(e.language, e.title) + (" (forced)" if e.forced else ""),
+                    "format": e.codec_name,
+                    "default": e.default,
+                    "url": f"/api/videos/{video_id}/subtitles/embed-{e.stream_index}",
+                }
+            )
+        return tracks
+
+    @app.get("/api/videos/{video_id}/subtitles/{key}")
+    async def stream_subtitle(video_id: str, key: str) -> Response:
+        """Serve one subtitle track as WebVTT.
+
+        `key` is either a language tag for a sidecar (`en`, `und`, ...)
+        or `embed-<stream_index>` for an embedded stream. Embedded
+        streams are extracted via ffmpeg on first request and cached
+        under `<root>/.mediakit/subs/<id>/embed-<N>.vtt`.
+        """
+        entry = _find(video_id, root)
+        video_path = Path(entry["path"])
+        if key.startswith("embed-"):
+            try:
+                idx = int(key[len("embed-"):])
+            except ValueError as exc:
+                raise HTTPException(status_code=400, detail="invalid embed key") from exc
+            # Make sure the index actually corresponds to a probed track
+            # so we don't trigger ffmpeg on bogus input.
+            probed = probe_embedded_subtitles(video_path)
+            if not any(p.stream_index == idx for p in probed):
+                raise HTTPException(status_code=404, detail=f"no embedded subtitle at index {idx}")
+            try:
+                path = await subtitle_cache.ensure(video_id, video_path, idx)
+            except RuntimeError as exc:
+                raise HTTPException(status_code=503, detail=str(exc)) from exc
+            return FileResponse(path, media_type="text/vtt; charset=utf-8")
+        # Sidecar path
+        sidecars = discover_sidecars(video_path)
+        match = _pick_sidecar(sidecars, key)
         if match is None:
-            raise HTTPException(status_code=404, detail=f"no subtitle for lang {lang!r}")
+            raise HTTPException(status_code=404, detail=f"no subtitle for lang {key!r}")
         body = to_webvtt(match.path)
         return Response(content=body, media_type="text/vtt; charset=utf-8")
 
@@ -242,6 +292,42 @@ def _pick_sidecar(sidecars: list[SubtitleSidecar], lang: str) -> SubtitleSidecar
         if s.language == lang:
             return s
     return None
+
+
+# Short ISO-639 -> readable name map for the SPA's subtitle picker. Not
+# exhaustive - falls back to the raw tag for anything not listed.
+_LANG_NAMES = {
+    "en": "English", "eng": "English",
+    "fr": "French", "fre": "French", "fra": "French",
+    "de": "German", "ger": "German", "deu": "German",
+    "es": "Spanish", "spa": "Spanish",
+    "it": "Italian", "ita": "Italian",
+    "pt": "Portuguese", "por": "Portuguese",
+    "ja": "Japanese", "jpn": "Japanese",
+    "ko": "Korean", "kor": "Korean",
+    "zh": "Chinese", "chi": "Chinese", "zho": "Chinese",
+    "ru": "Russian", "rus": "Russian",
+    "ar": "Arabic", "ara": "Arabic",
+    "nl": "Dutch", "dut": "Dutch", "nld": "Dutch",
+    "sv": "Swedish", "swe": "Swedish",
+    "no": "Norwegian", "nor": "Norwegian",
+    "da": "Danish", "dan": "Danish",
+    "fi": "Finnish", "fin": "Finnish",
+    "pl": "Polish", "pol": "Polish",
+    "und": "Subtitles",
+}
+
+
+def _track_label(lang: str, title: str | None) -> str:
+    """Build a human label for the subtitle picker.
+
+    Prefers an explicit stream `title` (e.g. "English (SDH)") when set,
+    otherwise falls back to a readable language name, finally to the raw
+    tag so unmapped languages still show something.
+    """
+    if title:
+        return title
+    return _LANG_NAMES.get(lang.lower(), lang.upper() if lang else "Subtitles")
 
 
 def _find(video_id: str, root: Path) -> VideoEntry:

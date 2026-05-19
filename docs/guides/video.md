@@ -156,6 +156,16 @@ Returns `503` if ffmpeg is missing, `400` if the requested filename looks like a
 
 **v0 lifecycle limitation**: segments are cached per video for the lifetime of the server process - no automatic cleanup. Restart the server to free the per-video temp directories under `/tmp/mediakit-hls/<id>/`. A TTL + eviction layer is a follow-up.
 
+### `GET /api/videos/{id}/subtitles`
+
+Returns the unified list of subtitle tracks for the video - both `.srt`/`.vtt` sidecars discovered next to the file AND text-based subtitle streams embedded in the container (subrip, ass, mov_text). Image-based codecs (PGS, DVD VobSub, DVB) are filtered out because they'd need OCR to become WebVTT.
+
+Each entry has a `track_id` like `sidecar:en` or `embed:2`, a human `label` for the picker ("English", "Japanese (SDH)"), a `lang` tag, and a `default` flag derived from the stream's disposition. The SPA renders one `<track>` element per entry; video.js exposes the language picker on the player chrome.
+
+### `GET /api/videos/{id}/subtitles/{key}`
+
+Serves one subtitle track as WebVTT. `key` is either a sidecar language tag (`en`, `und`, ...) or `embed-<stream_index>` for embedded streams. Sidecars are converted on the fly (.srt → .vtt timestamps + header). Embedded streams are extracted via `ffmpeg -map 0:<index> -c:s webvtt` and the result is cached at `<root>/.mediakit/subs/<id>/embed-<N>.vtt` so re-requests are file-serve cheap.
+
 ## Browser compatibility
 
 What plays in a browser depends on the file's codecs:

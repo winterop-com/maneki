@@ -237,16 +237,24 @@ function VideoPlayerPane({ session, video, onClose }) {
           playsInline
           crossOrigin="anonymous"
         >
-          {subtitles.map((sub) => (
-            <track
-              key={sub.lang}
-              kind="subtitles"
-              srcLang={sub.lang === "und" ? undefined : sub.lang}
-              label={sub.lang === "und" ? "Subtitles" : sub.lang.toUpperCase()}
-              src={window.MK_VIDEO.subtitleUrl(session, video.id, sub.lang)}
-              default={sub.lang === "en" || (subtitles.length === 1 && sub.lang === "und")}
-            />
-          ))}
+          {subtitles.map((sub) => {
+            // Prefer the new track_id+url pair; fall back to the old
+            // lang-only shape so a freshly-deployed SPA against an
+            // older server (or vice versa) doesn't break.
+            const src = sub.track_id
+              ? window.MK_VIDEO.subtitleTrackUrl(session, video.id, sub.track_id)
+              : window.MK_VIDEO.subtitleUrl(session, video.id, sub.lang);
+            return (
+              <track
+                key={sub.track_id || sub.lang}
+                kind="subtitles"
+                srcLang={sub.lang === "und" ? undefined : sub.lang}
+                label={sub.label || (sub.lang === "und" ? "Subtitles" : sub.lang.toUpperCase())}
+                src={src}
+                default={sub.default || (subtitles.length === 1 && sub.lang === "und")}
+              />
+            );
+          })}
         </video>
       </div>
     </div>

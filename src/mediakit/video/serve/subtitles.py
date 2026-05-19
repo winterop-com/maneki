@@ -1,26 +1,43 @@
-"""Subtitle sidecar discovery + .srt to WebVTT conversion.
+"""Subtitle discovery + WebVTT conversion (sidecars + embedded streams).
 
-A sidecar is a subtitle file living next to a video with the same stem:
+Two sources, both surfaced through `/subtitles`:
 
-    videos/bat.mp4
-    videos/bat.srt              -> language "und" (undetermined)
-    videos/bat.en.srt           -> language "en"
-    videos/bat.eng.srt          -> language "eng"
-    videos/bat.fr.forced.srt    -> language "fr" (modifier ignored for v0)
+1. **Sidecars** living next to the video with the same stem:
 
-Browsers can't render .srt natively but can render WebVTT (.vtt) via the
-HTML5 <track> element. We serve every sidecar as WebVTT, converting on
-the fly when the source is .srt.
+       videos/bat.mp4
+       videos/bat.srt              -> language "und" (undetermined)
+       videos/bat.en.srt           -> language "en"
+       videos/bat.eng.srt          -> language "eng"
+       videos/bat.fr.forced.srt    -> language "fr" (modifier ignored for v0)
+
+2. **Embedded streams** inside .mkv / .mp4 containers, found via ffprobe
+   and extracted to WebVTT on demand. Image-based codecs (PGS, DVD
+   VobSub, DVB) are filtered out - they're bitmap subtitles and would
+   need OCR to become WebVTT.
+
+Browsers can't render .srt or .ass natively but can render WebVTT (.vtt)
+via the HTML5 <track> element. Sidecars get a minimal text conversion;
+embedded streams go through `ffmpeg -c:s webvtt` and the result is
+cached under `<root>/.mediakit/subs/<id>/embed-<index>.vtt`.
 """
 
 from __future__ import annotations
 
+import asyncio
+import json
 import re
+import shutil
+import subprocess
 from pathlib import Path
 
 from pydantic import BaseModel, ConfigDict
 
 SUBTITLE_EXTENSIONS = frozenset({".srt", ".vtt"})
+
+# Subtitle codecs we can convert to WebVTT. Image-based codecs (PGS,
+# DVD VobSub, DVB) are intentionally absent - they need OCR to become
+# text, which is a separate problem.
+TEXT_SUBTITLE_CODECS = frozenset({"subrip", "srt", "ass", "ssa", "mov_text", "webvtt"})
 
 
 class SubtitleSidecar(BaseModel):
@@ -31,6 +48,19 @@ class SubtitleSidecar(BaseModel):
     path: Path
     language: str
     fmt: str  # "srt" or "vtt"
+
+
+class EmbeddedSubtitle(BaseModel):
+    """One subtitle stream inside a video container."""
+
+    model_config = ConfigDict(frozen=True)
+
+    stream_index: int
+    language: str  # ISO 639 from stream tags, or "und"
+    codec_name: str  # subrip, ass, mov_text, etc. (image-based filtered out)
+    title: str | None  # `tags.title`, e.g. "English (SDH)"
+    default: bool  # `disposition.default == 1`
+    forced: bool  # `disposition.forced == 1`
 
 
 _LANG_TAG = re.compile(r"^[a-z]{2,3}$")
@@ -120,3 +150,145 @@ def _ensure_webvtt_header(text: str) -> str:
     if stripped.startswith("WEBVTT"):
         return stripped
     return "WEBVTT\n\n" + stripped
+
+
+def probe_embedded_subtitles(video_path: Path) -> list[EmbeddedSubtitle]:
+    """Return text-based subtitle streams embedded in the video container.
+
+    Uses ffprobe to enumerate every subtitle stream, then filters out
+    image-based codecs (PGS, DVD VobSub, DVB) since they need OCR rather
+    than transcode to become WebVTT.
+
+    Returns an empty list when ffprobe is missing, the file can't be
+    parsed, or no usable subtitle streams exist.
+    """
+    if not video_path.is_file():
+        return []
+    ffprobe = shutil.which("ffprobe")
+    if ffprobe is None:
+        return []
+    args = [
+        ffprobe,
+        "-v",
+        "error",
+        "-select_streams",
+        "s",
+        "-show_entries",
+        "stream=index,codec_name:stream_tags=language,title:stream_disposition=default,forced",
+        "-of",
+        "json",
+        str(video_path),
+    ]
+    try:
+        result = subprocess.run(  # noqa: S603 - args are constructed locally
+            args,
+            capture_output=True,
+            text=True,
+            timeout=10.0,
+            check=False,
+        )
+    except (subprocess.TimeoutExpired, OSError):
+        return []
+    if result.returncode != 0:
+        return []
+    try:
+        data = json.loads(result.stdout)
+    except json.JSONDecodeError:
+        return []
+    out: list[EmbeddedSubtitle] = []
+    for stream in data.get("streams", []):
+        codec = (stream.get("codec_name") or "").lower()
+        if codec not in TEXT_SUBTITLE_CODECS:
+            continue
+        tags = stream.get("tags") or {}
+        disp = stream.get("disposition") or {}
+        out.append(
+            EmbeddedSubtitle(
+                stream_index=int(stream.get("index", 0)),
+                language=str(tags.get("language") or "und"),
+                codec_name=codec,
+                title=tags.get("title"),
+                default=bool(disp.get("default")),
+                forced=bool(disp.get("forced")),
+            )
+        )
+    return out
+
+
+async def extract_embedded_to_vtt(
+    video_path: Path,
+    stream_index: int,
+    out_path: Path,
+) -> Path:
+    """Extract one embedded subtitle stream to a .vtt file via ffmpeg.
+
+    Re-runs are skipped because the caller checks `out_path.exists()`
+    before invoking this. Image-based subtitle codecs (PGS, VobSub) will
+    fail here even if accidentally requested - probe_embedded_subtitles
+    already filters them out of the listing.
+    """
+    if not video_path.is_file():
+        raise FileNotFoundError(video_path)
+    ffmpeg = shutil.which("ffmpeg")
+    if ffmpeg is None:
+        raise RuntimeError("ffmpeg is required to extract embedded subtitles")
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    # `-map 0:<stream_index>` picks the exact stream by container index
+    # (NOT the s:0 / s:1 relative index); the probe gives us the absolute
+    # index so the two match. `-c:s webvtt` converts whatever text codec
+    # ffmpeg sees (subrip / ass / mov_text) into WebVTT.
+    args = [
+        ffmpeg,
+        "-hide_banner",
+        "-loglevel",
+        "error",
+        "-y",
+        "-i",
+        str(video_path),
+        "-map",
+        f"0:{stream_index}",
+        "-c:s",
+        "webvtt",
+        "-f",
+        "webvtt",
+        str(out_path),
+    ]
+    proc = await asyncio.create_subprocess_exec(
+        *args,
+        stdout=asyncio.subprocess.DEVNULL,
+        stderr=asyncio.subprocess.PIPE,
+    )
+    _, stderr = await proc.communicate()
+    if proc.returncode != 0:
+        msg = stderr.decode("utf-8", errors="replace").strip().splitlines()
+        tail = " | ".join(msg[-3:]) if msg else "(no stderr)"
+        raise RuntimeError(f"ffmpeg failed for stream {stream_index} (rc={proc.returncode}): {tail}")
+    if not out_path.exists() or out_path.stat().st_size == 0:
+        raise RuntimeError(f"ffmpeg ran but produced no output for stream {stream_index}")
+    return out_path
+
+
+class SubtitleCache:
+    """Lazy on-disk cache for extracted embedded subtitle WebVTT files.
+
+    Layout: `<cache_dir>/<video_id>/embed-<stream_index>.vtt`. One lock
+    per (video_id, stream_index) so concurrent first-requests don't
+    spawn duplicate ffmpegs for the same track.
+    """
+
+    def __init__(self, cache_dir: Path) -> None:
+        self.cache_dir = cache_dir
+        self._locks: dict[tuple[str, int], asyncio.Lock] = {}
+
+    def path_for(self, video_id: str, stream_index: int) -> Path:
+        return self.cache_dir / video_id / f"embed-{stream_index}.vtt"
+
+    async def ensure(self, video_id: str, video_path: Path, stream_index: int) -> Path:
+        out = self.path_for(video_id, stream_index)
+        if out.exists() and out.stat().st_size > 0:
+            return out
+        lock = self._locks.setdefault((video_id, stream_index), asyncio.Lock())
+        async with lock:
+            if out.exists() and out.stat().st_size > 0:
+                return out
+            return await extract_embedded_to_vtt(video_path, stream_index, out)
