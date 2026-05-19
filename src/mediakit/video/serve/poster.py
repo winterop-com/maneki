@@ -20,10 +20,10 @@ from __future__ import annotations
 import asyncio
 import math
 import shutil
-from dataclasses import dataclass
 from pathlib import Path
 
 from PIL import Image, ImageDraw, ImageFont
+from pydantic import BaseModel, ConfigDict
 
 from mediakit.video.serve.scan import probe_duration
 
@@ -45,9 +45,10 @@ _FONT_CANDIDATES = (
 )
 
 
-@dataclass(frozen=True)
-class _StreamInfo:
+class _StreamInfo(BaseModel):
     """ffprobe-extracted video stream summary used by the header strip."""
+
+    model_config = ConfigDict(frozen=True)
 
     width: int
     height: int
@@ -379,3 +380,59 @@ class PosterManager:
                 out,
                 duration_s=duration_s,
             )
+
+    async def prewarm(
+        self,
+        entries: list[dict[str, object]],
+        *,
+        max_concurrency: int = 2,
+    ) -> None:
+        """Generate every missing thumbnail + poster in the background.
+
+        Walks the supplied video listing and ensures both assets exist on
+        disk. Thumbnails first (they're what the browser shows on the
+        list rows, ~10 KB and ~100ms each); posters after (only used
+        once the user opens a video). Both kinds run through a small
+        worker pool so the host's CPU isn't pegged while a real
+        transcode might be in flight.
+
+        Designed to be fire-and-forget from the FastAPI startup hook -
+        callers should `asyncio.create_task(manager.prewarm(...))` so
+        the server is responsive while warming proceeds. Exceptions per
+        entry are swallowed (logged would be better; v0 is silent).
+
+        Each entry is a dict with keys: id, path, size_bytes, name,
+        duration_s. Matches VideoEntry.
+        """
+        if not entries:
+            return
+        sem = asyncio.Semaphore(max_concurrency)
+
+        async def _thumb(entry: dict[str, object]) -> None:
+            async with sem:
+                try:
+                    await self.ensure_thumbnail(
+                        str(entry["id"]),
+                        Path(str(entry["path"])),
+                        duration_s=entry.get("duration_s"),  # type: ignore[arg-type]
+                    )
+                except Exception:  # noqa: BLE001 - prewarm must not crash the server
+                    pass
+
+        async def _poster(entry: dict[str, object]) -> None:
+            async with sem:
+                try:
+                    await self.ensure_poster(
+                        str(entry["id"]),
+                        Path(str(entry["path"])),
+                        size_bytes=int(entry["size_bytes"]),  # type: ignore[arg-type]
+                        title=str(entry["name"]),
+                        duration_s=entry.get("duration_s"),  # type: ignore[arg-type]
+                    )
+                except Exception:  # noqa: BLE001
+                    pass
+
+        # Thumbnails first so the row icons fill in fastest; posters
+        # follow because they're only visible after a row is clicked.
+        await asyncio.gather(*(_thumb(e) for e in entries))
+        await asyncio.gather(*(_poster(e) for e in entries))

@@ -16,15 +16,17 @@ the fly when the source is .srt.
 from __future__ import annotations
 
 import re
-from dataclasses import dataclass
 from pathlib import Path
+
+from pydantic import BaseModel, ConfigDict
 
 SUBTITLE_EXTENSIONS = frozenset({".srt", ".vtt"})
 
 
-@dataclass(frozen=True)
-class SubtitleSidecar:
+class SubtitleSidecar(BaseModel):
     """One subtitle file associated with a video."""
+
+    model_config = ConfigDict(frozen=True, arbitrary_types_allowed=True)
 
     path: Path
     language: str
