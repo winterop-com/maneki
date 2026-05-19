@@ -626,7 +626,30 @@ body[data-player-fullscreen="true"] .mk-tracks-pane {
   z-index: 9000;
   background: #000;
 }
+/* The player pane's header strip (file name + Close button) and the
+ * `marginTop: 10` inline style on the video.js wrapper both eat the
+ * top of the viewport and push the video.js control bar mid-screen
+ * instead of at the bottom. Hide them so the player covers edge to
+ * edge - Esc / f exits, no Close button needed in fullscreen. */
+body[data-player-fullscreen="true"] .mk-tracks-pane > .mk-pane-label {
+  display: none !important;
+}
+body[data-player-fullscreen="true"] .mk-tracks-pane > div[data-vjs-player] {
+  margin: 0 !important;
+  width: 100% !important;
+  height: 100% !important;
+}
+/* Drop video.js's fluid 16:9 padding-top hack - in fullscreen we
+ * want the player to fill the viewport (the video element keeps its
+ * own object-fit so the picture stays correctly letterboxed inside).
+ * Without this the player paints inside a 16:9 box that's smaller
+ * than the viewport and the scrub bar sits mid-screen. */
 body[data-player-fullscreen="true"] .mk-tracks-pane .video-js {
   width: 100% !important;
   height: 100% !important;
+  padding-top: 0 !important;
+}
+body[data-player-fullscreen="true"] .mk-tracks-pane .video-js.vjs-fluid {
+  padding-top: 0 !important;
+  height: 100vh !important;
 }
