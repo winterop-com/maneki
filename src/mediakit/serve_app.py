@@ -21,6 +21,8 @@ unaffected by this flag.
 
 from __future__ import annotations
 
+import asyncio
+import contextlib
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -34,7 +36,7 @@ from starlette.responses import Response
 from mediakit import __version__
 from mediakit.auth import Token, TokenStore
 from mediakit.library import find_audio_dir
-from mediakit.video.serve.scan import find_videos_dir
+from mediakit.video.serve.scan import find_videos_dir, scan_videos
 
 if TYPE_CHECKING:
     from collections.abc import Awaitable, Callable
@@ -99,7 +101,31 @@ def create_combined_app(
     cfg = _resolve_cfg(audio_cfg)
     token_store = TokenStore()
 
-    combined = FastAPI(title="mediakit", version=__version__)
+    # Lifespan: kick off video poster/thumbnail prewarm in the
+    # background so opening any video for the first time is instant.
+    # Sub-app startup events don't run when mounted (FastAPI quirk), so
+    # the top-level lifespan is the canonical place for cross-cutting
+    # startup work. Cancel the task on shutdown so uvicorn can exit
+    # cleanly mid-prewarm.
+    @contextlib.asynccontextmanager
+    async def _lifespan(app: FastAPI):  # type: ignore[no-untyped-def]
+        prewarm_task: asyncio.Task[None] | None = None
+        video_sub = next((r.app for r in app.routes if getattr(r, "path", "") == "/video"), None)
+        if video_sub is not None and hasattr(video_sub.state, "poster_manager"):
+            videos = scan_videos(video_sub.state.library_root)
+            if videos:
+                prewarm_task = asyncio.create_task(
+                    video_sub.state.poster_manager.prewarm(list(videos)),
+                )
+        try:
+            yield
+        finally:
+            if prewarm_task is not None and not prewarm_task.done():
+                prewarm_task.cancel()
+                with contextlib.suppress(asyncio.CancelledError):
+                    await prewarm_task
+
+    combined = FastAPI(title="mediakit", version=__version__, lifespan=_lifespan)
 
     @combined.get("/capabilities")
     def capabilities() -> dict[str, object]:

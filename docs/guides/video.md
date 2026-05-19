@@ -122,6 +122,10 @@ Lazy: first request transcodes ~9 frames via ffmpeg (~1–2s on a modern CPU); c
 
 Single-frame JPEG sampled at ~30% into the timeline, scaled to 320px wide. Used for the row icon in the SPA video list. Much smaller payload than the full poster (~10 KB vs ~800 KB) so the list paints fast even with hundreds of videos. Cached to `<root>/.mediakit/posters/<id>.thumb.jpg`.
 
+### Prewarm
+
+On startup the combined `mediakit serve` walks the library once and, in the background, generates every missing thumbnail then poster through a bounded worker pool (concurrency 2 by default). The server is responsive immediately - prewarm just races to fill the cache before the user clicks. With a 105-video library it finishes in a couple of minutes on a typical laptop. Re-runs are cheap because cached files are skipped.
+
 ### `GET /api/videos/{id}/play`
 
 ffmpeg-piped, fragmented-MP4 stream designed for browser `<video>` elements:

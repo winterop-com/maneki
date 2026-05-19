@@ -63,6 +63,11 @@ def create_app(root: Path) -> FastAPI:
     # Posters live under <root>/.mediakit/posters/ - library-local cache
     # so they survive server restarts and follow the library if moved.
     poster_manager = PosterManager(cache_dir=root / ".mediakit" / "posters")
+    # Exposed on app.state so callers running this app as a mounted
+    # sub-app (mediakit serve --ui) can trigger prewarm from their own
+    # lifespan - FastAPI does NOT run sub-app lifespans automatically.
+    app.state.poster_manager = poster_manager
+    app.state.library_root = root
 
     @app.get("/", response_class=HTMLResponse)
     def demo_page() -> str:
