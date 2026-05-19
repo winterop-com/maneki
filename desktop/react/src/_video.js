@@ -52,6 +52,15 @@
       return call(`${videoApiBase()}/videos`);
     },
 
+    // Browse a single directory under <root>/videos/. `path` is the
+    // POSIX-style relative path; empty string browses the videos root.
+    // Returns { rel_path, crumbs, folders, videos } - the SPA's folder
+    // navigator drives off this.
+    async browse(_session, path = "") {
+      const url = `${videoApiBase()}/browse${path ? `?path=${encodeURIComponent(path)}` : ""}`;
+      return call(url);
+    },
+
     async subtitles(_session, videoId) {
       try {
         return await call(`${videoApiBase()}/videos/${encodeURIComponent(videoId)}/subtitles`);

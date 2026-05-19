@@ -424,6 +424,64 @@ body[data-platform="darwin"]:not([data-shell="browser"]) .mk-kind-rail {
   grid-template-columns: 320px 1fr;
 }
 
+/* Pane scroll for the video browser - it's a single long list (current
+   directory contents), no inner overflow container, so the pane itself
+   scrolls. */
+.mk-root[data-kind="video"] .mk-albums-pane {
+  overflow-y: auto;
+}
+
+/* Breadcrumb header for the folder navigator. Sticks to the top of the
+   pane while the list scrolls underneath. */
+.mk-video-crumbs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  align-items: baseline;
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: var(--panel);
+  border-bottom: 1px solid var(--line);
+}
+.mk-crumb {
+  font-family: var(--mk-mono);
+  font-size: 11px;
+  letter-spacing: 0.3px;
+  text-transform: uppercase;
+  color: var(--text-soft);
+  max-width: 160px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.mk-crumb.active {
+  color: var(--accent);
+}
+.mk-crumb-link {
+  cursor: pointer;
+}
+.mk-crumb-link:hover {
+  color: var(--text);
+}
+.mk-crumb-sep {
+  color: var(--text-dim);
+  font-size: 11px;
+}
+
+/* Folder row in the browser - same shape as a video row but with a
+   folder icon background and an arrow affordance. */
+.mk-folder-row {
+  cursor: pointer;
+}
+.mk-folder-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg-elev2);
+  color: var(--accent);
+}
+
 /* The topbar search is wired to the audio library only; in video mode
    it would silently search audio when the user clearly means "find a
    video". Hide it until we wire kind-aware search. The search keyboard

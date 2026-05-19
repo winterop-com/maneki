@@ -31,53 +31,64 @@ function fmtSize(bytes) {
   return `${(bytes / 1e6).toFixed(0)} MB`;
 }
 
-// Group videos by their top-level subdirectory under <root>/videos/.
-// Files directly in `videos/` go into the "" bucket (rendered as "Videos");
-// `videos/movies/bat.mp4` goes into "movies", and so on. Anything below
-// the first directory keeps its full sub-path visible in the row's
-// secondary line so duplicate stems across folders are disambiguated.
-function groupVideosByFolder(videos) {
-  const groups = new Map();
-  for (const v of videos) {
-    const rel = v.rel_path || v.name;
-    const slash = rel.indexOf("/");
-    const key = slash === -1 ? "" : rel.slice(0, slash);
-    if (!groups.has(key)) groups.set(key, []);
-    groups.get(key).push(v);
-  }
-  // Root bucket first, then alphabetical for the rest - keeps the list
-  // stable when folders are added.
-  return [...groups.entries()].sort((a, b) => {
-    if (a[0] === "") return -1;
-    if (b[0] === "") return 1;
-    return a[0].localeCompare(b[0]);
-  });
-}
-
-// Primary video pane: list of every video the server knows about,
-// grouped by top-level subfolder under <root>/videos/. Click a row to
-// set the selected video; the parent renders the player. In video mode
-// the SPA has no sidebar - the list IS the primary view.
+// Folder-browser pane: click-in navigator over <root>/videos/. Breadcrumbs
+// at the top, folders above files in the current directory. Click a folder
+// to dive in; click a video to set selectedVideo and show the player.
+//
+// Two pieces of state live here:
+// - `path`: the current relative path under videos/ (empty string = root).
+// - `entries`: the response from /api/browse?path=<path>.
+// We refetch every time `path` changes, so backing out via a breadcrumb
+// pops back to the previously-fetched parent.
 function VideosPane({ session, selectedId, onSelect }) {
-  const [videos, setVideos] = useSt_vv(null);
+  const [path, setPath] = useSt_vv("");
+  const [entries, setEntries] = useSt_vv(null);
   const [error, setError] = useSt_vv(null);
 
   useEff_vv(() => {
     let cancelled = false;
-    window.MK_VIDEO.list(session).then(
-      (data) => { if (!cancelled) setVideos(data); },
+    setError(null);
+    window.MK_VIDEO.browse(session, path).then(
+      (data) => { if (!cancelled) setEntries(data); },
       (err) => { if (!cancelled) setError(String(err.message || err)); },
     );
     return () => { cancelled = true; };
-  }, [session]);
+  }, [session, path]);
 
-  const groups = videos === null ? null : groupVideosByFolder(videos);
+  const crumbs = entries?.crumbs || [];
+  const folders = entries?.folders || [];
+  const videos = entries?.videos || [];
+  const empty = entries !== null && folders.length === 0 && videos.length === 0;
 
   return (
     <div className="mk-pane mk-albums-pane">
+      <div className="mk-pane-label mk-video-crumbs">
+        <span
+          className={"mk-crumb" + (path === "" ? " active" : " mk-crumb-link")}
+          onClick={() => path !== "" && setPath("")}
+        >
+          Videos
+        </span>
+        {crumbs.map((seg, i) => {
+          const segPath = crumbs.slice(0, i + 1).join("/");
+          const isLast = i === crumbs.length - 1;
+          return (
+            <React.Fragment key={segPath}>
+              <span className="mk-crumb-sep">/</span>
+              <span
+                className={"mk-crumb" + (isLast ? " active" : " mk-crumb-link")}
+                onClick={() => !isLast && setPath(segPath)}
+                title={seg}
+              >
+                {seg}
+              </span>
+            </React.Fragment>
+          );
+        })}
+      </div>
       {error !== null && <div className="mk-empty"><div className="mk-empty-title">{error}</div></div>}
-      {error === null && videos === null && <div className="mk-empty"><div className="mk-empty-title">loading...</div></div>}
-      {videos !== null && videos.length === 0 && (
+      {error === null && entries === null && <div className="mk-empty"><div className="mk-empty-title">loading...</div></div>}
+      {empty && (
         <div className="mk-empty">
           <div className="mk-empty-icon">
             <svg viewBox="0 0 24 24" width="32" height="32" fill="none" stroke="currentColor" strokeWidth="1.5">
@@ -86,58 +97,65 @@ function VideosPane({ session, selectedId, onSelect }) {
             </svg>
           </div>
           <div className="mk-empty-title">No videos</div>
-          <div className="mk-empty-sub">Add files under &lt;root&gt;/videos/ on the server.</div>
+          <div className="mk-empty-sub">
+            {path === ""
+              ? <>Add files under &lt;root&gt;/videos/ on the server.</>
+              : <>This folder is empty.</>}
+          </div>
         </div>
       )}
-      {groups !== null && groups.length > 0 && groups.map(([folder, items]) => (
-        <div key={folder || "__root__"} className="mk-pane-section mk-video-group">
-          <div className="mk-pane-label mk-video-group-label">
-            {folder === "" ? "Videos" : folder}
-            <span className="mk-count"> ({items.length})</span>
-          </div>
-          <div className="mk-album-list">
-            {items.map((v) => {
-              // Sub-path beneath the first folder, e.g. "season-1/ep03.mkv".
-              // Hidden when there is no nesting (rel_path === filename).
-              const rel = v.rel_path || v.name;
-              const subPath = folder === "" ? null : rel.slice(folder.length + 1);
-              const showSubPath = subPath && subPath !== `${v.name}${rel.slice(rel.lastIndexOf("."))}`;
-              return (
-                <div
-                  key={v.id}
-                  className={"mk-album-row" + (selectedId === v.id ? " active" : "")}
-                  onClick={() => onSelect(v)}
-                >
-                  <img
-                    className="mk-album-cover-sm"
-                    src={window.MK_VIDEO.thumbnailUrl(session, v.id)}
-                    alt=""
-                    loading="lazy"
-                    style={{ objectFit: "cover", background: "var(--bg-elev2)" }}
-                  />
-                  <div className="mk-album-meta">
-                    <div className="mk-album-name">{v.name}</div>
-                    <div className="mk-album-sub">
-                      <span className="mono">{fmtDuration(v.duration_s)}</span>
-                      <span className="mk-album-count">{fmtSize(v.size_bytes)}</span>
-                      {v.subtitles && v.subtitles.length > 0 && (
-                        <span className="mk-album-count" style={{ color: "var(--accent)" }}>
-                          {v.subtitles.length} sub{v.subtitles.length === 1 ? "" : "s"}
-                        </span>
-                      )}
-                    </div>
-                    {showSubPath && (
-                      <div className="mk-album-sub mono" style={{ color: "var(--text-dim)", fontSize: 11, marginTop: 2 }}>
-                        {subPath}
-                      </div>
-                    )}
-                  </div>
+      {entries !== null && (folders.length > 0 || videos.length > 0) && (
+        <div className="mk-album-list">
+          {folders.map((f) => (
+            <div
+              key={`folder:${f.rel_path}`}
+              className="mk-album-row mk-folder-row"
+              onClick={() => setPath(f.rel_path)}
+              title={f.name}
+            >
+              <div className="mk-album-cover-sm mk-folder-icon">
+                <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" strokeWidth="1.5">
+                  <path d="M3 6.5a1.5 1.5 0 011.5-1.5h4.6a1.5 1.5 0 011.06.44l1.4 1.4a1.5 1.5 0 001.06.44H19.5A1.5 1.5 0 0121 8.78V18.5a1.5 1.5 0 01-1.5 1.5h-15A1.5 1.5 0 013 18.5z"/>
+                </svg>
+              </div>
+              <div className="mk-album-meta">
+                <div className="mk-album-name">{f.name}</div>
+                <div className="mk-album-sub">
+                  <span className="mk-album-count">{f.video_count} {f.video_count === 1 ? "video" : "videos"}</span>
                 </div>
-              );
-            })}
-          </div>
+              </div>
+            </div>
+          ))}
+          {videos.map((v) => (
+            <div
+              key={v.id}
+              className={"mk-album-row" + (selectedId === v.id ? " active" : "")}
+              onClick={() => onSelect(v)}
+              title={v.name}
+            >
+              <img
+                className="mk-album-cover-sm"
+                src={window.MK_VIDEO.thumbnailUrl(session, v.id)}
+                alt=""
+                loading="lazy"
+                style={{ objectFit: "cover", background: "var(--bg-elev2)" }}
+              />
+              <div className="mk-album-meta">
+                <div className="mk-album-name">{v.name}</div>
+                <div className="mk-album-sub">
+                  <span className="mono">{fmtDuration(v.duration_s)}</span>
+                  <span className="mk-album-count">{fmtSize(v.size_bytes)}</span>
+                  {v.subtitles && v.subtitles.length > 0 && (
+                    <span className="mk-album-count" style={{ color: "var(--accent)" }}>
+                      {v.subtitles.length} sub{v.subtitles.length === 1 ? "" : "s"}
+                    </span>
+                  )}
+                </div>
+              </div>
+            </div>
+          ))}
         </div>
-      ))}
+      )}
     </div>
   );
 }
