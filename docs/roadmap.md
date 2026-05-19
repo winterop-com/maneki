@@ -7,7 +7,7 @@ What's landed, what's open, what's speculative. Keep this in sync with code chan
 ### Landed
 
 - **Base scan + raw stream**: `<root>/videos/` discovered recursively; flat list endpoint; HTTP Range stream.
-- **CLI**: `mediakit video serve`, plus unified `mediakit serve --ui` mounting both kinds + the SPA at `/`.
+- **CLI**: `mediakit serve`, plus unified `mediakit serve --ui` mounting both kinds + the SPA at `/`.
 - **Subtitle sidecars**: `.srt` discovery + on-the-fly conversion to WebVTT.
 - **HLS pipeline (on-demand segments)**: synthesised VOD manifest with `#EXT-X-ENDLIST` upfront from ffprobe duration; per-segment MPEG-TS transcode on first request, cached on disk. Seek-anywhere works without waiting for a linear transcode to catch up. See [video guide](guides/video.md#get-apivideosidhlsfilename).
 - **Posters + thumbnails**: `/poster` returns a contact-sheet PNG (3x3 timestamped frame grid + header strip); `/thumbnail` returns a single mid-video JPEG. Both cached under `<root>/.mediakit/posters/`. Used as the video.js `poster` and the video-list row icon respectively. **Prewarm** on server startup walks the library and fills the cache in the background through a bounded worker pool, so opening any video for the first time is instant.

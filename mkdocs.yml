@@ -31,18 +31,17 @@ theme:
 nav:
   - Home: index.md
   - Quickstart: guides/quickstart.md
-  - Shared:
-      - serve (unified): guides/serve-unified.md
-      - library (cross-cutting): guides/library.md
+  - Server:
+      - mediakit serve: guides/serve-unified.md
+      - mediakit library: guides/library.md
   - Audio:
       - audio convert: guides/convert.md
       - audio library: guides/audio-library.md
       - audio inspect: guides/inspect.md
-      - audio serve (standalone): guides/serve.md
       - audio ui: guides/ui.md
       - audio playlist: guides/playlist.md
   - Video:
-      - video serve (standalone): guides/video.md
+      - Video pipeline: guides/video.md
   - Clients:
       - Desktop apps: guides/desktop.md
       - Mobile (Subsonic): guides/mobile.md

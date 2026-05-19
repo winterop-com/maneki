@@ -28,10 +28,10 @@ Then on top of that:
   - `library cover IMAGE DIR` / `library cover-pick DIR` / `library retag DIR` — in-place tag and cover edits; semi-automated cover selection via [musichoarders.xyz](https://covers.musichoarders.xyz/)
   - `library lyrics fetch DIR` — populate `<track>.lrc` sidecars from [LRCLIB](https://lrclib.net) (free, no API key, returns synced lyrics for popular tracks)
   - `library index status|drop|rebuild DIR` — manage the persistent SQLite index at `<DIR>/.mediakit/index.db`
-- **`mediakit audio serve`** — Subsonic-compatible HTTP server. Any Subsonic client (Symfonium, Amperfy, play:Sub, Feishin) can browse + stream + control via the standard API. mDNS / Bonjour for autodiscovery, ffmpeg-on-the-fly for transcoding, filesystem watcher for auto-rescan when you drop new albums in. Real heart / star button (persistent favourites at `<root>/.mediakit/stars.toml`); LRC bodies promoted to `synced: true` so client lyrics views highlight live.
+- **`mediakit serve`** — one server, one library root. Scans the directory recursively and auto-mounts whichever kinds have content: the Subsonic API at `/audio/rest/*` when audio is present, the MediaKit-native video API at `/video/api/*` when video is present, the web SPA at `/` with `--ui`. Any Subsonic client (Symfonium, Amperfy, play:Sub, Feishin) reads `/audio/rest/*` directly. Real heart / star button (persistent favourites at `<root>/.mediakit/stars.toml`); LRC bodies promoted to `synced: true` so client lyrics views highlight live. Video pipeline includes HLS streaming with on-demand MPEG-TS segments, sidecar `.srt` + embedded subtitle extraction to WebVTT, contact-sheet posters, click-in folder browser. See [Serve](guides/serve-unified.md) and [Video](guides/video.md).
+- **`mediakit library`** — cross-cutting tools for any library root. `info` counts files per kind, `list` walks the tree, `inspect` dumps tags / cover for an audio file or ffprobe streams / container info for a video file.
 - **`mediakit audio playlist`** — auto-generate `.m3u8` playlists anchored to a seed track using tag-based similarity (artist / genre / year). `gen` writes a mix; `list` / `show` browse what's saved. Output is plain extended M3U so VLC and Subsonic clients can play it.
-- **`mediakit video serve`** — video pipeline: HLS streaming with on-demand MPEG-TS segments, sidecar `.srt` + embedded subtitle extraction to WebVTT, contact-sheet posters, click-in folder browser. See [Video](guides/video.md).
-- **`mediakit audio inspect`** — quick tag dump for a single file.
+- **`mediakit audio inspect`** — quick tag dump for a single file (also reachable via the cross-cutting `mediakit library inspect`).
 - **Desktop apps** — Tauri (~15 MB, native WebKit on macOS) and Electron (~120 MB, bundled Chromium) wrappers around a generic Subsonic client UI. URL + Username + Password login; salted-token auth; refresh-restores via URL hash. `.dmg` / `.exe` / `.AppImage` / `.deb` attach to every release. See [Desktop apps](guides/desktop.md).
 - **Mobile** — no MediaKit app of its own; `serve` exposes the standard Subsonic API so play:Sub / Amperfy (iOS) and Symfonium / DSub / Tempo (Android) all work against it. See [Mobile](guides/mobile.md).
 
@@ -46,7 +46,7 @@ uvx mediakit audio convert ./input ./output
 - **[Quickstart](guides/quickstart.md)** — full end-to-end walkthrough including iPhone + Tailscale + Amperfy. ~30 minutes.
 - **[Architecture](architecture.md)** — how the pieces fit together: process model, data flow, audio engine subprocess, SQLite index, FFT visualizer. Read this first if you want a mental model before diving in.
 
-Per-command guides: [Convert](guides/convert.md) · [Library](guides/library.md) · [Serve](guides/serve.md) · [Video](guides/video.md) · [Playlist](guides/playlist.md) · [Inspect](guides/inspect.md).
+Per-command guides: [Serve (unified)](guides/serve-unified.md) · [Library](guides/library.md) · [Audio convert](guides/convert.md) · [Audio library](guides/audio-library.md) · [Video](guides/video.md) · [Playlist](guides/playlist.md) · [Inspect](guides/inspect.md).
 
 Clients: [Desktop apps](guides/desktop.md) · [Mobile (Subsonic)](guides/mobile.md).
 
@@ -64,6 +64,6 @@ Years of rip-collection wrangling produces an audio library full of:
 
 ## Status
 
-Top-level commands: `mediakit serve` (combined audio + video + SPA), `mediakit library` (kind-aware scan), `mediakit audio <...>` (convert, library, inspect, serve, ui, playlist), `mediakit video serve`. mypy + pyright + ruff clean, full pytest suite green. Audio side real-world tested against Symfonium / Amperfy / play:Sub / Feishin clients with persistent favourites and synced lyrics; video side serves the SPA's folder browser + video.js player on the same origin.
+Top-level commands: `mediakit serve` (single-library audio + video + SPA, auto-detects what's there), `mediakit library` (cross-cutting info / list / inspect), `mediakit audio <...>` (convert, library, inspect, ui, playlist). mypy + pyright + ruff clean, full pytest suite green. Audio side real-world tested against Symfonium / Amperfy / play:Sub / Feishin clients with persistent favourites and synced lyrics; video side serves the SPA's folder browser + video.js player on the same origin.
 
 Roadmap items still open are listed at [Roadmap](roadmap.md).

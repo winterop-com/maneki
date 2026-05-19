@@ -10,7 +10,7 @@ The route this guide takes:
 2. Convert a sample library
 3. Audit + auto-fix the warnings
 4. Pick covers for the flagged albums
-5. Start `mediakit audio serve`
+5. Start `mediakit serve`
 6. Set up the iPhone (Tailscale + Amperfy)
 7. Connect Amperfy to the server and play a track
 
@@ -145,7 +145,7 @@ dropped.
 ## 4. Start the server
 
 ```bash
-uvx mediakit audio serve ./output
+uvx mediakit serve ./output
 ```
 
 By default this:
@@ -159,7 +159,7 @@ By default this:
 You'll see a startup banner like:
 
 ```
-mediakit audio serve — Subsonic API for ~/Music
+mediakit serve — Subsonic API for ~/Music
   bind: 0.0.0.0:4533
   LAN:  http://192.168.1.42:4533
   Tailscale: http://mlaptop.tail4a4b9a.ts.net:4533
@@ -184,13 +184,13 @@ password = "your-strong-password"
 EOF
 ```
 
-Restart `mediakit audio serve` — the yellow warning is gone.
+Restart `mediakit serve` — the yellow warning is gone.
 
 (If you're upgrading from a pre-v0.11 install with a `serve.toml`, run
 `mediakit audio config migrate` once to move it to the new format.)
 
 Leave the server running. You can also run it as a background process via
-launchd / systemd; see [Serve](serve.md) for examples.
+launchd / systemd; see [Serve](serve-unified.md) for examples.
 
 ## 5. iPhone setup
 
@@ -231,7 +231,7 @@ recommend for iOS. play:Sub, iSub, Substreamer all work too — Amperfy
 is the most feature-complete, including OpenSubsonic extensions and
 synced lyrics.)
 
-### Connect Amperfy to mediakit audio serve
+### Connect Amperfy to mediakit serve
 
 Open Amperfy → first-launch screen prompts for a server. Fill in:
 
@@ -247,7 +247,7 @@ and `/rest/getArtists` to populate the library. On first connect with a
 If login fails, the most common causes are:
 
 - Tailscale not connected on the iPhone (check the menu icon).
-- Wrong port (mediakit audio serve uses 4533 by default; some other Subsonic
+- Wrong port (mediakit serve uses 4533 by default; some other Subsonic
   servers use 4040).
 - HTTPS expected but not configured. Default `serve` is plain HTTP. If
   Amperfy asks for HTTPS, leave the URL as `http://` and accept the
@@ -305,7 +305,7 @@ Once it's running:
 
 Check, in order:
 
-1. Is `mediakit audio serve` still running? Restart if not.
+1. Is `mediakit serve` still running? Restart if not.
 2. Is Tailscale connected on the iPhone? Open the app and confirm.
 3. Can you load the JSON probe URL in Mobile Safari? If yes, the
    transport works — the issue is in Amperfy's auth / URL setup.
@@ -346,7 +346,7 @@ encryption + access control for you.
   including the audio engine subprocess and the SQLite index lifecycle.
 - [Library](library.md) — every audit rule, every fix, every index
   management command.
-- [Serve](serve.md) — full Subsonic endpoint list, transcoding, mDNS,
+- [Serve](serve-unified.md) — full Subsonic endpoint list, transcoding, mDNS,
   watcher behavior, client compatibility matrix.
 - [Video](video.md) — HLS pipeline, subtitle handling, contact-sheet
   posters, folder browser.

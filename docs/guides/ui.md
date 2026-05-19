@@ -1,6 +1,6 @@
 # `mediakit audio ui`
 
-Static-serve the desktop SPA as a local web client against any Subsonic-compatible server. Unlike [`mediakit audio serve`](serve.md) (which IS a Subsonic server), `mediakit audio ui` is purely a client — point it at your own server, a friend's, a Navidrome install, anything that speaks the spec.
+Static-serve the desktop SPA as a local web client against any Subsonic-compatible server. Unlike [`mediakit serve`](serve-unified.md) (which IS a Subsonic server), `mediakit audio ui` is purely a client — point it at your own server, a friend's, a Navidrome install, anything that speaks the spec.
 
 ```bash
 mediakit audio ui                                       # opens http://localhost:1888
@@ -35,4 +35,4 @@ Password ends up in shell history this way — fine for a local LAN setup, less 
 
 ## Running as a background service
 
-Mostly you launch `mediakit audio ui` on demand (it's a CLI command, not a daemon). If you want it always running on a dedicated kiosk / always-on machine, use the same systemd / launchd patterns documented under [`mediakit audio serve`](serve.md#running-as-a-background-service) — substitute the `ExecStart` / `ProgramArguments` for `mediakit audio ui --no-open --host 0.0.0.0 --port 1888`.
+Mostly you launch `mediakit audio ui` on demand (it's a CLI command, not a daemon). If you want it always running on a dedicated kiosk / always-on machine, wrap it in a systemd unit or launchd plist that runs `mediakit audio ui --no-open --host 0.0.0.0 --port 1888`.

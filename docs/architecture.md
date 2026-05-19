@@ -53,7 +53,7 @@ subapp carries `tree`, `audit`, `fix`, `cover`, `cover-pick`, `retag`,
 |  (Pydantic graph)  |         |  bump or root mismatch            |
 +----+---------------+         +-----------------------------------+
      |
-     +--> consumed by `mediakit audio serve` + the web SPA
+     +--> consumed by `mediakit serve` + the web SPA
                               |
                               v
                 +---------------------------+
@@ -345,7 +345,7 @@ extraction. Optional: `chromaprint` (`fpcalc`) for AcoustID.
 
 - [Convert](guides/convert.md) — pipeline stages in detail.
 - [Library](guides/library.md) — audit rules + the SQLite index.
-- [Serve](guides/serve.md) — Subsonic API + Tailscale + client setup.
+- [Serve](guides/serve-unified.md) — Subsonic API + Tailscale + client setup.
 - [Video](guides/video.md) — HLS, subtitles, posters, folder browser.
 - [Quickstart](guides/quickstart.md) — end-to-end walkthrough including iPhone streaming.
 - [Development](guides/development.md) — directory layout + test patterns.
