@@ -125,6 +125,30 @@
   async function loadLibrary(session) {
     const api = window.MK_API;
 
+    // Skip the Subsonic phase entirely on a video-only library — the
+    // server doesn't mount /audio/* there, so getArtists would 404 and
+    // trigger the "Lost connection" banner. We probe /capabilities
+    // first (always exists) to decide. Non-mediakit Subsonic servers
+    // don't have /capabilities, so a fetch failure means "treat as an
+    // audio server and let getArtists run as before".
+    let hasAudio = true;
+    try {
+      const capsResp = await fetch(new URL("/capabilities", session.baseUrl).toString(), {
+        cache: "no-store",
+      });
+      if (capsResp.ok) {
+        const caps = await capsResp.json();
+        if (caps && typeof caps.audio === "boolean") hasAudio = caps.audio;
+      }
+    } catch (_e) {
+      // ignore - falls through to the audio path
+    }
+    if (!hasAudio) {
+      window.MK_DATA = { ARTISTS: [], STATIONS: [], LYRICS_BOADICEA: [] };
+      window.MK_SESSION = session;
+      return;
+    }
+
     // Phase 1: roots — flat artist list + radio stations in parallel.
     // getArtists is the auth-checking call; let it surface errors so
     // MK_RESUME / handleConnect can classify (auth vs. transient).

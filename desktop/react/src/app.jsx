@@ -554,9 +554,7 @@ function App() {
   const KindRail = window.MK_KindRail;
   return (
     <div className="mk-root" data-kind={kind}>
-      {hasAudio && hasVideo && (
-        <KindRail kind={kind} setKind={setKind}/>
-      )}
+      <KindRail kind={kind} setKind={setKind} hasAudio={hasAudio} hasVideo={hasVideo}/>
       <div className="mk-shell" data-layout={t.layout}>
       <window.MK_TopBar
         user={user}

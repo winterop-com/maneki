@@ -39,7 +39,12 @@ function TopBar({ user, q, setQ, onFocusSearch, onSignOut, searchInputRef }) {
 // hasAudio && hasVideo, so this component just renders the two tabs.
 // Labels are typeset vertically (writing-mode rotation) - no icon, just
 // the kind name large and clear.
-function KindRail({ kind, setKind }) {
+function KindRail({ kind, setKind, hasAudio = true, hasVideo = true }) {
+  // Hide the rail entirely when only one kind is mounted - there's
+  // nothing to switch between, and the empty rail just steals
+  // horizontal space and gives a confusing visual hint that a
+  // disabled tab exists.
+  if (!hasAudio || !hasVideo) return null;
   return (
     <div className="mk-kind-rail">
       <button
