@@ -17,6 +17,8 @@ What's landed, what's open, what's speculative. Keep this in sync with code chan
 
 ### Open
 
+- **Real folder browser**: today the video list is a flat list with a "group by top-level subfolder" view. With a real-world library (deep nesting, many files) this falls over - we need a proper file-tree browser that lists the current directory and lets you click folders to navigate in. Breadcrumb at the top, back button, "open in player" on file rows.
+- **Long filename handling**: real release / encode filenames are very long (e.g. `Some.Movie.2019.1080p.BluRay.x264-GROUP.mkv`). Row layout currently overflows. Need a parsing pass to extract a clean display title (year, source, codec stripped off, available via hover for the full thing), tooltip with full filename, and wrap / ellipsis rules per density.
 - **Cleanup of cached HLS segments + posters**: today they accumulate forever under `/tmp/mediakit-hls/<id>/` and `<root>/.mediakit/posters/`. Add a TTL + LRU eviction layer (e.g. drop sessions older than 24h with no access).
 - **Kind-aware search**: the topbar search is wired only to the audio Subsonic library. In video mode the search box is currently hidden; replace with a video-list filter and (later) a unified search across both kinds.
 - **Embedded subtitle tracks**: today only `.srt` sidecars are surfaced. ffprobe the source for embedded subtitle streams and expose a picker in the player.
