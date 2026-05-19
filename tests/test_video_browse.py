@@ -13,19 +13,22 @@ from mediakit.video.serve.scan import browse_dir
 
 @pytest.fixture
 def library_root(tmp_path: Path) -> Path:
-    """Library with two subfolders and a video at the root + one deeper."""
-    videos = tmp_path / "videos"
-    (videos / "movies").mkdir(parents=True)
-    (videos / "tv" / "Show A" / "Season 1").mkdir(parents=True)
+    """Library with two subfolders and a video at the root + one deeper.
+
+    Layout is rooted directly at tmp_path - there is no `videos/` subdir
+    convention anymore. The scanner walks the library root recursively.
+    """
+    (tmp_path / "movies").mkdir(parents=True)
+    (tmp_path / "tv" / "Show A" / "Season 1").mkdir(parents=True)
     # Root-level video
-    (videos / "loose.mkv").write_bytes(b"\x1a\x45\xdf\xa3" + b"x" * 100)
+    (tmp_path / "loose.mkv").write_bytes(b"\x1a\x45\xdf\xa3" + b"x" * 100)
     # Inside movies/
-    (videos / "movies" / "Flick.mp4").write_bytes(b"x" * 100)
+    (tmp_path / "movies" / "Flick.mp4").write_bytes(b"x" * 100)
     # Two episodes deep in tv/Show A/Season 1/
-    (videos / "tv" / "Show A" / "Season 1" / "S01E01.mkv").write_bytes(b"x" * 100)
-    (videos / "tv" / "Show A" / "Season 1" / "S01E02.mkv").write_bytes(b"x" * 100)
+    (tmp_path / "tv" / "Show A" / "Season 1" / "S01E01.mkv").write_bytes(b"x" * 100)
+    (tmp_path / "tv" / "Show A" / "Season 1" / "S01E02.mkv").write_bytes(b"x" * 100)
     # An empty subdir at the root - should not appear in the listing.
-    (videos / "empty").mkdir()
+    (tmp_path / "empty").mkdir()
     return tmp_path
 
 
@@ -83,6 +86,14 @@ def test_browse_unknown_path_returns_404(client: TestClient) -> None:
     assert resp.status_code == 404
 
 
-def test_browse_dir_returns_none_when_no_videos_dir(tmp_path: Path) -> None:
-    # No `videos/` (or `video/`) subdir at all.
-    assert browse_dir(tmp_path, "") is None
+def test_browse_dir_empty_root_lists_nothing(tmp_path: Path) -> None:
+    """An empty library root returns an empty (but valid) browse response."""
+    body = browse_dir(tmp_path, "")
+    assert body is not None
+    assert body["folders"] == []
+    assert body["videos"] == []
+
+
+def test_browse_dir_returns_none_when_root_missing(tmp_path: Path) -> None:
+    """Pointing at a non-existent directory is None, not an error."""
+    assert browse_dir(tmp_path / "nope", "") is None

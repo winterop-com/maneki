@@ -17,9 +17,8 @@ from mediakit.video.serve.hls import (
 
 @pytest.fixture
 def library_root(tmp_path: Path) -> Path:
-    videos = tmp_path / "videos"
-    videos.mkdir()
-    (videos / "movie.mkv").write_bytes(b"\x1a\x45\xdf\xa3" + b"x" * 100)
+    # Single video at the library root - no subdir convention.
+    (tmp_path / "movie.mkv").write_bytes(b"\x1a\x45\xdf\xa3" + b"x" * 100)
     return tmp_path
 
 
