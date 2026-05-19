@@ -26,7 +26,6 @@ from typing import TYPE_CHECKING
 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import JSONResponse
-from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.responses import Response
@@ -70,8 +69,6 @@ def create_combined_app(
     enable_audio: bool = True,
     enable_video: bool = True,
     enable_auth: bool = False,
-    enable_ui: bool = False,
-    ui_dir: Path | None = None,
     audio_use_cache: bool = True,
     audio_cfg: ServeConfig | None = None,
 ) -> FastAPI:
@@ -84,10 +81,6 @@ def create_combined_app(
         enable_auth: if True, require Authorization: Bearer <token> on
             /video/* (Subsonic at /audio/rest/* keeps its own auth). Default
             False so the existing demo page keeps working unchanged.
-        enable_ui: if True, mount the built Vite SPA at /ui/. Raises if the
-            bundle is missing - run `npm run build` in desktop/spa/ first.
-        ui_dir: explicit path to the SPA's dist/ directory. Default: auto-
-            discover desktop/spa/dist/ relative to the repo root.
         audio_use_cache: forwarded to the audio Subsonic app's SQLite index cache.
         audio_cfg: explicit ServeConfig for credentials. When None (the default),
             credentials are resolved from ~/.config/mediakit/mediakit.toml,
@@ -144,9 +137,6 @@ def create_combined_app(
 
     if video_dir is not None:
         _mount_video(combined, root)
-
-    if enable_ui:
-        _mount_ui(combined, ui_dir)
 
     return combined
 
@@ -220,26 +210,3 @@ def _mount_video(combined: FastAPI, library_root: Path) -> None:
 
     video_app = create_video_app(library_root)
     combined.mount("/video", video_app)
-
-
-def _mount_ui(combined: FastAPI, ui_dir: Path | None) -> None:
-    """Mount the built Vite SPA at /ui, serving index.html for unknown paths.
-
-    If ui_dir is None, auto-discovers desktop/spa/dist/ relative to the repo
-    root (works in a dev tree). Raises if the bundle is missing so the
-    operator sees the error at startup rather than getting a 404 wall later.
-    """
-    chosen = ui_dir if ui_dir is not None else _discover_spa_dist()
-    if chosen is None or not (chosen / "index.html").is_file():
-        raise RuntimeError(
-            f"--ui requested but no built SPA at {chosen}. Run `cd desktop/spa && npm install && npm run build` first."
-        )
-    combined.mount("/ui", StaticFiles(directory=chosen, html=True), name="spa")
-
-
-def _discover_spa_dist() -> Path | None:
-    """Find the Vite build output relative to this file's repo location."""
-    # src/mediakit/serve_app.py -> repo root is three parents up.
-    repo_root = Path(__file__).resolve().parents[2]
-    candidate = repo_root / "desktop" / "spa" / "dist"
-    return candidate if candidate.exists() else None

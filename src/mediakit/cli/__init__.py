@@ -77,10 +77,6 @@ def serve_cmd(
         bool,
         typer.Option("--auth", help="Require bearer-token auth on /video/* (Subsonic keeps its own auth)"),
     ] = False,
-    ui: Annotated[
-        bool,
-        typer.Option("--ui", help="Also serve the built React SPA at /ui/ (requires `npm run build` in desktop/spa)"),
-    ] = False,
 ) -> None:
     """Start the combined audio + video server.
 
@@ -93,7 +89,6 @@ def serve_cmd(
       /audio/rest/*         Subsonic API (set this as the base URL in Subsonic clients)
       /video/api/*          MediaKit-native video JSON API
       /video/               throwaway demo HTML page (works without auth)
-      /ui/                  React SPA (only when --ui is set)
 
     Pass --auth to require Authorization: Bearer <token> on /video/*. The
     demo page at /video/ doesn't speak the auth flow yet, so --auth and the
@@ -112,15 +107,9 @@ def serve_cmd(
         enable_audio=not video_only,
         enable_video=not audio_only,
         enable_auth=auth,
-        enable_ui=ui,
     )
-    flags: list[str] = []
-    if auth:
-        flags.append("auth on /video/*")
-    if ui:
-        flags.append("SPA at /ui/")
-    flag_note = f" ({', '.join(flags)})" if flags else ""
-    typer.echo(f"mediakit serve - {root.resolve()} on http://{host}:{port}{flag_note}")
+    auth_note = " (auth required on /video/*)" if auth else ""
+    typer.echo(f"mediakit serve - {root.resolve()} on http://{host}:{port}{auth_note}")
     uvicorn.run(combined, host=host, port=port, log_level="info")
 
 

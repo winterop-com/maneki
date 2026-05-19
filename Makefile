@@ -30,22 +30,6 @@ install:
 	@echo ">>> Installing dependencies"
 	@$(UV) sync --all-extras --group dev
 
-# SPA build (Vite + React + TS). Required for `mediakit serve --ui`.
-SPA_DIR := desktop/spa
-
-spa-install:
-	@echo ">>> npm install in $(SPA_DIR)"
-	@cd $(SPA_DIR) && npm install
-
-spa-build: spa-install
-	@echo ">>> Building SPA (Vite) into $(SPA_DIR)/dist"
-	@cd $(SPA_DIR) && npm run build
-
-spa-dev:
-	@echo ">>> SPA dev server (Vite) on http://127.0.0.1:5173/ui/"
-	@echo "    Run `make install` + `uv run mediakit serve <root>` separately on :8765 for API."
-	@cd $(SPA_DIR) && npm run dev
-
 lint:
 	@echo ">>> Running linter"
 	@$(UV) run ruff format .
