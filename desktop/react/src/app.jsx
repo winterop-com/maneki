@@ -90,8 +90,16 @@ function App() {
   const togglePlayerFs = React.useCallback(() => setPlayerFs((v) => !v), []);
   // Toggle a body data attribute so the CSS rule can target the
   // outermost element; React owns the state but CSS owns the layout.
+  // Also drive native OS window fullscreen via MK_DESKTOP when
+  // running inside a desktop wrapper. The CSS pin makes the player
+  // pane fill the window; the OS fullscreen makes the WINDOW fill
+  // the screen (separate Space on macOS, menu bar + dock hidden).
+  // Combined: video covers the entire physical display with no
+  // chrome of any kind. In a plain browser tab MK_DESKTOP.kind is
+  // null and the OS call no-ops, so the CSS pin is the whole story.
   React.useEffect(() => {
     document.body.dataset.playerFullscreen = playerFs ? "true" : "false";
+    if (window.MK_DESKTOP?.kind) window.MK_DESKTOP.setFullscreen(playerFs);
     return () => { document.body.dataset.playerFullscreen = "false"; };
   }, [playerFs]);
   // When the selection clears (Close button), exit fullscreen too -
