@@ -197,10 +197,18 @@ class BearerAuthMiddleware(BaseHTTPMiddleware):
 
 
 def _mount_audio(combined: FastAPI, audio_root: Path, *, use_cache: bool, cfg: ServeConfig) -> None:
-    """Mount the Subsonic app under /audio."""
+    """Mount the Subsonic app under /audio.
+
+    Triggers the initial library scan synchronously so the first /audio/rest/*
+    request hits a populated IndexCache. Standalone `mediakit audio serve`
+    does this in its CLI; mounting the same app as a sub-app means we have
+    to drive the rebuild ourselves (the IndexCache is created at create_app
+    time but its content isn't populated until rebuild() runs).
+    """
     from mediakit.audio.serve import create_app as create_audio_app
 
     audio_app = create_audio_app(root=audio_root, cfg=cfg, use_cache=use_cache)
+    audio_app.state.cache.rebuild()
     combined.mount("/audio", audio_app)
 
 
