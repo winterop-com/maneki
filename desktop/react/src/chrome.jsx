@@ -67,6 +67,53 @@ function KindRail({ kind, setKind }) {
 // there's no need for a sidebar nav with a single "Videos" item. When
 // movies / shows / continue-watching land later, a video sidebar with
 // real nav items can come back.
+// Draggable column divider between the video list and the player pane.
+// Lives inside the .mk-browse-video grid (column 2 of 3). On mousedown
+// it captures the initial pointer X and the current list-column width,
+// then on mousemove updates the --mk-video-list-w CSS variable on the
+// parent grid. Width is intentionally NOT persisted — starts fresh at
+// the CSS default (480px) on every page load.
+function VideoSplitter() {
+  const { useCallback } = React;
+  const onMouseDown = useCallback((e) => {
+    e.preventDefault();
+    const grid = e.currentTarget.parentElement;
+    if (!grid) return;
+    const startX = e.clientX;
+    const computed = getComputedStyle(grid).getPropertyValue("--mk-video-list-w").trim();
+    const startW = parseFloat(computed) || grid.querySelector(".mk-albums-pane")?.getBoundingClientRect().width || 480;
+    const gridW = grid.getBoundingClientRect().width;
+    // Hard floor so the list stays usable; hard ceiling that always
+    // leaves at least 360px for the player and never exceeds 70% of
+    // the grid width (whichever is stricter).
+    const minW = 280;
+    const maxW = Math.max(minW + 80, Math.min(Math.floor(gridW - 360), Math.floor(gridW * 0.7)));
+    document.body.style.cursor = "col-resize";
+    document.body.style.userSelect = "none";
+    const onMove = (ev) => {
+      const next = Math.min(maxW, Math.max(minW, startW + (ev.clientX - startX)));
+      grid.style.setProperty("--mk-video-list-w", next + "px");
+    };
+    const onUp = () => {
+      document.removeEventListener("mousemove", onMove);
+      document.removeEventListener("mouseup", onUp);
+      document.body.style.cursor = "";
+      document.body.style.userSelect = "";
+    };
+    document.addEventListener("mousemove", onMove);
+    document.addEventListener("mouseup", onUp);
+  }, []);
+  return (
+    <div
+      className="mk-vsplit"
+      onMouseDown={onMouseDown}
+      role="separator"
+      aria-orientation="vertical"
+      title="Drag to resize"
+    />
+  );
+}
+
 function Sidebar({ kind, section, setSection, ARTISTS, artistId, setArtistId, loaded }) {
   if (kind === "video") return null;
   return (
@@ -561,6 +608,7 @@ function MainArea(props) {
       {!videoMode && section === "stations" && <StationsPane STATIONS={STATIONS} playStation={playStation} now={now} loaded={loaded}/>}
       {!videoMode && section === "starred" && <StarredPane starredTracks={starredTracks} playTrack={playTrack} toggleStar={toggleStar}/>}
       {videoMode && session && <MK_VideosPane session={session} selectedId={selectedVideo?.id} onSelect={setSelectedVideo}/>}
+      {videoMode && session && <VideoSplitter/>}
       {videoMode && session && selectedVideo && (
         // Key on video.id so React unmounts + remounts the player when
         // the selection changes. Without the key, the component instance

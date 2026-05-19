@@ -417,13 +417,36 @@ body[data-platform="darwin"]:not([data-shell="browser"]) .mk-kind-rail {
 }
 
 /* Video-mode browse grid. Sidebar is null in video mode, so override the
-   default `220px 280px 1fr` audio grid: video list on the left, player
-   gets the rest. The list column is wider than feels strictly necessary
-   for the player preview because (a) real-world filenames are long and
-   want the room, (b) the player is usually opened fullscreen anyway so
-   the in-pane preview is secondary. */
+   default `220px 280px 1fr` audio grid: video list on the left, a thin
+   draggable divider, then the player. List width is driven by a CSS
+   variable so the splitter can mutate it directly without going through
+   React state on every mousemove. When no video is selected the splitter
+   isn't rendered and the player column collapses to zero, but `auto` for
+   the divider keeps the rule sensible in both cases. The list column is
+   wider than feels strictly necessary for the player preview because
+   (a) real-world filenames are long and want the room, (b) the player
+   is usually opened fullscreen anyway so the in-pane preview is
+   secondary. */
 .mk-browse.mk-browse-video {
-  grid-template-columns: 480px 1fr;
+  --mk-video-list-w: 480px;
+  grid-template-columns: var(--mk-video-list-w) auto 1fr;
+}
+
+.mk-vsplit {
+  width: 6px;
+  cursor: col-resize;
+  background: transparent;
+  border-left: 1px solid var(--line);
+  border-right: 1px solid transparent;
+  transition: background-color 120ms ease, border-color 120ms ease;
+  user-select: none;
+  touch-action: none;
+}
+.mk-vsplit:hover,
+.mk-vsplit:active {
+  background-color: var(--accent);
+  border-left-color: var(--accent);
+  border-right-color: var(--accent);
 }
 
 /* Pane scroll for the video browser - it's a single long list (current
