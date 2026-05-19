@@ -1,6 +1,12 @@
 # Video
 
-`mediakit video serve` starts a minimal HTTP server that exposes the videos in your library via a clean MediaKit-native JSON API. The base layer (this page) does no transcoding and no UI — it streams raw bytes with HTTP Range support so an `<video>` element can play and seek directly when codecs are compatible.
+`mediakit video serve` starts a minimal HTTP server that exposes the videos in your library via a clean MediaKit-native JSON API. The server ships:
+
+- A throwaway HTML demo page at `/` that lists every video and plays the one you pick — useful for verifying the pipeline end-to-end without touching the SPA.
+- Raw byte streaming with HTTP Range at `/api/videos/{id}/stream` (for external players like VLC / mpv).
+- On-the-fly ffmpeg-piped fragmented-MP4 streaming at `/api/videos/{id}/play` (for browser `<video>` elements when the source container or audio codec isn't natively supported).
+
+No HLS, no UI integration into the React SPA yet. Those land as follow-up layers.
 
 ## Quick start
 
@@ -37,7 +43,13 @@ curl -s http://127.0.0.1:8765/api/videos | jq
 
 ## Endpoints
 
-The base layer ships three endpoints. All return JSON or media bytes; no HTML.
+The server ships five endpoints — one HTML page, three JSON, one media stream.
+
+### `GET /`
+
+Returns an HTML demo page (single-file, no build step, no frameworks). Lists every video found under `<root>/videos/` and plays the chosen one via the `/play` endpoint below. Visit `http://localhost:8765/` in any modern browser.
+
+The page exists to demonstrate the pipeline end-to-end without the React SPA wiring. It will be retired when the SPA grows a Video tab.
 
 ### `GET /capabilities`
 
@@ -82,6 +94,18 @@ Serves the raw bytes with HTTP Range support, so a browser's `<video>` tag (or V
 
 No transcoding. The Content-Type is derived from the file extension (`video/x-matroska` for `.mkv`, `video/mp4` for `.mp4` / `.m4v`, etc).
 
+### `GET /api/videos/{id}/play`
+
+ffmpeg-piped, fragmented-MP4 stream designed for browser `<video>` elements:
+
+- **Video stream**: copied through (no re-encode = cheap, no quality loss).
+- **Audio**: always re-encoded to stereo AAC at 192 kbps so browsers can play it. Source codecs like E-AC3 (Dolby Digital Plus, common in MKV releases) are not natively supported by Chrome / Firefox; this endpoint sidesteps that.
+- **Container**: fragmented MP4 with `moov` written upfront (`-movflags +frag_keyframe+empty_moov+default_base_moof`), so playback starts immediately rather than waiting for the file to finish.
+
+Returns `503 Service Unavailable` if `ffmpeg` is not on `PATH`. Returns `404` for unknown ids.
+
+Trade-offs: seek over a non-Range fragmented MP4 stream is limited; for full seek + adaptive bitrate, the HLS layer (next phase) is the answer. For "click play and watch" inside a browser, this endpoint covers the 99% case.
+
 ## Browser compatibility
 
 What plays in a browser depends on the file's codecs:
@@ -94,19 +118,19 @@ What plays in a browser depends on the file's codecs:
 | H.264 + E-AC3 (5.1) in MKV| varies | no     | no      |
 | H.265 + DTS / TrueHD      | no     | no     | no      |
 
-For incompatible combinations, the base layer is not enough — you need the transcode layer (HLS) that lands next. For now, point an external player (VLC, mpv, Infuse) at the stream URL and it will play anything ffmpeg understands.
+The `/play` endpoint covers the audio-codec problem (E-AC3, AC-3, DTS, TrueHD → AAC) and the MKV container problem (remuxes to MP4). Video stream is copied through, so files whose **video** codec is incompatible (H.265 in non-Safari browsers, MPEG-2) still won't play via `/play` — those need full video transcode, which is the HLS layer's job. For now, point an external player (VLC, mpv, Infuse) at the `/stream` URL for those.
 
 ## Why the base layer
 
 Stage 2's video work is built in layers:
 
-1. **Base** (this page) — scan, list, raw stream. Done.
-2. **Transcode** — ffmpeg pipeline: remux MKV→MP4 and re-encode incompatible audio for direct-play in browsers.
-3. **HLS** — on-the-fly HLS playlist + segments for codecs the browser can't direct-play even after remux.
-4. **SPA video views** — the desktop web UI gets a Video tab listing movies / shows / episodes.
+1. **Base** — scan, list, raw stream. Done.
+2. **Transcode + demo page** (current) — ffmpeg-piped fMP4 at `/play`, browser-friendly. Done.
+3. **HLS** — on-the-fly HLS playlist + segments for video codecs the browser can't direct-play even after remux (H.265 in non-Safari, MPEG-2).
+4. **SPA video views** — the desktop web UI gets a real Video tab listing movies / shows / episodes; the throwaway `/` demo page is retired.
 5. **Subtitle and audio-track pickers** — embedded + sidecar.
 
-Each layer is independently demonstrable; the base on its own is already useful for command-line / external-player use.
+Each layer is independently demonstrable.
 
 ## CLI options
 

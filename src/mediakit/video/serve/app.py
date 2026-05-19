@@ -1,9 +1,11 @@
 """MediaKit-native video FastAPI app.
 
-Base layer only - no transcoding, no UI, no HLS. Three endpoints:
-- /capabilities for client discovery
-- /api/videos to list
-- /api/videos/{id}/stream to fetch bytes (with HTTP Range support so <video> can seek)
+Endpoints:
+- GET /                          minimal demo HTML page (lists + plays)
+- GET /capabilities              server identity + audio/video presence
+- GET /api/videos                flat list of files under <root>/videos/
+- GET /api/videos/{id}/stream    raw bytes (HTTP Range supported)
+- GET /api/videos/{id}/play      browser-compatible ffmpeg-piped fMP4
 """
 
 from __future__ import annotations
@@ -12,10 +14,16 @@ from pathlib import Path
 from typing import Iterator
 
 from fastapi import FastAPI, HTTPException, Request
-from fastapi.responses import FileResponse, Response, StreamingResponse
+from fastapi.responses import FileResponse, HTMLResponse, Response, StreamingResponse
 
 from mediakit import __version__
+from mediakit.video.serve.demo import DEMO_HTML
 from mediakit.video.serve.scan import VideoEntry, scan_videos
+from mediakit.video.serve.transcode import (
+    FFmpegNotFoundError,
+    assert_ffmpeg_available,
+    transcode_to_mp4,
+)
 
 _MIME_BY_EXT: dict[str, str] = {
     ".mkv": "video/x-matroska",
@@ -40,6 +48,11 @@ def create_app(root: Path) -> FastAPI:
     """
     app = FastAPI(title="mediakit-video", version=__version__)
 
+    @app.get("/", response_class=HTMLResponse)
+    def demo_page() -> str:
+        """Minimal demo page that lists videos and plays the chosen one."""
+        return DEMO_HTML
+
     @app.get("/capabilities")
     def capabilities() -> dict[str, object]:
         """Return server identity + which kinds are present at the root."""
@@ -62,6 +75,25 @@ def create_app(root: Path) -> FastAPI:
         """Serve the bytes of the requested video with HTTP Range support."""
         entry = _find(video_id, root)
         return _range_response(Path(entry["path"]), request)
+
+    @app.get("/api/videos/{video_id}/play")
+    async def play_video(video_id: str) -> StreamingResponse:
+        """Stream the video as fragmented MP4 via ffmpeg.
+
+        Audio is re-encoded to stereo AAC; video stream is copied. Suitable
+        for browser <video> playback when the source container or audio codec
+        is not natively supported (most MKV files).
+        """
+        entry = _find(video_id, root)
+        try:
+            assert_ffmpeg_available()
+        except FFmpegNotFoundError as exc:
+            raise HTTPException(status_code=503, detail=str(exc)) from exc
+        return StreamingResponse(
+            transcode_to_mp4(Path(entry["path"])),
+            media_type="video/mp4",
+            headers={"Cache-Control": "no-cache"},
+        )
 
     return app
 

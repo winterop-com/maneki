@@ -88,3 +88,32 @@ def test_stream_out_of_bounds_range_is_416(client: TestClient) -> None:
 def test_stream_unknown_id_is_404(client: TestClient) -> None:
     resp = client.get("/api/videos/does-not-exist/stream")
     assert resp.status_code == 404
+
+
+def test_demo_page_served_at_root(client: TestClient) -> None:
+    resp = client.get("/")
+    assert resp.status_code == 200
+    assert resp.headers["content-type"].startswith("text/html")
+    body = resp.text
+    # Sanity-check that the key DOM hooks the page's JS relies on are present.
+    assert 'id="caps"' in body
+    assert 'id="picker"' in body
+    assert 'id="player"' in body
+    assert "/api/videos" in body  # JS hits this endpoint
+
+
+def test_play_unknown_id_is_404(client: TestClient) -> None:
+    resp = client.get("/api/videos/does-not-exist/play")
+    assert resp.status_code == 404
+
+
+def test_play_returns_503_when_ffmpeg_missing(monkeypatch: pytest.MonkeyPatch, client: TestClient) -> None:
+    """If ffmpeg is not on PATH, /play surfaces a 503 rather than crashing."""
+    import shutil
+
+    monkeypatch.setattr(shutil, "which", lambda _: None)
+    entries = client.get("/api/videos").json()
+    video_id = entries[0]["id"]
+    resp = client.get(f"/api/videos/{video_id}/play")
+    assert resp.status_code == 503
+    assert "ffmpeg" in resp.json()["detail"]
