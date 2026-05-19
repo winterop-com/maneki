@@ -536,24 +536,28 @@ body[data-platform="darwin"]:not([data-shell="browser"]) .mk-kind-rail {
    font-family inline on the cue container; the user "captions
    settings" menu still wins over this if they explicitly pick a font
    or colour. */
-/* Subtitle styling: a sensible default (small white monospace with a
-   tight outline + soft shadow, no background box). The captions-
-   settings menu in the player chrome can still override every property
-   here - that's why we only use `!important` on background. video.js
-   sets `background-color` INLINE on the cue (the opaque-box default
-   look), so an external rule without `!important` can't win there.
-   Everything else (font, size, colour, shadow) is plain CSS that the
-   user's menu choices override naturally. */
+/* Subtitle styling. video.js applies inline styles on each
+   `.vjs-text-track-cue` (direction, font: <size>px sans-serif,
+   background-color, layout). Inline beats any external CSS without
+   `!important`, so:
+   - We override background-color with `!important` to defeat the
+     opaque-box default look. This intentionally blocks the menu's
+     "background" picker - acceptable since the menu's other options
+     are the ones users actually reach for.
+   - For colour / shadow / weight / line-height - video.js doesn't
+     touch them inline, so plain CSS wins and the menu can still
+     override.
+   - For font-family and font-size we DON'T fight video.js. The size
+     default is set via player.textTrackSettings.setValues({fontPercent})
+     at player init (see video-views.jsx), and the menu then dials
+     relative to that baseline. font-family is left as video.js's
+     default sans-serif so the menu's font picker works untouched. */
 .video-js .vjs-text-track-display .vjs-text-track-cue,
 .video-js .vjs-text-track-display .vjs-text-track-cue > div {
   background: transparent !important;
   background-color: transparent !important;
   color: #fff;
-  font-family: "JetBrains Mono NL", "JetBrains Mono", "SF Mono", ui-monospace, Menlo, monospace;
   font-weight: 500;
-  /* video.js auto-scales cues with player height; cap so fullscreen
-     doesn't shout. Users can bump via the captions-settings menu. */
-  font-size: clamp(14px, 1.6vw, 20px);
   line-height: 1.25;
   text-shadow:
     -1px -1px 0 #000,

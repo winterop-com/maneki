@@ -193,6 +193,11 @@ function VideoPlayerPane({ session, video, onClose }) {
       autoplay: false,
       preload: "auto",
       fluid: true,
+      // Save the captions-settings menu choices (size / colour / font /
+      // shadow) to localStorage so they persist across videos AND
+      // across reloads. Off by default in video.js, which is why users
+      // see their size pick "not stick".
+      persistTextTrackSettings: true,
       // Contact-sheet poster: shows the video at a glance while paused
       // (and during seek buffer stalls) instead of a blank canvas.
       // Generated server-side; first request transcodes ~9 frames, then
@@ -227,6 +232,15 @@ function VideoPlayerPane({ session, video, onClose }) {
     // fullscreen on the actual video player instead of the audio
     // visualizer overlay. Cleared in the cleanup below.
     window.MK_VIDEO_PLAYER = player;
+
+    // Captions size: video.js's 100% baseline is bigger than feels
+    // right. Pre-seeding a smaller default via the textTrackSettings
+    // API doesn't actually apply (video.js's cue-render path reads
+    // settings late and partial setValues calls don't always land),
+    // so we lean on `persistTextTrackSettings: true` above instead:
+    // the user picks a size once from the captions-settings menu and
+    // it sticks across videos + reloads. Defaults to 100% on first
+    // visit.
 
     // Recovery for MSE buffer lockups. Two failure modes:
     //   1. alt-tab away, return, player stuck (browser throttles MSE
