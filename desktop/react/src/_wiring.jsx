@@ -25,6 +25,35 @@
   "use strict";
 
   // ---------------------------------------------------------------
+  // 0. Helpers
+  // ---------------------------------------------------------------
+
+  // Decide whether the user's base URL is mediakit (Subsonic mounted
+  // under /audio) or a 3rd-party Subsonic server (REST at the root).
+  // Probes <url>/capabilities once; on mediakit shape returns
+  // `<url>/audio`, otherwise returns `<url>` unchanged. Fails-open
+  // (returns the URL as-is) on any network error so the rest of the
+  // login flow can surface a useful auth/connection error instead of
+  // a probe error.
+  async function resolveSubsonicBase(url) {
+    // If the user already typed a path that ends with the mediakit
+    // mount (`/audio` or `/audio/`), trust them and don't double-append.
+    if (/\/audio\/?$/.test(url)) return url.replace(/\/+$/, "");
+    try {
+      const resp = await fetch(url + "/capabilities", { cache: "no-store" });
+      if (resp.ok) {
+        const caps = await resp.json();
+        if (caps && caps.server === "mediakit" && caps.endpoints?.audio_subsonic) {
+          return url + "/audio";
+        }
+      }
+    } catch (_e) {
+      // ignore - 3rd-party server or network error
+    }
+    return url;
+  }
+
+  // ---------------------------------------------------------------
   // 1. Patch MK_LoginView so onConnect runs a real auth + data load.
   // ---------------------------------------------------------------
   const OriginalLoginView = window.MK_LoginView;
@@ -42,9 +71,17 @@
       // message. Without re-throw the form silently looks like nothing
       // happened on connection-refused / wrong-credentials.
       try {
+        // mediakit mounts the Subsonic API at <base>/audio/rest/* (so
+        // the unified server can host /video/* alongside). 3rd-party
+        // Subsonic servers (Navidrome, Airsonic) put it at /rest/*
+        // directly. Probe /capabilities to figure out which we're
+        // talking to, then append /audio to the user's URL when it's
+        // mediakit. The user only ever types the base URL.
+        const trimmed = url.replace(/\/+$/, "");
+        const baseUrl = await resolveSubsonicBase(trimmed);
         setBusyLabel("Connecting…");
         const session = await window.MK_API.login({
-          baseUrl: url,
+          baseUrl,
           user,
           password: pass,
         });

@@ -19,7 +19,11 @@ function LoginView({ onConnect, themeMode, busyLabel }) {
   const [autoDetected, setAutoDetected] = useSt_v(null);  // null | "same-origin" | "localhost" | "none"
   const [detectedBase, setDetectedBase] = useSt_v("");
   const isDesktop = window.location.protocol === "file:" || window.location.protocol === "tauri:";
-  const [url, setUrl] = useSt_v(isDesktop ? "http://127.0.0.1:8765/audio" : window.location.origin + "/audio");
+  // Just the base URL - no /audio mount suffix. The wiring layer
+  // probes /capabilities on submit and appends /audio itself when
+  // it confirms the server is mediakit. For 3rd-party Subsonic
+  // servers (Navidrome, Airsonic) the URL stays as-is.
+  const [url, setUrl] = useSt_v(isDesktop ? "http://127.0.0.1:8765" : window.location.origin);
   const [user, setUser] = useSt_v("admin");
   const [pw, setPw] = useSt_v("");
   const [busy, setBusy] = useSt_v(false);
@@ -60,11 +64,11 @@ function LoginView({ onConnect, themeMode, busyLabel }) {
       }
       if (cancelled) return;
       if (hit) {
-        // _api.js appends `/rest/<verb>` itself; /capabilities reports
-        // the full mount path as `/audio/rest`, so strip the trailing
-        // `/rest` to leave just the base mount.
-        const mount = hit.caps.endpoints.audio_subsonic.replace(/\/rest\/?$/, "");
-        setUrl(hit.origin + mount);
+        // Leave the URL as just the origin - the wiring layer appends
+        // /audio at submit time, so the user never sees the mount
+        // path. We still store the detected origin so the help text
+        // can show what we found.
+        setUrl(hit.origin);
         setDetectedBase(hit.origin);
         setAutoDetected(kind);
       } else {
@@ -96,9 +100,16 @@ function LoginView({ onConnect, themeMode, busyLabel }) {
         <div className="mk-login-logo">MediaKit</div>
         <div className="mk-login-tag">desktop · v{document.querySelector('meta[name="mk-version"]')?.content || "?"}</div>
       </div>
-      <form className="mk-login-card" onSubmit={submit}>
+      {/* noValidate: our custom check above ("Username and password
+          are required") is the source of truth. Tauri's WKWebView
+          and Electron's Chromium both occasionally surface obscure
+          HTML5 validation errors (e.g. "The string did not match the
+          expected pattern") from autofill / password-manager hints
+          when no pattern attribute is set; switching off native
+          validation removes that whole class of misleading errors. */}
+      <form className="mk-login-card" onSubmit={submit} noValidate>
         <div className="mk-login-title">
-          {localFound ? "Sign in to MediaKit" : "Connect to a MediaKit / Subsonic server"}
+          {localFound ? "Sign in to MediaKit" : "Connect to a MediaKit server"}
         </div>
         <div className="mk-login-help">
           {autoDetected === "same-origin" && <>Talking to <code className="mono">{detectedBase}</code></>}
@@ -106,7 +117,7 @@ function LoginView({ onConnect, themeMode, busyLabel }) {
           {autoDetected === "none" && (
             isDesktop
               ? <>No local MediaKit found at <code className="mono">127.0.0.1:8765</code>. Start one with <code>mediakit serve &lt;library&gt;</code>, or point at a remote server below.</>
-              : <>Defaults to the same origin as the SPA. Also works against any spec-compliant Subsonic server (Navidrome, Airsonic, Gonic, etc.).</>
+              : <>Defaults to the same origin as the SPA.</>
           )}
           {autoDetected === null && <>Looking for a local server…</>}
         </div>
@@ -129,9 +140,6 @@ function LoginView({ onConnect, themeMode, busyLabel }) {
           <button type="submit" className="mk-btn-primary" disabled={busy}>
             {busy ? (busyLabel || "Connecting…") : "Sign in"}
           </button>
-          <div className="mk-login-foot">
-            Default credentials are <code>admin</code> / <code>admin</code> until you set <code>--user</code> / <code>--password</code> on <code>mediakit serve</code>.
-          </div>
         </div>
       </form>
     </div>
