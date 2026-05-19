@@ -103,8 +103,34 @@ def create_app(root: Path, *, budget: TranscodeBudget | None = None) -> FastAPI:
 
     @app.get("/api/videos")
     def list_videos() -> list[VideoEntry]:
-        """Return a flat list of every video file under <root>/videos/."""
+        """Return a flat list of every video file under the library root."""
         return scan_videos(root)
+
+    @app.get("/api/search")
+    def search_videos(q: str = "", limit: int = 200) -> list[VideoEntry]:
+        """Substring-match `q` against video name + rel_path; return ranked matches.
+
+        Case-insensitive. Empty / whitespace-only `q` returns no results so
+        the SPA can swap views cheaply on every keystroke without spamming
+        the network. Capped at `limit` (default 200) to keep the payload
+        reasonable on huge libraries.
+
+        Filename-only search is deliberate (no ffprobe tags / no AI
+        title parsing). Real-world video libraries are searched by
+        release name today; a smarter title-aware pass can layer on
+        later without changing the endpoint shape.
+        """
+        needle = q.strip().lower()
+        if not needle:
+            return []
+        out: list[VideoEntry] = []
+        for entry in scan_videos(root):
+            hay = (entry["name"] + " " + entry["rel_path"]).lower()
+            if needle in hay:
+                out.append(entry)
+                if len(out) >= limit:
+                    break
+        return out
 
     @app.get("/api/browse")
     def browse(path: str = "") -> BrowseResponse:

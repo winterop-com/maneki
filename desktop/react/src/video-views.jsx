@@ -351,4 +351,89 @@ function VideoPlayerPane({ session, video, onClose }) {
   );
 }
 
-Object.assign(window, { MK_VideosPane: VideosPane, MK_VideoPlayerPane: VideoPlayerPane });
+// Flat-results pane shown in video mode when the topbar search has a
+// non-empty query. Calls /video/api/search?q=... and renders rows
+// matching VideosPane's video-row markup so the visual jump back to
+// the folder browser is seamless. Debounced 200ms so each keystroke
+// doesn't fire a new fetch.
+function VideoSearchPane({ session, q, selectedId, onSelect }) {
+  const [results, setResults] = useSt_vv(null);
+  const [error, setError] = useSt_vv(null);
+  useEff_vv(() => {
+    let cancelled = false;
+    setError(null);
+    const trimmed = (q || "").trim();
+    if (!trimmed) {
+      setResults([]);
+      return () => {};
+    }
+    setResults(null);
+    const timer = setTimeout(() => {
+      window.MK_VIDEO.search(session, trimmed).then(
+        (data) => { if (!cancelled) setResults(data); },
+        (err) => { if (!cancelled) setError(String(err.message || err)); },
+      );
+    }, 200);
+    return () => { cancelled = true; clearTimeout(timer); };
+  }, [session, q]);
+  return (
+    <div className="mk-pane mk-albums-pane">
+      <div className="mk-pane-label mk-video-crumbs">
+        <span className="mk-crumb active">Search</span>
+        <span className="mk-crumb-sep">/</span>
+        <span className="mk-crumb" title={q}>"{q}"</span>
+        {Array.isArray(results) && (
+          <span className="mk-crumb" style={{ marginLeft: "auto", opacity: 0.6 }}>
+            {results.length} {results.length === 1 ? "match" : "matches"}
+          </span>
+        )}
+      </div>
+      {error !== null && <div className="mk-empty"><div className="mk-empty-title">{error}</div></div>}
+      {error === null && results === null && <div className="mk-empty"><div className="mk-empty-title">searching...</div></div>}
+      {Array.isArray(results) && results.length === 0 && (
+        <div className="mk-empty">
+          <div className="mk-empty-title">No matches</div>
+          <div className="mk-empty-sub">Nothing in the library contains "{q}".</div>
+        </div>
+      )}
+      {Array.isArray(results) && results.length > 0 && (
+        <div className="mk-album-list">
+          {results.map((v) => (
+            <div
+              key={v.id}
+              className={"mk-album-row" + (selectedId === v.id ? " active" : "")}
+              onClick={() => onSelect(v)}
+              title={v.rel_path || v.name}
+            >
+              <img
+                className="mk-album-cover-sm"
+                src={window.MK_VIDEO.thumbnailUrl(session, v.id)}
+                alt=""
+                loading="lazy"
+                style={{ objectFit: "cover", background: "var(--bg-elev2)" }}
+              />
+              <div className="mk-album-meta">
+                <div className="mk-album-name">{v.name}</div>
+                <div className="mk-album-sub">
+                  <span className="mono">{fmtDuration(v.duration_s)}</span>
+                  <span className="mk-album-count">{fmtSize(v.size_bytes)}</span>
+                  {v.rel_path && v.rel_path !== v.name + ".mkv" && (
+                    <span className="mk-album-count" style={{ opacity: 0.6 }}>
+                      {v.rel_path}
+                    </span>
+                  )}
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+Object.assign(window, {
+  MK_VideosPane: VideosPane,
+  MK_VideoSearchPane: VideoSearchPane,
+  MK_VideoPlayerPane: VideoPlayerPane,
+});

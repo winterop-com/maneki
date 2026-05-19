@@ -52,12 +52,21 @@
       return call(`${videoApiBase()}/videos`);
     },
 
-    // Browse a single directory under <root>/videos/. `path` is the
-    // POSIX-style relative path; empty string browses the videos root.
+    // Browse a single directory under the library root. `path` is the
+    // POSIX-style relative path; empty string browses the root.
     // Returns { rel_path, crumbs, folders, videos } - the SPA's folder
     // navigator drives off this.
     async browse(_session, path = "") {
       const url = `${videoApiBase()}/browse${path ? `?path=${encodeURIComponent(path)}` : ""}`;
+      return call(url);
+    },
+
+    // Filename substring search across the whole library. Empty `q`
+    // returns []. Server caps results so the SPA doesn't have to.
+    async search(_session, q) {
+      const trimmed = (q || "").trim();
+      if (!trimmed) return [];
+      const url = `${videoApiBase()}/search?q=${encodeURIComponent(trimmed)}`;
       return call(url);
     },
 

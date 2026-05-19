@@ -623,10 +623,11 @@ function App() {
         setShowLyrics={setShowLyrics}
         hasAudio={hasAudio} hasVideo={hasVideo} kind={kind} setKind={setKind} session={session}
         selectedVideo={selectedVideo} setSelectedVideo={setSelectedVideo}
+        q={q}
       />
 
       <window.MK_SearchDropdown
-        q={searchOpen ? q : ""}
+        q={searchOpen && kind !== "video" ? q : ""}
         results={results}
         anchorEl={searchInputRef.current}
         onPick={pickSearchResult}

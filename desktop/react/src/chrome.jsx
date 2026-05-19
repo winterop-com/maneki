@@ -603,8 +603,9 @@ function MainArea(props) {
     />
   );
 
-  const { kind, session, selectedVideo, setSelectedVideo } = props;
+  const { kind, session, selectedVideo, setSelectedVideo, q } = props;
   const videoMode = kind === "video";
+  const videoSearchActive = videoMode && (q || "").trim().length > 0;
   const browse = (
     <div className={"mk-browse" + (videoMode ? " mk-browse-video" : "")}>
       <Sidebar kind={kind} section={section} setSection={setSection} ARTISTS={ARTISTS} artistId={artistId} setArtistId={(id) => { setSection("library"); setArtistId(id); }} loaded={loaded}/>
@@ -612,7 +613,8 @@ function MainArea(props) {
       {!videoMode && section === "library" && <TracksPane artist={artist} album={album} playTrack={playTrack} now={now} isStarred={isStarred} toggleStar={toggleStar} loaded={loaded}/>}
       {!videoMode && section === "stations" && <StationsPane STATIONS={STATIONS} playStation={playStation} now={now} loaded={loaded}/>}
       {!videoMode && section === "starred" && <StarredPane starredTracks={starredTracks} playTrack={playTrack} toggleStar={toggleStar}/>}
-      {videoMode && session && <MK_VideosPane session={session} selectedId={selectedVideo?.id} onSelect={setSelectedVideo}/>}
+      {videoMode && session && !videoSearchActive && <MK_VideosPane session={session} selectedId={selectedVideo?.id} onSelect={setSelectedVideo}/>}
+      {videoMode && session && videoSearchActive && <window.MK_VideoSearchPane session={session} q={q} selectedId={selectedVideo?.id} onSelect={setSelectedVideo}/>}
       {videoMode && session && <VideoSplitter/>}
       {videoMode && session && selectedVideo && (
         // Key on video.id so React unmounts + remounts the player when

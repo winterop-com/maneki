@@ -507,13 +507,10 @@ body[data-platform="darwin"]:not([data-shell="browser"]) .mk-kind-rail {
   color: var(--accent);
 }
 
-/* The topbar search is wired to the audio library only; in video mode
-   it would silently search audio when the user clearly means "find a
-   video". Hide it until we wire kind-aware search. The search keyboard
-   shortcut (/) becomes a no-op which is acceptable for v0. */
-.mk-root[data-kind="video"] .mk-search-wrap {
-  display: none;
-}
+/* In video mode the topbar search swaps the folder browser for a flat
+   list of filename-substring matches across the whole library. The
+   `/` shortcut + search-clear button work the same way. Empty query
+   = back to the folder browser. */
 
 /* Tint the video.js player wrapper + <video> element with the app's
    panel colour BEFORE any frame is decoded, so the empty player area
