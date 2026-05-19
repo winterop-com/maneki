@@ -132,18 +132,26 @@ class OnDemandHLS:
     async def _transcode_segment(self, idx: int) -> None:
         spec = self.segments[idx]
         self.session_dir.mkdir(parents=True, exist_ok=True)
-        # Pattern: input-seek (`-ss` before `-i`) seeks the source fast,
-        # snapping to the nearest preceding keyframe; `-copyts` preserves
-        # source timestamps so each segment's PTS sits at its real position
-        # on the timeline (required by HLS fMP4 for correct seek alignment);
-        # `-force_key_frames expr:gte(t,0)` ensures the segment starts with
-        # a keyframe even when re-encoding.
+        # Each segment is encoded as an independent slice. ffmpeg's HLS
+        # muxer rebases the output PTS to start near 0 for the segment
+        # (no `-copyts`), and the playlist's cumulative EXTINF
+        # (SEG_LEN per segment) is what positions it in the player's
+        # currentTime. Two reasons we don't try to preserve absolute
+        # source PTS here:
         #
-        # ffmpeg's HLS muxer needs a printf template for the segment file
-        # (it rejects literal names), so we use `seg-%04d.ts` plus
-        # `-start_number idx` and the muxer writes the exact `seg-NNNN.ts`
-        # filename we expect. The throwaway `_dummy.m3u8` is discarded -
-        # the real manifest is built by `build_manifest`.
+        # 1. The previous `-copyts` version had segments with PTS like
+        #    60.018 instead of 60.000 (keyframe drift), creating a small
+        #    delta between segment PTS and playlist EXTINF time. VHS
+        #    tolerates this during uninterrupted playback but re-resolves
+        #    the timebase on tab-foreground + a fresh seek, producing
+        #    visible position jumps.
+        # 2. Per-segment rebased PTS works as long as we never declare
+        #    a discontinuity, and a single contiguous VOD doesn't have
+        #    any - every segment plays directly after the previous one.
+        #
+        # `-force_key_frames expr:gte(t,0)` makes the first frame of each
+        # output a keyframe so the segment is independently decodable.
+        # `-avoid_negative_ts make_zero` ensures PTS never goes negative.
         dummy_m3u8 = self.session_dir / f"_dummy_{idx}.m3u8"
         args = [
             _ffmpeg_path(),
@@ -154,21 +162,14 @@ class OnDemandHLS:
             f"{spec.start_s:.6f}",
             "-i",
             str(self.input_path),
-            # `-to` over `-t`: with `-copyts` the output PTS already starts
-            # at start_s (preserved from input), so `-t duration_s` would
-            # ask ffmpeg to stop once output PTS hits `duration_s` - which
-            # for any segment past the first is already in the past, and
-            # nothing gets encoded. `-to` is interpreted as an absolute
-            # source-timeline end, which is what we actually want.
-            "-to",
-            f"{spec.start_s + spec.duration_s:.6f}",
-            "-copyts",
+            "-t",
+            f"{spec.duration_s:.6f}",
             "-muxdelay",
             "0",
             "-muxpreload",
             "0",
             "-avoid_negative_ts",
-            "disabled",
+            "make_zero",
             "-c:v",
             "libx264",
             "-preset",
