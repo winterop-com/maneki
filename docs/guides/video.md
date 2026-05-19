@@ -95,6 +95,23 @@ Serves the raw bytes with HTTP Range support, so a browser's `<video>` tag (or V
 
 No transcoding. The Content-Type is derived from the file extension (`video/x-matroska` for `.mkv`, `video/mp4` for `.mp4` / `.m4v`, etc).
 
+### `GET /api/browse?path=<rel>`
+
+Folder navigator. Lists the immediate children of `<root>/videos/<rel>/`: subdirectories that contain at least one video somewhere below them (with a descendant `video_count`), then video files in the current directory. Path is POSIX-style and relative to the videos root; an empty path browses the videos root itself.
+
+Response shape:
+
+```json
+{
+  "rel_path": "tv/Show A",
+  "crumbs": ["tv", "Show A"],
+  "folders": [{"name": "Season 1", "rel_path": "tv/Show A/Season 1", "video_count": 13}],
+  "videos": []
+}
+```
+
+The SPA folder browser drives off this. Returns 404 when the path escapes the videos directory (path-traversal guard) or doesn't exist.
+
 ### `GET /api/videos/{id}/poster`
 
 Contact-sheet PNG: header strip with filename + codec/resolution/duration/size, then a 3×3 grid of timestamped frame thumbnails sampled across the middle 90% of the timeline. Used as the video.js player's `poster` so the paused player shows the video at a glance instead of a blank canvas.
