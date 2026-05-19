@@ -31,9 +31,19 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import os
+import time
 from collections.abc import AsyncIterator
 
 from pydantic import BaseModel, ConfigDict
+
+# After the last foreground request finishes, background workers wait
+# this long before resuming. Without it, pausing playback would cause
+# the queued prewarm tasks to immediately race for CPU - the user
+# pauses, the budget's idle_event fires, and 10-15s of ffmpeg activity
+# kicks in for videos the user hasn't even opened. With this gate,
+# pausing means quiet; if the user unpauses inside the window we start
+# the clock over.
+DEFAULT_QUIET_AFTER_FG_S: float = 30.0
 
 
 def default_workers() -> int:
@@ -64,7 +74,12 @@ class TranscodeBudget:
     Not thread-safe - assumes a single asyncio event loop.
     """
 
-    def __init__(self, max_workers: int | None = None) -> None:
+    def __init__(
+        self,
+        max_workers: int | None = None,
+        *,
+        quiet_after_fg_s: float = DEFAULT_QUIET_AFTER_FG_S,
+    ) -> None:
         workers = max_workers if max_workers is not None and max_workers > 0 else default_workers()
         self._max_workers = workers
         self._background_sem = asyncio.Semaphore(workers)
@@ -73,6 +88,12 @@ class TranscodeBudget:
         # Initially the system is idle (no foreground in flight).
         self._idle_event = asyncio.Event()
         self._idle_event.set()
+        self._quiet_after_fg_s = quiet_after_fg_s
+        # Monotonic timestamp of the last foreground request that
+        # finished. -inf means "no foreground has ever happened" -
+        # background work can start immediately on a fresh server
+        # (typical at startup, when prewarm should run flat-out).
+        self._last_foreground_at: float = float("-inf")
 
     @property
     def max_workers(self) -> int:
@@ -95,23 +116,60 @@ class TranscodeBudget:
         finally:
             self._foreground_count -= 1
             if self._foreground_count == 0:
+                # Stamp the moment the foreground request finished so
+                # background_slot can honour the quiet period.
+                self._last_foreground_at = time.monotonic()
                 self._idle_event.set()
+
+    async def _wait_for_quiet(self) -> None:
+        """Sleep until both idle_event is set AND the quiet period has elapsed.
+
+        Resets the wait if a new foreground request kicks `last_foreground_at`
+        forward while we're sleeping (e.g. user unpauses).
+        """
+        while True:
+            await self._idle_event.wait()
+            quiet_for = time.monotonic() - self._last_foreground_at
+            remaining = self._quiet_after_fg_s - quiet_for
+            if remaining <= 0:
+                return
+            # Sleep for the shorter of (remaining quiet time, until
+            # foreground clears again). If foreground re-fires during
+            # the sleep, idle_event will be cleared and we loop.
+            try:
+                await asyncio.wait_for(
+                    self._wait_for_foreground_arrival(),
+                    timeout=remaining,
+                )
+                # Foreground arrived - loop and wait for it to clear.
+            except asyncio.TimeoutError:
+                # Quiet period satisfied without interruption.
+                return
+
+    async def _wait_for_foreground_arrival(self) -> None:
+        """Wait until foreground starts again. Returns when idle_event clears."""
+        while self._idle_event.is_set():
+            # Short poll - cheap because asyncio sleeps cooperatively.
+            await asyncio.sleep(0.25)
 
     @contextlib.asynccontextmanager
     async def background_slot(self) -> AsyncIterator[None]:
         """Acquire a background worker slot, yielding to foreground first.
 
-        Order: wait for idle -> acquire semaphore -> re-check idle.
-        The re-check matters because a foreground request can arrive
-        while we're queued on the semaphore; without it a background
-        transcode would start anyway and compete for ffmpeg CPU.
+        Order: wait for idle + quiet period -> acquire semaphore ->
+        re-check idle. The re-check matters because a foreground
+        request can arrive while we're queued on the semaphore;
+        without it a background transcode would start anyway and
+        compete for ffmpeg CPU.
         """
-        await self._idle_event.wait()
+        await self._wait_for_quiet()
         async with self._background_sem:
             # Foreground may have arrived while we were waiting on the
-            # semaphore. Loop until idle again, then start.
-            while not self._idle_event.is_set():
-                await self._idle_event.wait()
+            # semaphore. Re-check, and re-honour the quiet period if so.
+            while not self._idle_event.is_set() or (
+                time.monotonic() - self._last_foreground_at < self._quiet_after_fg_s
+            ):
+                await self._wait_for_quiet()
             self._background_count += 1
             try:
                 yield

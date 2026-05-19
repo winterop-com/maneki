@@ -33,7 +33,9 @@ async def test_background_slot_runs_when_idle() -> None:
 
 async def test_foreground_blocks_background_until_done() -> None:
     """A pending background task waits while foreground is active."""
-    budget = TranscodeBudget(max_workers=2)
+    # quiet_after_fg_s=0 so this test exercises the priority semantics
+    # only - the post-foreground quiet period gets its own test below.
+    budget = TranscodeBudget(max_workers=2, quiet_after_fg_s=0)
     timeline: list[str] = []
 
     async def background() -> None:
@@ -62,7 +64,7 @@ async def test_foreground_blocks_background_until_done() -> None:
 
 async def test_background_yields_to_late_arriving_foreground() -> None:
     """When fg arrives WHILE bg is queued at the semaphore, bg still waits."""
-    budget = TranscodeBudget(max_workers=1)
+    budget = TranscodeBudget(max_workers=1, quiet_after_fg_s=0)
     timeline: list[str] = []
 
     # Saturate the one worker slot with a slow background task.
@@ -100,6 +102,73 @@ async def test_background_yields_to_late_arriving_foreground() -> None:
     fg_end = timeline.index("fg-end")
     queued_start = timeline.index("queued-bg-start")
     assert queued_start > fg_end
+
+
+async def test_quiet_period_delays_background_after_foreground() -> None:
+    """After foreground finishes, background waits quiet_after_fg_s before starting.
+
+    The whole point: pausing playback shouldn't immediately wake up
+    the prewarm queue. If the user pauses and the queued background
+    tasks fire 0ms later, the laptop fan kicks on and the user
+    rightfully complains.
+    """
+    import time
+
+    budget = TranscodeBudget(max_workers=2, quiet_after_fg_s=0.5)
+    bg_started_at: list[float] = []
+    fg_ended_at: list[float] = []
+
+    async def foreground() -> None:
+        async with budget.foreground():
+            await asyncio.sleep(0.05)
+        fg_ended_at.append(time.monotonic())
+
+    async def background() -> None:
+        async with budget.background_slot():
+            bg_started_at.append(time.monotonic())
+
+    fg_task = asyncio.create_task(foreground())
+    await asyncio.sleep(0)
+    # Background queued immediately, but shouldn't run for ~0.5s after
+    # the foreground task finishes.
+    bg_task = asyncio.create_task(background())
+    await asyncio.gather(fg_task, bg_task)
+
+    waited = bg_started_at[0] - fg_ended_at[0]
+    # Sane bounds - we asked for 0.5s, allow event-loop slop.
+    assert waited >= 0.45, f"bg started too soon ({waited:.3f}s after fg)"
+
+
+async def test_quiet_period_resets_on_unpause() -> None:
+    """A second foreground request inside the quiet window restarts the clock."""
+    import time
+
+    budget = TranscodeBudget(max_workers=2, quiet_after_fg_s=0.4)
+    bg_started_at: list[float] = []
+    last_fg_ended_at: list[float] = []
+
+    async def short_fg() -> None:
+        async with budget.foreground():
+            await asyncio.sleep(0.02)
+        last_fg_ended_at.append(time.monotonic())
+
+    async def background() -> None:
+        async with budget.background_slot():
+            bg_started_at.append(time.monotonic())
+
+    # FG #1
+    await short_fg()
+    # Queue BG right after FG #1 finished
+    bg_task = asyncio.create_task(background())
+    # Inside the quiet window, fire FG #2 - should reset the clock.
+    await asyncio.sleep(0.15)
+    await short_fg()
+    await bg_task
+
+    waited_from_last_fg = bg_started_at[0] - last_fg_ended_at[-1]
+    assert waited_from_last_fg >= 0.35, (
+        f"bg started {waited_from_last_fg:.3f}s after most recent fg, expected >= 0.35"
+    )
 
 
 async def test_state_reflects_in_flight_counts() -> None:
