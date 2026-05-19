@@ -38,7 +38,12 @@ output/*
 # Ad-hoc debug logs
 *.log
 
-# Ad-hoc screenshots from local debugging / playwright captures.
+# One catch-all scratch dir for local debug artefacts (playwright
+# screenshots, ad-hoc logs, throwaway transcripts, etc). Keep noise out
+# of the repo and out of every other gitignore rule. The legacy
+# `screenshots/` name is grandfathered for older scripts that still
+# expect it.
+scratch/
 screenshots/
 
 # mkdocs build output
