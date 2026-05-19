@@ -227,7 +227,35 @@ function VideoPlayerPane({ session, video, onClose }) {
     // fullscreen on the actual video player instead of the audio
     // visualizer overlay. Cleared in the cleanup below.
     window.MK_VIDEO_PLAYER = player;
+
+    // Recovery for the alt-tab-then-stuck case. When a tab is
+    // backgrounded for a while, browsers throttle MSE and the player
+    // can end up waiting on a sourceBuffer update that never arrives -
+    // visible as a permanent buffering spinner after returning to the
+    // tab. The fix is a tiny "nudge": when visibility flips back to
+    // visible and the player is waiting, seek forward by a few ms to
+    // force MSE to re-evaluate its buffer + request the next segment.
+    // Without this, the user has to hit play/scrub manually to get
+    // unstuck.
+    const onVisibility = () => {
+      if (document.visibilityState !== "visible") return;
+      // Only nudge if we're actually waiting AND were trying to play.
+      // `player.readyState() < 3` (HAVE_FUTURE_DATA) is the canonical
+      // "waiting" check; combined with `!paused()` it means the player
+      // wants to play but can't.
+      try {
+        if (!player.paused() && player.readyState() < 3) {
+          const t = player.currentTime();
+          // Microseek - small enough to be imperceptible, large enough
+          // to invalidate MSE's stale buffer state.
+          player.currentTime(t + 0.01);
+        }
+      } catch { /* player disposed or torn down */ }
+    };
+    document.addEventListener("visibilitychange", onVisibility);
+
     return () => {
+      document.removeEventListener("visibilitychange", onVisibility);
       window.MK_VIDEO_PLAYER = null;
       try { player.dispose(); } catch { /* ignore */ }
       playerRef.current = null;
