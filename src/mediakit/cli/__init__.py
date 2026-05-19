@@ -77,6 +77,10 @@ def serve_cmd(
         bool,
         typer.Option("--auth", help="Require bearer-token auth on /video/* (Subsonic keeps its own auth)"),
     ] = False,
+    ui: Annotated[
+        bool,
+        typer.Option("--ui", help="Also serve the MediaKit SPA at /ui/ (from desktop/react/)"),
+    ] = False,
 ) -> None:
     """Start the combined audio + video server.
 
@@ -107,9 +111,15 @@ def serve_cmd(
         enable_audio=not video_only,
         enable_video=not audio_only,
         enable_auth=auth,
+        enable_ui=ui,
     )
-    auth_note = " (auth required on /video/*)" if auth else ""
-    typer.echo(f"mediakit serve - {root.resolve()} on http://{host}:{port}{auth_note}")
+    flags: list[str] = []
+    if auth:
+        flags.append("auth on /video/*")
+    if ui:
+        flags.append("SPA at /ui/")
+    flag_note = f" ({', '.join(flags)})" if flags else ""
+    typer.echo(f"mediakit serve - {root.resolve()} on http://{host}:{port}{flag_note}")
     uvicorn.run(combined, host=host, port=port, log_level="info")
 
 

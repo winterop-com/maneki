@@ -26,6 +26,7 @@ from typing import TYPE_CHECKING
 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import JSONResponse
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.responses import Response
@@ -69,6 +70,8 @@ def create_combined_app(
     enable_audio: bool = True,
     enable_video: bool = True,
     enable_auth: bool = False,
+    enable_ui: bool = False,
+    ui_dir: Path | None = None,
     audio_use_cache: bool = True,
     audio_cfg: ServeConfig | None = None,
 ) -> FastAPI:
@@ -81,6 +84,10 @@ def create_combined_app(
         enable_auth: if True, require Authorization: Bearer <token> on
             /video/* (Subsonic at /audio/rest/* keeps its own auth). Default
             False so the existing demo page keeps working unchanged.
+        enable_ui: if True, mount the React SPA at /ui/. The SPA lives at
+            desktop/react/ in the repo tree (lifted MusicKit + soon video).
+        ui_dir: explicit path to the SPA directory. Default: auto-discover
+            desktop/react/ relative to the repo root.
         audio_use_cache: forwarded to the audio Subsonic app's SQLite index cache.
         audio_cfg: explicit ServeConfig for credentials. When None (the default),
             credentials are resolved from ~/.config/mediakit/mediakit.toml,
@@ -137,6 +144,9 @@ def create_combined_app(
 
     if video_dir is not None:
         _mount_video(combined, root)
+
+    if enable_ui:
+        _mount_ui(combined, ui_dir)
 
     return combined
 
@@ -218,3 +228,29 @@ def _mount_video(combined: FastAPI, library_root: Path) -> None:
 
     video_app = create_video_app(library_root)
     combined.mount("/video", video_app)
+
+
+def _mount_ui(combined: FastAPI, ui_dir: Path | None) -> None:
+    """Mount the React SPA (desktop/react/) at /ui/.
+
+    The SPA is the MusicKit-lifted Subsonic client (Babel-standalone JSX,
+    no build step required). Once video views are added in-tree it'll also
+    handle /video/api/*.
+
+    Looks for desktop/react/ relative to this file's repo location, or
+    accepts an explicit ui_dir override. Raises at startup so a missing
+    tree is surfaced immediately rather than as a 404 wall later.
+    """
+    chosen = ui_dir if ui_dir is not None else _discover_react_dir()
+    if chosen is None or not (chosen / "index.html").is_file():
+        raise RuntimeError(
+            f"--ui requested but no SPA at {chosen}. The SPA lives at desktop/react/ in the source tree."
+        )
+    combined.mount("/ui", StaticFiles(directory=chosen, html=True), name="spa")
+
+
+def _discover_react_dir() -> Path | None:
+    """Find desktop/react/ relative to this file's repo location."""
+    repo_root = Path(__file__).resolve().parents[2]
+    candidate = repo_root / "desktop" / "react"
+    return candidate if candidate.exists() else None
