@@ -59,7 +59,7 @@ Internet radio mode (Stations panel + ICY metadata in the title):
 
 ![Browser UI — radio mode](docs/screenshots/web-radio.png)
 
-More in the [serve guide](https://winterop-com.github.io/mediakit/guides/serve/#browser-ui) and the [video guide](https://winterop-com.github.io/mediakit/guides/video/).
+More in the [serve guide](https://winterop-com.github.io/mediakit/guides/serve-unified/) and the [video guide](https://winterop-com.github.io/mediakit/guides/video/).
 
 ## Documentation
 
