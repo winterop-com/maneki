@@ -382,19 +382,17 @@ function App() {
         switch (e.key) {
           case "f":
             e.preventDefault();
-            // In the Tauri / Electron desktop wrappers MK_DESKTOP.kind
-            // is set and we drive native OS fullscreen (macOS: separate
-            // Space, menu bar + dock hidden) on top of video.js's own
-            // fullscreen. In a plain browser fall back to the HTML5
-            // Fullscreen API alone; `navigationUI: 'hide'` asks Chrome
-            // to drop its URL/tab strip (it usually complies).
-            if (p.isFullscreen()) {
-              p.exitFullscreen();
-              if (window.MK_DESKTOP?.kind) window.MK_DESKTOP.setFullscreen(false);
-            } else {
-              if (window.MK_DESKTOP?.kind) window.MK_DESKTOP.setFullscreen(true);
-              p.requestFullscreen({ navigationUI: "hide" });
-            }
+            // HTML5 Fullscreen API on the video.js root element -
+            // makes JUST the video element take the screen. In the
+            // desktop wrappers the webview chrome doesn't show, so
+            // this IS the "real" fullscreen the user expects.
+            // We do NOT also drive window-level fullscreen here
+            // (MK_DESKTOP.setFullscreen) - that put the whole app
+            // including the video list + topbar into fullscreen
+            // with the video still at its grid size, the opposite
+            // of what the player needs.
+            if (p.isFullscreen()) p.exitFullscreen();
+            else p.requestFullscreen({ navigationUI: "hide" });
             return;
           case " ":
             e.preventDefault();
@@ -521,15 +519,10 @@ function App() {
       if (c.label === "Volume down") { p.volume(Math.max(0, p.volume() - 0.1)); return; }
       if (c.label === "Toggle mute") { p.muted(!p.muted()); return; }
       if (c.label === "Toggle fullscreen") {
-        // Mirror the `f` keybinding: prefer native OS fullscreen in
-        // the desktop wrappers, fall back to HTML5 in the browser.
-        if (p.isFullscreen()) {
-          p.exitFullscreen();
-          if (window.MK_DESKTOP?.kind) window.MK_DESKTOP.setFullscreen(false);
-        } else {
-          if (window.MK_DESKTOP?.kind) window.MK_DESKTOP.setFullscreen(true);
-          p.requestFullscreen({ navigationUI: "hide" });
-        }
+        // Mirror the `f` keybinding: HTML5 fullscreen on the video
+        // element only, not the whole window.
+        if (p.isFullscreen()) p.exitFullscreen();
+        else p.requestFullscreen({ navigationUI: "hide" });
         return;
       }
       return;
