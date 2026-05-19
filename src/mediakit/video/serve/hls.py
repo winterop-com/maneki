@@ -51,6 +51,8 @@ def _ffmpeg_path() -> str:
     return path
 
 
+
+
 class SegmentSpec(BaseModel):
     """Position of a single segment in the source timeline."""
 
@@ -242,3 +244,43 @@ class HLSManager:
         for session in self.sessions.values():
             session.cleanup_dir()
         self.sessions.clear()
+
+    async def prewarm_seg0(
+        self,
+        entries: list[dict[str, object]],
+        *,
+        max_concurrency: int = 1,
+    ) -> None:
+        """Pre-transcode segment 0 of every video so first-play is instant.
+
+        Without this, clicking a video for the first time waits 1-3s for
+        ffmpeg to transcode the first segment before the browser can
+        start decoding. With it, the cold-play latency drops to just the
+        HTTP fetch (~10ms) for any video the prewarm has reached.
+
+        Concurrency defaults to 1 because the transcode is CPU-heavy
+        (libx264 software encode) and the prewarm is background work -
+        an actively-playing video gets priority. Skips entries that are
+        already cached or have no usable duration.
+        """
+        if not entries:
+            return
+        sem = asyncio.Semaphore(max_concurrency)
+
+        async def _warm(entry: dict[str, object]) -> None:
+            async with sem:
+                duration = entry.get("duration_s")
+                if not isinstance(duration, (int, float)) or duration <= 0:
+                    return
+                video_id = str(entry["id"])
+                input_path = Path(str(entry["path"]))
+                session = self.get_or_create(video_id, input_path, float(duration))
+                if not session.segments:
+                    return
+                # ensure_segment is no-op when the file already exists.
+                try:
+                    await session.ensure_segment(0)
+                except Exception:  # noqa: BLE001 - prewarm must not crash the server
+                    pass
+
+        await asyncio.gather(*(_warm(e) for e in entries))

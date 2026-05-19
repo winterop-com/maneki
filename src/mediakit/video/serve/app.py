@@ -70,6 +70,7 @@ def create_app(root: Path) -> FastAPI:
     # sub-app (mediakit serve --ui) can trigger prewarm from their own
     # lifespan - FastAPI does NOT run sub-app lifespans automatically.
     app.state.poster_manager = poster_manager
+    app.state.hls_manager = hls_manager
     app.state.library_root = root
 
     @app.get("/", response_class=HTMLResponse)

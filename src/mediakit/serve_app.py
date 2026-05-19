@@ -109,21 +109,30 @@ def create_combined_app(
     # cleanly mid-prewarm.
     @contextlib.asynccontextmanager
     async def _lifespan(app: FastAPI):  # type: ignore[no-untyped-def]
-        prewarm_task: asyncio.Task[None] | None = None
+        prewarm_tasks: list[asyncio.Task[None]] = []
         video_sub = next((r.app for r in app.routes if getattr(r, "path", "") == "/video"), None)
         if video_sub is not None and hasattr(video_sub.state, "poster_manager"):
-            videos = scan_videos(video_sub.state.library_root)
+            videos = list(scan_videos(video_sub.state.library_root))
             if videos:
-                prewarm_task = asyncio.create_task(
-                    video_sub.state.poster_manager.prewarm(list(videos)),
+                # Posters + thumbnails first (fast, visible immediately).
+                prewarm_tasks.append(
+                    asyncio.create_task(video_sub.state.poster_manager.prewarm(videos)),
+                )
+                # Then HLS seg-0 - heavier but makes cold first-play
+                # essentially free. concurrency=1 keeps it from
+                # contending with an active playback transcode.
+                prewarm_tasks.append(
+                    asyncio.create_task(video_sub.state.hls_manager.prewarm_seg0(videos)),
                 )
         try:
             yield
         finally:
-            if prewarm_task is not None and not prewarm_task.done():
-                prewarm_task.cancel()
+            for task in prewarm_tasks:
+                if not task.done():
+                    task.cancel()
+            for task in prewarm_tasks:
                 with contextlib.suppress(asyncio.CancelledError):
-                    await prewarm_task
+                    await task
 
     combined = FastAPI(title="mediakit", version=__version__, lifespan=_lifespan)
 

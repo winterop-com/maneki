@@ -124,7 +124,12 @@ Single-frame JPEG sampled at ~30% into the timeline, scaled to 320px wide. Used 
 
 ### Prewarm
 
-On startup the combined `mediakit serve` walks the library once and, in the background, generates every missing thumbnail then poster through a bounded worker pool (concurrency 2 by default). The server is responsive immediately - prewarm just races to fill the cache before the user clicks. With a 105-video library it finishes in a couple of minutes on a typical laptop. Re-runs are cheap because cached files are skipped.
+On startup the combined `mediakit serve` walks the library once and, in the background, generates:
+
+1. Every missing thumbnail then poster (concurrency 2).
+2. Every missing HLS `seg-0.ts` (concurrency 1) so first-play of any video drops from 1-3s of cold ffmpeg to ~30ms of cache hit.
+
+Both tasks race to fill the cache while the server stays responsive. With a ~100-video library the thumbnail pass finishes in seconds, posters in a couple of minutes, and HLS seg-0 in a few minutes more (variable - depends on source resolution and codec). Re-runs are cheap because cached files are skipped.
 
 ### `GET /api/videos/{id}/play`
 
