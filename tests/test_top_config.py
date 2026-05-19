@@ -1,4 +1,4 @@
-"""Tests for the cross-cutting mediakit user config (libraries list)."""
+"""Tests for the cross-cutting maneki user config (libraries list)."""
 
 from __future__ import annotations
 
@@ -8,13 +8,13 @@ from unittest.mock import patch
 
 import pytest
 
-import mediakit.config as mk_config
+import maneki.config as mk_config
 
 
 @pytest.fixture
 def fake_config(tmp_path: Path) -> Iterator[Path]:
     """Point CONFIG_PATH at a tmp file for the duration of the test."""
-    cfg = tmp_path / "mediakit.toml"
+    cfg = tmp_path / "maneki.toml"
     with patch.object(mk_config, "CONFIG_PATH", cfg):
         yield cfg
 

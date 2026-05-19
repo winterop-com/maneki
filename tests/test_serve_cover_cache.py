@@ -8,11 +8,11 @@ from pathlib import Path
 from fastapi.testclient import TestClient
 from PIL import Image
 
-from mediakit.audio.library.models import LibraryAlbum, LibraryIndex, LibraryTrack
-from mediakit.audio.serve import ServeConfig, create_app
-from mediakit.audio.serve.cover_cache import CoverCache
-from mediakit.audio.serve.ids import album_id
-from mediakit.audio.serve.index import IndexCache
+from maneki.audio.library.models import LibraryAlbum, LibraryIndex, LibraryTrack
+from maneki.audio.serve import ServeConfig, create_app
+from maneki.audio.serve.cover_cache import CoverCache
+from maneki.audio.serve.ids import album_id
+from maneki.audio.serve.index import IndexCache
 
 
 def _params(**extra: str | int) -> dict[str, str | int]:

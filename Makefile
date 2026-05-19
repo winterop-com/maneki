@@ -77,7 +77,7 @@ docs: docs-serve
 # `desktop/react/` is the single shared frontend (React + Babel-standalone).
 # Both Tauri and Electron wrappers load `desktop/react/index.html` in
 # their native webview. The same files are also bundled into the
-# Python wheel for `mediakit ui` via `scripts/copy_ui_static.py`.
+# Python wheel for `maneki ui` via `scripts/copy_ui_static.py`.
 # ---------------------------------------------------------------------------
 
 # ---------------------------------------------------------------------------
@@ -86,11 +86,11 @@ docs: docs-serve
 # `make build` produces release versions of every shippable surface,
 # then collects them all into ./dist for easy access:
 #
-#   ./dist/mediakit-X.Y.Z-py3-none-any.whl       (Python wheel)
-#   ./dist/mediakit-X.Y.Z.tar.gz                  (Python sdist)
-#   ./dist/MediaKit-Tauri-X.Y.Z-aarch64.dmg       (Tauri DMG)
-#   ./dist/MediaKit-Tauri.app                     (Tauri app bundle)
-#   ./dist/MediaKit-Electron-X.Y.Z-arm64.dmg      (Electron DMG)
+#   ./dist/maneki-X.Y.Z-py3-none-any.whl       (Python wheel)
+#   ./dist/maneki-X.Y.Z.tar.gz                  (Python sdist)
+#   ./dist/Maneki-Tauri-X.Y.Z-aarch64.dmg       (Tauri DMG)
+#   ./dist/Maneki-Tauri.app                     (Tauri app bundle)
+#   ./dist/Maneki-Electron-X.Y.Z-arm64.dmg      (Electron DMG)
 #
 # Each sub-target can also run on its own — useful when you only need
 # one artifact (e.g. CI publishing the Python wheel without touching
@@ -128,20 +128,20 @@ dist-collect:
 	@# Wipe prior-version desktop artifacts so dist/ only holds the
 	@# current build (Python wheel + sdist already overwrote in place
 	@# via uv build).
-	@find dist -maxdepth 1 \( -name 'MediaKit-Tauri-*' -o -name 'MediaKit-Electron-*' \) -exec rm -rf {} + 2>/dev/null || true
+	@find dist -maxdepth 1 \( -name 'Maneki-Tauri-*' -o -name 'Maneki-Electron-*' \) -exec rm -rf {} + 2>/dev/null || true
 	@# Tauri DMG for current version (post-renamed by scripts/rename_tauri_artifacts.py)
-	@cp -f desktop/tauri/src-tauri/target/release/bundle/dmg/MediaKit-Tauri-$(VERSION)-*.dmg dist/ 2>/dev/null || true
+	@cp -f desktop/tauri/src-tauri/target/release/bundle/dmg/Maneki-Tauri-$(VERSION)-*.dmg dist/ 2>/dev/null || true
 	@# Tauri .app — preserve the bundle directory structure verbatim.
-	@if [ -d desktop/tauri/src-tauri/target/release/bundle/macos/MediaKit-Tauri.app ]; then \
-		cp -R desktop/tauri/src-tauri/target/release/bundle/macos/MediaKit-Tauri.app dist/; \
+	@if [ -d desktop/tauri/src-tauri/target/release/bundle/macos/Maneki-Tauri.app ]; then \
+		cp -R desktop/tauri/src-tauri/target/release/bundle/macos/Maneki-Tauri.app dist/; \
 	fi
 	@# Electron DMG for current version only.
-	@cp -f desktop/electron/dist/MediaKit-Electron-$(VERSION)-*.dmg dist/ 2>/dev/null || true
-	@# Electron .app — produced under mac-arm64/ as MediaKit.app, copy
+	@cp -f desktop/electron/dist/Maneki-Electron-$(VERSION)-*.dmg dist/ 2>/dev/null || true
+	@# Electron .app — produced under mac-arm64/ as Maneki.app, copy
 	@# with the Electron tag in the name to disambiguate from the Tauri
 	@# bundle that lives alongside it in dist/.
-	@if [ -d desktop/electron/dist/mac-arm64/MediaKit.app ]; then \
-		cp -R desktop/electron/dist/mac-arm64/MediaKit.app dist/MediaKit-Electron.app; \
+	@if [ -d desktop/electron/dist/mac-arm64/Maneki.app ]; then \
+		cp -R desktop/electron/dist/mac-arm64/Maneki.app dist/Maneki-Electron.app; \
 	fi
 
 # The React frontend at `desktop/react/` owns its own CSS / JS — nothing
@@ -162,13 +162,13 @@ desktop-tauri: desktop-tauri-build
 # WKWebView cache). macOS-only paths; production builds keep their
 # data per the OS conventions.
 _wipe-tauri-userdata:
-	@echo ">>> Wiping Tauri user-data dirs (com.winterop.mediakit)"
-	@rm -rf "$$HOME/Library/Application Support/com.winterop.mediakit"
-	@rm -rf "$$HOME/Library/Caches/com.winterop.mediakit"
-	@rm -rf "$$HOME/Library/WebKit/com.winterop.mediakit"
-	@rm -rf "$$HOME/Library/HTTPStorages/com.winterop.mediakit"
-	@rm -rf "$$HOME/Library/Cookies/com.winterop.mediakit.binarycookies"
-	@rm -rf "$$HOME/Library/Preferences/com.winterop.mediakit.plist"
+	@echo ">>> Wiping Tauri user-data dirs (com.winterop.maneki)"
+	@rm -rf "$$HOME/Library/Application Support/com.winterop.maneki"
+	@rm -rf "$$HOME/Library/Caches/com.winterop.maneki"
+	@rm -rf "$$HOME/Library/WebKit/com.winterop.maneki"
+	@rm -rf "$$HOME/Library/HTTPStorages/com.winterop.maneki"
+	@rm -rf "$$HOME/Library/Cookies/com.winterop.maneki.binarycookies"
+	@rm -rf "$$HOME/Library/Preferences/com.winterop.maneki.plist"
 
 desktop-tauri-dev: desktop-sync-frontend _wipe-tauri-userdata
 	@echo ">>> Tauri dev — opens window pointed at desktop/react/index.html"
@@ -179,24 +179,24 @@ desktop-tauri-build: desktop-sync-frontend desktop-sync-version
 	@cd desktop/tauri/src-tauri && cargo tauri build
 	@# Tauri 2 has no artifactName option, so post-rename the .dmg /
 	@# .app so they're distinguishable from the Electron sibling
-	@# ('MediaKit_X.Y.Z_arch.dmg' -> 'MediaKit-Tauri-X.Y.Z-arch.dmg').
+	@# ('Maneki_X.Y.Z_arch.dmg' -> 'Maneki-Tauri-X.Y.Z-arch.dmg').
 	@$(UV) run python scripts/rename_tauri_artifacts.py
 
 desktop-electron: desktop-electron-build
 
 # Same idea as the Tauri wipe but for Electron's storage paths.
-# Electron uses the appName (MediaKit) for its user-data directory,
+# Electron uses the appName (Maneki) for its user-data directory,
 # with a fallback under the electron appId; clear both so a stale
 # install can't survive.
 _wipe-electron-userdata:
 	@echo ">>> Wiping Electron user-data dirs"
-	@rm -rf "$$HOME/Library/Application Support/MediaKit"
-	@rm -rf "$$HOME/Library/Application Support/mediakit-desktop-electron"
-	@rm -rf "$$HOME/Library/Application Support/com.winterop.mediakit.electron"
-	@rm -rf "$$HOME/Library/Caches/MediaKit"
-	@rm -rf "$$HOME/Library/Caches/com.winterop.mediakit.electron"
-	@rm -rf "$$HOME/Library/Preferences/com.winterop.mediakit.electron.plist"
-	@rm -rf "$$HOME/Library/Preferences/MediaKit.plist"
+	@rm -rf "$$HOME/Library/Application Support/Maneki"
+	@rm -rf "$$HOME/Library/Application Support/maneki-desktop-electron"
+	@rm -rf "$$HOME/Library/Application Support/com.winterop.maneki.electron"
+	@rm -rf "$$HOME/Library/Caches/Maneki"
+	@rm -rf "$$HOME/Library/Caches/com.winterop.maneki.electron"
+	@rm -rf "$$HOME/Library/Preferences/com.winterop.maneki.electron.plist"
+	@rm -rf "$$HOME/Library/Preferences/Maneki.plist"
 
 desktop-electron-dev: desktop-sync-frontend _wipe-electron-userdata
 	@echo ">>> Electron dev — opens window pointed at desktop/react/index.html"

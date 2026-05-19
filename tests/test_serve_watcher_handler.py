@@ -21,7 +21,7 @@ from watchdog.events import (
     FileMovedEvent,
 )
 
-from mediakit.audio.serve.watcher import LibraryWatcher, _Handler
+from maneki.audio.serve.watcher import LibraryWatcher, _Handler
 
 
 def _record_handler() -> tuple[_Handler, list[Path]]:
@@ -123,7 +123,7 @@ def test_stop_cancels_pending_debounce_timer(tmp_path: Path) -> None:
     """A stop() mid-debounce must cancel the timer so no rescan fires after teardown."""
     from unittest.mock import MagicMock
 
-    from mediakit.audio.serve.index import IndexCache
+    from maneki.audio.serve.index import IndexCache
 
     cache = IndexCache(tmp_path)
     cache.start_background_rescan = MagicMock()  # type: ignore[method-assign]

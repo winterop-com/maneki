@@ -7,8 +7,8 @@ from pathlib import Path
 import pytest
 from fastapi.testclient import TestClient
 
-from mediakit.video.serve import create_app
-from mediakit.video.serve.scan import browse_dir
+from maneki.video.serve import create_app
+from maneki.video.serve.scan import browse_dir
 
 
 @pytest.fixture

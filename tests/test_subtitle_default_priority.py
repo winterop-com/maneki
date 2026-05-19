@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import pytest
 
-from mediakit.video.serve.app import _apply_default_priority
+from maneki.video.serve.app import _apply_default_priority
 
 
 def _track(lang: str, label: str, default: bool = False, kind: str = "embedded") -> dict[str, object]:

@@ -1,7 +1,7 @@
-"""Copy `desktop/react/` → `src/mediakit/audio/_ui_static/` so the wheel bundles it.
+"""Copy `desktop/react/` → `src/maneki/audio/_ui_static/` so the wheel bundles it.
 
-`mediakit ui` discovers the SPA static files via
-`importlib.resources.files("mediakit") / "_ui_static"`. The same React
+`maneki ui` discovers the SPA static files via
+`importlib.resources.files("maneki") / "_ui_static"`. The same React
 client also runs inside the Tauri and Electron wrappers, which load
 `desktop/react/index.html` directly from disk — so this script is only
 necessary for the PyPI distribution case.
@@ -22,7 +22,7 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 SOURCE = REPO_ROOT / "desktop" / "react"
-DEST = REPO_ROOT / "src" / "mediakit" / "_ui_static"
+DEST = REPO_ROOT / "src" / "maneki" / "_ui_static"
 
 
 def main() -> None:

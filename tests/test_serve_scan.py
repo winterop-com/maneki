@@ -7,7 +7,7 @@ from pathlib import Path
 
 from fastapi.testclient import TestClient
 
-from mediakit.audio.serve import ServeConfig, create_app
+from maneki.audio.serve import ServeConfig, create_app
 
 
 def _client(tmp_path: Path) -> TestClient:

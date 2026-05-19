@@ -1,5 +1,5 @@
 [package]
-name = "mediakit-desktop"
+name = "maneki-desktop"
 # Internal Cargo crate version — intentionally NOT bumped on releases.
 # User-visible version metadata lives in tauri.conf.json (sync'd to
 # pyproject.toml on every build via scripts/sync_desktop_versions.py).
@@ -9,12 +9,12 @@ name = "mediakit-desktop"
 version = "0.1.0"
 edition = "2024"
 rust-version = "1.85"
-description = "Native desktop wrapper around the MediaKit web UI."
+description = "Native desktop wrapper around the Maneki web UI."
 authors = ["Morten Hansen <morten@winterop.com>"]
 license = "MIT"
 
 [lib]
-name = "mediakit_desktop_lib"
+name = "maneki_desktop_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
 [build-dependencies]

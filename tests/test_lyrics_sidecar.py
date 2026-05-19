@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from mediakit.audio.lyrics import read_sidecar, sidecar_path, write_sidecar
+from maneki.audio.lyrics import read_sidecar, sidecar_path, write_sidecar
 
 
 def test_sidecar_path_preserves_audio_suffix(tmp_path: Path) -> None:
@@ -49,7 +49,7 @@ def test_write_failure_cleans_up_tmp(tmp_path: Path, monkeypatch: pytest.MonkeyP
     def _fail(*_args: object, **_kwargs: object) -> None:
         raise OSError("disk full")
 
-    monkeypatch.setattr("mediakit.audio.lyrics.sidecar.os.replace", _fail)
+    monkeypatch.setattr("maneki.audio.lyrics.sidecar.os.replace", _fail)
     with pytest.raises(OSError):
         write_sidecar(audio, "hello")
     leftovers = list(tmp_path.glob("*.tmp"))

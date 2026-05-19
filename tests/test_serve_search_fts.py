@@ -8,8 +8,8 @@ from pathlib import Path
 import pytest
 from fastapi.testclient import TestClient
 
-from mediakit.audio.library.models import LibraryAlbum, LibraryIndex, LibraryTrack
-from mediakit.audio.serve import ServeConfig, create_app, search_index
+from maneki.audio.library.models import LibraryAlbum, LibraryIndex, LibraryTrack
+from maneki.audio.serve import ServeConfig, create_app, search_index
 
 
 def _params(**extra: str | int) -> dict[str, str | int]:

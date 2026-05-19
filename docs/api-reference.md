@@ -1,12 +1,12 @@
 # API Reference
 
-Auto-generated from docstrings via [mkdocstrings](https://mkdocstrings.github.io/). The public surface is small — most users only touch the CLI — but if you're embedding MediaKit in another tool, these are the entry points.
+Auto-generated from docstrings via [mkdocstrings](https://mkdocstrings.github.io/). The public surface is small — most users only touch the CLI — but if you're embedding Maneki in another tool, these are the entry points.
 
-## `mediakit.audio.metadata`
+## `maneki.audio.metadata`
 
 Read source audio tags (FLAC / MP3 / generic) and write MP4 ALAC / AAC / MP3 tags.
 
-::: mediakit.audio.metadata
+::: maneki.audio.metadata
     options:
       members:
         - SourceTrack
@@ -23,11 +23,11 @@ Read source audio tags (FLAC / MP3 / generic) and write MP4 ALAC / AAC / MP3 tag
         - embed_cover_only
         - apply_tag_overrides
 
-## `mediakit.audio.library`
+## `maneki.audio.library`
 
-Walk a converted-output directory, build an Artist→Album→Track index, audit it, fix the deterministic warnings, and persist it as a SQLite cache at `<root>/.mediakit/index.db`.
+Walk a converted-output directory, build an Artist→Album→Track index, audit it, fix the deterministic warnings, and persist it as a SQLite cache at `<root>/.maneki/index.db`.
 
-::: mediakit.audio.library
+::: maneki.audio.library
     options:
       members:
         # Pydantic models — same shape used by serve / library CLI.
@@ -56,22 +56,22 @@ Walk a converted-output directory, build an Artist→Album→Track index, audit 
         - ValidationResult
         - ScanProgressCallback
 
-## `mediakit.audio.serve`
+## `maneki.audio.serve`
 
 FastAPI factory + auth + config for the Subsonic-compatible HTTP server.
 
-::: mediakit.audio.serve
+::: maneki.audio.serve
     options:
       members:
         - create_app
         - resolve_credentials
         - ServeConfig
 
-## `mediakit.audio.naming`
+## `maneki.audio.naming`
 
 Filesystem-safe folder + filename builders.
 
-::: mediakit.audio.naming
+::: maneki.audio.naming
     options:
       members:
         - artist_folder
@@ -83,11 +83,11 @@ Filesystem-safe folder + filename builders.
         - sanitize_component
         - VARIOUS_ARTISTS
 
-## `mediakit.audio.cover`
+## `maneki.audio.cover`
 
 Cover-art candidates, picker, normaliser.
 
-::: mediakit.audio.cover
+::: maneki.audio.cover
     options:
       members:
         - CoverCandidate

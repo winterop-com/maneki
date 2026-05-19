@@ -4,7 +4,7 @@ Three middlewares run on every `/rest/*` request and silently shape
 behaviour: form-body credentials get merged into the query string for
 play:Sub, the response gets converted to XML when the client didn't
 ask for JSON, and CORS headers are appended so cross-origin webviews
-(MediaKit desktop apps) can read responses.
+(Maneki desktop apps) can read responses.
 
 These have been load-bearing for months but had no direct test
 coverage — this file fills that gap.
@@ -17,7 +17,7 @@ from pathlib import Path
 import pytest
 from fastapi.testclient import TestClient
 
-from mediakit.audio.serve import ServeConfig, create_app
+from maneki.audio.serve import ServeConfig, create_app
 
 
 def _client(tmp_path: Path) -> TestClient:
@@ -145,14 +145,14 @@ def test_non_rest_path_unaffected(tmp_path: Path) -> None:
     assert response.status_code == 200
     assert response.headers["content-type"].startswith("text/html")
     body = response.text
-    assert "MediaKit" in body
+    assert "Maneki" in body
     assert "/docs" in body
 
 
 # ---------------------------------------------------------------------------
 # CORSMiddleware
 #
-# Added in v0.12.1 so the MediaKit desktop wrappers (Tauri / Electron)
+# Added in v0.12.1 so the Maneki desktop wrappers (Tauri / Electron)
 # could read /rest/* responses cross-origin. Auth is via `?u=&t=&s=`
 # tokens, not origin, so `allow_origins=["*"]` is safe.
 # ---------------------------------------------------------------------------

@@ -1,4 +1,4 @@
-"""Tests for the unified `mediakit serve` factory (audio + video on one port).
+"""Tests for the unified `maneki serve` factory (audio + video on one port).
 
 The unified app auto-detects which kinds are present at the library
 root and mounts only those. There is no kind-toggle flag — pointing
@@ -13,8 +13,8 @@ from pathlib import Path
 import pytest
 from fastapi.testclient import TestClient
 
-from mediakit.audio.serve.config import ServeConfig
-from mediakit.serve_app import create_combined_app
+from maneki.audio.serve.config import ServeConfig
+from maneki.serve_app import create_combined_app
 
 # Explicit credentials so tests don't depend on (or get polluted by) the
 # class-level toml_file cache that other test files mutate.
@@ -52,7 +52,7 @@ def video_only_root(tmp_path: Path) -> Path:
 def test_capabilities_reports_both_kinds(library_root: Path) -> None:
     client = TestClient(create_combined_app(root=library_root, audio_cfg=_TEST_AUDIO_CFG))
     data = client.get("/capabilities").json()
-    assert data["server"] == "mediakit"
+    assert data["server"] == "maneki"
     assert data["audio"] is True
     assert data["video"] is True
     assert data["endpoints"]["audio_subsonic"] == "/audio/rest"
@@ -118,4 +118,4 @@ def test_audio_subsonic_mounted_under_audio_rest_prefix(library_root: Path) -> N
     assert resp.status_code == 200
     payload = resp.json()
     assert payload["subsonic-response"]["status"] == "ok"
-    assert payload["subsonic-response"]["type"] == "mediakit"
+    assert payload["subsonic-response"]["type"] == "maneki"

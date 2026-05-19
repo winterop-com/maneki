@@ -1,4 +1,4 @@
-//! MediaKit desktop entrypoint.
+//! Maneki desktop entrypoint.
 //!
 //! The Rust side stays minimal — it registers plugins, runs the Tauri
 //! app, and persists the main window's outer bounds across launches.

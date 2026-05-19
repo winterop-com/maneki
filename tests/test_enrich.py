@@ -7,10 +7,10 @@ from pathlib import Path
 
 import httpx
 
-from mediakit.audio.enrich.coverart import CoverArtArchiveProvider
-from mediakit.audio.enrich.musicbrainz import MusicBrainzProvider
-from mediakit.audio.enrich.musichoarders import build_search_url
-from mediakit.audio.metadata import AlbumSummary
+from maneki.audio.enrich.coverart import CoverArtArchiveProvider
+from maneki.audio.enrich.musicbrainz import MusicBrainzProvider
+from maneki.audio.enrich.musichoarders import build_search_url
+from maneki.audio.metadata import AlbumSummary
 
 Handler = Callable[[httpx.Request], httpx.Response]
 
@@ -84,7 +84,7 @@ def test_musicbrainz_fills_per_track_recording_ids_via_followup_call() -> None:
     """After release-search succeeds, fetch recordings to fill mb_recording_id per track."""
     from pathlib import Path as _Path
 
-    from mediakit.audio.metadata import SourceTrack
+    from maneki.audio.metadata import SourceTrack
 
     def handler(request: httpx.Request) -> httpx.Response:
         if request.url.path.endswith("/release/"):
@@ -129,7 +129,7 @@ def test_musicbrainz_per_track_recording_ids_handle_multi_disc() -> None:
     """Per-track lookup maps by (disc, position) for multi-disc releases."""
     from pathlib import Path as _Path
 
-    from mediakit.audio.metadata import SourceTrack
+    from maneki.audio.metadata import SourceTrack
 
     def handler(request: httpx.Request) -> httpx.Response:
         if request.url.path.endswith("/release/"):
@@ -158,7 +158,7 @@ def test_musicbrainz_per_track_lookup_failure_is_non_fatal() -> None:
     """A 500 on the per-track call doesn't block the album-level enrichment."""
     from pathlib import Path as _Path
 
-    from mediakit.audio.metadata import SourceTrack
+    from maneki.audio.metadata import SourceTrack
 
     def handler(request: httpx.Request) -> httpx.Response:
         if request.url.path.endswith("/release/"):
@@ -281,8 +281,8 @@ def test_acoustid_parses_best_recording_match(tmp_path: Path) -> None:
     """A confident AcoustID hit fills in title + artist from the top recording."""
     from pathlib import Path as _P
 
-    from mediakit.audio.enrich import acoustid as acoustid_mod
-    from mediakit.audio.enrich.acoustid import AcoustIdProvider, FingerprintResult
+    from maneki.audio.enrich import acoustid as acoustid_mod
+    from maneki.audio.enrich.acoustid import AcoustIdProvider, FingerprintResult
 
     payload = {
         "status": "ok",
@@ -331,8 +331,8 @@ def test_acoustid_returns_none_below_confidence_threshold(tmp_path: Path) -> Non
     """A 0.5-confidence hit shouldn't poison title/artist with a weak match."""
     from pathlib import Path as _P
 
-    from mediakit.audio.enrich import acoustid as acoustid_mod
-    from mediakit.audio.enrich.acoustid import AcoustIdProvider, FingerprintResult
+    from maneki.audio.enrich import acoustid as acoustid_mod
+    from maneki.audio.enrich.acoustid import AcoustIdProvider, FingerprintResult
 
     payload = {"status": "ok", "results": [{"score": 0.5, "recordings": [{"title": "Wrong"}]}]}
 

@@ -1,7 +1,7 @@
 /*
  * Desktop-wrapper overrides for the design-v2 prototype.
  *
- * The Claude Designer artifact (mediakit.css) is plain-web styling. When
+ * The Claude Designer artifact (maneki.css) is plain-web styling. When
  * the prototype runs inside the Tauri / Electron windows that use macOS
  * `hiddenInset` / `Overlay` title bars, the native traffic-light buttons
  * are placed OVER the top-left of the page — they punch a hole into the
@@ -11,7 +11,7 @@
  * under those buttons. We solve this with a
  * `body[data-platform="darwin"] .mk-topbar` rule in a SEPARATE file so
  * it survives the next time someone drops a new Claude Designer zip
- * on top of `mediakit.css` + `src/`.
+ * on top of `maneki.css` + `src/`.
  *
  * The body attribute is set by a script tag in index.html that
  * detects `navigator.platform`.

@@ -1,19 +1,19 @@
 # Mobile
 
-MediaKit's `serve` command exposes the [Subsonic API], so any
+Maneki's `serve` command exposes the [Subsonic API], so any
 Subsonic-compatible mobile app can stream from your library — there's no
-MediaKit mobile app to install.
+Maneki mobile app to install.
 
 This guide walks through the four clients that work well in 2026.
 
 ## TL;DR
 
-1. Run `mediakit serve` somewhere your phone can reach (Tailscale, LAN, or
+1. Run `maneki serve` somewhere your phone can reach (Tailscale, LAN, or
    a public URL behind a reverse proxy).
 2. Install one of the apps below.
 3. Point it at `http(s)://<host>:8765/rest`, with the username + password
-   from `~/.config/mediakit/mediakit.toml` (or `MEDIAKIT_SERVER__USERNAME`
-   / `MEDIAKIT_SERVER__PASSWORD`).
+   from `~/.config/maneki/maneki.toml` (or `MANEKI_SERVER__USERNAME`
+   / `MANEKI_SERVER__PASSWORD`).
 4. Stream.
 
 ## Prerequisites
@@ -28,7 +28,7 @@ the things to double-check are:
   the same Wi-Fi.
 - **Username + password set.** The default `admin` / `admin` will
   authenticate, but every client persists credentials, so use the same
-  pair you set in `mediakit.toml`.
+  pair you set in `maneki.toml`.
 - **HTTPS if leaving the LAN.** Subsonic auth is salted-token, but the
   audio stream is plaintext bytes. Put the server behind a Caddy /
   Tailscale Funnel / nginx terminator before exposing it on the public
@@ -45,8 +45,8 @@ Polished, free, supported. Best general-purpose client.
 2. Settings → Servers → Add Server.
 3. Fill in:
    - **Server Address**: `http://<host>:8765` (no trailing `/rest`)
-   - **Username**: from `mediakit.toml`
-   - **Password**: from `mediakit.toml`
+   - **Username**: from `maneki.toml`
+   - **Password**: from `maneki.toml`
 4. Save. play:Sub does the salted-token handshake; if the credentials
    are right, "Test Connection" succeeds.
 5. Browse → tap album → play.
@@ -57,7 +57,7 @@ Free, open source, scrobble-aware. Good if you also use Last.fm.
 
 1. Install [Amperfy](https://apps.apple.com/app/amperfy/id1530145105).
 2. Settings → Server → Add Server. Same fields as above.
-3. Amperfy defaults to JSON (`f=json`); MediaKit serves both — no
+3. Amperfy defaults to JSON (`f=json`); Maneki serves both — no
    tweak needed.
 
 ## Android
@@ -102,14 +102,14 @@ Free, open source, works on phone + Android Auto.
 
 - The Subsonic spec uses salted-token auth (`md5(password + salt)`),
   not plain password. All four apps handle this transparently — but if
-  you've set `MEDIAKIT_SERVER__PASSWORD` to a long random token,
+  you've set `MANEKI_SERVER__PASSWORD` to a long random token,
   occasional clients hash incorrectly. A short alphanumeric password
   works around this.
 
 ### "No music shows up"
 
 - The server only sees what's under the path you launched it with:
-  `mediakit serve /path/to/Music`. Verify
+  `maneki serve /path/to/Music`. Verify
   `curl 'http://<host>:8765/rest/getArtists?u=...&p=...&f=json'` returns
   a non-empty list.
 - If `getArtists` returns content but the app's empty, force-rescan
@@ -118,19 +118,19 @@ Free, open source, works on phone + Android Auto.
 ### Cover art looks low-res
 
 - Subsonic apps fetch cover art via `/rest/getCoverArt?id=...&size=N`.
-  MediaKit serves the original embedded artwork; if your library has
+  Maneki serves the original embedded artwork; if your library has
   small embeds, the upscale is what the app sees. Embed at 1000×1000
   via [convert](convert.md) for crisp art.
 
-## What MediaKit doesn't do (yet)
+## What Maneki doesn't do (yet)
 
 - **No native iOS / Android app of its own.** The Subsonic ecosystem
   is solid; we'd rather you use a polished third-party client than ship
-  a 1.0 MediaKit app that's worse than play:Sub or Symfonium.
+  a 1.0 Maneki app that's worse than play:Sub or Symfonium.
 - **No CarPlay / Android Auto direct.** Tempo (Android) supports
   Android Auto. CarPlay routing on iOS depends on the client; play:Sub
   works.
-- **No background download / offline cache support in MediaKit itself.**
+- **No background download / offline cache support in Maneki itself.**
   Each client handles caching independently — most cache by default.
 
 [Subsonic API]: https://www.subsonic.org/pages/api.jsp

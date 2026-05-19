@@ -8,9 +8,9 @@ from pathlib import Path
 import pytest
 from rich.console import Console
 
-from mediakit.audio import convert as convert_mod
-from mediakit.audio import pipeline
-from mediakit.audio.convert import OutputFormat
+from maneki.audio import convert as convert_mod
+from maneki.audio import pipeline
+from maneki.audio.convert import OutputFormat
 
 
 @pytest.fixture
@@ -157,8 +157,8 @@ def test_remove_source_after_successful_album(album_inputs: Path) -> None:
 
 def test_input_footprint_keeps_wrapper_when_dedicated_to_one_album(tmp_path: Path) -> None:
     """Bare-leading + shared-prefix dedicated wrappers escalate to the wrapper."""
-    from mediakit.audio.discover import AlbumDir
-    from mediakit.audio.pipeline import _input_footprint
+    from maneki.audio.discover import AlbumDir
+    from maneki.audio.pipeline import _input_footprint
 
     wrapper = tmp_path / "Album X"
     cd1 = wrapper / "Album X (CD1)"
@@ -188,8 +188,8 @@ def test_input_footprint_refuses_wrapper_when_siblings_present(tmp_path: Path) -
     Removing Box/ would take Album B with it. The footprint must return
     only Album A's disc folders.
     """
-    from mediakit.audio.discover import AlbumDir
-    from mediakit.audio.pipeline import _input_footprint
+    from maneki.audio.discover import AlbumDir
+    from maneki.audio.pipeline import _input_footprint
 
     box = tmp_path / "Box"
     a1 = box / "Album A (CD1)"
@@ -244,7 +244,7 @@ def test_remove_source_refuses_to_delete_input_root(silent_flac_template: Path, 
 
 def test_humanise_slug_cleans_snake_case_titles() -> None:
     """Filename slugs (snake_case lowercase) → human-readable Title Case."""
-    from mediakit.audio.pipeline import _humanise_slug
+    from maneki.audio.pipeline import _humanise_slug
 
     # Plain slug with scene tag suffix.
     assert (
@@ -518,8 +518,8 @@ def test_cover_collects_every_distinct_embedded_picture(silent_flac_template: Pa
     """Embedded covers from every track are collected, not just the first track's."""
     from mutagen.flac import FLAC, Picture
 
-    from mediakit.audio import cover as cover_mod
-    from mediakit.audio.metadata import read_source
+    from maneki.audio import cover as cover_mod
+    from maneki.audio.metadata import read_source
 
     album_dir = tmp_path / "MixedCovers"
     album_dir.mkdir()
@@ -560,9 +560,9 @@ def test_cover_collects_every_distinct_embedded_picture(silent_flac_template: Pa
 
 def test_filename_disc_track_resets_continuous_numbering(tmp_path: Path) -> None:
     """Mega-comp filenames like 02-10 (disc 2, global track 10) → reset to per-disc 1..N."""
-    from mediakit.audio.discover import AlbumDir
-    from mediakit.audio.metadata import SourceTrack
-    from mediakit.audio.pipeline.disc import _maybe_apply_filename_disc_track
+    from maneki.audio.discover import AlbumDir
+    from maneki.audio.metadata import SourceTrack
+    from maneki.audio.pipeline.disc import _maybe_apply_filename_disc_track
 
     paths = [
         tmp_path / "01-01 - Track A.flac",
@@ -597,9 +597,9 @@ def test_filename_disc_track_resets_continuous_numbering(tmp_path: Path) -> None
 
 def test_filename_disc_track_keeps_per_disc_numbering_unchanged(tmp_path: Path) -> None:
     """When filenames already restart per disc (01-01, 01-02, 02-01, 02-02), trust them."""
-    from mediakit.audio.discover import AlbumDir
-    from mediakit.audio.metadata import SourceTrack
-    from mediakit.audio.pipeline.disc import _maybe_apply_filename_disc_track
+    from maneki.audio.discover import AlbumDir
+    from maneki.audio.metadata import SourceTrack
+    from maneki.audio.pipeline.disc import _maybe_apply_filename_disc_track
 
     paths = [
         tmp_path / "01-01 - Track A.flac",
@@ -619,8 +619,8 @@ def test_filename_disc_track_keeps_per_disc_numbering_unchanged(tmp_path: Path) 
 
 def test_dedupe_drops_duplicate_tracks_with_same_disc_track_title_artist(tmp_path: Path) -> None:
     """Same tags AND ~same audio duration → same content shipped twice → drop the second."""
-    from mediakit.audio.metadata import SourceTrack
-    from mediakit.audio.pipeline import _dedupe_duplicate_tracks
+    from maneki.audio.metadata import SourceTrack
+    from maneki.audio.pipeline import _dedupe_duplicate_tracks
 
     a = tmp_path / "01. Artist - Title.flac"
     b = tmp_path / "01 Title.flac"
@@ -643,8 +643,8 @@ def test_dedupe_drops_duplicate_tracks_with_same_disc_track_title_artist(tmp_pat
 
 def test_dedupe_keeps_same_tag_distinct_duration(tmp_path: Path) -> None:
     """Same tags but DIFFERENT audio duration → keep both (remix-vs-original at same track_no)."""
-    from mediakit.audio.metadata import SourceTrack
-    from mediakit.audio.pipeline import _dedupe_duplicate_tracks
+    from maneki.audio.metadata import SourceTrack
+    from maneki.audio.pipeline import _dedupe_duplicate_tracks
 
     a = tmp_path / "a.flac"
     b = tmp_path / "b.flac"
@@ -663,8 +663,8 @@ def test_dedupe_keeps_same_tag_distinct_duration(tmp_path: Path) -> None:
 
 def test_dedupe_keeps_both_when_duration_unknown(tmp_path: Path) -> None:
     """If we can't read duration on either side, prefer keep-both (collision-rename handles it)."""
-    from mediakit.audio.metadata import SourceTrack
-    from mediakit.audio.pipeline import _dedupe_duplicate_tracks
+    from maneki.audio.metadata import SourceTrack
+    from maneki.audio.pipeline import _dedupe_duplicate_tracks
 
     tracks = [
         SourceTrack(path=tmp_path / "a.flac", title="X", artist="A", track_no=1),
@@ -678,8 +678,8 @@ def test_dedupe_keeps_distinct_tracks(tmp_path: Path) -> None:
     """Different titles or different track numbers are kept as-is."""
     from pathlib import Path as PathType
 
-    from mediakit.audio.metadata import SourceTrack
-    from mediakit.audio.pipeline import _dedupe_duplicate_tracks
+    from maneki.audio.metadata import SourceTrack
+    from maneki.audio.pipeline import _dedupe_duplicate_tracks
 
     tracks = [
         SourceTrack(path=PathType("/01.flac"), title="Track 1", artist="A", track_no=1),
@@ -703,7 +703,7 @@ def test_cover_discovery_matches_token_keywords(tmp_path: Path) -> None:
 
     from PIL import Image
 
-    from mediakit.audio import cover as cover_mod
+    from maneki.audio import cover as cover_mod
 
     album_dir = tmp_path / "scene-rip"
     album_dir.mkdir()

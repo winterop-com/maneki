@@ -7,7 +7,7 @@ from pathlib import Path
 import pytest
 from fastapi.testclient import TestClient
 
-from mediakit.video.serve import create_app
+from maneki.video.serve import create_app
 
 
 @pytest.fixture
@@ -27,7 +27,7 @@ def test_capabilities_reports_video_present(client: TestClient) -> None:
     resp = client.get("/capabilities")
     assert resp.status_code == 200
     data = resp.json()
-    assert data["server"] == "mediakit"
+    assert data["server"] == "maneki"
     assert data["audio"] is False
     assert data["video"] is True
     assert data["video_count"] == 1

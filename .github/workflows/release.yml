@@ -67,21 +67,21 @@ jobs:
       - name: Build sdist + wheel
         # Goes via `make build-python`, NOT `uv build` directly, because
         # the Makefile target depends on `ui-static-sync` which copies
-        # `desktop/react/` -> `src/mediakit/audio/_ui_static/` so the wheel
-        # ships the SPA that `mediakit ui` serves. A raw `uv build`
-        # would publish a wheel where `mediakit ui` raises
+        # `desktop/react/` -> `src/maneki/audio/_ui_static/` so the wheel
+        # ships the SPA that `maneki ui` serves. A raw `uv build`
+        # would publish a wheel where `maneki ui` raises
         # FileNotFoundError on the installed user's machine.
         run: make build-python
 
       - name: Verify wheel bundles the SPA static files
         # Belt-and-braces: open the built wheel and confirm
-        # `mediakit/audio/_ui_static/index.html` is inside. If a future
+        # `maneki/audio/_ui_static/index.html` is inside. If a future
         # refactor breaks the copy step, fail the release before
         # PyPI gets a broken wheel.
         run: |
-          WHEEL=$(ls dist/mediakit-*.whl | head -1)
-          if ! unzip -l "$WHEEL" | grep -q "mediakit/audio/_ui_static/index.html"; then
-            echo "::error::Built wheel $WHEEL is missing mediakit/audio/_ui_static/index.html"
+          WHEEL=$(ls dist/maneki-*.whl | head -1)
+          if ! unzip -l "$WHEEL" | grep -q "maneki/audio/_ui_static/index.html"; then
+            echo "::error::Built wheel $WHEEL is missing maneki/audio/_ui_static/index.html"
             unzip -l "$WHEEL" | head -40
             exit 1
           fi
@@ -90,7 +90,7 @@ jobs:
       - name: Publish to PyPI
         # Uses PyPI Trusted Publishers (OIDC). Configure once in the
         # PyPI project settings: https://docs.pypi.org/trusted-publishers/
-        # — owner: winterop-com, repo: mediakit, workflow: release.yml,
+        # — owner: winterop-com, repo: maneki, workflow: release.yml,
         # environment: (leave blank).
         run: uv publish
 
@@ -104,9 +104,9 @@ jobs:
             echo "## Install / upgrade"
             echo ""
             echo '```bash'
-            echo "uvx mediakit              # one-off run; auto-fetches the latest version"
-            echo "uv tool upgrade mediakit  # if previously installed via \`uv tool install\`"
-            echo "pipx upgrade mediakit     # if installed via pipx"
+            echo "uvx maneki              # one-off run; auto-fetches the latest version"
+            echo "uv tool upgrade maneki  # if previously installed via \`uv tool install\`"
+            echo "pipx upgrade maneki     # if installed via pipx"
             echo '```'
             echo ""
             echo "## Changes"
@@ -124,7 +124,7 @@ jobs:
             echo ""
             echo "## Artifacts"
             echo ""
-            echo "PyPI: <https://pypi.org/project/mediakit/${GITHUB_REF_NAME#v}/>"
+            echo "PyPI: <https://pypi.org/project/maneki/${GITHUB_REF_NAME#v}/>"
           } > /tmp/release-notes.md
           echo "notes_path=/tmp/release-notes.md" >> "$GITHUB_OUTPUT"
 

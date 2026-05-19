@@ -7,8 +7,8 @@ from pathlib import Path
 
 from PIL import Image
 
-from mediakit.audio.cli.cover_pick import _audit_reason, _collect_candidates, _normalise
-from mediakit.audio.library.models import LibraryAlbum
+from maneki.audio.cli.cover_pick import _audit_reason, _collect_candidates, _normalise
+from maneki.audio.library.models import LibraryAlbum
 
 
 def test_normalise_resizes_and_reencodes_jpeg() -> None:

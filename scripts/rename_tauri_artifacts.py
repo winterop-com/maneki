@@ -4,7 +4,7 @@ Tauri 2's `tauri.conf.json` has no `artifactName` option (unlike
 `electron-builder`'s `package.json["build"]["artifactName"]`), so we
 can't ask the bundler to embed "Tauri" in the filename directly.
 Instead this script runs after `cargo tauri build` and renames each
-`.app` / `.dmg` artifact to `MediaKit-Tauri-X.Y.Z-arch.<ext>`.
+`.app` / `.dmg` artifact to `Maneki-Tauri-X.Y.Z-arch.<ext>`.
 
 Idempotent: re-runs after partial builds skip already-renamed files.
 Best-effort: missing files / unsupported names are logged but don't
@@ -25,22 +25,22 @@ def rename_one(path: Path) -> Path | None:
     """Rename a Tauri artifact to embed `Tauri` in the filename.
 
     Examples:
-      MediaKit_0.12.3_aarch64.dmg     -> MediaKit-Tauri-0.12.3-aarch64.dmg
-      MediaKit.app                    -> MediaKit-Tauri.app
+      Maneki_0.12.3_aarch64.dmg     -> Maneki-Tauri-0.12.3-aarch64.dmg
+      Maneki.app                    -> Maneki-Tauri.app
 
     Returns the new Path on success, None if the file was already
     renamed or didn't match a known shape.
     """
     name = path.name
-    if name.startswith("MediaKit-Tauri"):
+    if name.startswith("Maneki-Tauri"):
         return None  # already renamed
-    # `MediaKit_<version>_<arch>.dmg` (Tauri's default DMG name shape)
-    m = re.fullmatch(r"MediaKit_([\d.]+)_([\w]+)\.(dmg|app\.tar\.gz)", name)
+    # `Maneki_<version>_<arch>.dmg` (Tauri's default DMG name shape)
+    m = re.fullmatch(r"Maneki_([\d.]+)_([\w]+)\.(dmg|app\.tar\.gz)", name)
     if m:
         version, arch, ext = m.group(1), m.group(2), m.group(3)
-        new = path.with_name(f"MediaKit-Tauri-{version}-{arch}.{ext}")
-    elif name == "MediaKit.app":
-        new = path.with_name("MediaKit-Tauri.app")
+        new = path.with_name(f"Maneki-Tauri-{version}-{arch}.{ext}")
+    elif name == "Maneki.app":
+        new = path.with_name("Maneki-Tauri.app")
     else:
         return None
     if new.exists():

@@ -1,8 +1,8 @@
-site_name: MediaKit
+site_name: Maneki
 site_description: Convert messy audio rips into a clean tagged library; play locally or stream over Tailscale via a Subsonic-compatible server.
-site_url: https://winterop-com.github.io/mediakit
-repo_url: https://github.com/winterop-com/mediakit
-repo_name: winterop-com/mediakit
+site_url: https://winterop-com.github.io/maneki
+repo_url: https://github.com/winterop-com/maneki
+repo_name: winterop-com/maneki
 
 theme:
   name: material
@@ -32,8 +32,8 @@ nav:
   - Home: index.md
   - Quickstart: guides/quickstart.md
   - Server:
-      - mediakit serve: guides/serve-unified.md
-      - mediakit library: guides/library.md
+      - maneki serve: guides/serve-unified.md
+      - maneki library: guides/library.md
   - Audio:
       - audio convert: guides/convert.md
       - audio library: guides/audio-library.md

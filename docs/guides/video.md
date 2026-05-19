@@ -1,6 +1,6 @@
 # Video pipeline
 
-When the library root contains video files, `mediakit serve` mounts the video pipeline under `/video/*`. The server auto-detects what's in the root and mounts the kinds it finds. The pipeline ships:
+When the library root contains video files, `maneki serve` mounts the video pipeline under `/video/*`. The server auto-detects what's in the root and mounts the kinds it finds. The pipeline ships:
 
 - A throwaway HTML demo page at `/video/` that lists every video (with title, duration, and size) and plays the one you pick via HLS.
 - Raw byte streaming with HTTP Range at `/video/api/videos/{id}/stream` (for external players like VLC / mpv).
@@ -12,8 +12,8 @@ The SPA at `/` (mount with `--ui`) is the primary client; the demo page is kept 
 ## Quick start
 
 ```bash
-mediakit serve ~/Downloads/library --ui
-# mediakit serve - /Users/morteoh/Downloads/library on http://127.0.0.1:8765 (SPA at /, workers=auto)
+maneki serve ~/Downloads/library --ui
+# maneki serve - /Users/morteoh/Downloads/library on http://127.0.0.1:8765 (SPA at /, workers=auto)
 # INFO:     Uvicorn running on http://127.0.0.1:8765
 ```
 
@@ -22,7 +22,7 @@ Then in another terminal:
 ```bash
 curl -s http://127.0.0.1:8765/capabilities | jq
 # {
-#   "server": "mediakit",
+#   "server": "maneki",
 #   "version": "0.1.0",
 #   "audio": true,
 #   "video": true,
@@ -64,7 +64,7 @@ Server identity + which kinds are present at the root.
 
 ```json
 {
-  "server": "mediakit",
+  "server": "maneki",
   "version": "0.1.0",
   "audio": false,
   "video": true,
@@ -101,7 +101,7 @@ No transcoding. The Content-Type is derived from the file extension (`video/x-ma
 
 ### `GET /video/api/browse?path=<rel>`
 
-Folder navigator. Lists the immediate children of `<root>/<rel>/`: subdirectories that contain at least one video somewhere below them (with a descendant `video_count`), then video files in the current directory. Path is POSIX-style and relative to the library root; an empty path browses the root itself. The server's own `.mediakit/` cache is always skipped.
+Folder navigator. Lists the immediate children of `<root>/<rel>/`: subdirectories that contain at least one video somewhere below them (with a descendant `video_count`), then video files in the current directory. Path is POSIX-style and relative to the library root; an empty path browses the root itself. The server's own `.maneki/` cache is always skipped.
 
 Response shape:
 
@@ -120,15 +120,15 @@ The SPA folder browser drives off this. Returns 404 when the path escapes the vi
 
 Contact-sheet PNG: header strip with filename + codec/resolution/duration/size, then a 3×3 grid of timestamped frame thumbnails sampled across the middle 90% of the timeline. Used as the video.js player's `poster` so the paused player shows the video at a glance instead of a blank canvas.
 
-Lazy: first request transcodes ~9 frames via ffmpeg (~1–2s on a modern CPU); cached to `<root>/.mediakit/posters/<id>.png` so re-requests are file-serve cheap. Returns 503 if ffmpeg or ffprobe is missing.
+Lazy: first request transcodes ~9 frames via ffmpeg (~1–2s on a modern CPU); cached to `<root>/.maneki/posters/<id>.png` so re-requests are file-serve cheap. Returns 503 if ffmpeg or ffprobe is missing.
 
 ### `GET /video/api/videos/{id}/thumbnail`
 
-Single-frame JPEG sampled at ~30% into the timeline, scaled to 320px wide. Used for the row icon in the SPA video list. Much smaller payload than the full poster (~10 KB vs ~800 KB) so the list paints fast even with hundreds of videos. Cached to `<root>/.mediakit/posters/<id>.thumb.jpg`.
+Single-frame JPEG sampled at ~30% into the timeline, scaled to 320px wide. Used for the row icon in the SPA video list. Much smaller payload than the full poster (~10 KB vs ~800 KB) so the list paints fast even with hundreds of videos. Cached to `<root>/.maneki/posters/<id>.thumb.jpg`.
 
 ### Prewarm
 
-On startup the combined `mediakit serve` walks the library once and, in the background, generates:
+On startup the combined `maneki serve` walks the library once and, in the background, generates:
 
 1. Every missing thumbnail then poster (concurrency 2).
 2. Every missing HLS `seg-0.ts` (concurrency 1) so first-play of any video drops from 1-3s of cold ffmpeg to ~30ms of cache hit.
@@ -163,7 +163,7 @@ Encoding choices:
 
 Returns `503` if ffmpeg is missing, `400` if the requested filename looks like a path-traversal attempt or has an unparseable segment index, `404` for unknown video ids or out-of-range segments, `500` if the ffmpeg subprocess fails (stderr tail is included in the detail).
 
-**v0 lifecycle limitation**: segments are cached per video for the lifetime of the server process - no automatic cleanup. Restart the server to free the per-video temp directories under `/tmp/mediakit-hls/<id>/`. A TTL + eviction layer is a follow-up.
+**v0 lifecycle limitation**: segments are cached per video for the lifetime of the server process - no automatic cleanup. Restart the server to free the per-video temp directories under `/tmp/maneki-hls/<id>/`. A TTL + eviction layer is a follow-up.
 
 ### `GET /video/api/videos/{id}/subtitles`
 
@@ -173,7 +173,7 @@ Each entry has a `track_id` like `sidecar:en` or `embed:2`, a human `label` for 
 
 ### `GET /video/api/videos/{id}/subtitles/{key}`
 
-Serves one subtitle track as WebVTT. `key` is either a sidecar language tag (`en`, `und`, ...) or `embed-<stream_index>` for embedded streams. Sidecars are converted on the fly (.srt → .vtt timestamps + header). Embedded streams are extracted via `ffmpeg -map 0:<index> -c:s webvtt` and the result is cached at `<root>/.mediakit/subs/<id>/embed-<N>.vtt` so re-requests are file-serve cheap.
+Serves one subtitle track as WebVTT. `key` is either a sidecar language tag (`en`, `und`, ...) or `embed-<stream_index>` for embedded streams. Sidecars are converted on the fly (.srt → .vtt timestamps + header). Embedded streams are extracted via `ffmpeg -map 0:<index> -c:s webvtt` and the result is cached at `<root>/.maneki/subs/<id>/embed-<N>.vtt` so re-requests are file-serve cheap.
 
 ## Browser compatibility
 
@@ -200,18 +200,18 @@ Stage 2's video work is built in layers:
 3. **HLS** — on-demand MPEG-TS segments behind a synthesised VOD manifest. Seek anywhere, full duration, scrub bar works. Done.
 4. **SPA video views** — the desktop web UI gets a real Video tab (vertical AUDIO/VIDEO rail) playing through video.js v8. Done.
 5. **Subtitle and audio-track pickers** — sidecar `.srt` discovery + WebVTT conversion. Done. Embedded tracks and picker UI deferred.
-6. **House auth** — bearer tokens at `/auth/login` protecting `/video/*` and future MediaKit-native endpoints. Done.
+6. **House auth** — bearer tokens at `/auth/login` protecting `/video/*` and future Maneki-native endpoints. Done.
 
 Each layer is independently demonstrable.
 
 ## CLI
 
-The video pipeline rides on `mediakit serve`; see [the serve guide](serve-unified.md) for flags. The `mediakit video` subgroup carries placeholders for tooling that doesn't belong on the serve command:
+The video pipeline rides on `maneki serve`; see [the serve guide](serve-unified.md) for flags. The `maneki video` subgroup carries placeholders for tooling that doesn't belong on the serve command:
 
-- `mediakit video convert` — no-op placeholder (reserved for organize / transcode semantics)
-- `mediakit video library` — no-op placeholder (reserves the symmetric namespace with `mediakit audio library`)
+- `maneki video convert` — no-op placeholder (reserved for organize / transcode semantics)
+- `maneki video library` — no-op placeholder (reserves the symmetric namespace with `maneki audio library`)
 
 ## See also
 
-- [`mediakit library`](library.md) — cross-cutting summary + scan that operates on both audio and video
+- [`maneki library`](library.md) — cross-cutting summary + scan that operates on both audio and video
 - [Architecture](../architecture.md) — how the pieces fit together

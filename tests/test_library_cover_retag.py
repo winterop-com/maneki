@@ -1,4 +1,4 @@
-"""`mediakit library cover` + `mediakit library retag` — destructive file ops.
+"""`maneki library cover` + `maneki library retag` — destructive file ops.
 
 These commands write to every audio file in a directory. The test fixtures
 build a synthetic 2-track album, run the CLI via `typer.testing.CliRunner`,
@@ -16,7 +16,7 @@ from mutagen.mp4 import MP4
 from PIL import Image
 from typer.testing import CliRunner
 
-from mediakit.audio.cli import app
+from maneki.audio.cli import app
 from tests.test_library import _make_track
 
 # ---------------------------------------------------------------------------

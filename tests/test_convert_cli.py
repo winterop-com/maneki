@@ -1,7 +1,7 @@
-"""`mediakit convert` CLI end-to-end tests.
+"""`maneki convert` CLI end-to-end tests.
 
 The underlying convert helpers (encode, remux, normalize) are exercised
-in `test_convert.py`. These tests drive the actual `mediakit convert`
+in `test_convert.py`. These tests drive the actual `maneki convert`
 typer command via `CliRunner` against silent-FLAC fixtures, verifying
 that the wired-together pipeline produces the expected output tree
 with proper tags, and that the CLI flags (`--dry-run`, `--format`,
@@ -17,7 +17,7 @@ from mutagen.flac import FLAC
 from mutagen.mp4 import MP4
 from typer.testing import CliRunner
 
-from mediakit.audio.cli import app
+from maneki.audio.cli import app
 
 
 def _stage_input_album(input_root: Path, *, artist: str, album: str, year: str, silent_flac: Path) -> Path:

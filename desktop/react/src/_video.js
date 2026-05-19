@@ -1,9 +1,9 @@
-// MediaKit-native video API client - talks to /video/api/* on the same
+// Maneki-native video API client - talks to /video/api/* on the same
 // origin as the Subsonic mount. Probes /capabilities to find out whether
-// the server has video at all; on non-MediaKit Subsonic servers
+// the server has video at all; on non-Maneki Subsonic servers
 // (Navidrome, etc.) the probe 404s and the SPA hides the VIDEO section.
 //
-// Auth: when the server has /auth/login enabled (--auth flag on mediakit
+// Auth: when the server has /auth/login enabled (--auth flag on maneki
 // serve), every /video/* request needs an Authorization: Bearer header.
 // For v0 we run without --auth so the bearer machinery is stubbed; when
 // --auth lands in the SPA flow this module gets the token via window.MK_AUTH.
@@ -15,13 +15,13 @@
   "use strict";
 
   // Derive the API root from the session's baseUrl. The login flow
-  // stores baseUrl as "<host>/audio" for mediakit (Subsonic mounted
+  // stores baseUrl as "<host>/audio" for maneki (Subsonic mounted
   // under /audio) or "<host>" for a 3rd-party Subsonic server.
   // Strip the trailing /audio to get the host root, then add /video/api
   // or /capabilities as needed.
   //
   // Previous version used window.location.origin, which works fine
-  // when the SPA is served by `mediakit serve --ui` (origin matches
+  // when the SPA is served by `maneki serve --ui` (origin matches
   // the API). In Tauri / Electron the origin is `http://tauri.localhost`
   // or `file://` - wrong for every video / capabilities call, so the
   // VIDEO kind never appeared in the desktop wrappers.
@@ -51,8 +51,8 @@
       try {
         return await call(capabilitiesUrl(session));
       } catch {
-        // No /capabilities endpoint (non-MediaKit server, or SPA hosted
-        // separately from a mediakit serve --ui mount). Treat as
+        // No /capabilities endpoint (non-Maneki server, or SPA hosted
+        // separately from a maneki serve --ui mount). Treat as
         // audio-only - the user is here because Subsonic auth worked.
         return { audio: true, video: false };
       }

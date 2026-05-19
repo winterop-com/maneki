@@ -6,9 +6,9 @@ from pathlib import Path
 
 from fastapi.testclient import TestClient
 
-from mediakit.audio.library.models import LibraryAlbum, LibraryIndex, LibraryTrack
-from mediakit.audio.serve import ServeConfig, create_app
-from mediakit.audio.serve.ids import album_id, artist_id, track_id
+from maneki.audio.library.models import LibraryAlbum, LibraryIndex, LibraryTrack
+from maneki.audio.serve import ServeConfig, create_app
+from maneki.audio.serve.ids import album_id, artist_id, track_id
 
 
 def _track(album_path: Path, name: str, *, n: int, duration: float = 180.0, year: str = "2012") -> LibraryTrack:

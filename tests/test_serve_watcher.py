@@ -6,8 +6,8 @@ import time
 from pathlib import Path
 from unittest.mock import MagicMock
 
-from mediakit.audio.serve.index import IndexCache
-from mediakit.audio.serve.watcher import LibraryWatcher
+from maneki.audio.serve.index import IndexCache
+from maneki.audio.serve.watcher import LibraryWatcher
 
 
 def test_watcher_triggers_rescan_after_audio_file_drop(tmp_path: Path) -> None:

@@ -7,8 +7,8 @@ from pathlib import Path
 from mutagen.flac import FLAC
 from mutagen.mp4 import MP4
 
-from mediakit.audio import convert
-from mediakit.audio.metadata import (
+from maneki.audio import convert
+from maneki.audio.metadata import (
     AlbumSummary,
     MusicBrainzIds,
     SourceTrack,
@@ -262,7 +262,7 @@ def test_summarize_album_detects_compilation_when_per_track_artist_is_va_marker(
 
 def test_apply_tag_overrides_only_changes_specified_fields(silent_flac: Path) -> None:
     """`retag` must update only the fields you pass; everything else stays."""
-    from mediakit.audio.metadata import TagOverrides, apply_tag_overrides
+    from maneki.audio.metadata import TagOverrides, apply_tag_overrides
 
     _tag_flac(
         silent_flac,
@@ -289,7 +289,7 @@ def test_apply_tag_overrides_only_changes_specified_fields(silent_flac: Path) ->
 
 
 def test_apply_tag_overrides_year_normalises_to_4_digits(silent_flac: Path) -> None:
-    from mediakit.audio.metadata import TagOverrides, apply_tag_overrides
+    from maneki.audio.metadata import TagOverrides, apply_tag_overrides
 
     _tag_flac(silent_flac, {"DATE": "2010"})
     apply_tag_overrides(silent_flac, TagOverrides(year="2024-01-15"))
@@ -305,7 +305,7 @@ def test_apply_tag_overrides_empty_string_clears_mp4_tag(silent_flac: Path, tmp_
     strings via `_set` (which strips and returns early on empty values),
     leaving the old genre in place.
     """
-    from mediakit.audio.metadata import TagOverrides, apply_tag_overrides
+    from maneki.audio.metadata import TagOverrides, apply_tag_overrides
 
     dst = tmp_path / "track.m4a"
     convert.to_alac(silent_flac, dst)
@@ -411,7 +411,7 @@ def test_write_id3_tags_emits_per_track_recording_mbid(silent_flac: Path, tmp_pa
 
     from mutagen.id3 import ID3
 
-    from mediakit.audio.metadata import write_id3_tags
+    from maneki.audio.metadata import write_id3_tags
 
     if shutil.which("ffmpeg") is None:
         import pytest
@@ -448,9 +448,9 @@ def test_write_id3_tags_emits_per_track_recording_mbid(silent_flac: Path, tmp_pa
     assert txxx_frames.get("MusicBrainz Recording Id") == "rec-mbid-zzz"
 
 
-def test_write_mp4_tags_embeds_mediakit_encoder(silent_flac: Path, tmp_path: Path) -> None:
-    """`write_mp4_tags` writes `\\xa9too` = `mediakit X.Y.Z` so each output file is traceable."""
-    from mediakit import __version__ as MEDIAKIT_VERSION
+def test_write_mp4_tags_embeds_maneki_encoder(silent_flac: Path, tmp_path: Path) -> None:
+    """`write_mp4_tags` writes `\\xa9too` = `maneki X.Y.Z` so each output file is traceable."""
+    from maneki import __version__ as MANEKI_VERSION
 
     track = read_source(silent_flac)
     summary = AlbumSummary(album="Album", album_artist="Artist")
@@ -461,22 +461,22 @@ def test_write_mp4_tags_embeds_mediakit_encoder(silent_flac: Path, tmp_path: Pat
 
     tags = MP4(out).tags
     assert tags is not None
-    assert tags["\xa9too"][0] == f"mediakit {MEDIAKIT_VERSION}"
+    assert tags["\xa9too"][0] == f"maneki {MANEKI_VERSION}"
 
     # And the reader round-trips it onto SourceTrack.encoder.
     reread = read_source(out)
-    assert reread.encoder == f"mediakit {MEDIAKIT_VERSION}"
+    assert reread.encoder == f"maneki {MANEKI_VERSION}"
 
 
-def test_write_id3_tags_embeds_mediakit_encoder(silent_flac: Path, tmp_path: Path) -> None:
-    """`write_id3_tags` writes ID3 `TSSE` = `mediakit X.Y.Z` so each output file is traceable."""
+def test_write_id3_tags_embeds_maneki_encoder(silent_flac: Path, tmp_path: Path) -> None:
+    """`write_id3_tags` writes ID3 `TSSE` = `maneki X.Y.Z` so each output file is traceable."""
     import shutil
     import subprocess
 
     from mutagen.id3 import ID3
 
-    from mediakit import __version__ as MEDIAKIT_VERSION
-    from mediakit.audio.metadata import write_id3_tags
+    from maneki import __version__ as MANEKI_VERSION
+    from maneki.audio.metadata import write_id3_tags
 
     if shutil.which("ffmpeg") is None:
         import pytest
@@ -496,8 +496,8 @@ def test_write_id3_tags_embeds_mediakit_encoder(silent_flac: Path, tmp_path: Pat
     id3 = ID3(out)
     tsse = id3.get("TSSE")
     assert tsse is not None
-    assert tsse.text[0] == f"mediakit {MEDIAKIT_VERSION}"
+    assert tsse.text[0] == f"maneki {MANEKI_VERSION}"
 
     # Round-trip via the high-level reader too.
     reread = read_source(out)
-    assert reread.encoder == f"mediakit {MEDIAKIT_VERSION}"
+    assert reread.encoder == f"maneki {MANEKI_VERSION}"

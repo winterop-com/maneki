@@ -2,7 +2,7 @@
 
 from pathlib import Path
 
-from mediakit.audio.discover import discover_albums
+from maneki.audio.discover import discover_albums
 
 
 def _touch(path: Path) -> None:

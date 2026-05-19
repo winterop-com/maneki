@@ -9,8 +9,8 @@
 ## Setup
 
 ```bash
-git clone https://github.com/winterop-com/mediakit
-cd mediakit
+git clone https://github.com/winterop-com/maneki
+cd maneki
 uv sync
 ```
 
@@ -31,7 +31,7 @@ Both `make lint` and `make test` must pass before commit.
 ## Project layout
 
 ```
-src/mediakit/audio/
+src/maneki/audio/
   __init__.py        __main__.py
   cli/               typer entry; one file per subcommand
     __init__.py      app = typer.Typer(...) + side-effect imports
@@ -99,12 +99,12 @@ Coverage runs via `make coverage`; CI thresholds set in `pyproject.toml`.
 
 ## Adding a new subcommand
 
-Top-level commands live on the root `app` Typer instance; library-related ones live on the `library_app` subapp (so the user types `mediakit library <verb>`).
+Top-level commands live on the root `app` Typer instance; library-related ones live on the `library_app` subapp (so the user types `maneki library <verb>`).
 
-1. Create `src/mediakit/audio/cli/<name>.py`:
+1. Create `src/maneki/audio/cli/<name>.py`:
    ```python
    # Top-level (e.g. another sibling of convert / inspect / serve):
-   from mediakit.audio.cli import app
+   from maneki.audio.cli import app
 
    @app.command(name="my-cmd")
    def my_cmd(...):
@@ -112,7 +112,7 @@ Top-level commands live on the root `app` Typer instance; library-related ones l
        ...
 
    # Library subcommand (e.g. another sibling of cover / retag / cover-pick):
-   from mediakit.audio.cli.library import library_app
+   from maneki.audio.cli.library import library_app
 
    @library_app.command(name="my-cmd")
    def my_cmd(...):
@@ -121,16 +121,16 @@ Top-level commands live on the root `app` Typer instance; library-related ones l
    ```
 2. Add a side-effect import in `cli/__init__.py`. `library` MUST be imported before any module that registers on `library_app`:
    ```python
-   from mediakit.audio.cli import library as _library_cmd  # noqa: E402
-   from mediakit.audio.cli import my_cmd as _my_cmd_cmd    # noqa: E402
+   from maneki.audio.cli import library as _library_cmd  # noqa: E402
+   from maneki.audio.cli import my_cmd as _my_cmd_cmd    # noqa: E402
    _ = (..., _my_cmd_cmd)
    ```
 
-Typer handles the rest — `mediakit my-cmd --help` (or `mediakit library my-cmd --help`) Just Works.
+Typer handles the rest — `maneki my-cmd --help` (or `maneki library my-cmd --help`) Just Works.
 
 ## Adding a new Subsonic endpoint
 
-1. Pick the right router in `src/mediakit/audio/serve/endpoints/` (browsing, search, media, scan, system, extras).
+1. Pick the right router in `src/maneki/audio/serve/endpoints/` (browsing, search, media, scan, system, extras).
 2. Add the endpoint:
    ```python
    @router.api_route("/myEndpoint", methods=["GET", "POST", "HEAD"])

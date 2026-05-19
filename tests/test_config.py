@@ -1,4 +1,4 @@
-"""Top-level config — `mediakit.toml` loading, env-var precedence, legacy fallback."""
+"""Top-level config — `maneki.toml` loading, env-var precedence, legacy fallback."""
 
 from __future__ import annotations
 
@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 
-from mediakit.audio.config import (
+from maneki.audio.config import (
     AcoustIDSection,
     MediakitConfig,
     ServerSection,
@@ -21,18 +21,18 @@ from mediakit.audio.config import (
 
 @pytest.fixture(autouse=True)
 def _clean_env(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Ensure no MEDIAKIT_* env vars leak between tests."""
+    """Ensure no MANEKI_* env vars leak between tests."""
     for key in list(os.environ):
-        if key.startswith("MEDIAKIT_"):
+        if key.startswith("MANEKI_"):
             monkeypatch.delenv(key, raising=False)
 
 
 def _redirect_config(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     """Point both config_path() and legacy_serve_path() at tmp_path."""
-    monkeypatch.setattr("mediakit.audio.config.config_dir", lambda: tmp_path)
+    monkeypatch.setattr("maneki.audio.config.config_dir", lambda: tmp_path)
     # MediakitConfig caches `toml_file` at class-creation time, so override
     # the class attribute too.
-    MediakitConfig.model_config["toml_file"] = str(tmp_path / "mediakit.toml")
+    MediakitConfig.model_config["toml_file"] = str(tmp_path / "maneki.toml")
 
 
 def test_defaults_when_no_file_no_env(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
@@ -44,10 +44,10 @@ def test_defaults_when_no_file_no_env(monkeypatch: pytest.MonkeyPatch, tmp_path:
     assert cfg.acoustid.api_key is None
 
 
-def test_loads_mediakit_toml(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
-    """Hand-written mediakit.toml is honoured."""
+def test_loads_maneki_toml(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    """Hand-written maneki.toml is honoured."""
     _redirect_config(monkeypatch, tmp_path)
-    (tmp_path / "mediakit.toml").write_text(
+    (tmp_path / "maneki.toml").write_text(
         '[server]\nusername = "alice"\npassword = "wonder"\n\n[acoustid]\napi_key = "acokey"\n',
         encoding="utf-8",
     )
@@ -58,13 +58,13 @@ def test_loads_mediakit_toml(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) ->
 
 
 def test_env_overrides_file(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
-    """`MEDIAKIT_SERVER__USERNAME` beats the TOML's `[server].username`."""
+    """`MANEKI_SERVER__USERNAME` beats the TOML's `[server].username`."""
     _redirect_config(monkeypatch, tmp_path)
-    (tmp_path / "mediakit.toml").write_text(
+    (tmp_path / "maneki.toml").write_text(
         '[server]\nusername = "from-file"\n',
         encoding="utf-8",
     )
-    monkeypatch.setenv("MEDIAKIT_SERVER__USERNAME", "from-env")
+    monkeypatch.setenv("MANEKI_SERVER__USERNAME", "from-env")
     cfg = load_config()
     assert cfg.server.username == "from-env"
 
@@ -72,7 +72,7 @@ def test_env_overrides_file(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> 
 def test_legacy_serve_toml_fallback(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    """When mediakit.toml is absent but serve.toml exists, parse it."""
+    """When maneki.toml is absent but serve.toml exists, parse it."""
     _redirect_config(monkeypatch, tmp_path)
     (tmp_path / "serve.toml").write_text(
         'username = "legacy-user"\npassword = "legacy-pass"\n',
@@ -99,25 +99,25 @@ def test_legacy_scrobble_block_preserved(monkeypatch: pytest.MonkeyPatch, tmp_pa
     """Scrobble webhook in serve.toml flows through to MediakitConfig."""
     _redirect_config(monkeypatch, tmp_path)
     (tmp_path / "serve.toml").write_text(
-        'username = "u"\npassword = "p"\n\n[scrobble.webhook]\nurl = "https://hass.lan/api/webhook/mediakit"\n',
+        'username = "u"\npassword = "p"\n\n[scrobble.webhook]\nurl = "https://hass.lan/api/webhook/maneki"\n',
         encoding="utf-8",
     )
     cfg = _load_legacy_serve_toml()
     assert cfg is not None
     assert cfg.server.scrobble.webhook is not None
-    assert cfg.server.scrobble.webhook.url == "https://hass.lan/api/webhook/mediakit"
+    assert cfg.server.scrobble.webhook.url == "https://hass.lan/api/webhook/maneki"
 
 
-def test_migration_writes_mediakit_toml(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+def test_migration_writes_maneki_toml(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     """`migrate_legacy_config` writes the new file and (optionally) removes the old."""
     _redirect_config(monkeypatch, tmp_path)
     legacy = tmp_path / "serve.toml"
     legacy.write_text('username = "alice"\npassword = "wonder"\n', encoding="utf-8")
     written, deleted = migrate_legacy_config(delete_source=True)
-    assert written == tmp_path / "mediakit.toml"
+    assert written == tmp_path / "maneki.toml"
     assert deleted == legacy
     assert not legacy.exists()
-    assert (tmp_path / "mediakit.toml").exists()
+    assert (tmp_path / "maneki.toml").exists()
     # Re-reading via load_config returns the migrated values.
     cfg = load_config(_silent=True)
     assert cfg.server.username == "alice"
@@ -137,7 +137,7 @@ def test_migration_keep_legacy(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) 
 def test_migration_idempotent_when_target_exists(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     """Re-running migration with both files present is a no-op."""
     _redirect_config(monkeypatch, tmp_path)
-    (tmp_path / "mediakit.toml").write_text("", encoding="utf-8")
+    (tmp_path / "maneki.toml").write_text("", encoding="utf-8")
     (tmp_path / "serve.toml").write_text('username = "x"\n', encoding="utf-8")
     written, deleted = migrate_legacy_config()
     assert written is None
@@ -162,7 +162,7 @@ def test_render_config_summary_masks_secrets(monkeypatch: pytest.MonkeyPatch, tm
 def test_section_extra_keys_ignored(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     """Forward-compat: unknown TOML keys don't fail validation."""
     _redirect_config(monkeypatch, tmp_path)
-    (tmp_path / "mediakit.toml").write_text(
+    (tmp_path / "maneki.toml").write_text(
         '[server]\nusername = "u"\nfuture_key = "ignore-me"\n',
         encoding="utf-8",
     )

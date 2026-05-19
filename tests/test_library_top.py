@@ -1,6 +1,6 @@
 """Tests for the top-level cross-cutting library scan + summary.
 
-MediaKit treats a library as a single directory — both kinds are
+Maneki treats a library as a single directory — both kinds are
 scanned from the same root with no subdirectory convention. These
 tests cover both the conventional `<root>/audio/` + `<root>/videos/`
 layout (which still works because the scanners walk recursively) and
@@ -13,7 +13,7 @@ from pathlib import Path
 
 import pytest
 
-from mediakit.library import has_audio, has_video, scan_files, summarize
+from maneki.library import has_audio, has_video, scan_files, summarize
 
 
 @pytest.fixture
@@ -82,12 +82,12 @@ def test_summarize_mixed_layout_finds_both(mixed_root: Path) -> None:
     assert s.video_count == 2
 
 
-def test_summarize_skips_mediakit_cache_dir(tmp_path: Path) -> None:
-    """The server's own .mediakit/ cache dir must not be walked when summarising."""
-    (tmp_path / ".mediakit").mkdir()
-    # An audio file inside .mediakit/ must NOT be counted (it would be
+def test_summarize_skips_maneki_cache_dir(tmp_path: Path) -> None:
+    """The server's own .maneki/ cache dir must not be walked when summarising."""
+    (tmp_path / ".maneki").mkdir()
+    # An audio file inside .maneki/ must NOT be counted (it would be
     # an internal artefact, not library content).
-    (tmp_path / ".mediakit" / "fake.flac").write_bytes(b"a")
+    (tmp_path / ".maneki" / "fake.flac").write_bytes(b"a")
     (tmp_path / "real.flac").write_bytes(b"a")
     s = summarize(tmp_path)
     assert s.audio_count == 1
@@ -152,7 +152,7 @@ def test_library_and_subsonic_audio_extension_sets_agree() -> None:
     causes silent bugs (e.g. has_audio() returns True on a library
     that the Subsonic scanner then finds empty).
     """
-    from mediakit.audio.metadata import SUPPORTED_AUDIO_EXTS
-    from mediakit.library import AUDIO_EXTENSIONS
+    from maneki.audio.metadata import SUPPORTED_AUDIO_EXTS
+    from maneki.library import AUDIO_EXTENSIONS
 
     assert AUDIO_EXTENSIONS == SUPPORTED_AUDIO_EXTS

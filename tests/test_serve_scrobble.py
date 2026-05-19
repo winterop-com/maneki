@@ -10,11 +10,11 @@ import httpx
 import pytest
 from fastapi.testclient import TestClient
 
-from mediakit.audio.library.models import LibraryAlbum, LibraryIndex, LibraryTrack
-from mediakit.audio.serve import ServeConfig, create_app
-from mediakit.audio.serve.config import ScrobbleConfig, ScrobbleMqttConfig, ScrobbleWebhookConfig
-from mediakit.audio.serve.ids import track_id
-from mediakit.audio.serve.scrobble import ScrobbleDispatcher, ScrobbleEvent, _parse_broker
+from maneki.audio.library.models import LibraryAlbum, LibraryIndex, LibraryTrack
+from maneki.audio.serve import ServeConfig, create_app
+from maneki.audio.serve.config import ScrobbleConfig, ScrobbleMqttConfig, ScrobbleWebhookConfig
+from maneki.audio.serve.ids import track_id
+from maneki.audio.serve.scrobble import ScrobbleDispatcher, ScrobbleEvent, _parse_broker
 
 if TYPE_CHECKING:
     from fastapi import FastAPI

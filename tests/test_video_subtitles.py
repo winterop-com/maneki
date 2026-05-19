@@ -7,8 +7,8 @@ from pathlib import Path
 import pytest
 from fastapi.testclient import TestClient
 
-from mediakit.video.serve import create_app
-from mediakit.video.serve.subtitles import discover_sidecars, srt_to_vtt, to_webvtt
+from maneki.video.serve import create_app
+from maneki.video.serve.subtitles import discover_sidecars, srt_to_vtt, to_webvtt
 
 # -----------------------------------------------------------------------------
 # discover_sidecars

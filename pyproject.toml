@@ -1,5 +1,5 @@
 [project]
-name = "mediakit"
+name = "maneki"
 version = "0.1.0"
 description = "Self-hosted media toolkit: audio today (convert / audit / retag rips, Textual TUI, Subsonic-compatible HTTP server), video next (folder-first metadata, HLS streaming)."
 readme = "README.md"
@@ -57,14 +57,14 @@ dependencies = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/winterop-com/mediakit"
-Repository = "https://github.com/winterop-com/mediakit"
-Documentation = "https://winterop-com.github.io/mediakit"
-Issues = "https://github.com/winterop-com/mediakit/issues"
-Changelog = "https://github.com/winterop-com/mediakit/releases"
+Homepage = "https://github.com/winterop-com/maneki"
+Repository = "https://github.com/winterop-com/maneki"
+Documentation = "https://winterop-com.github.io/maneki"
+Issues = "https://github.com/winterop-com/maneki/issues"
+Changelog = "https://github.com/winterop-com/maneki/releases"
 
 [project.scripts]
-mediakit = "mediakit.cli:app"
+maneki = "maneki.cli:app"
 
 [dependency-groups]
 dev = [
@@ -104,7 +104,7 @@ convention = "google"
 "tests/**/*.py" = ["D"]
 "**/__init__.py" = ["D104"]
 "src/**/*.py" = ["D102", "D105", "D107"]
-"src/mediakit/audio/_ui_static/**" = []
+"src/maneki/audio/_ui_static/**" = []
 
 [tool.ruff.format]
 quote-style = "double"
@@ -116,7 +116,7 @@ docstring-code-line-length = "dynamic"
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["tests"]
-norecursedirs = [".git", ".venv", "__pycache__", "desktop", "src/mediakit/audio/_ui_static"]
+norecursedirs = [".git", ".venv", "__pycache__", "desktop", "src/maneki/audio/_ui_static"]
 filterwarnings = [
   "ignore:Pydantic serializer warnings:UserWarning",
 ]
@@ -128,7 +128,7 @@ markers = [
 branch = true
 dynamic_context = "test_function"
 relative_files = true
-source = ["mediakit"]
+source = ["maneki"]
 omit = ["*/cli/*"]
 
 [tool.coverage.report]
@@ -158,7 +158,7 @@ ignore_missing_imports = true
 
 [tool.pyright]
 include = ["src", "tests"]
-exclude = ["src/mediakit/audio/_ui_static", "**/.venv"]
+exclude = ["src/maneki/audio/_ui_static", "**/.venv"]
 pythonVersion = "3.13"
 typeCheckingMode = "strict"
 useLibraryCodeForTypes = true

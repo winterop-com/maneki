@@ -13,7 +13,7 @@
 
 (function () {
   const tauri = window.__TAURI__;
-  const electronBridge = window.__mediakitDesktop;
+  const electronBridge = window.__manekiDesktop;
 
   let kind = null;
   if (tauri && (tauri.window || tauri.webviewWindow)) {

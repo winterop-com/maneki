@@ -1,4 +1,4 @@
-// MediaKit chrome: top bar, main area panes (sidebar / albums / tracks /
+// Maneki chrome: top bar, main area panes (sidebar / albums / tracks /
 // stations / starred), now-playing bar, fullscreen visualizer, tweaks UI.
 
 const fmtDur_ch = (s) => window.MK_fmtDur(s);
@@ -24,7 +24,7 @@ function TopBar({ user, q, setQ, onFocusSearch, onSignOut, searchInputRef }) {
         </div>
       </div>
       <div className="mk-topbar-center">
-        <span className="mk-brand">mediakit</span>
+        <span className="mk-brand">maneki</span>
         <span className="mk-version">v{document.querySelector('meta[name="mk-version"]')?.content || "?"}</span>
       </div>
       <div className="mk-topbar-right">
@@ -304,7 +304,7 @@ function StarredPane({ starredTracks, playTrack, toggleStar }) {
         <div className="mk-empty">
           <div className="mk-empty-icon"><svg viewBox="0 0 24 24" width="36" height="36" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M12 21s-7.5-4.5-9.5-9.5C1 7 4.5 4 8 4c2 0 3.5 1 4 2 .5-1 2-2 4-2 3.5 0 7 3 5.5 7.5C19.5 16.5 12 21 12 21z"/></svg></div>
           <div className="mk-empty-title">Nothing starred yet</div>
-          <div className="mk-empty-sub">Tap the heart on any track, album, or artist — it syncs everywhere MediaKit is signed in.</div>
+          <div className="mk-empty-sub">Tap the heart on any track, album, or artist — it syncs everywhere Maneki is signed in.</div>
         </div>
       ) : (
         <div className="mk-track-scroll">

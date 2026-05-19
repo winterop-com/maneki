@@ -7,7 +7,7 @@ from pathlib import Path
 
 from fastapi.testclient import TestClient
 
-from mediakit.audio.serve import ServeConfig, create_app
+from maneki.audio.serve import ServeConfig, create_app
 
 
 def _client(tmp_path: Path) -> TestClient:
@@ -139,17 +139,17 @@ def test_root_returns_200_with_server_info(tmp_path: Path) -> None:
     assert response.status_code == 200
     assert response.headers["content-type"].startswith("text/html")
     body = response.text
-    assert "MediaKit" in body
+    assert "Maneki" in body
     assert "/rest/" in body
     assert "/docs" in body
 
 
 def test_resolve_credentials_falls_back_to_admin_defaults() -> None:
     """No CLI flags + no serve.toml → admin/admin with `used_defaults=True`."""
-    from mediakit.audio.serve.config import resolve_credentials
+    from maneki.audio.serve.config import resolve_credentials
 
     # Force-load with no inputs by passing None explicitly — load_config still
-    # checks ~/.config/mediakit/serve.toml so this asserts the fallback behaviour
+    # checks ~/.config/maneki/serve.toml so this asserts the fallback behaviour
     # only when that file is also absent. On a dev machine where it might exist,
     # the test still exercises the CLI-flag override path below.
     cfg, used_defaults = resolve_credentials(cli_user=None, cli_password=None)
@@ -160,7 +160,7 @@ def test_resolve_credentials_falls_back_to_admin_defaults() -> None:
 
 def test_resolve_credentials_cli_flags_override_defaults() -> None:
     """CLI flags must win even when defaults would otherwise apply."""
-    from mediakit.audio.serve.config import resolve_credentials
+    from maneki.audio.serve.config import resolve_credentials
 
     cfg, used_defaults = resolve_credentials(cli_user="alice", cli_password="wonderland")
     assert cfg.username == "alice"

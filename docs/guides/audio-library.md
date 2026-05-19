@@ -1,17 +1,17 @@
-# `mediakit audio library`
+# `maneki audio library`
 
-Every operation that reads, mutates, or manages the converted **audio** library lives under `mediakit audio library`. This is the audio-specific subgroup; for cross-cutting library operations (covering both audio and video together) see [`mediakit library`](library.md).
+Every operation that reads, mutates, or manages the converted **audio** library lives under `maneki audio library`. This is the audio-specific subgroup; for cross-cutting library operations (covering both audio and video together) see [`maneki library`](library.md).
 
 ```bash
-uvx mediakit audio library tree DIR              # rich.Tree of artists / albums / tracks
-uvx mediakit audio library audit DIR             # audit table with per-album warnings
-uvx mediakit audio library fix DIR               # apply deterministic fixes
-uvx mediakit audio library cover IMAGE DIR       # embed an image into every audio file
-uvx mediakit audio library cover-pick DIR        # semi-automated cover sourcing via musichoarders
-uvx mediakit audio library retag DIR             # in-place tag overrides
-uvx mediakit audio library index status DIR      # show index DB metadata + counts
-uvx mediakit audio library index drop DIR        # delete <DIR>/.mediakit/
-uvx mediakit audio library index rebuild DIR     # rebuild the index DB from scratch
+uvx maneki audio library tree DIR              # rich.Tree of artists / albums / tracks
+uvx maneki audio library audit DIR             # audit table with per-album warnings
+uvx maneki audio library fix DIR               # apply deterministic fixes
+uvx maneki audio library cover IMAGE DIR       # embed an image into every audio file
+uvx maneki audio library cover-pick DIR        # semi-automated cover sourcing via musichoarders
+uvx maneki audio library retag DIR             # in-place tag overrides
+uvx maneki audio library index status DIR      # show index DB metadata + counts
+uvx maneki audio library index drop DIR        # delete <DIR>/.maneki/
+uvx maneki audio library index rebuild DIR     # rebuild the index DB from scratch
 ```
 
 `DIR` is required for every subcommand.
@@ -19,8 +19,8 @@ uvx mediakit audio library index rebuild DIR     # rebuild the index DB from scr
 ## `tree` and `audit`
 
 ```bash
-uvx mediakit audio library tree   DIR [--json] [--no-cache] [--full-rescan]
-uvx mediakit audio library audit  DIR [--issues-only] [--json] [--no-cache] [--full-rescan]
+uvx maneki audio library tree   DIR [--json] [--no-cache] [--full-rescan]
+uvx maneki audio library audit  DIR [--issues-only] [--json] [--no-cache] [--full-rescan]
 ```
 
 `tree` prints the `rich.Tree` view; `audit` prints the warnings table.
@@ -60,7 +60,7 @@ Each rule appends to `album.warnings`. Multiple can fire on one album.
 ## `fix`
 
 ```bash
-uvx mediakit audio library fix DIR [--dry-run] [--prefer-dirname] [--no-cache] [--full-rescan]
+uvx maneki audio library fix DIR [--dry-run] [--prefer-dirname] [--no-cache] [--full-rescan]
 ```
 
 Applies the deterministic fixes:
@@ -79,19 +79,19 @@ Fixes that are NOT auto-applied:
 ## `cover` — embed an image
 
 ```bash
-uvx mediakit audio library cover IMAGE DIR [--cover-max-edge PX] [--recursive/--no-recursive]
+uvx maneki audio library cover IMAGE DIR [--cover-max-edge PX] [--recursive/--no-recursive]
 ```
 
 Embeds `IMAGE` (JPG/PNG) into every audio file under `DIR`. The image is normalised once (downscaled to fit the long-edge cap, JPEG-encoded for non-PNG sources) and then written to every supported audio file. Other tags are preserved — only the cover is replaced.
 
 ```bash
-uvx mediakit audio library cover ./output/Pink\ Floyd/1973\ -\ The\ Dark\ Side\ Of\ The\ Moon scan-of-the-LP.jpg
+uvx maneki audio library cover ./output/Pink\ Floyd/1973\ -\ The\ Dark\ Side\ Of\ The\ Moon scan-of-the-LP.jpg
 ```
 
 ## `cover-pick` — semi-automated cover sourcing
 
 ```bash
-uvx mediakit audio library cover-pick DIR [--all] [--no-embed] [--cover-max-edge PX] [--no-browser]
+uvx maneki audio library cover-pick DIR [--all] [--no-embed] [--cover-max-edge PX] [--no-browser]
 ```
 
 For each candidate album:
@@ -109,7 +109,7 @@ Honours [musichoarders' integration policy](https://covers.musichoarders.xyz/) �
 ## `retag` — in-place tag overrides
 
 ```bash
-uvx mediakit audio library retag DIR [--title T] [--artist A] [--album-artist AA] [--album AL] \
+uvx maneki audio library retag DIR [--title T] [--artist A] [--album-artist AA] [--album AL] \
                                    [--year YYYY] [--genre G] \
                                    [--track-total N] [--disc-total N] \
                                    [--recursive/--no-recursive] [--rename]
@@ -118,9 +118,9 @@ uvx mediakit audio library retag DIR [--title T] [--artist A] [--album-artist AA
 Only fields you explicitly pass are written; everything else is preserved (including covers, replaygain, MusicBrainz IDs). Useful when an album converted with the wrong name and you don't want to re-encode just to fix a tag.
 
 ```bash
-uvx mediakit audio library retag path/to/album/01.m4a --year 1976
-uvx mediakit audio library retag path/to/album --track-total 12
-uvx mediakit audio library retag path/to/album --genre ''
+uvx maneki audio library retag path/to/album/01.m4a --year 1976
+uvx maneki audio library retag path/to/album --track-total 12
+uvx maneki audio library retag path/to/album --genre ''
 ```
 
 `--rename` renames `DIR` to `YYYY - Album` based on the post-update tags after the retag completes.
@@ -128,9 +128,9 @@ uvx mediakit audio library retag path/to/album --genre ''
 ## `lyrics` — fetch synced lyrics from LRCLIB
 
 ```bash
-uvx mediakit audio library lyrics fetch DIR                  # populate missing sidecars
-uvx mediakit audio library lyrics fetch DIR --dry-run        # show intent without hitting the network
-uvx mediakit audio library lyrics fetch DIR --all            # re-fetch every track (use sparingly)
+uvx maneki audio library lyrics fetch DIR                  # populate missing sidecars
+uvx maneki audio library lyrics fetch DIR --dry-run        # show intent without hitting the network
+uvx maneki audio library lyrics fetch DIR --all            # re-fetch every track (use sparingly)
 ```
 
 For each track without lyrics — no embedded `\xa9lyr` / `USLT` / `LYRICS` tag and no existing `<track>.lrc` sidecar — query [LRCLIB](https://lrclib.net) (free, no API key) and, on a hit, write the result as `<track>.flac.lrc` (or whatever the audio suffix is). Synced bodies (`syncedLyrics` field) are preferred over plain when LRCLIB returns both.
@@ -141,35 +141,35 @@ The command exits non-zero if more than 10% of attempted fetches raise transport
 
 ## `index` — manage the persistent SQLite cache
 
-The first scan of any library writes a SQLite cache at `<DIR>/.mediakit/index.db`. On every subsequent launch — `library` or `serve` — the in-memory `LibraryIndex` is hydrated from rows instead of re-reading every audio file's tags. A delta-validate pass then reconciles the DB against any filesystem changes that happened since the last run (added albums, removed albums, tag edits applied with another tool).
+The first scan of any library writes a SQLite cache at `<DIR>/.maneki/index.db`. On every subsequent launch — `library` or `serve` — the in-memory `LibraryIndex` is hydrated from rows instead of re-reading every audio file's tags. A delta-validate pass then reconciles the DB against any filesystem changes that happened since the last run (added albums, removed albums, tag edits applied with another tool).
 
 The DB is fully derived from the filesystem, so it's always safe to delete.
 
 ### Commands
 
 ```bash
-uvx mediakit audio library index status  DIR     # schema version, library_root_abs, row counts, DB size
-uvx mediakit audio library index drop    DIR     # delete <DIR>/.mediakit/
-uvx mediakit audio library index rebuild DIR     # wipe + rebuild from scratch
+uvx maneki audio library index status  DIR     # schema version, library_root_abs, row counts, DB size
+uvx maneki audio library index drop    DIR     # delete <DIR>/.maneki/
+uvx maneki audio library index rebuild DIR     # wipe + rebuild from scratch
 ```
 
-`--no-cache` (on `tree` / `audit` / `fix` / `serve`) skips the DB entirely — useful for read-only mounts where `<DIR>/.mediakit/` can't be created. `--full-rescan` (on the same set) rebuilds the index from scratch on this run. `cover-pick` uses the existing in-memory scan and doesn't expose either flag.
+`--no-cache` (on `tree` / `audit` / `fix` / `serve`) skips the DB entirely — useful for read-only mounts where `<DIR>/.maneki/` can't be created. `--full-rescan` (on the same set) rebuilds the index from scratch on this run. `cover-pick` uses the existing in-memory scan and doesn't expose either flag.
 
 ### Schema
 
 | Table | Holds |
 |---|---|
-| `meta` | `schema_version`, `library_root_abs`, `mediakit_version`, `last_full_scan_at` |
+| `meta` | `schema_version`, `library_root_abs`, `maneki_version`, `last_full_scan_at` |
 | `albums` | One row per album dir — tags, counts, `dir_mtime`, audit-relevant flags |
 | `tracks` | One row per audio file — tags, ReplayGain, `file_mtime`, `file_size` |
 | `track_genres` | `(track_id, genre)` pairs for multi-genre support |
 | `album_warnings` | `(album_id, warning)` pairs from the audit pass |
 
-Schema changes don't run migrations — `db.py` defines a `SCHEMA_VERSION` constant; if the on-disk version doesn't match, the DB is unlinked and rebuilt from scratch. The `mediakit_version` row records which release wrote the cache; **if the running mediakit version differs from the stamp, the DB is also rebuilt**. So upgrading mediakit (any version change) transparently invalidates and refreshes the cache on the next open — you never have to remember to run `library index rebuild` after `uv tool upgrade mediakit`. Running the same version twice in a row reuses the cache; if you ever see a rebuild without a version change, run with `MEDIAKIT_LOG_LEVEL=info` to see which gate (schema / root / version) failed.
+Schema changes don't run migrations — `db.py` defines a `SCHEMA_VERSION` constant; if the on-disk version doesn't match, the DB is unlinked and rebuilt from scratch. The `maneki_version` row records which release wrote the cache; **if the running maneki version differs from the stamp, the DB is also rebuilt**. So upgrading maneki (any version change) transparently invalidates and refreshes the cache on the next open — you never have to remember to run `library index rebuild` after `uv tool upgrade maneki`. Running the same version twice in a row reuses the cache; if you ever see a rebuild without a version change, run with `MANEKI_LOG_LEVEL=info` to see which gate (schema / root / version) failed.
 
 ### Cold-start flow
 
-1. `open_db(root)` opens (or creates) `<DIR>/.mediakit/index.db`. Mismatched schema or relocated `library_root_abs` triggers an unlink + rebuild.
+1. `open_db(root)` opens (or creates) `<DIR>/.maneki/index.db`. Mismatched schema or relocated `library_root_abs` triggers an unlink + rebuild.
 2. If the DB has no `albums` rows → `scan_full(root, conn)` runs a fresh filesystem walk + audit and writes everything.
 3. Otherwise → `load(root, conn)` hydrates the Pydantic graph, then `validate(root, conn)` walks the filesystem, compares per-album `dir_mtime` and per-file `(file_mtime, file_size)` to detect deltas, and re-scans only the affected album dirs via `rescan_albums`.
 

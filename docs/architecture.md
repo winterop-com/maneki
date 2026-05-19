@@ -7,7 +7,7 @@ sits behind a public command.
 
 ```
                    +----------+
-                   | mediakit |  CLI (typer)
+                   | maneki |  CLI (typer)
                    +----+-----+
                         |
    +---------+----------+----------+----------+
@@ -19,11 +19,11 @@ encode    + audit     dump      + Subsonic + HLS
                                 + watcher    + posters
 ```
 
-Top-level: `mediakit serve` mounts both audio + video sub-apps and the SPA
-at `/`. Audio commands live in `src/mediakit/audio/cli/` (the `library`
+Top-level: `maneki serve` mounts both audio + video sub-apps and the SPA
+at `/`. Audio commands live in `src/maneki/audio/cli/` (the `library`
 subapp carries `tree`, `audit`, `fix`, `cover`, `cover-pick`, `retag`,
 `index status|drop|rebuild`). Video commands live in
-`src/mediakit/video/serve/`.
+`src/maneki/video/serve/`.
 
 ## End-to-end data flow
 
@@ -34,30 +34,30 @@ subapp carries `tree`, `audit`, `fix`, `cover`, `cover-pick`, `retag`,
 |   WAV/OGG/OPUS)    |
 +----+---------------+
      |
-     |  mediakit audio convert
+     |  maneki audio convert
      v
 +--------------------+
 |  output dir        |   <Artist>/<YYYY> - <Album>/NN - <Title>.m4a
 |  (clean library)   |   one shape, all M4A/AAC unless --format said otherwise
 +----+---------------+
      |
-     |  mediakit audio library tree | audit | fix | cover-pick | retag
+     |  maneki audio library tree | audit | fix | cover-pick | retag
      |
-     |  (also: hydrates `<output>/.mediakit/index.db`,
+     |  (also: hydrates `<output>/.maneki/index.db`,
      |   the persistent SQLite index of every album/track/
      |   audit-warning + multi-genre)
      v
 +--------------------+         +-----------------------------------+
-|  in-memory         |  same   |  <output>/.mediakit/index.db      |
+|  in-memory         |  same   |  <output>/.maneki/index.db      |
 |  LibraryIndex      |<------->|  derived cache; rebuilt on schema |
 |  (Pydantic graph)  |         |  bump or root mismatch            |
 +----+---------------+         +-----------------------------------+
      |
-     +--> consumed by `mediakit serve` + the web SPA
+     +--> consumed by `maneki serve` + the web SPA
                               |
                               v
                 +---------------------------+
-                | mediakit (audio) serve    |
+                | maneki (audio) serve    |
                 |                           |
                 | FastAPI app               |
                 |   + IndexCache            |
@@ -79,7 +79,7 @@ subapp carries `tree`, `audit`, `fix`, `cover`, `cover-pick`, `retag`,
                 +--------------------+
 ```
 
-## The convert pipeline (`src/mediakit/audio/pipeline/`)
+## The convert pipeline (`src/maneki/audio/pipeline/`)
 
 Pure batch process — runs to completion and exits. No daemon, no IPC.
 
@@ -111,7 +111,7 @@ Pure batch process — runs to completion and exits. No daemon, no IPC.
 restart safety). `pipeline.report` accumulates per-album outcomes for the
 final summary table.
 
-## The library index (`src/mediakit/audio/library/`)
+## The library index (`src/maneki/audio/library/`)
 
 The same Pydantic `LibraryIndex` graph (Artist → Album → Track) is consumed
 by **every** command that reads a converted library — `library tree/audit/fix`,
@@ -136,7 +136,7 @@ year backfill (one HTTP call per flagged album), tag/path mismatch resolution
 
 ### From the SQLite cache (`library/db.py`, `library/load.py`)
 
-`<root>/.mediakit/index.db` persists the `LibraryIndex` so cold starts
+`<root>/.maneki/index.db` persists the `LibraryIndex` so cold starts
 (launching `serve`) don't re-read every audio tag. Tables:
 
 | Table | Holds |
@@ -177,7 +177,7 @@ Schema bumps don't run migrations — `db.py` defines a `SCHEMA_VERSION`
 constant; mismatched DBs are unlinked and rebuilt from scratch. The
 filesystem is the source of truth so destructive rebuilds are always safe.
 
-## The serve process (`src/mediakit/audio/serve/`)
+## The serve process (`src/maneki/audio/serve/`)
 
 Single FastAPI process. Components:
 
@@ -275,7 +275,7 @@ state object outside the lock and assign it via one rebind — but the
 current pattern is simpler and the inconsistency window is too short to
 ever observe in real Subsonic-client traffic.
 
-## The watcher (`src/mediakit/audio/serve/watcher.py`)
+## The watcher (`src/maneki/audio/serve/watcher.py`)
 
 `watchdog` `Observer` watches the library root recursively. The handler
 filters by extension (audio files only — skip `.DS_Store`, `cover.jpg`)
@@ -302,9 +302,9 @@ library" button that hits two standard endpoints:
 
 - `GET /rest/startScan` — kicks off a non-blocking rescan and returns
   immediately with `{scanning: true, count: <current-track-count>}`.
-  mediakit backs this with `cache.start_background_rescan(force=True)`,
+  maneki backs this with `cache.start_background_rescan(force=True)`,
   which spawns a daemon thread running the same full rebuild as
-  `mediakit audio library index rebuild`.
+  `maneki audio library index rebuild`.
 - `GET /rest/getScanStatus` — poll endpoint, returns `{scanning: bool,
   count: <track-count>}`. The client polls every second or two while
   `scanning=true`, then refreshes its in-app library view.

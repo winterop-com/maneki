@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from mediakit.audio.radio import DEFAULT_STATIONS, RadioStation, load_stations, seed_default_config
+from maneki.audio.radio import DEFAULT_STATIONS, RadioStation, load_stations, seed_default_config
 
 
 def test_load_stations_returns_defaults_when_file_missing(tmp_path: Path) -> None:

@@ -11,8 +11,8 @@ import pytest
 from mutagen.mp4 import MP4
 from typer.testing import CliRunner
 
-from mediakit.audio import library
-from mediakit.audio.cli import app
+from maneki.audio import library
+from maneki.audio.cli import app
 from tests.test_library import _make_track
 
 # ---------------------------------------------------------------------------
@@ -21,8 +21,8 @@ from tests.test_library import _make_track
 
 
 def test_open_db_creates_schema_and_meta(tmp_path: Path) -> None:
-    """A fresh root gets `.mediakit/index.db` with v1 schema + meta rows."""
-    from mediakit import __version__ as MEDIAKIT_VERSION
+    """A fresh root gets `.maneki/index.db` with v1 schema + meta rows."""
+    from maneki import __version__ as MANEKI_VERSION
 
     root = tmp_path / "lib"
     root.mkdir()
@@ -34,7 +34,7 @@ def test_open_db_creates_schema_and_meta(tmp_path: Path) -> None:
         meta = dict(conn.execute("SELECT key, value FROM meta"))
         assert meta["schema_version"] == str(library.SCHEMA_VERSION)
         assert meta["library_root_abs"] == str(root.resolve())
-        assert meta["mediakit_version"] == MEDIAKIT_VERSION
+        assert meta["maneki_version"] == MANEKI_VERSION
     finally:
         conn.close()
 
@@ -195,14 +195,14 @@ def test_open_db_rebuilds_when_schema_version_row_missing(tmp_path: Path) -> Non
         conn.close()
 
 
-def test_open_db_rebuilds_on_mediakit_version_mismatch(tmp_path: Path) -> None:
-    """A DB stamped with a different mediakit version triggers a clean rebuild."""
+def test_open_db_rebuilds_on_maneki_version_mismatch(tmp_path: Path) -> None:
+    """A DB stamped with a different maneki version triggers a clean rebuild."""
     root = tmp_path / "lib"
     root.mkdir()
 
     # Open once at the current version, then tamper the stamp.
     conn = library.open_db(root)
-    conn.execute("UPDATE meta SET value='0.0.0' WHERE key='mediakit_version'")
+    conn.execute("UPDATE meta SET value='0.0.0' WHERE key='maneki_version'")
     conn.execute(
         "INSERT INTO albums(rel_path, artist_dir, album_dir, track_count, dir_mtime, scanned_at) "
         "VALUES ('Artist/Album', 'Artist', 'Album', 1, 0, 0)"
@@ -210,12 +210,12 @@ def test_open_db_rebuilds_on_mediakit_version_mismatch(tmp_path: Path) -> None:
     conn.close()
 
     # Reopening should detect the version mismatch and rebuild from scratch.
-    from mediakit import __version__ as MEDIAKIT_VERSION
+    from maneki import __version__ as MANEKI_VERSION
 
     conn = library.open_db(root)
     try:
-        v = conn.execute("SELECT value FROM meta WHERE key='mediakit_version'").fetchone()[0]
-        assert v == MEDIAKIT_VERSION
+        v = conn.execute("SELECT value FROM meta WHERE key='maneki_version'").fetchone()[0]
+        assert v == MANEKI_VERSION
         assert library.is_empty(conn)
     finally:
         conn.close()
@@ -246,19 +246,19 @@ def test_open_db_keeps_cache_on_same_version(tmp_path: Path) -> None:
         conn.close()
 
 
-def test_open_db_rebuilds_when_mediakit_version_row_missing(tmp_path: Path) -> None:
-    """Pre-stamp DBs (created before the mediakit_version row existed) get rebuilt on next open."""
+def test_open_db_rebuilds_when_maneki_version_row_missing(tmp_path: Path) -> None:
+    """Pre-stamp DBs (created before the maneki_version row existed) get rebuilt on next open."""
     root = tmp_path / "lib"
     root.mkdir()
 
     conn = library.open_db(root)
-    conn.execute("DELETE FROM meta WHERE key='mediakit_version'")
+    conn.execute("DELETE FROM meta WHERE key='maneki_version'")
     conn.close()
 
     conn = library.open_db(root)
     try:
         # Row exists again after rebuild.
-        v = conn.execute("SELECT value FROM meta WHERE key='mediakit_version'").fetchone()
+        v = conn.execute("SELECT value FROM meta WHERE key='maneki_version'").fetchone()
         assert v is not None
         assert library.is_empty(conn)
     finally:
@@ -489,7 +489,7 @@ def test_load_or_scan_uses_cache_on_second_call(
 
     # Sabotage the audio file source so a re-scan would fail; load path
     # should hit the cache and never read the file.
-    from mediakit.audio.metadata import read as metadata_read
+    from maneki.audio.metadata import read as metadata_read
 
     def boom(*args: Any, **kwargs: Any) -> Any:
         raise AssertionError("read_source should not be called on cache hit")

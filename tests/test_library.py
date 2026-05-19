@@ -9,7 +9,7 @@ import pytest
 from mutagen.mp4 import MP4, MP4Cover
 from PIL import Image
 
-from mediakit.audio import convert, library
+from maneki.audio import convert, library
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -223,8 +223,8 @@ def test_audit_flags_track_gap(silent_flac_template: Path, tmp_path: Path) -> No
 
 def test_audit_does_not_flag_continuous_numbering_across_discs() -> None:
     """Mega-comp convention: disc 2's track 1 is numbered 10, etc. — not a gap."""
-    from mediakit.audio.library.audit import _audit_track_gaps
-    from mediakit.audio.library.models import LibraryAlbum, LibraryTrack
+    from maneki.audio.library.audit import _audit_track_gaps
+    from maneki.audio.library.models import LibraryAlbum, LibraryTrack
 
     album = LibraryAlbum(
         path=Path("/tmp/x"),
@@ -242,8 +242,8 @@ def test_audit_does_not_flag_continuous_numbering_across_discs() -> None:
 
 def test_audit_still_flags_real_gaps_within_continuous_disc() -> None:
     """Continuous numbering doesn't suppress real holes WITHIN a disc's range."""
-    from mediakit.audio.library.audit import _audit_track_gaps
-    from mediakit.audio.library.models import LibraryAlbum, LibraryTrack
+    from maneki.audio.library.audit import _audit_track_gaps
+    from maneki.audio.library.models import LibraryAlbum, LibraryTrack
 
     album = LibraryAlbum(
         path=Path("/tmp/x"),
@@ -261,8 +261,8 @@ def test_audit_still_flags_real_gaps_within_continuous_disc() -> None:
 
 def test_audit_per_disc_starting_at_1_still_flags_gaps_from_1() -> None:
     """Albums where each disc restarts at 1 still get the original behaviour."""
-    from mediakit.audio.library.audit import _audit_track_gaps
-    from mediakit.audio.library.models import LibraryAlbum, LibraryTrack
+    from maneki.audio.library.audit import _audit_track_gaps
+    from maneki.audio.library.models import LibraryAlbum, LibraryTrack
 
     album = LibraryAlbum(
         path=Path("/tmp/x"),
@@ -322,7 +322,7 @@ def test_audit_clean_album_has_no_warnings(silent_flac_template: Path, tmp_path:
 def test_library_command_renders_tree(silent_flac_template: Path, tmp_path: Path) -> None:
     from typer.testing import CliRunner
 
-    from mediakit.audio.cli import app
+    from maneki.audio.cli import app
 
     root = tmp_path / "lib"
     album = root / "Imagine Dragons" / "2012 - Night Visions"
@@ -338,7 +338,7 @@ def test_library_command_renders_tree(silent_flac_template: Path, tmp_path: Path
 def test_library_command_audit_table_lists_warnings(silent_flac_template: Path, tmp_path: Path) -> None:
     from typer.testing import CliRunner
 
-    from mediakit.audio.cli import app
+    from maneki.audio.cli import app
 
     root = tmp_path / "lib"
     album = root / "Unknown Artist" / "2020 - Mystery"
@@ -357,7 +357,7 @@ def test_library_command_json_output(silent_flac_template: Path, tmp_path: Path)
 
     from typer.testing import CliRunner
 
-    from mediakit.audio.cli import app
+    from maneki.audio.cli import app
 
     root = tmp_path / "lib"
     album = root / "Artist" / "2020 - Album"

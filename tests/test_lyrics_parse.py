@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from mediakit.audio.lyrics import LrcLine, is_synced, parse_lrc
+from maneki.audio.lyrics import LrcLine, is_synced, parse_lrc
 
 
 def test_parse_standard_lrc() -> None:

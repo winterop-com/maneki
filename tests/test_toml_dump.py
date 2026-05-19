@@ -1,7 +1,7 @@
-"""In-repo TOML writer (`mediakit.audio._toml_dump`).
+"""In-repo TOML writer (`maneki.audio._toml_dump`).
 
 Replaces the `tomli-w` dep for the two narrow shapes we serialise
-(stars.toml and state.toml) plus the `mediakit config migrate` output.
+(stars.toml and state.toml) plus the `maneki config migrate` output.
 Coverage focuses on round-trip correctness against `tomllib` and on
 the edge cases we actively rely on.
 """
@@ -15,7 +15,7 @@ from typing import Any
 
 import pytest
 
-from mediakit.audio import _toml_dump
+from maneki.audio import _toml_dump
 
 
 def _roundtrip(data: Mapping[str, Any]) -> dict[str, Any]:

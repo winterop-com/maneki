@@ -1,7 +1,7 @@
 """Tests for the base video file discovery (no transcoding / no DB).
 
 Library has no required subdirectory layout: video files anywhere
-under the root are picked up. Cache dirs (.mediakit/) are skipped.
+under the root are picked up. Cache dirs (.maneki/) are skipped.
 """
 
 from __future__ import annotations
@@ -10,7 +10,7 @@ from pathlib import Path
 
 import pytest
 
-from mediakit.video.serve.scan import has_videos, scan_videos
+from maneki.video.serve.scan import has_videos, scan_videos
 
 
 @pytest.fixture
@@ -92,16 +92,16 @@ def test_scan_videos_walks_nested_layout(nested_layout: Path) -> None:
     ]
 
 
-def test_scan_videos_skips_mediakit_cache_dir(tmp_path: Path) -> None:
-    """The server's own .mediakit/ cache must not be walked.
+def test_scan_videos_skips_maneki_cache_dir(tmp_path: Path) -> None:
+    """The server's own .maneki/ cache must not be walked.
 
     Otherwise extracted-subtitle .vtt files etc could leak into the
     library list, and (worse) HLS .ts segments saved during playback
     could be presented as user videos.
     """
     (tmp_path / "real.mkv").write_bytes(b"\x1a\x45\xdf\xa3real")
-    (tmp_path / ".mediakit").mkdir()
-    (tmp_path / ".mediakit" / "fake.mkv").write_bytes(b"\x1a\x45\xdf\xa3fake")
+    (tmp_path / ".maneki").mkdir()
+    (tmp_path / ".maneki" / "fake.mkv").write_bytes(b"\x1a\x45\xdf\xa3fake")
     entries = scan_videos(tmp_path)
     rel_paths = [e["rel_path"] for e in entries]
     assert rel_paths == ["real.mkv"]

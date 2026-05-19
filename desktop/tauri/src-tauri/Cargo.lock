@@ -1740,7 +1740,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "mediakit-desktop"
+name = "maneki-desktop"
 version = "0.1.0"
 dependencies = [
  "serde",

@@ -1,6 +1,6 @@
 # Desktop
 
-MediaKit ships two native desktop wrappers around a generic Subsonic
+Maneki ships two native desktop wrappers around a generic Subsonic
 client UI: a Tauri build (Rust + native WebKit on macOS) and an Electron
 build (bundled Chromium). Both are first-class — pick the one whose
 trade-offs you prefer.
@@ -16,7 +16,7 @@ trade-offs you prefer.
 ## What it is
 
 Both wrappers point the embedded webview at any Subsonic-compatible
-server — your own `mediakit serve`, [Navidrome], [Airsonic], whatever.
+server — your own `maneki serve`, [Navidrome], [Airsonic], whatever.
 They're not just thin chrome around the web UI; the SPA inside
 (`desktop/react/`) is a full client: salted-token auth, refresh-restore
 via URL hashes, and a Web Audio FFT visualizer.
@@ -35,8 +35,8 @@ Authenticode) is on the [roadmap](../roadmap.md); once that lands, the
 GHA matrix builds will come back.
 
 ```bash
-git clone https://github.com/winterop-com/mediakit.git
-cd mediakit
+git clone https://github.com/winterop-com/maneki.git
+cd maneki
 make build                    # all three (Python wheel + Tauri + Electron) -> ./dist/
 # OR one wrapper at a time:
 make desktop-tauri-build      # ~5 min on Apple Silicon — produces .app + .dmg
@@ -48,11 +48,11 @@ the repo root for easy access:
 
 ```
 dist/
-  mediakit-X.Y.Z-py3-none-any.whl
-  mediakit-X.Y.Z.tar.gz
-  MediaKit-Tauri-X.Y.Z-aarch64.dmg
-  MediaKit-Tauri.app
-  MediaKit-Electron-X.Y.Z-arm64.dmg
+  maneki-X.Y.Z-py3-none-any.whl
+  maneki-X.Y.Z.tar.gz
+  Maneki-Tauri-X.Y.Z-aarch64.dmg
+  Maneki-Tauri.app
+  Maneki-Electron-X.Y.Z-arm64.dmg
 ```
 
 Drag a `.dmg` into your Finder or double-click the `.app` directly.
@@ -62,7 +62,7 @@ Drag a `.dmg` into your Finder or double-click the `.app` directly.
 1. Launch the app — you get a login screen.
 2. Server URL: `http://<host>:8765` (or whatever your Subsonic-compatible
    server runs on). No `/rest` suffix.
-3. Username + password: same credentials as `mediakit serve`'s config.
+3. Username + password: same credentials as `maneki serve`'s config.
 4. The app connects, fetches the artist list, and remembers the
    credentials in OS-encrypted storage (Keychain on macOS, libsecret
    on Linux, Credential Manager on Windows).
@@ -72,7 +72,7 @@ Drag a `.dmg` into your Finder or double-click the `.app` directly.
 Resize the window to whatever you like — it's persisted across launches.
 Both wrappers write a small bounds file alongside their existing servers /
 session stores (Tauri: `window.json` in `app_data_dir`; Electron:
-`mediakit-window.json` in the same userData folder). Saves are skipped
+`maneki-window.json` in the same userData folder). Saves are skipped
 while minimized or fullscreen and below the configured 720x480 minimum,
 so a transient sub-min Resized event on macOS can't wedge the next launch
 at a tiny window. To reset to the 1440x900 default, delete that file.

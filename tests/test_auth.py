@@ -8,9 +8,9 @@ from pathlib import Path
 import pytest
 from fastapi.testclient import TestClient
 
-from mediakit.audio.serve.config import ServeConfig
-from mediakit.auth import Token, TokenStore
-from mediakit.serve_app import create_combined_app
+from maneki.audio.serve.config import ServeConfig
+from maneki.auth import Token, TokenStore
+from maneki.serve_app import create_combined_app
 
 _CFG = ServeConfig(username="admin", password="hunter2")
 

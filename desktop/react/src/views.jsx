@@ -3,7 +3,7 @@
 const { useEffect: useEff_v, useState: useSt_v, useRef: useRef_v } = React;
 
 function LoginView({ onConnect, themeMode, busyLabel }) {
-  // sameOrigin === true when the SPA is being served by `mediakit serve
+  // sameOrigin === true when the SPA is being served by `maneki serve
   // --ui` on the same origin as the API. Detected via /capabilities; if
   // that responds with our shape, hide the URL field entirely and post
   // to `<origin>/audio` (the Subsonic mount inside the unified server).
@@ -11,11 +11,11 @@ function LoginView({ onConnect, themeMode, busyLabel }) {
   // In the desktop wrappers (Tauri / Electron) the SPA is loaded as
   // file://, so window.location.origin won't talk to a server at all.
   // We fall back to probing http://127.0.0.1:8765/capabilities so a
-  // user running `mediakit serve` locally gets the URL field hidden
+  // user running `maneki serve` locally gets the URL field hidden
   // and zero typing required.
   //
   // sameOrigin / localServer === null while probing, then the probe
-  // result; either true means "found a local MediaKit, hide URL".
+  // result; either true means "found a local Maneki, hide URL".
   const [autoDetected, setAutoDetected] = useSt_v(null);  // null | "same-origin" | "localhost" | "none"
   const [detectedBase, setDetectedBase] = useSt_v("");
   // Desktop = Tauri or Electron wrapper. Can't rely on
@@ -27,7 +27,7 @@ function LoginView({ onConnect, themeMode, busyLabel }) {
   const isDesktop = !!window.__TAURI__ || (navigator.userAgent || "").toLowerCase().includes("electron/");
   // Just the base URL - no /audio mount suffix. The wiring layer
   // probes /capabilities on submit and appends /audio itself when
-  // it confirms the server is mediakit. For 3rd-party Subsonic
+  // it confirms the server is maneki. For 3rd-party Subsonic
   // servers (Navidrome, Airsonic) the URL stays as-is.
   const [url, setUrl] = useSt_v(isDesktop ? "http://127.0.0.1:8765" : window.location.origin);
   const [user, setUser] = useSt_v("admin");
@@ -43,7 +43,7 @@ function LoginView({ onConnect, themeMode, busyLabel }) {
         const resp = await fetch(origin + "/capabilities", { cache: "no-store" });
         if (!resp.ok) return null;
         const caps = await resp.json();
-        if (caps && caps.server === "mediakit" && caps.endpoints?.audio_subsonic) {
+        if (caps && caps.server === "maneki" && caps.endpoints?.audio_subsonic) {
           return { caps, origin };
         }
       } catch (_e) {
@@ -53,7 +53,7 @@ function LoginView({ onConnect, themeMode, busyLabel }) {
     }
 
     (async () => {
-      // 1. Same-origin probe (works when SPA is served by `mediakit
+      // 1. Same-origin probe (works when SPA is served by `maneki
       //    serve --ui`). Skipped on file:// since same-origin requests
       //    against file:// can't reach any HTTP server.
       let hit = null;
@@ -63,7 +63,7 @@ function LoginView({ onConnect, themeMode, busyLabel }) {
         if (hit) kind = "same-origin";
       }
       // 2. Localhost fallback - the typical desktop-wrapper case where
-      //    the user has `mediakit serve` running on the default port.
+      //    the user has `maneki serve` running on the default port.
       if (!hit) {
         hit = await probe("http://127.0.0.1:8765");
         if (hit) kind = "localhost";
@@ -103,7 +103,7 @@ function LoginView({ onConnect, themeMode, busyLabel }) {
   return (
     <div className="mk-login-shell">
       <div className="mk-login-brand">
-        <div className="mk-login-logo">MediaKit</div>
+        <div className="mk-login-logo">Maneki</div>
         <div className="mk-login-tag">desktop · v{document.querySelector('meta[name="mk-version"]')?.content || "?"}</div>
       </div>
       {/* noValidate: our custom check above ("Username and password
@@ -115,14 +115,14 @@ function LoginView({ onConnect, themeMode, busyLabel }) {
           validation removes that whole class of misleading errors. */}
       <form className="mk-login-card" onSubmit={submit} noValidate>
         <div className="mk-login-title">
-          {localFound ? "Sign in to MediaKit" : "Connect to a MediaKit server"}
+          {localFound ? "Sign in to Maneki" : "Connect to a Maneki server"}
         </div>
         <div className="mk-login-help">
           {autoDetected === "same-origin" && <>Talking to <code className="mono">{detectedBase}</code></>}
-          {autoDetected === "localhost" && <>Found a local MediaKit at <code className="mono">{detectedBase}</code></>}
+          {autoDetected === "localhost" && <>Found a local Maneki at <code className="mono">{detectedBase}</code></>}
           {autoDetected === "none" && (
             isDesktop
-              ? <>No local MediaKit found at <code className="mono">127.0.0.1:8765</code>. Start one with <code>mediakit serve &lt;library&gt;</code>, or point at a remote server below.</>
+              ? <>No local Maneki found at <code className="mono">127.0.0.1:8765</code>. Start one with <code>maneki serve &lt;library&gt;</code>, or point at a remote server below.</>
               : <>Defaults to the same origin as the SPA.</>
           )}
           {autoDetected === null && <>Looking for a local server…</>}

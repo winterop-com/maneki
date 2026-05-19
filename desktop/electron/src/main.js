@@ -36,7 +36,7 @@ const SAVE_DEBOUNCE_MS = 250;
 
 // Separate store from the servers / session files so a corrupt window
 // state can never wedge the login flow.
-const windowStore = new Store({ name: "mediakit-window" });
+const windowStore = new Store({ name: "maneki-window" });
 
 let mainWindow;
 
@@ -90,12 +90,12 @@ function createWindow() {
     minWidth: MIN_WIDTH,
     minHeight: MIN_HEIGHT,
     center: !usePosition,
-    title: "MediaKit",
+    title: "Maneki",
     icon: path.join(__dirname, "..", "..", "tauri", "src-tauri", "icons", "icon.png"),
     // Hide the native title-bar text so our in-app topbar IS the title
     // bar — Spotify / Linear / Notion / VSCode all do this. On macOS,
     // `hiddenInset` keeps the traffic-light buttons in their usual top-
-    // left position but drops the duplicated "MediaKit" label. CSS in
+    // left position but drops the duplicated "Maneki" label. CSS in
     // `_app.css` adds ~78px of left padding to `.topbar` on darwin so
     // the search input doesn't sit under the traffic lights, and
     // marks the bar as `-webkit-app-region: drag` so it functions as

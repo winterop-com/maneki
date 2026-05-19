@@ -6,12 +6,12 @@ from pathlib import Path
 
 from typer.testing import CliRunner
 
-from mediakit.audio import library as library_mod
-from mediakit.audio import playlist as playlist_mod
-from mediakit.audio.cli import app
-from mediakit.audio.library.models import LibraryAlbum, LibraryIndex, LibraryTrack
-from mediakit.audio.playlist.io import read_m3u8, write_m3u8
-from mediakit.audio.playlist.similarity import _genre_tokens, _year_int, score
+from maneki.audio import library as library_mod
+from maneki.audio import playlist as playlist_mod
+from maneki.audio.cli import app
+from maneki.audio.library.models import LibraryAlbum, LibraryIndex, LibraryTrack
+from maneki.audio.playlist.io import read_m3u8, write_m3u8
+from maneki.audio.playlist.similarity import _genre_tokens, _year_int, score
 from tests.test_library import _make_track
 
 # ---------------------------------------------------------------------------
@@ -270,10 +270,10 @@ def test_write_m3u8_uses_relative_paths_when_under_base(tmp_path: Path) -> None:
 
     track = LibraryTrack(path=track_path, title="T", artist="A", duration_s=180)
     result = playlist_mod.PlaylistResult(tracks=[track], name="Mix", target_seconds=600, actual_seconds=180)
-    out = base / ".mediakit" / "playlists" / "mix.m3u8"
+    out = base / ".maneki" / "playlists" / "mix.m3u8"
     write_m3u8(result, out)
     body = out.read_text(encoding="utf-8")
-    # Relative path from <base>/.mediakit/playlists to <base>/Artist/Album/01.m4a
+    # Relative path from <base>/.maneki/playlists to <base>/Artist/Album/01.m4a
     # is `../../Artist/Album/01.m4a`.
     assert "../../Artist/Album/01.m4a" in body
     assert str(track_path) not in body, "absolute path should NOT appear when relative is possible"
@@ -299,7 +299,7 @@ def test_write_m3u8_uses_walk_up_for_cross_tree_paths(tmp_path: Path) -> None:
 
 
 # ---------------------------------------------------------------------------
-# CLI: mediakit playlist gen / list / show
+# CLI: maneki playlist gen / list / show
 # ---------------------------------------------------------------------------
 
 
@@ -315,7 +315,7 @@ def _stage_min_library(tmp_path: Path, silent_flac_template: Path) -> Path:
 
 
 def test_cli_gen_produces_m3u8(silent_flac_template: Path, tmp_path: Path) -> None:
-    """`mediakit playlist gen` writes a .m3u8 with the seed at the top."""
+    """`maneki playlist gen` writes a .m3u8 with the seed at the top."""
     root = _stage_min_library(tmp_path, silent_flac_template)
     seed = root / "Pixies" / "1989 - Doolittle" / "01 - Debaser.m4a"
 

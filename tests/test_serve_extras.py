@@ -6,9 +6,9 @@ from pathlib import Path
 
 from fastapi.testclient import TestClient
 
-from mediakit.audio.library.models import LibraryAlbum, LibraryIndex, LibraryTrack
-from mediakit.audio.serve import ServeConfig, create_app
-from mediakit.audio.serve.ids import album_id, artist_id
+from maneki.audio.library.models import LibraryAlbum, LibraryIndex, LibraryTrack
+from maneki.audio.serve import ServeConfig, create_app
+from maneki.audio.serve.ids import album_id, artist_id
 
 
 def _params(**extra: str | int) -> dict[str, str | int]:

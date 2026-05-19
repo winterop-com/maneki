@@ -14,7 +14,7 @@ from typing import Any
 
 import pytest
 
-from mediakit.video.serve.subtitles import (
+from maneki.video.serve.subtitles import (
     EmbeddedSubtitle,
     SubtitleCache,
     probe_embedded_subtitles,
@@ -45,11 +45,11 @@ def _fake_run(stdout_json: dict[str, Any], returncode: int = 0) -> Any:
 
 def test_probe_returns_text_streams(monkeypatch: pytest.MonkeyPatch, video_file: Path) -> None:
     monkeypatch.setattr(
-        "mediakit.video.serve.subtitles.shutil.which",
+        "maneki.video.serve.subtitles.shutil.which",
         lambda _: "/usr/bin/ffprobe",
     )
     monkeypatch.setattr(
-        "mediakit.video.serve.subtitles.subprocess.run",
+        "maneki.video.serve.subtitles.subprocess.run",
         _fake_run(
             {
                 "streams": [
@@ -85,11 +85,11 @@ def test_probe_returns_text_streams(monkeypatch: pytest.MonkeyPatch, video_file:
 def test_probe_filters_image_based_codecs(monkeypatch: pytest.MonkeyPatch, video_file: Path) -> None:
     """PGS, DVD VobSub etc. need OCR - we don't surface them."""
     monkeypatch.setattr(
-        "mediakit.video.serve.subtitles.shutil.which",
+        "maneki.video.serve.subtitles.shutil.which",
         lambda _: "/usr/bin/ffprobe",
     )
     monkeypatch.setattr(
-        "mediakit.video.serve.subtitles.subprocess.run",
+        "maneki.video.serve.subtitles.subprocess.run",
         _fake_run(
             {
                 "streams": [
@@ -118,17 +118,17 @@ def test_probe_filters_image_based_codecs(monkeypatch: pytest.MonkeyPatch, video
 
 
 def test_probe_without_ffprobe_returns_empty(monkeypatch: pytest.MonkeyPatch, video_file: Path) -> None:
-    monkeypatch.setattr("mediakit.video.serve.subtitles.shutil.which", lambda _: None)
+    monkeypatch.setattr("maneki.video.serve.subtitles.shutil.which", lambda _: None)
     assert probe_embedded_subtitles(video_file) == []
 
 
 def test_probe_handles_missing_tags(monkeypatch: pytest.MonkeyPatch, video_file: Path) -> None:
     monkeypatch.setattr(
-        "mediakit.video.serve.subtitles.shutil.which",
+        "maneki.video.serve.subtitles.shutil.which",
         lambda _: "/usr/bin/ffprobe",
     )
     monkeypatch.setattr(
-        "mediakit.video.serve.subtitles.subprocess.run",
+        "maneki.video.serve.subtitles.subprocess.run",
         _fake_run({"streams": [{"index": 2, "codec_name": "subrip"}]}),
     )
     result = probe_embedded_subtitles(video_file)

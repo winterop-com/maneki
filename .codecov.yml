@@ -18,4 +18,4 @@ ignore:
   - "docs/**"
   - "desktop/**"
   - "scripts/**"
-  - "src/mediakit/audio/_ui_static/**"
+  - "src/maneki/audio/_ui_static/**"

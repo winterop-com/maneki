@@ -1,0 +1,213 @@
+"""Subsonic browsing endpoints — artists, albums, songs, indexes, album lists."""
+
+from __future__ import annotations
+
+import random as random_mod
+from typing import Any
+
+from fastapi import APIRouter, Query, Request
+
+from maneki.audio.serve.app import envelope, error_envelope
+from maneki.audio.serve.index import IndexCache
+from maneki.audio.serve.payloads import album_payload, artist_summary, song_payload
+from maneki.audio.serve.stars import StarStore
+
+router = APIRouter()
+
+_IGNORED_ARTICLES = "The El La Los Las Le Les"
+
+
+def _get_cache(request: Request) -> IndexCache:
+    return request.app.state.cache  # type: ignore[no-any-return]
+
+
+def _get_stars(request: Request) -> StarStore:
+    return request.app.state.stars  # type: ignore[no-any-return]
+
+
+def _index_letter(name: str) -> str:
+    """Bucket a name into an A-Z group. Articles + non-letters fold to '#'."""
+    stripped = name.lstrip()
+    for article in _IGNORED_ARTICLES.split():
+        prefix = article + " "
+        if stripped.lower().startswith(prefix.lower()):
+            stripped = stripped[len(prefix) :]
+            break
+    if not stripped:
+        return "#"
+    first = stripped[0].upper()
+    return first if first.isalpha() else "#"
+
+
+@router.api_route("/getArtists", methods=["GET", "POST", "HEAD"])
+@router.api_route("/getArtists.view", methods=["GET", "POST", "HEAD"], include_in_schema=False)
+async def get_artists(request: Request) -> dict:
+    """Alphabetically grouped artist list — the modern (ID3) browse root."""
+    cache = _get_cache(request)
+    buckets: dict[str, list[dict[str, Any]]] = {}
+    for ar_id in cache.artists_by_id:
+        letter = _index_letter(cache.artist_name_by_id[ar_id])
+        buckets.setdefault(letter, []).append(artist_summary(cache, ar_id))
+    index = []
+    for letter in sorted(buckets):
+        artists = sorted(buckets[letter], key=lambda a: str(a["name"]).casefold())
+        index.append({"name": letter, "artist": artists})
+    return envelope("artists", {"ignoredArticles": _IGNORED_ARTICLES, "index": index})
+
+
+@router.api_route("/getIndexes", methods=["GET", "POST", "HEAD"])
+@router.api_route("/getIndexes.view", methods=["GET", "POST", "HEAD"], include_in_schema=False)
+async def get_indexes(request: Request) -> dict:
+    """Legacy folder-based browse — same shape as getArtists, different envelope key."""
+    cache = _get_cache(request)
+    buckets: dict[str, list[dict[str, Any]]] = {}
+    for ar_id in cache.artists_by_id:
+        letter = _index_letter(cache.artist_name_by_id[ar_id])
+        buckets.setdefault(letter, []).append(artist_summary(cache, ar_id))
+    index = []
+    for letter in sorted(buckets):
+        artists = sorted(buckets[letter], key=lambda a: str(a["name"]).casefold())
+        index.append({"name": letter, "artist": artists})
+    return envelope(
+        "indexes",
+        {"ignoredArticles": _IGNORED_ARTICLES, "lastModified": 0, "index": index},
+    )
+
+
+@router.api_route("/getArtist", methods=["GET", "POST", "HEAD"])
+@router.api_route("/getArtist.view", methods=["GET", "POST", "HEAD"], include_in_schema=False)
+async def get_artist(
+    request: Request,
+    id: str = Query(..., description="Artist id, e.g. `ar_abc123`. Returned by `getArtists`."),
+) -> dict:
+    """Albums for one artist."""
+    cache = _get_cache(request)
+    stars = _get_stars(request)
+    albums = cache.artists_by_id.get(id)
+    if albums is None:
+        return error_envelope(70, f"Artist not found: {id}")
+    sorted_albums = sorted(albums, key=lambda a: (a.tag_year or "9999", (a.tag_album or a.album_dir).casefold()))
+    payload = {
+        "id": id,
+        "name": cache.artist_name_by_id[id],
+        "albumCount": len(sorted_albums),
+        "coverArt": id,
+        "album": [stars.enrich(album_payload(a, with_songs=False)) for a in sorted_albums],
+    }
+    stars.enrich(payload)
+    return envelope("artist", payload)
+
+
+@router.api_route("/getAlbum", methods=["GET", "POST", "HEAD"])
+@router.api_route("/getAlbum.view", methods=["GET", "POST", "HEAD"], include_in_schema=False)
+async def get_album(
+    request: Request,
+    id: str = Query(
+        ..., description="Album id, e.g. `al_abc123`. Returned by `getArtist` / `getAlbumList2` / `search3`."
+    ),
+) -> dict:
+    """One album with its tracks."""
+    cache = _get_cache(request)
+    stars = _get_stars(request)
+    album = cache.albums_by_id.get(id)
+    if album is None:
+        return error_envelope(70, f"Album not found: {id}")
+    payload = album_payload(album, with_songs=True)
+    stars.enrich(payload)
+    for song in payload.get("song", []):
+        stars.enrich(song)
+    return envelope("album", payload)
+
+
+@router.api_route("/getSong", methods=["GET", "POST", "HEAD"])
+@router.api_route("/getSong.view", methods=["GET", "POST", "HEAD"], include_in_schema=False)
+async def get_song(
+    request: Request,
+    id: str = Query(..., description="Song id, e.g. `tr_abc123`. Returned by `getAlbum` / `search3` / `getStarred2`."),
+) -> dict:
+    """One track."""
+    cache = _get_cache(request)
+    pair = cache.tracks_by_id.get(id)
+    if pair is None:
+        return error_envelope(70, f"Song not found: {id}")
+    album, track = pair
+    return envelope("song", song_payload(album, track))
+
+
+@router.api_route("/getAlbumList2", methods=["GET", "POST", "HEAD"])
+@router.api_route("/getAlbumList2.view", methods=["GET", "POST", "HEAD"], include_in_schema=False)
+async def get_album_list2(  # noqa: PLR0912 — Subsonic's `type` enum has many cases
+    request: Request,
+    type: str = Query(
+        default="alphabeticalByName",
+        description=(
+            "Sort / filter mode. Subsonic spec values: `alphabeticalByName`, "
+            "`alphabeticalByArtist`, `newest`, `recent`, `frequent`, `starred`, "
+            "`random`, `byYear` (needs `fromYear`/`toYear`), `byGenre` (needs "
+            "`genre`)."
+        ),
+    ),
+    size: int = Query(default=10, ge=1, le=500, description="Max albums to return (1-500)."),
+    offset: int = Query(default=0, ge=0, description="Skip this many albums (pagination)."),
+    fromYear: int | None = Query(default=None, description="`byYear` only: inclusive lower bound."),
+    toYear: int | None = Query(default=None, description="`byYear` only: inclusive upper bound."),
+    genre: str | None = Query(default=None, description="`byGenre` only: genre name to filter on."),
+) -> dict:
+    """Flat album list for browse-screens (NEW / RANDOM / A-Z / By Year / By Genre)."""
+    cache = _get_cache(request)
+    albums = list(cache.albums_by_id.values())
+
+    if type == "random":
+        random_mod.shuffle(albums)
+    elif type == "byYear":
+        if fromYear is None or toYear is None:
+            return error_envelope(10, "byYear requires fromYear and toYear")
+        lo, hi = (fromYear, toYear) if fromYear <= toYear else (toYear, fromYear)
+        albums = [a for a in albums if a.tag_year and lo <= _year_int(a.tag_year) <= hi]
+        # Subsonic sorts byYear chronologically (ascending fromYear → toYear, descending if reversed).
+        descending = fromYear > toYear
+        albums.sort(key=lambda a: _year_int(a.tag_year or "0"), reverse=descending)
+    elif type == "byGenre":
+        if not genre:
+            return error_envelope(10, "byGenre requires genre")
+        target = genre.casefold()
+        albums = [
+            a
+            for a in albums
+            if (a.tag_genre and a.tag_genre.casefold() == target) or any(_track_has_genre(t, target) for t in a.tracks)
+        ]
+        albums.sort(key=lambda a: (a.tag_album or a.album_dir).casefold())
+    elif type == "alphabeticalByArtist":
+        albums.sort(key=lambda a: (a.artist_dir.casefold(), (a.tag_album or a.album_dir).casefold()))
+    else:
+        # alphabeticalByName + every unsupported type (newest, highest, frequent,
+        # recent, starred) all fall back to alphabetical-by-name. Cleaner than
+        # returning an error for clients that reach for "newest" by default.
+        albums.sort(key=lambda a: (a.tag_album or a.album_dir).casefold())
+
+    page = albums[offset : offset + size]
+    return envelope("albumList2", {"album": [album_payload(a, with_songs=False) for a in page]})
+
+
+def _track_has_genre(track: object, target_casefold: str) -> bool:
+    """Match a track's genre by either its single `genre` or any of its `genres[]`.
+
+    OpenSubsonic's `multipleGenres` extension exposes per-track lists; the
+    legacy single-genre field is still populated, but a track tagged
+    `genres=["Rock", "Indie"]` should match `byGenre=Indie` even when
+    `track.genre == "Rock"`.
+    """
+    single = getattr(track, "genre", None) or ""
+    if single.casefold() == target_casefold:
+        return True
+    for g in getattr(track, "genres", None) or ():
+        if g.casefold() == target_casefold:
+            return True
+    return False
+
+
+def _year_int(year: str) -> int:
+    try:
+        return int(year)
+    except ValueError:
+        return 0

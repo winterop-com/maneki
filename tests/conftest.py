@@ -55,7 +55,7 @@ def silent_m4a(silent_flac_template: Path, tmp_path_factory: pytest.TempPathFact
     the second container open. Session-scope means one conversion total
     per pytest run, regardless of how many files use it.
     """
-    from mediakit.audio import convert as convert_mod
+    from maneki.audio import convert as convert_mod
 
     out = tmp_path_factory.mktemp("silent_m4a") / "silent.m4a"
     convert_mod.to_alac(silent_flac_template, out)

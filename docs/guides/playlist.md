@@ -1,11 +1,11 @@
-# `mediakit audio playlist`
+# `maneki audio playlist`
 
 Auto-generated `.m3u8` playlists anchored to a seed track. Tag-based similarity only — no audio fingerprinting, no remote lookups, no play-history dependency.
 
 ## Quick start
 
 ```bash
-uvx mediakit audio playlist gen ~/Music \
+uvx maneki audio playlist gen ~/Music \
     --seed "~/Music/Pixies/1989 - Doolittle/01 - Debaser.m4a" \
     --minutes 60
 ```
@@ -14,7 +14,7 @@ Output:
 
 ```
 Generated Mix - Pixies - Debaser (24 tracks, 61.2 min / target 60 min)
-→ ~/Music/.mediakit/playlists/mix-pixies-debaser.m3u8
+→ ~/Music/.maneki/playlists/mix-pixies-debaser.m3u8
 ```
 
 The generated `.m3u8` is a plain extended M3U with `#EXTINF` lines, so VLC, mpv, and every Subsonic client open it directly.
@@ -22,9 +22,9 @@ The generated `.m3u8` is a plain extended M3U with `#EXTINF` lines, so VLC, mpv,
 ## Subcommands
 
 ```
-mediakit audio playlist gen ROOT --seed PATH [--minutes 60] [--name NAME] [--out PATH] [--random-seed N]
-mediakit audio playlist list ROOT
-mediakit audio playlist show ROOT NAME
+maneki audio playlist gen ROOT --seed PATH [--minutes 60] [--name NAME] [--out PATH] [--random-seed N]
+maneki audio playlist list ROOT
+maneki audio playlist show ROOT NAME
 ```
 
 ### `gen` — generate a mix
@@ -33,7 +33,7 @@ mediakit audio playlist show ROOT NAME
 |---|---|---|
 | `--seed PATH` | required | Seed track. Absolute path, or a bare filename present in the library. |
 | `--minutes N` | `60.0` | Target playlist length in minutes. |
-| `--out PATH` | `<ROOT>/.mediakit/playlists/<slug>.m3u8` | Output file. Slug is derived from `--name` (or from the seed if no name). |
+| `--out PATH` | `<ROOT>/.maneki/playlists/<slug>.m3u8` | Output file. Slug is derived from `--name` (or from the seed if no name). |
 | `--name NAME` | `Mix - <artist> - <title>` | Display name written into `#PLAYLIST:` header. |
 | `--random-seed N` | unseeded | Seed the tie-breaker RNG so repeat invocations produce identical output (useful for debugging or sharing). |
 | `--no-cache` | off | Skip the SQLite library index; in-memory scan only. |
@@ -42,15 +42,15 @@ mediakit audio playlist show ROOT NAME
 ### `list` — show saved mixes
 
 ```bash
-uvx mediakit audio playlist list ~/Music
+uvx maneki audio playlist list ~/Music
 ```
 
-Renders a table of every `.m3u8` under `<ROOT>/.mediakit/playlists/`, with track counts and on-disk paths.
+Renders a table of every `.m3u8` under `<ROOT>/.maneki/playlists/`, with track counts and on-disk paths.
 
 ### `show` — print a saved mix's tracks
 
 ```bash
-uvx mediakit audio playlist show ~/Music mix-pixies-debaser
+uvx maneki audio playlist show ~/Music mix-pixies-debaser
 ```
 
 Prints the resolved track paths from the `.m3u8` with `[y]` / `[n]` markers showing whether each file still exists on disk. Useful for sanity-checking a saved mix after moving / renaming files.
@@ -90,7 +90,7 @@ Standard extended M3U:
 ...
 ```
 
-Paths inside the file are computed with `Path.relative_to(walk_up=True)` (Python 3.12+). The playlist file at `<root>/.mediakit/playlists/foo.m3u8` references tracks via `../../Artist/Album/track.m4a` — works in every audio player and survives moving the whole library tree as a unit. Cross-filesystem paths fall back to absolute.
+Paths inside the file are computed with `Path.relative_to(walk_up=True)` (Python 3.12+). The playlist file at `<root>/.maneki/playlists/foo.m3u8` references tracks via `../../Artist/Album/track.m4a` — works in every audio player and survives moving the whole library tree as a unit. Cross-filesystem paths fall back to absolute.
 
 ## Use cases
 

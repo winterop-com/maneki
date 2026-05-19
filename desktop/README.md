@@ -1,9 +1,9 @@
-# MediaKit Desktop
+# Maneki Desktop
 
 Generic Subsonic clients for the desktop. Two parallel wrappers under
 `tauri/` and `electron/` both load the same SPA from `desktop/react/`
 (React + Babel-standalone, no build step). The SPA talks to **any
-spec-compliant Subsonic server** (mediakit serve, Navidrome, Airsonic,
+spec-compliant Subsonic server** (maneki serve, Navidrome, Airsonic,
 Gonic, …) via the `/rest/*` JSON API; the password never crosses the
 wire after login because we use the spec's salted-token auth
 (`token = md5(password + salt)`).
@@ -20,7 +20,7 @@ desktop/
 ├── react/                    ← shared SPA (React + Babel-standalone, no build step)
 │   ├── index.html               entry — boots React UMD + Babel + script tags in order
 │   ├── main.jsx                 renders <window.MK_App /> into #root
-│   ├── mediakit.css             designer-authored styles, theme tokens, layout variants
+│   ├── maneki.css             designer-authored styles, theme tokens, layout variants
 │   ├── desktop-overrides.css    wrapper-specific overrides (macOS traffic-light clearance, etc.)
 │   ├── favicon.svg
 │   └── src/
@@ -74,7 +74,7 @@ You'll need a Subsonic-compatible server running somewhere — the
 login form asks for its URL. For local testing:
 
 ```bash
-mediakit serve /path/to/library     # in another terminal
+maneki serve /path/to/library     # in another terminal
 make desktop-tauri-dev
 ```
 
@@ -113,7 +113,7 @@ visualizer, command palette, repeat/shuffle, marquee titles.
 
 Window size + position are persisted across launches. Both wrappers
 write a small bounds file (`window.json` for Tauri in `app_data_dir`,
-`mediakit-window.json` for Electron in the same userData directory as
+`maneki-window.json` for Electron in the same userData directory as
 the servers / session stores) and reapply on next launch. Saves are
 gated on min size 720x480 and skipped while minimized or fullscreen
 so a transient sub-min Resized event can't wedge the next launch at
@@ -121,7 +121,7 @@ a tiny window — a regression we hit when we tried
 `tauri-plugin-window-state` / `electron-window-state` directly.
 
 **Phase E — Internet radio: TODO.** `getInternetRadioStations` is
-already returned by mediakit serve; click-to-play directly via
+already returned by maneki serve; click-to-play directly via
 `<audio src="<station-url>">` should "just work".
 
 **Phase F — Distribution: TODO.** Apple Developer ID + notarization

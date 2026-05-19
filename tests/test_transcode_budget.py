@@ -6,7 +6,7 @@ import asyncio
 
 import pytest
 
-from mediakit.video.serve.transcode_budget import TranscodeBudget, default_workers
+from maneki.video.serve.transcode_budget import TranscodeBudget, default_workers
 
 pytestmark = pytest.mark.asyncio
 

@@ -7,15 +7,15 @@ from pathlib import Path
 import pytest
 from fastapi.testclient import TestClient
 
-from mediakit.audio import radio
-from mediakit.audio.radio import DEFAULT_STATIONS
-from mediakit.audio.serve import ServeConfig, create_app
+from maneki.audio import radio
+from maneki.audio.radio import DEFAULT_STATIONS
+from maneki.audio.serve import ServeConfig, create_app
 
 
 def _client(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> TestClient:
     cfg = ServeConfig(username="mort", password="secret")
     # Point stations_path() at a tmp file so the test doesn't depend on
-    # the developer's `~/.config/mediakit/radio.toml`.
+    # the developer's `~/.config/maneki/radio.toml`.
     monkeypatch.setattr(radio, "stations_path", lambda: tmp_path / "radio.toml")
     return TestClient(create_app(root=tmp_path, cfg=cfg))
 

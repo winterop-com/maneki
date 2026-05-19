@@ -8,9 +8,9 @@ import pytest
 from mutagen.id3 import ID3
 from mutagen.mp3 import MP3
 
-from mediakit.audio import convert
-from mediakit.audio.convert import OutputFormat, normalize_bitrate
-from mediakit.audio.metadata import AlbumSummary, SourceTrack, write_tags
+from maneki.audio import convert
+from maneki.audio.convert import OutputFormat, normalize_bitrate
+from maneki.audio.metadata import AlbumSummary, SourceTrack, write_tags
 
 
 def test_normalize_bitrate_accepts_common_forms():
@@ -57,7 +57,7 @@ def test_encode_to_mp3_and_write_id3_tags(silent_flac: Path, tmp_path: Path) -> 
 
 
 def test_lossy_source_classification(tmp_path: Path) -> None:
-    from mediakit.audio.convert import is_lossy_source
+    from maneki.audio.convert import is_lossy_source
 
     flac = tmp_path / "track.flac"
     flac.write_bytes(b"not really a flac, but extension is enough")
@@ -74,8 +74,8 @@ def test_lossy_source_classification(tmp_path: Path) -> None:
 
 def test_lossy_source_m4a_probes_codec(silent_flac: Path, tmp_path: Path) -> None:
     """ALAC m4a is lossless; AAC m4a is lossy. Probe via mutagen."""
-    from mediakit.audio import convert
-    from mediakit.audio.convert import OutputFormat, is_lossy_source
+    from maneki.audio import convert
+    from maneki.audio.convert import OutputFormat, is_lossy_source
 
     alac_out = tmp_path / "alac.m4a"
     convert.encode(silent_flac, alac_out, OutputFormat.ALAC)
@@ -87,7 +87,7 @@ def test_lossy_source_m4a_probes_codec(silent_flac: Path, tmp_path: Path) -> Non
 
 
 def test_would_be_lossy_recompress_only_blocks_lossy_to_lossy(tmp_path: Path) -> None:
-    from mediakit.audio.convert import OutputFormat, would_be_lossy_recompress
+    from maneki.audio.convert import OutputFormat, would_be_lossy_recompress
 
     mp3 = tmp_path / "src.mp3"
     mp3.write_bytes(b"")
@@ -112,8 +112,8 @@ def test_auto_resolve_picks_per_source(silent_flac: Path, tmp_path: Path) -> Non
     get a free stream-copy. MP3 / other lossy sources accept a one-time
     tandem encode in exchange for landing in `.m4a` with proper MP4 tags.
     """
-    from mediakit.audio import convert
-    from mediakit.audio.convert import OutputFormat, auto_resolve
+    from maneki.audio import convert
+    from maneki.audio.convert import OutputFormat, auto_resolve
 
     # FLAC source → AAC encode.
     fmt, copy = auto_resolve(silent_flac)
@@ -142,8 +142,8 @@ def test_remux_mp3_to_m4a_preserves_stream(silent_flac: Path, tmp_path: Path) ->
     """The remux must keep MP3 audio bytes intact and produce a valid MP4."""
     from mutagen.mp4 import MP4
 
-    from mediakit.audio import convert
-    from mediakit.audio.convert import OutputFormat
+    from maneki.audio import convert
+    from maneki.audio.convert import OutputFormat
 
     mp3 = tmp_path / "src.mp3"
     convert.encode(silent_flac, mp3, OutputFormat.MP3, bitrate="128k")
@@ -163,8 +163,8 @@ def test_encode_rejects_auto() -> None:
 
     import pytest
 
-    from mediakit.audio import convert
-    from mediakit.audio.convert import OutputFormat
+    from maneki.audio import convert
+    from maneki.audio.convert import OutputFormat
 
     with pytest.raises(ValueError, match="AUTO"):
         convert.encode(Path("/nope.flac"), Path("/nope.m4a"), OutputFormat.AUTO)

@@ -1,4 +1,4 @@
-"""`mediakit inspect` — pretty-printed tag dump for one audio file."""
+"""`maneki inspect` — pretty-printed tag dump for one audio file."""
 
 from __future__ import annotations
 
@@ -7,7 +7,7 @@ from pathlib import Path
 
 from typer.testing import CliRunner
 
-from mediakit.audio.cli import app
+from maneki.audio.cli import app
 from tests.test_library import _make_track
 
 

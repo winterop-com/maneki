@@ -1,7 +1,7 @@
 {
-  "name": "mediakit-desktop-electron",
+  "name": "maneki-desktop-electron",
   "version": "0.1.0",
-  "description": "Electron sibling of the MediaKit desktop wrapper \u2014 for comparison with the Tauri build.",
+  "description": "Electron sibling of the Maneki desktop wrapper \u2014 for comparison with the Tauri build.",
   "author": {
     "name": "Morten Hansen",
     "email": "morten@winterop.com"
@@ -24,9 +24,9 @@
     "electron-builder": "^26.0.0"
   },
   "build": {
-    "appId": "com.winterop.mediakit.electron",
-    "productName": "MediaKit",
-    "artifactName": "MediaKit-Electron-${version}-${arch}.${ext}",
+    "appId": "com.winterop.maneki.electron",
+    "productName": "Maneki",
+    "artifactName": "Maneki-Electron-${version}-${arch}.${ext}",
     "asar": true,
     "directories": {
       "output": "dist"

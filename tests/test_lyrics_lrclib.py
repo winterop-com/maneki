@@ -5,7 +5,7 @@ from __future__ import annotations
 import httpx
 import pytest
 
-from mediakit.audio.lyrics import LrcLibClient, LrcLibError
+from maneki.audio.lyrics import LrcLibClient, LrcLibError
 
 
 def _client(handler: object) -> LrcLibClient:

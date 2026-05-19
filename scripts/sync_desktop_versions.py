@@ -5,13 +5,13 @@ version. The user-visible bundle metadata (Tauri `tauri.conf.json` and
 Electron `package.json`) needs to mirror it so the .app / .dmg
 artifacts report a consistent number — those values flow into
 Info.plist's `CFBundleShortVersionString`, the DMG filename
-(`MediaKit-Tauri-X.Y.Z-…dmg` / `MediaKit-Electron-X.Y.Z-…dmg`), and
+(`Maneki-Tauri-X.Y.Z-…dmg` / `Maneki-Electron-X.Y.Z-…dmg`), and
 the macOS About window.
 
 We deliberately do NOT sync `desktop/tauri/src-tauri/Cargo.toml`'s
 `[package].version`. That field is internal Cargo metadata; nothing
 user-facing reads it. Bumping it on every release caused
-`Cargo.lock`'s `mediakit-desktop` entry to drift by one version
+`Cargo.lock`'s `maneki-desktop` entry to drift by one version
 because CI never runs `cargo build` to refresh the lock — every
 Python release left a stale lock entry that needed a follow-up
 chore PR. Pinning the crate at a stable internal version (currently

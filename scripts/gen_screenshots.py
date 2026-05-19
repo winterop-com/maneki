@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Generate SVG screenshots of the mediakit TUI for the docs.
+"""Generate SVG screenshots of the maneki TUI for the docs.
 
 Builds a small fixture library of silent tagged tracks, drives
 `MediakitApp` headlessly via Textual's `Pilot`, presses key sequences to
@@ -268,7 +268,7 @@ async def _capture(
     heights instead of all-zero (which is what real playback of the
     silent fixture tracks produces).
     """
-    from mediakit.audio.tui.app import MediakitApp
+    from maneki.audio.tui.app import MediakitApp
 
     print(f"  [{name}] {note}")
     app = MediakitApp(root)
@@ -306,7 +306,7 @@ async def _capture(
         # cycle to settle on whatever final state the keypresses produced.
         await pilot.pause()
         await pilot.pause()
-        svg = app.export_screenshot(title=f"mediakit · {name}")
+        svg = app.export_screenshot(title=f"maneki · {name}")
     (out_dir / f"{name}.svg").write_text(svg)
 
 
@@ -315,7 +315,7 @@ async def main() -> None:
     out_dir = Path("docs/screenshots")
     out_dir.mkdir(parents=True, exist_ok=True)
 
-    with tempfile.TemporaryDirectory(prefix="mediakit-screenshots-") as td:
+    with tempfile.TemporaryDirectory(prefix="maneki-screenshots-") as td:
         root = Path(td)
         print(f"Building fixture library at {root} ...")
         build_fixture_library(root)

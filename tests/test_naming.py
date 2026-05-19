@@ -1,6 +1,6 @@
 """Filesystem-safe name building."""
 
-from mediakit.audio.naming import (
+from maneki.audio.naming import (
     VARIOUS_ARTISTS,
     album_folder,
     artist_folder,
@@ -83,7 +83,7 @@ def test_va_aliases_include_localised_forms():
 
 def test_leading_year_from_folder_extracts_canonical_date():
     """Hand-curated leading year wins over reissue years inside the dir name."""
-    from mediakit.audio.naming import leading_year_from_folder
+    from maneki.audio.naming import leading_year_from_folder
 
     assert leading_year_from_folder("1983. Now That's What I Call Music! [2018 Reissue]") == "1983"
     assert leading_year_from_folder("2012 - Night Visions") == "2012"
@@ -101,7 +101,7 @@ def test_leading_year_from_folder_extracts_canonical_date():
 
 def test_folder_name_implies_va_for_scene_naming():
     """Scene-rip dir names like `VA-Absolute_Music_60` should signal compilation."""
-    from mediakit.audio.naming import folder_name_implies_va
+    from maneki.audio.naming import folder_name_implies_va
 
     assert folder_name_implies_va("VA-Absolute_Music_60") is True
     assert folder_name_implies_va("VA_Absolute_Music_47") is True
@@ -118,7 +118,7 @@ def test_folder_name_implies_va_for_scene_naming():
 
 def test_smart_title_case_only_acts_on_all_lowercase():
     """Title-case fires only when source has zero uppercase — protects real casing."""
-    from mediakit.audio.naming import smart_title_case
+    from maneki.audio.naming import smart_title_case
 
     # All-lowercase → titled.
     assert smart_title_case("hang with me") == "Hang With Me"
@@ -140,7 +140,7 @@ def test_smart_title_case_only_acts_on_all_lowercase():
 
 def test_scene_domain_detection_handles_multilabel_hosts():
     """`www.0dayvinyls.org` survived the single-dot regex; multi-dot now caught."""
-    from mediakit.audio.naming import is_scene_domain_artist
+    from maneki.audio.naming import is_scene_domain_artist
 
     assert is_scene_domain_artist("www.0dayvinyls.org") is True
     assert is_scene_domain_artist("releases.scene.cc") is True
@@ -150,7 +150,7 @@ def test_scene_domain_detection_handles_multilabel_hosts():
 
 def test_scene_domain_artist_detection():
     """Domain-shaped 'artists' (vandalism by rip groups) detected as fake."""
-    from mediakit.audio.naming import is_scene_domain_artist
+    from maneki.audio.naming import is_scene_domain_artist
 
     assert is_scene_domain_artist("LanzamientosMp3.es") is True
     assert is_scene_domain_artist("boxset.me") is True

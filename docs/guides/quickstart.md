@@ -1,16 +1,16 @@
 # Quickstart
 
-End-to-end walkthrough — from `uvx mediakit` to playing a track on Amperfy from
+End-to-end walkthrough — from `uvx maneki` to playing a track on Amperfy from
 across the room. Roughly 30 minutes of wall-clock time on a 200-album library;
 most of it is the convert pipeline and the cover-pick loop.
 
 The route this guide takes:
 
-1. Set up the Mac (mediakit + ffmpeg + Tailscale)
+1. Set up the Mac (maneki + ffmpeg + Tailscale)
 2. Convert a sample library
 3. Audit + auto-fix the warnings
 4. Pick covers for the flagged albums
-5. Start `mediakit serve`
+5. Start `maneki serve`
 6. Set up the iPhone (Tailscale + Amperfy)
 7. Connect Amperfy to the server and play a track
 
@@ -21,29 +21,29 @@ you're on the same Wi-Fi or somewhere else.
 
 ## 1. Mac setup
 
-### Install mediakit
+### Install maneki
 
-The lowest-friction way is [`uvx`](https://docs.astral.sh/uv/) — it downloads the latest published `mediakit` from [PyPI](https://pypi.org/project/mediakit/), caches it, and runs it in one step. No install step required:
+The lowest-friction way is [`uvx`](https://docs.astral.sh/uv/) — it downloads the latest published `maneki` from [PyPI](https://pypi.org/project/maneki/), caches it, and runs it in one step. No install step required:
 
 ```bash
-uvx mediakit --help
+uvx maneki --help
 ```
 
 For daily / persistent use (PATH-installed, no per-run network check):
 
 ```bash
-uv tool install mediakit       # recommended (uv-managed, isolated venv on PATH)
-pipx install mediakit          # equivalent for pipx users
-pip install mediakit           # plain pip into current env
+uv tool install maneki       # recommended (uv-managed, isolated venv on PATH)
+pipx install maneki          # equivalent for pipx users
+pip install maneki           # plain pip into current env
 ```
 
-Either route pulls every Python dep. The rest of this guide uses `uvx mediakit ...` for examples — substitute `mediakit ...` if you went the persistent-install route.
+Either route pulls every Python dep. The rest of this guide uses `uvx maneki ...` for examples — substitute `maneki ...` if you went the persistent-install route.
 
-If you want to hack on MediaKit itself, see [Development](development.md) for the `git clone` + `uv sync` flow.
+If you want to hack on Maneki itself, see [Development](development.md) for the `git clone` + `uv sync` flow.
 
 ### Install system ffmpeg
 
-`mediakit serve` shells out to system `ffmpeg` / `ffprobe` for Subsonic
+`maneki serve` shells out to system `ffmpeg` / `ffprobe` for Subsonic
 on-the-fly transcoding, video HLS segments, and subtitle extraction. The
 `convert` pipeline uses them too:
 
@@ -73,10 +73,10 @@ tailscale ip -4                           # your Tailscale IPv4
 hostname -f                               # local hostname
 ```
 
-### Sanity-check mediakit
+### Sanity-check maneki
 
 ```bash
-uvx mediakit --help
+uvx maneki --help
 ```
 
 You should see `serve / library / audio / video` listed.
@@ -88,7 +88,7 @@ handles `Artist/Album/`, `Artist/Album/CD1/CD2/`, scene-tagged dirs, and
 flat dumps. For a quickstart run a sample of 5–20 albums is enough.
 
 ```bash
-uvx mediakit audio convert ./input ./output
+uvx maneki audio convert ./input ./output
 ```
 
 Default output is `output/<Artist>/<YYYY> - <Album>/NN - <Title>.m4a` at
@@ -102,7 +102,7 @@ guide points at that directory.
 ## 3. Audit + fix
 
 ```bash
-uvx mediakit audio library audit ./output --issues-only
+uvx maneki audio library audit ./output --issues-only
 ```
 
 Shows a table of every album with at least one warning: missing cover,
@@ -111,8 +111,8 @@ track gaps. You can ignore most of these for a first run; the deterministic
 ones get fixed by:
 
 ```bash
-uvx mediakit audio library fix ./output --dry-run        # preview
-uvx mediakit audio library fix ./output                  # apply
+uvx maneki audio library fix ./output --dry-run        # preview
+uvx maneki audio library fix ./output                  # apply
 ```
 
 The fixer makes one MusicBrainz HTTP call per flagged album to backfill
@@ -123,7 +123,7 @@ for clean albums means there's nothing to fix.
 For the cover-art warnings, the semi-automated path is:
 
 ```bash
-uvx mediakit audio library cover-pick ./output
+uvx maneki audio library cover-pick ./output
 ```
 
 Per album, this:
@@ -135,7 +135,7 @@ Per album, this:
 3. Click any cover on that page; musichoarders' UI puts the image URL
    on your clipboard.
 4. Paste it back into the terminal. `s` to skip, `q` to quit.
-5. mediakit downloads, validates with Pillow, resizes to fit
+5. maneki downloads, validates with Pillow, resizes to fit
    `--cover-max-edge` (default 1000 px), saves as `cover.jpg`, embeds
    into every track.
 
@@ -145,7 +145,7 @@ dropped.
 ## 4. Start the server
 
 ```bash
-uvx mediakit serve ./output
+uvx maneki serve ./output
 ```
 
 By default this:
@@ -159,7 +159,7 @@ By default this:
 You'll see a startup banner like:
 
 ```
-mediakit serve — Subsonic API for ~/Music
+maneki serve — Subsonic API for ~/Music
   bind: 127.0.0.1:8765
   LAN:  http://192.168.1.42:8765
   Tailscale: http://mlaptop.tail4a4b9a.ts.net:8765
@@ -167,7 +167,7 @@ mediakit serve — Subsonic API for ~/Music
 scanning library…
    142 artists, 318 albums, 4521 tracks
 
-  mDNS: advertising as mediakit-mlaptop._subsonic._tcp.local
+  mDNS: advertising as maneki-mlaptop._subsonic._tcp.local
   watching ~/Music for changes (auto-rescan on add/remove/rename)
 ```
 
@@ -176,18 +176,18 @@ Note the **Tailscale** URL — that's what the iPhone will use.
 For anything beyond a private LAN, set proper credentials. The simplest path:
 
 ```bash
-mkdir -p ~/.config/mediakit
-cat > ~/.config/mediakit/mediakit.toml <<'EOF'
+mkdir -p ~/.config/maneki
+cat > ~/.config/maneki/maneki.toml <<'EOF'
 [server]
 username = "your-username"
 password = "your-strong-password"
 EOF
 ```
 
-Restart `mediakit serve` — the yellow warning is gone.
+Restart `maneki serve` — the yellow warning is gone.
 
 (If you're upgrading from a pre-v0.11 install with a `serve.toml`, run
-`mediakit audio config migrate` once to move it to the new format.)
+`maneki audio config migrate` once to move it to the new format.)
 
 Leave the server running. You can also run it as a background process via
 launchd / systemd; see [Serve](serve-unified.md) for examples.
@@ -214,7 +214,7 @@ Visit `/capabilities` and you should see a JSON probe response like:
 
 ```json
 {
-  "server": "mediakit",
+  "server": "maneki",
   "version": "0.1.0",
   "audio": true,
   "video": true,
@@ -227,7 +227,7 @@ Visit `/capabilities` and you should see a JSON probe response like:
 }
 ```
 
-The `audio` / `video` flags reflect what mediakit found at the library root — only mounted kinds are reported.
+The `audio` / `video` flags reflect what maneki found at the library root — only mounted kinds are reported.
 
 If that loads, the iPhone can reach the server.
 
@@ -238,14 +238,14 @@ recommend for iOS. play:Sub, iSub, Substreamer all work too — Amperfy
 is the most feature-complete, including OpenSubsonic extensions and
 synced lyrics.)
 
-### Connect Amperfy to mediakit serve
+### Connect Amperfy to maneki serve
 
 Open Amperfy → first-launch screen prompts for a server. Fill in:
 
 - **Server URL**: `http://mlaptop.tail4a4b9a.ts.net:8765` (your Mac's
   Tailscale URL — no trailing slash, no `/rest`).
-- **Username**: `admin` (or whatever you put in `mediakit.toml`).
-- **Password**: `admin` (or whatever you put in `mediakit.toml`).
+- **Username**: `admin` (or whatever you put in `maneki.toml`).
+- **Password**: `admin` (or whatever you put in `maneki.toml`).
 
 Tap **Login**. Amperfy probes `/rest/ping`, then `/rest/getMusicFolders`
 and `/rest/getArtists` to populate the library. On first connect with a
@@ -254,7 +254,7 @@ and `/rest/getArtists` to populate the library. On first connect with a
 If login fails, the most common causes are:
 
 - Tailscale not connected on the iPhone (check the menu icon).
-- Wrong port (`mediakit serve` listens on 8765 by default; Navidrome
+- Wrong port (`maneki serve` listens on 8765 by default; Navidrome
   uses 4533, AirSonic uses 4040 — match whatever your server prints
   at startup).
 - HTTPS expected but not configured. Default `serve` is plain HTTP. If
@@ -274,13 +274,13 @@ Try the things you'd expect from a Subsonic client:
   going.
 - **Lock-screen controls** — pause / next / prev work.
 - **Seek scrubber** — Amperfy uses the Subsonic `transcodeOffset`
-  extension (which mediakit advertises) for accurate mid-track resume.
+  extension (which maneki advertises) for accurate mid-track resume.
 - **Search** — `/rest/search3` matches against artist, album, and track
   titles.
 
 ## 6. Optional: browse + play locally on the Mac
 
-`mediakit serve --ui` mounts the web SPA at the same origin as the API.
+`maneki serve --ui` mounts the web SPA at the same origin as the API.
 Open `http://127.0.0.1:8765/` in any browser and you get the full
 audio + video UI with the same login (admin / admin by default).
 
@@ -296,15 +296,15 @@ Once it's running:
 - **Add albums** — drop new dirs into `./output/` (or wherever you
   pointed `serve`). The watcher picks them up within ~5 seconds. New
   album appears in Amperfy's library on next pull-to-refresh.
-- **Edit tags** — `mediakit audio library retag <album-dir> --year 2020`,
+- **Edit tags** — `maneki audio library retag <album-dir> --year 2020`,
   `--album-artist 'New Name'`, etc. The watcher catches the file mtime
   changes and re-reads only that album.
-- **Replace covers** — `mediakit audio library cover <album-dir> new.jpg`
+- **Replace covers** — `maneki audio library cover <album-dir> new.jpg`
   embeds the new cover into every track.
-- **Audit periodically** — `mediakit audio library audit ./output --issues-only`
+- **Audit periodically** — `maneki audio library audit ./output --issues-only`
   surfaces newly-introduced warnings (a recent rip might have
   unexpected scene tags).
-- **Inspect a single track** — `mediakit audio inspect path/to/track.m4a`
+- **Inspect a single track** — `maneki audio inspect path/to/track.m4a`
   pretty-prints its tags, embedded picture, ReplayGain.
 
 ## Troubleshooting
@@ -313,7 +313,7 @@ Once it's running:
 
 Check, in order:
 
-1. Is `mediakit serve` still running? Restart if not.
+1. Is `maneki serve` still running? Restart if not.
 2. Is Tailscale connected on the iPhone? Open the app and confirm.
 3. Can you load the JSON probe URL in Mobile Safari? If yes, the
    transport works — the issue is in Amperfy's auth / URL setup.
@@ -322,7 +322,7 @@ Check, in order:
 ### Symfonium / play:Sub / Feishin instead of Amperfy
 
 The Subsonic API is identical — only the client UI changes. URL +
-credentials work the same. mediakit specifically advertises the
+credentials work the same. maneki specifically advertises the
 `formPost`, `transcodeOffset`, `multipleGenres`, `songLyrics`
 OpenSubsonic extensions; Amperfy and Symfonium are the two clients
 that exercise all of them, so they get the most polished UX.
@@ -331,11 +331,11 @@ that exercise all of them, so they get the most polished UX.
 
 The first launch of `serve` against a fresh library does a full
 filesystem walk + tag read. After that, the SQLite index at
-`<output>/.mediakit/index.db` is hydrated and only filesystem deltas
+`<output>/.maneki/index.db` is hydrated and only filesystem deltas
 are re-scanned. If a launch ever feels mysteriously slow, run:
 
 ```bash
-uvx mediakit audio library index status ./output
+uvx maneki audio library index status ./output
 ```
 
 to inspect the DB and confirm it exists. `--full-rescan` (on `tree` or

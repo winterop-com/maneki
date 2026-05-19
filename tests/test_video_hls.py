@@ -7,8 +7,8 @@ from pathlib import Path
 import pytest
 from fastapi.testclient import TestClient
 
-from mediakit.video.serve import create_app
-from mediakit.video.serve.hls import (
+from maneki.video.serve import create_app
+from maneki.video.serve.hls import (
     SEG_LEN,
     build_manifest,
     plan_segments,

@@ -11,7 +11,7 @@ from __future__ import annotations
 import shutil
 from pathlib import Path
 
-from mediakit.audio import library
+from maneki.audio import library
 from tests.test_library import _make_track
 
 

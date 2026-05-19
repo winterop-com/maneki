@@ -1,6 +1,6 @@
 // VIDEO section views - VideosPane (list) + VideoPlayerPane (player).
 //
-// Styled with the mk-* tokens already in mediakit.css so the look matches
+// Styled with the mk-* tokens already in maneki.css so the look matches
 // the rest of the SPA (Tokyo-Night palette, monospace meta, blue accent).
 //
 // Playback uses video.js v10 loaded via CDN (index.html). On mount it
@@ -218,7 +218,7 @@ function VideoPlayerPane({ session, video, onClose }) {
       // Contact-sheet poster: shows the video at a glance while paused
       // (and during seek buffer stalls) instead of a blank canvas.
       // Generated server-side; first request transcodes ~9 frames, then
-      // cached on disk under <root>/.mediakit/posters/.
+      // cached on disk under <root>/.maneki/posters/.
       poster: window.MK_VIDEO.posterUrl(session, video.id),
       // Tell the browser to hide ALL its own chrome (URL bar, tab strip)
       // when entering fullscreen. The default 'auto' lets Chrome keep

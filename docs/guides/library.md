@@ -1,17 +1,17 @@
-# `mediakit library`
+# `maneki library`
 
-Cross-cutting tools that operate on a single library root containing both audio and video. The same root you'd hand to [`mediakit serve`](serve-unified.md).
+Cross-cutting tools that operate on a single library root containing both audio and video. The same root you'd hand to [`maneki serve`](serve-unified.md).
 
-For audio-specific deep operations (audit, retag, cover-pick, lyrics, ...) see [`mediakit audio library`](audio-library.md) — those stay under the audio subgroup.
+For audio-specific deep operations (audit, retag, cover-pick, lyrics, ...) see [`maneki audio library`](audio-library.md) — those stay under the audio subgroup.
 
 ## Subcommands
 
-### `mediakit library info <root>`
+### `maneki library info <root>`
 
 Print file counts per kind for one library root. Rendered as a rich panel.
 
 ```bash
-mediakit library info ~/Downloads/library
+maneki library info ~/Downloads/library
 ```
 
 ```
@@ -21,12 +21,12 @@ mediakit library info ~/Downloads/library
   video  105 files
 ```
 
-### `mediakit library list <root>` (alias: `ls`)
+### `maneki library list <root>` (alias: `ls`)
 
 Walk the library root and print every audio / video file found, grouped by kind. Cheap — filesystem stat only, no ffprobe / no Mutagen / no DB write.
 
 ```bash
-mediakit library ls ~/Downloads/library
+maneki library ls ~/Downloads/library
 ```
 
 ```
@@ -43,7 +43,7 @@ Video  105 files
   ...
 ```
 
-### `mediakit library inspect <file>`
+### `maneki library inspect <file>`
 
 Dispatch by extension:
 
@@ -51,7 +51,7 @@ Dispatch by extension:
 - **Video file** — ffprobe-driven file / container info, video streams (codec, resolution, fps, bitrate, profile / pix_fmt), audio streams (codec, channels, sample rate, language, title), subtitle streams (codec, language, default / forced flags).
 
 ```bash
-mediakit library inspect ~/Downloads/library/tv/ch01.mkv
+maneki library inspect ~/Downloads/library/tv/ch01.mkv
 ```
 
 ```
@@ -80,19 +80,19 @@ mediakit library inspect ~/Downloads/library/tv/ch01.mkv
 
 ## Filesystem layout
 
-There is no subdirectory convention. `mediakit library` walks the root recursively and picks files up by extension.
+There is no subdirectory convention. `maneki library` walks the root recursively and picks files up by extension.
 
 - **Audio** — `.mp3`, `.m4a`, `.m4b`, `.flac`, `.wav`, `.aiff`, `.aif`, `.ogg`, `.opus`, `.aac`, `.wma`, `.ape`. (`.mp4` is intentionally not in the audio set — it would collide with movie files. Use `.m4a` for audio-in-mp4-container.)
 - **Video** — `.mkv`, `.mp4`, `.m4v`, `.webm`, `.mov`, `.avi`, `.ts`, `.m2ts`, `.mts`, `.wmv`, `.flv`, `.mpg`, `.mpeg`, `.vob`, `.ogv`, `.ogg`, `.3gp`, `.3g2`, `.asf`, `.divx`.
 
-The server's own `.mediakit/` cache directory is always skipped — internal artefacts (poster art, HLS segments, extracted subtitles, SQLite index) never appear in the listing.
+The server's own `.maneki/` cache directory is always skipped — internal artefacts (poster art, HLS segments, extracted subtitles, SQLite index) never appear in the listing.
 
 ## What this is not
 
-`mediakit library` is intentionally simple: it counts, lists, and inspects files. It does not:
+`maneki library` is intentionally simple: it counts, lists, and inspects files. It does not:
 
-- index into a SQLite cache (that's what `mediakit serve` does internally for the Subsonic side)
-- audit or fix audio metadata (use [`mediakit audio library audit`](audio-library.md))
+- index into a SQLite cache (that's what `maneki serve` does internally for the Subsonic side)
+- audit or fix audio metadata (use [`maneki audio library audit`](audio-library.md))
 - transcode or extract artwork / subtitles (file inventory + probe only)
 
 Use it as the quick "what's in my library" check.

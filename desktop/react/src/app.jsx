@@ -1,4 +1,4 @@
-// MediaKit main app — three-pane browse, now-playing, transport, overlays.
+// Maneki main app — three-pane browse, now-playing, transport, overlays.
 
 const { useState: uS, useEffect: uE, useMemo: uM, useRef: uR, useCallback: uC } = React;
 
@@ -17,7 +17,7 @@ const TWEAK_DEFAULTS = /*EDITMODE-BEGIN*/{
 }/*EDITMODE-END*/;
 
 // Layout variants:
-//   topband   — current MediaKit: Now Playing as top hero band (with Spectrum)
+//   topband   — current Maneki: Now Playing as top hero band (with Spectrum)
 //   bottombar — slim bottom transport bar + expandable mini-player
 //   rightrail — Spotify-ish dedicated right column for Now Playing
 
@@ -69,8 +69,8 @@ function App() {
   const [albumId, setAlbumId] = uS(null);
 
   // Video — `hasVideo` is null until the capability probe completes (then
-  // `true` for MediaKit servers with /video/api/* or `false` for everything
-  // else, including non-MediaKit Subsonic servers like Navidrome). The
+  // `true` for Maneki servers with /video/api/* or `false` for everything
+  // else, including non-Maneki Subsonic servers like Navidrome). The
   // sidebar's VIDEO section is hidden when hasVideo !== true.
   // Vertical-tabs mode: the whole SPA is either in "audio" or "video"
   // mode at a time (matching the user's "play music OR watch a movie"
@@ -124,7 +124,7 @@ function App() {
     });
     return () => { cancelled = true; };
   }, [authed]);
-  // Auto-switch to video when there's no audio (e.g. mediakit serve
+  // Auto-switch to video when there's no audio (e.g. maneki serve
   // --video-only). Doesn't override an explicit user switch.
   React.useEffect(() => {
     if (!hasAudio && hasVideo) setKind("video");
@@ -581,7 +581,7 @@ function App() {
       return (
         <div className="mk-resume-shell">
           <div className="mk-resume-card">
-            <div className="mk-resume-brand">MediaKit</div>
+            <div className="mk-resume-brand">Maneki</div>
             <div className="mk-resume-spinner" aria-hidden="true" />
             <div className="mk-resume-label">Loading library…</div>
           </div>

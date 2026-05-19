@@ -4,9 +4,9 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from mediakit.video.serve.hls import HLS_CACHE_VERSION, HLSManager
-from mediakit.video.serve.poster import PosterManager
-from mediakit.video.serve.subtitles import SubtitleCache
+from maneki.video.serve.hls import HLS_CACHE_VERSION, HLSManager
+from maneki.video.serve.poster import PosterManager
+from maneki.video.serve.subtitles import SubtitleCache
 
 
 def _pre_seed_hls_marker(base: Path) -> None:

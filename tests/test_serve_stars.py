@@ -1,11 +1,11 @@
-"""StarStore — TOML-backed favourites store at `<root>/.mediakit/stars.toml`."""
+"""StarStore — TOML-backed favourites store at `<root>/.maneki/stars.toml`."""
 
 from __future__ import annotations
 
 import re
 from pathlib import Path
 
-from mediakit.audio.serve.stars import StarStore
+from maneki.audio.serve.stars import StarStore
 
 
 def test_empty_store_round_trips(tmp_path: Path) -> None:
@@ -78,11 +78,11 @@ def test_corrupt_file_starts_empty(tmp_path: Path) -> None:
 
 
 def test_for_root_canonical_path(tmp_path: Path) -> None:
-    """`StarStore.for_root(root)` resolves to `<root>/.mediakit/stars.toml`."""
+    """`StarStore.for_root(root)` resolves to `<root>/.maneki/stars.toml`."""
     root = tmp_path / "lib"
     root.mkdir()
     s = StarStore.for_root(root)
-    assert s.path == root / ".mediakit" / "stars.toml"
+    assert s.path == root / ".maneki" / "stars.toml"
 
 
 def test_prune_removes_stale_ids(tmp_path: Path) -> None:

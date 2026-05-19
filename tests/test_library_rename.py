@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from mediakit.audio.library import (
+from maneki.audio.library import (
     LibraryAlbum,
     LibraryTrack,
     RenameError,
