@@ -27,7 +27,11 @@ def inspect(
     ] = False,
 ) -> None:
     """Dump the tags + embedded picture info for one audio file."""
-    console = Console()
+    inspect_audio_file(path, console=Console(), json_out=json_out)
+
+
+def inspect_audio_file(path: Path, *, console: Console, json_out: bool = False) -> None:
+    """Pretty-print the tags + cover for one audio file. Reusable from other CLIs."""
     track = read_source(path)
 
     if json_out:

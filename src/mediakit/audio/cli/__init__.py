@@ -19,15 +19,14 @@ from mediakit import __version__
 # most common starting commands so a new user sees what's available
 # without hunting through `--help` on every subcommand.
 _APP_HELP = (
-    f"mediakit audio (v{__version__}) - convert audio rips into a clean tagged "
-    "library and stream over Tailscale via a Subsonic-compatible HTTP server."
+    f"mediakit audio (v{__version__}) - convert audio rips into a clean tagged library."
     """
 
 [bold]Common starts[/]
 
   [cyan]mediakit audio convert ./input ./output[/]   Convert a rips dir into a clean library
   [cyan]mediakit audio library audit ./output[/]     Audit the converted library for issues
-  [cyan]mediakit audio serve ./output[/]             Subsonic server for iOS / Android clients
+  [cyan]mediakit serve ./output[/]                   Start the unified server (audio + video)
 
 Pass [cyan]--help[/] after any subcommand for its options.
 """
@@ -90,7 +89,6 @@ from mediakit.audio.cli import inspect as _inspect_cmd  # noqa: E402
 from mediakit.audio.cli import library as _library_cmd  # noqa: E402
 from mediakit.audio.cli import playlist as _playlist_cmd  # noqa: E402
 from mediakit.audio.cli import retag as _retag_cmd  # noqa: E402
-from mediakit.audio.cli import serve as _serve_cmd  # noqa: E402
 from mediakit.audio.cli import ui as _ui_cmd  # noqa: E402
 
 _ = (
@@ -102,6 +100,5 @@ _ = (
     _library_cmd,
     _playlist_cmd,
     _retag_cmd,
-    _serve_cmd,
     _ui_cmd,
 )

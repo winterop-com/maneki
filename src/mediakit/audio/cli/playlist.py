@@ -130,6 +130,7 @@ def cmd_gen(
 
 
 @playlist_app.command("list")
+@playlist_app.command("ls", hidden=True)
 def cmd_list(
     target_dir: Annotated[
         Path,

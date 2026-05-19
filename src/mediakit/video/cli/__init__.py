@@ -1,14 +1,12 @@
-"""Typer subcommand group for video - minimal base for Stage 2.
+"""Typer subcommand group for video.
 
-`mediakit video serve` starts the FastAPI app from `mediakit.video.serve`.
-`convert` and `library` remain no-op placeholders reserved for later
-phases - see MEDIAKIT-STAGE2.md.
+Video serving lives under the top-level `mediakit serve` command, which
+auto-detects audio and video in a single library root. This group is
+reserved for video-specific tooling that doesn't belong on the unified
+serve command (organise / probe / library tools, added later).
 """
 
 from __future__ import annotations
-
-from pathlib import Path
-from typing import Annotated
 
 import typer
 
@@ -16,30 +14,8 @@ app = typer.Typer(
     no_args_is_help=True,
     add_completion=False,
     rich_markup_mode="rich",
-    help="Video commands - base layer (scan / list / range-stream).",
+    help="Video tooling (placeholders - see `mediakit serve` for serving).",
 )
-
-
-@app.command()
-def serve(
-    root: Annotated[Path, typer.Argument(help="Library root - expects a videos/ subdirectory")],
-    host: Annotated[str, typer.Option("--host", help="Host to bind")] = "127.0.0.1",
-    port: Annotated[int, typer.Option("--port", "-p", help="Port to bind")] = 8765,
-) -> None:
-    """Start the minimal MediaKit-native video server.
-
-    Endpoints exposed:
-      GET /capabilities                 server identity + kind presence
-      GET /api/videos                   flat list of video files under <root>/videos/
-      GET /api/videos/{id}/stream       raw bytes with HTTP Range support
-    """
-    import uvicorn
-
-    from mediakit.video.serve import create_app
-
-    server_app = create_app(root.resolve())
-    typer.echo(f"mediakit video serve - {root.resolve()} on http://{host}:{port}")
-    uvicorn.run(server_app, host=host, port=port, log_level="info")
 
 
 @app.command()

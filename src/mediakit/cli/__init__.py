@@ -13,31 +13,27 @@ import typer
 
 from mediakit import __version__
 from mediakit.audio.cli import app as audio_app
-from mediakit.config import config_path, load_library_locations
 from mediakit.library import (
-    FileEntry,
     LibrarySummary,
     ScanResult,
     scan_files,
-    scan_many,
     summarize,
-    summarize_many,
 )
 from mediakit.video.cli import app as video_app
 
 _APP_HELP = (
-    f"Self-hosted media toolkit (v{__version__}) - audio + video under one roof."
+    f"Self-hosted media toolkit (v{__version__}) - one server, one library, audio + video."
     """
 
 [bold]Top-level commands[/]
 
-  [cyan]mediakit serve[/]    Start the combined audio + video server (one process)
+  [cyan]mediakit serve[/]    Start the server against a library root
   [cyan]mediakit library[/]  Summarise / scan one or more libraries
 
 [bold]Subcommand groups[/]
 
-  [cyan]mediakit audio[/]    Music: convert, audit, standalone Subsonic server, web UI
-  [cyan]mediakit video[/]    Video: standalone video server
+  [cyan]mediakit audio[/]    Music: convert, audit, retag, playlist tools
+  [cyan]mediakit video[/]    Video: inspect, probe, library tools
 
 Pass [cyan]--help[/] after any group for its commands.
 
@@ -68,18 +64,16 @@ def _print_version(value: bool) -> None:
 
 @app.command("serve")
 def serve_cmd(
-    root: Annotated[Path, typer.Argument(help="Library root containing audio/ and/or videos/ subdirectories")],
+    root: Annotated[Path, typer.Argument(help="Library root - scanned recursively for both audio and video files")],
     host: Annotated[str, typer.Option("--host", help="Interface to bind")] = "127.0.0.1",
     port: Annotated[int, typer.Option("--port", "-p", help="Port to bind")] = 8765,
-    audio_only: Annotated[bool, typer.Option("--audio-only", help="Mount only the audio (Subsonic) endpoints")] = False,
-    video_only: Annotated[bool, typer.Option("--video-only", help="Mount only the video endpoints")] = False,
     auth: Annotated[
         bool,
         typer.Option("--auth", help="Require bearer-token auth on /video/* (Subsonic keeps its own auth)"),
     ] = False,
     ui: Annotated[
         bool,
-        typer.Option("--ui", help="Also serve the MediaKit SPA at /ui/ (from desktop/react/)"),
+        typer.Option("--ui", help="Serve the MediaKit SPA at / (from desktop/react/)"),
     ] = False,
     workers: Annotated[
         int,
@@ -95,10 +89,14 @@ def serve_cmd(
         ),
     ] = 0,
 ) -> None:
-    """Start the combined audio + video server.
+    """Start the MediaKit server.
 
-    Auto-detects what's at the root (audio/, videos/ subdirs) and mounts
-    the corresponding sub-apps. URL layout:
+    Pass a single library root. The server scans the whole tree at startup
+    and mounts only the kinds that actually have content: a root with just
+    music gets no /video/* routes; a root with just movies gets no
+    /audio/rest/* routes; mixed roots mount both.
+
+    URL layout (per-kind paths exist only when the kind is mounted):
 
       /capabilities         server identity + what's mounted
       POST /auth/login      exchange credentials for a bearer token
@@ -115,14 +113,8 @@ def serve_cmd(
 
     from mediakit.serve_app import create_combined_app
 
-    if audio_only and video_only:
-        typer.echo("--audio-only and --video-only are mutually exclusive", err=True)
-        raise typer.Exit(code=2)
-
     combined = create_combined_app(
         root=root.resolve(),
-        enable_audio=not video_only,
-        enable_video=not audio_only,
         enable_auth=auth,
         enable_ui=ui,
         transcode_workers=workers or None,
@@ -131,7 +123,7 @@ def serve_cmd(
     if auth:
         flags.append("auth on /video/*")
     if ui:
-        flags.append("SPA at /ui/")
+        flags.append("SPA at /")
     actual_workers = workers or "auto"
     flags.append(f"workers={actual_workers}")
     flag_note = f" ({', '.join(flags)})"
@@ -155,97 +147,107 @@ def _global_options(
 
 
 library_app = typer.Typer(
-    no_args_is_help=False,
+    no_args_is_help=True,
     add_completion=False,
     rich_markup_mode="rich",
-    invoke_without_command=True,
-    help="Summarise / scan one or more media libraries (audio + video).",
+    help="Inspect a library root - cross-cutting audio + video.",
 )
 
 
-@library_app.callback(invoke_without_command=True)
-def _library_default(ctx: typer.Context) -> None:
-    """When invoked without a subcommand, summarise every configured library."""
-    if ctx.invoked_subcommand is not None:
-        return
-    locations = _resolve_library_locations()
-    _print_summaries(summarize_many(locations))
-
-
-@library_app.command("summary")
-def library_summary(
-    root: Annotated[
-        Path | None,
-        typer.Argument(help="One library root. Default: all configured locations."),
-    ] = None,
+@library_app.command("info")
+def library_info(
+    root: Annotated[Path, typer.Argument(help="Library root to describe.")],
 ) -> None:
-    """Summarise one or all configured libraries (kind counts)."""
-    if root is not None:
-        _print_summaries([summarize(root.resolve())])
-        return
-    locations = _resolve_library_locations()
-    _print_summaries(summarize_many(locations))
+    """Print audio + video file counts for one library root."""
+    _print_summaries([summarize(root.resolve())])
 
 
-@library_app.command("scan")
-def library_scan(
-    root: Annotated[
-        Path | None,
-        typer.Argument(help="One library root. Default: all configured locations."),
-    ] = None,
+@library_app.command("list")
+@library_app.command("ls", hidden=True)
+def library_list(
+    root: Annotated[Path, typer.Argument(help="Library root to walk.")],
 ) -> None:
-    """Walk one or all configured libraries and print every file found."""
-    if root is not None:
-        _print_scans([scan_files(root.resolve())])
-        return
-    locations = _resolve_library_locations()
-    _print_scans(scan_many(locations))
+    """List every audio and video file under a library root (cheap stat walk, no probe)."""
+    _print_scans([scan_files(root.resolve())])
 
 
-def _resolve_library_locations() -> list[Path]:
-    locations = load_library_locations()
-    if not locations:
-        typer.echo(
-            f"no libraries configured. Create {config_path()} with:\n\n"
-            "  [libraries]\n"
-            '  locations = ["~/Downloads/library"]\n\n'
-            "Or pass a path: mediakit library [<path>] | mediakit library scan [<path>]",
-            err=True,
-        )
+@library_app.command("inspect")
+def library_inspect(
+    path: Annotated[
+        Path,
+        typer.Argument(exists=True, dir_okay=False, help="Single audio or video file to inspect."),
+    ],
+) -> None:
+    """Inspect one file - dispatches to the audio (tags + cover) or video (streams) inspector by extension."""
+    from rich.console import Console
+
+    from mediakit.audio.cli.inspect import inspect_audio_file
+    from mediakit.audio.metadata import SUPPORTED_AUDIO_EXTS
+    from mediakit.video.inspect import inspect_video_file
+    from mediakit.video.serve.scan import VIDEO_EXTENSIONS
+
+    console = Console()
+    suffix = path.suffix.lower()
+    if suffix in SUPPORTED_AUDIO_EXTS:
+        inspect_audio_file(path, console=console)
+    elif suffix in VIDEO_EXTENSIONS:
+        inspect_video_file(path, console=console)
+    else:
+        typer.echo(f"unsupported extension: {path.suffix} (not audio, not video)", err=True)
         raise typer.Exit(code=1)
-    return locations
 
 
 def _print_summaries(summaries: list[LibrarySummary]) -> None:
+    from rich.box import SIMPLE_HEAVY
+    from rich.console import Console
+    from rich.table import Table
+
+    console = Console()
     for i, s in enumerate(summaries):
         if i > 0:
-            typer.echo("")
-        typer.echo(f"Library: {s.root}")
-        if s.audio_dir is not None:
-            typer.echo(f"  audio: {s.audio_count:>6} tracks   ({s.audio_dir.name}/)")
-        else:
-            typer.echo("  audio:    (no audio/ or music/ subdir)")
-        if s.video_dir is not None:
-            typer.echo(f"  video: {s.video_count:>6} files    ({s.video_dir.name}/)")
-        else:
-            typer.echo("  video:    (no videos/ or video/ subdir)")
+            console.print("")
+        table = Table.grid(padding=(0, 2))
+        table.add_column(style="dim")
+        table.add_column()
+        table.add_row("root", str(s.root))
+        table.add_row("audio", f"{s.audio_count:,} tracks")
+        table.add_row("video", f"{s.video_count:,} files")
+        if s.is_empty:
+            table.add_row("", "[yellow](no audio or video files found)[/]")
+        from rich.panel import Panel
+
+        console.print(Panel(table, title="[bold]Library[/bold]", border_style="cyan", box=SIMPLE_HEAVY))
 
 
 def _print_scans(scans: list[ScanResult]) -> None:
+    from rich.box import SIMPLE_HEAVY
+    from rich.console import Console
+    from rich.panel import Panel
+    from rich.table import Table
+
+    console = Console()
     for i, s in enumerate(scans):
         if i > 0:
-            typer.echo("")
-        typer.echo(f"Library: {s.root}")
-        if s.audio_dir is not None:
-            typer.echo(f"\n  audio ({s.audio_dir.name}/) - {len(s.audio)} tracks")
+            console.print("")
+        console.print(Panel(f"[bold]{s.root}[/]", border_style="cyan", box=SIMPLE_HEAVY))
+        if s.audio:
+            console.print(f"\n[bold cyan]Audio[/]  [dim]{len(s.audio)} tracks[/]")
+            table = Table(box=None, show_header=False, pad_edge=False, padding=(0, 2))
+            table.add_column()
+            table.add_column(justify="right", style="dim")
             for entry in s.audio:
-                typer.echo(f"    {entry.rel_path}  ({_fmt_size(entry.size_bytes)})")
-        if s.video_dir is not None:
-            typer.echo(f"\n  video ({s.video_dir.name}/) - {len(s.video)} files")
+                table.add_row(str(entry.rel_path), _fmt_size(entry.size_bytes))
+            console.print(table)
+        if s.video:
+            console.print(f"\n[bold cyan]Video[/]  [dim]{len(s.video)} files[/]")
+            table = Table(box=None, show_header=False, pad_edge=False, padding=(0, 2))
+            table.add_column()
+            table.add_column(justify="right", style="dim")
             for entry in s.video:
-                typer.echo(f"    {entry.rel_path}  ({_fmt_size(entry.size_bytes)})")
-        if s.audio_dir is None and s.video_dir is None:
-            typer.echo("  (empty - no audio/ or videos/ subdir)")
+                table.add_row(str(entry.rel_path), _fmt_size(entry.size_bytes))
+            console.print(table)
+        if not s.audio and not s.video:
+            console.print("[yellow](empty - no audio or video files found)[/]")
 
 
 def _fmt_size(n: int) -> str:
@@ -257,10 +259,6 @@ def _fmt_size(n: int) -> str:
             return f"{size:.1f} {unit}" if unit != "B" else f"{int(size)} {unit}"
         size /= 1024
     return f"{n} B"
-
-
-# Mark unused imports as touched (Typer registration handles the actual wiring).
-_ = (FileEntry,)
 
 
 app.add_typer(library_app, name="library")
