@@ -6,7 +6,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Documentation](https://img.shields.io/badge/docs-mkdocs-blue.svg)](https://winterop-com.github.io/mediakit/)
 
-Python 3.13 CLI for a self-hosted media library — audio (convert rips + serve via Subsonic) and video (HLS streaming with on-demand segments, sidecar + embedded subtitles, contact-sheet posters, click-in folder browser). A single `mediakit serve` runs both kinds plus the web SPA on one port.
+Python 3.13 CLI for a self-hosted media library — audio (convert rips + serve via Subsonic) and video (HLS streaming with on-demand segments, sidecar + embedded subtitles, contact-sheet posters, click-in folder browser). Point `mediakit serve` at one directory; it scans recursively, auto-detects what's audio and what's video, and serves both kinds plus the web SPA on one port. The Subsonic mount appears only when audio is present, the video mount only when video is present.
 
 ## Install
 
@@ -33,21 +33,20 @@ sudo apt install ffmpeg        # Debian / Ubuntu
 ## Quickstart
 
 ```bash
-# Unified — one process, one URL, both protocols (recommended):
+# One process, one URL, both protocols. Point at any directory - mediakit
+# scans recursively and only mounts the kinds with content.
 uvx mediakit serve ~/Downloads/library                     # audio on /audio/rest/*, video on /video/*
+uvx mediakit serve ~/Downloads/library --ui                # also serve the web SPA at /
 
 # Shared across audio + video:
-uvx mediakit library summary ~/Downloads/library           # kind counts (audio + video)
-uvx mediakit library scan ~/Downloads/library              # full file inventory
+uvx mediakit library info    ~/Downloads/library           # kind counts (audio + video)
+uvx mediakit library list    ~/Downloads/library           # full file inventory (or `ls`)
+uvx mediakit library inspect ~/Downloads/library/some.mkv  # tags + cover (audio) or ffprobe streams (video)
 
-# Audio subgroup:
+# Audio tooling:
 uvx mediakit audio convert ./input ./output                          # convert rips
 uvx mediakit audio library audit ./output                            # audit
-uvx mediakit audio serve ./output                                    # standalone Subsonic server
 uvx mediakit audio playlist gen ./output --seed <track> --minutes 60 # auto-generate a mix
-
-# Video (standalone):
-uvx mediakit video serve ~/Downloads/library                         # standalone video server on :8765
 ```
 
 ## Screenshots
@@ -74,11 +73,12 @@ Or jump straight to:
 
 - [Architecture](docs/architecture.md) — how all the pieces fit together (process model, data flow, audio subprocess, SQLite index, FFT visualizer)
 - [Quickstart](docs/guides/quickstart.md) — end-to-end walkthrough including iPhone + Tailscale + Amperfy
-- [mediakit convert](docs/guides/convert.md) — codec / bitrate / enrichment matrix
-- [mediakit library](docs/guides/library.md) — audit rules + auto-fix + SQLite index
-- [mediakit serve](docs/guides/serve.md) — Subsonic API + Tailscale + clients
+- [mediakit serve](docs/guides/serve-unified.md) — single-library mode, auto-detect, web SPA
+- [mediakit library](docs/guides/library.md) — cross-cutting info / list / inspect against any root
+- [mediakit audio convert](docs/guides/convert.md) — codec / bitrate / enrichment matrix
+- [mediakit audio library](docs/guides/audio-library.md) — audit rules + auto-fix + SQLite index
 - [mediakit video](docs/guides/video.md) — HLS, subtitles, posters, folder browser
-- [mediakit playlist](docs/guides/playlist.md) — auto-generated `.m3u8` mixes anchored to a seed track
+- [mediakit audio playlist](docs/guides/playlist.md) — auto-generated `.m3u8` mixes anchored to a seed track
 - [Desktop apps](docs/guides/desktop.md) — Tauri + Electron generic Subsonic clients
 - [Mobile (Subsonic)](docs/guides/mobile.md) — play:Sub / Amperfy / Symfonium / DSub / Tempo
 - [Edge cases](docs/edge-cases.md) — every weirdness encountered on real rips

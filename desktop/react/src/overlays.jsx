@@ -62,7 +62,7 @@ function ShortcutsOverlay({ open, onClose, kind }) {
   );
 }
 
-const PALETTE_CMDS_AUDIO = [
+const PALETTE_CMDS_AUDIO_BASE = [
   { label: "Play / pause", k: "space" },
   { label: "Next track", k: "n" },
   { label: "Previous track", k: "p" },
@@ -79,10 +79,9 @@ const PALETTE_CMDS_AUDIO = [
   { label: "Star current track", k: "*" },
   { label: "Go to Starred", k: "g s" },
   { label: "Go to Stations", k: "g r" },
-  { label: "Sign out", k: "⌘ Q" },
 ];
 
-const PALETTE_CMDS_VIDEO = [
+const PALETTE_CMDS_VIDEO_BASE = [
   { label: "Play / pause", k: "space" },
   { label: "Seek backward 5s", k: "←" },
   { label: "Seek forward 5s", k: "→" },
@@ -91,11 +90,9 @@ const PALETTE_CMDS_VIDEO = [
   { label: "Toggle mute", k: "m" },
   { label: "Toggle fullscreen", k: "f" },
   { label: "Show keyboard shortcuts", k: "?" },
-  { label: "Switch to audio", k: "" },
-  { label: "Sign out", k: "" },
 ];
 
-function CommandPalette({ open, onClose, onRun, kind }) {
+function CommandPalette({ open, onClose, onRun, kind, hasAudio = true, hasVideo = false }) {
   const [q, setQ] = useState("");
   const [sel, setSel] = useState(0);
   const inpRef = useRef(null);
@@ -106,7 +103,16 @@ function CommandPalette({ open, onClose, onRun, kind }) {
       setTimeout(() => inpRef.current?.focus(), 30);
     }
   }, [open]);
-  const cmds = kind === "video" ? PALETTE_CMDS_VIDEO : PALETTE_CMDS_AUDIO;
+  // Build the kind-specific list, then append cross-mode commands.
+  // Switch-kind commands only show when the other kind is actually
+  // mounted on the server - otherwise switching takes the SPA to an
+  // empty pane and looks broken.
+  const base = kind === "video" ? PALETTE_CMDS_VIDEO_BASE : PALETTE_CMDS_AUDIO_BASE;
+  const tail = [];
+  if (kind === "video" && hasAudio) tail.push({ label: "Switch to audio", k: "" });
+  if (kind === "audio" && hasVideo) tail.push({ label: "Switch to video", k: "" });
+  tail.push({ label: "Sign out", k: "" });
+  const cmds = [...base, ...tail];
   const list = useMemo(() => {
     if (!q.trim()) return cmds;
     const ql = q.toLowerCase();

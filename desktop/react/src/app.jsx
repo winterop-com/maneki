@@ -429,6 +429,14 @@ function App() {
             break;
         }
       }
+      // In video mode without a selected video, swallow audio-only
+      // shortcuts so they can't (eg) activate the audio FFT visualiser
+      // overlay or trigger transport on a player that doesn't exist.
+      // The cross-mode keys (?, Esc, Cmd+P) are handled above.
+      const isVideoModeNoPlayer = kind === "video";
+      if (isVideoModeNoPlayer && ["f", "l", "/", "s", "r", "n", " ", "m", "ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"].includes(e.key)) {
+        return;
+      }
       switch (e.key) {
         case " ": e.preventDefault(); handlePlayPause(); break;
         case "n": handleNext(); break;
@@ -481,7 +489,16 @@ function App() {
   // Cross-mode commands (Show shortcuts, Sign out) work either way.
   const runCmd = (c) => {
     const p = window.MK_VIDEO_PLAYER;
-    if (kind === "video" && p) {
+    // Cross-mode commands (work without a player loaded).
+    if (c.label === "Show keyboard shortcuts") { setShowShortcuts(true); return; }
+    if (c.label === "Sign out") { signOut(); return; }
+    if (c.label === "Switch to audio" && hasAudio) { setKind("audio"); return; }
+    if (c.label === "Switch to video" && hasVideo) { setKind("video"); return; }
+    if (kind === "video") {
+      // All other commands in video mode are no-ops without a player.
+      // Falling through to the audio branch (eg activating the FFT
+      // visualiser overlay) makes the app look broken.
+      if (!p) return;
       if (c.label === "Play / pause") { if (p.paused()) p.play(); else p.pause(); return; }
       if (c.label === "Seek backward 5s") { p.currentTime(Math.max(0, p.currentTime() - 5)); return; }
       if (c.label === "Seek forward 5s") { p.currentTime(Math.min(p.duration() || Infinity, p.currentTime() + 5)); return; }
@@ -492,9 +509,6 @@ function App() {
         if (p.isFullscreen()) p.exitFullscreen(); else p.requestFullscreen({ navigationUI: "hide" });
         return;
       }
-      if (c.label === "Show keyboard shortcuts") { setShowShortcuts(true); return; }
-      if (c.label === "Switch to audio") { setKind("audio"); return; }
-      if (c.label === "Sign out") { signOut(); return; }
       return;
     }
     if (c.label === "Play / pause") handlePlayPause();
@@ -619,7 +633,7 @@ function App() {
         onClose={() => setSearchOpen(false)}
       />
       <window.MK_ShortcutsOverlay open={showShortcuts} onClose={() => setShowShortcuts(false)} kind={kind} />
-      <window.MK_CommandPalette open={showPalette} onClose={() => setShowPalette(false)} onRun={runCmd} kind={kind} />
+      <window.MK_CommandPalette open={showPalette} onClose={() => setShowPalette(false)} onRun={runCmd} kind={kind} hasAudio={hasAudio} hasVideo={hasVideo} />
       <window.MK_LyricsOverlay
         open={showLyrics && !!nowTrack}
         onClose={() => setShowLyrics(false)}
