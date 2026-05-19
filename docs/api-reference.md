@@ -30,7 +30,7 @@ Walk a converted-output directory, build an Artist→Album→Track index, audit 
 ::: mediakit.audio.library
     options:
       members:
-        # Pydantic models — same shape used by tui / serve / library CLI.
+        # Pydantic models — same shape used by serve / library CLI.
         - LibraryTrack
         - LibraryAlbum
         - LibraryIndex

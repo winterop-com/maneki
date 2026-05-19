@@ -38,7 +38,6 @@ nav:
       - audio convert: guides/convert.md
       - audio library: guides/audio-library.md
       - audio inspect: guides/inspect.md
-      - audio tui: guides/tui.md
       - audio serve (standalone): guides/serve.md
       - audio ui: guides/ui.md
       - audio playlist: guides/playlist.md

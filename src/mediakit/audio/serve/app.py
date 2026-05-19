@@ -82,7 +82,7 @@ async def _lifespan(_app: FastAPI) -> AsyncGenerator[None]:
     Starlette's FileResponse reads each file in a worker thread, and
     play:Sub on iOS is known to open 30-50 parallel `/rest/stream`
     connections for a single track (aggressive prefetch). With 40 threads
-    those alone exhaust the pool and every other request — web UI / TUI /
+    those alone exhaust the pool and every other request - web UI /
     other clients — blocks. 256 threads sleeping on disk I/O are cheap;
     the OS handles them comfortably. We bump in `lifespan` rather than at
     `create_app` time because the limiter is per-event-loop and only

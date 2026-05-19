@@ -3,25 +3,27 @@
 How the pieces fit together — process model, data flow, every dependency that
 sits behind a public command.
 
-## The five user-facing surfaces
+## The user-facing surfaces
 
 ```
                    +----------+
                    | mediakit |  CLI (typer)
                    +----+-----+
                         |
-   +---------+----------+----------+----------+----------+
-   |         |          |          |          |          |
-convert    library    inspect      tui        serve
+   +---------+----------+----------+----------+
    |         |          |          |          |
-ffmpeg    SQLite      mutagen   Textual    FastAPI
-encode    + audit     dump      + audio    + watcher
-                                subprocess + index cache
+convert    library    inspect     serve     video
+   |         |          |          |          |
+ffmpeg    SQLite      mutagen   FastAPI    FastAPI
+encode    + audit     dump      + Subsonic + HLS
+                                + watcher    + posters
 ```
 
-Every command lives in `src/mediakit/audio/cli/`. The `library` command is itself a
-Typer **subapp** carrying further verbs (`tree`, `audit`, `fix`, `cover`,
-`cover-pick`, `retag`, `index status|drop|rebuild`).
+Top-level: `mediakit serve` mounts both audio + video sub-apps and the SPA
+at `/`. Audio commands live in `src/mediakit/audio/cli/` (the `library`
+subapp carries `tree`, `audit`, `fix`, `cover`, `cover-pick`, `retag`,
+`index status|drop|rebuild`). Video commands live in
+`src/mediakit/video/serve/`.
 
 ## End-to-end data flow
 
@@ -51,32 +53,30 @@ Typer **subapp** carrying further verbs (`tree`, `audit`, `fix`, `cover`,
 |  (Pydantic graph)  |         |  bump or root mismatch            |
 +----+---------------+         +-----------------------------------+
      |
-     +--> consumed by `tui` and `serve` (both read the same index)
+     +--> consumed by `mediakit audio serve` + the web SPA
                               |
-   +--------------------------+--------------------------+
-   |                                                     |
-   v                                                     v
-+----------------------+                +---------------------------+
-| mediakit audio tui         |                | mediakit audio serve            |
-|                      |                |                           |
-| Textual UI process   |                | FastAPI app               |
-|   + audio engine     |                |   + IndexCache            |
-|     subprocess       |                |   + LibraryWatcher        |
-|     (PyAV decode +   |                |   + mDNS advertisement    |
-|      sounddevice     |                |                           |
-|      callback)       |                | Subsonic-compatible API   |
-|   + AirPlay path     |                | over LAN / Tailscale      |
-|     (pyatv)          |                |                           |
-+----------------------+                +---------+-----------------+
-                                                  |
-                                                  v
-                                       +--------------------+
-                                       | Subsonic clients   |
-                                       | Symfonium  / iOS   |
-                                       | Amperfy    / iOS   |
-                                       | play:Sub   / iOS   |
-                                       | Feishin    / desk. |
-                                       +--------------------+
+                              v
+                +---------------------------+
+                | mediakit (audio) serve    |
+                |                           |
+                | FastAPI app               |
+                |   + IndexCache            |
+                |   + LibraryWatcher        |
+                |   + mDNS advertisement    |
+                |                           |
+                | Subsonic-compatible API   |
+                | over LAN / Tailscale      |
+                +---------+-----------------+
+                          |
+                          v
+                +--------------------+
+                | Subsonic clients   |
+                | Symfonium  / iOS   |
+                | Amperfy    / iOS   |
+                | play:Sub   / iOS   |
+                | Feishin    / desk. |
+                | + the bundled SPA  |
+                +--------------------+
 ```
 
 ## The convert pipeline (`src/mediakit/audio/pipeline/`)
@@ -115,7 +115,7 @@ final summary table.
 
 The same Pydantic `LibraryIndex` graph (Artist → Album → Track) is consumed
 by **every** command that reads a converted library — `library tree/audit/fix`,
-`tui`, `serve`. It's defined once in `library/models.py` and built two ways:
+`serve`. It's defined once in `library/models.py` and built two ways:
 
 ### From the filesystem (`library/scan.py`)
 
@@ -137,7 +137,7 @@ year backfill (one HTTP call per flagged album), tag/path mismatch resolution
 ### From the SQLite cache (`library/db.py`, `library/load.py`)
 
 `<root>/.mediakit/index.db` persists the `LibraryIndex` so cold starts
-(launching `tui` or `serve`) don't re-read every audio tag. Tables:
+(launching `serve`) don't re-read every audio tag. Tables:
 
 | Table | Holds |
 |---|---|
@@ -147,7 +147,7 @@ year backfill (one HTTP call per flagged album), tag/path mismatch resolution
 | `track_genres` | `(track_id, genre)` pairs for multi-genre support |
 | `album_warnings` | `(album_id, warning)` pairs from the audit pass |
 
-`load_or_scan(root)` is the top-level entry point used by `tui`, `serve`,
+`load_or_scan(root)` is the top-level entry point used by `serve`,
 and the library subcommands:
 
 ```
@@ -176,190 +176,6 @@ during the debounce window.
 Schema bumps don't run migrations — `db.py` defines a `SCHEMA_VERSION`
 constant; mismatched DBs are unlinked and rebuilt from scratch. The
 filesystem is the source of truth so destructive rebuilds are always safe.
-
-## The TUI process model (`src/mediakit/audio/tui/`)
-
-Two processes:
-
-```
-+-----------------------------------+        +-------------------------------+
-| UI process (Textual)              |        | Audio engine subprocess       |
-| - MediakitApp                     |        | - engine_main()               |
-| - render loop                     |        | - opener thread (per play)    |
-| - keybinding dispatch             |  <-->  | - decoder thread (PyAV)       |
-| - AudioPlayer (RPC client)        |        | - sounddevice OutputStream    |
-| - AirPlayController (pyatv)       |        |   callback                    |
-+-----------------------------------+        +-------------------------------+
-              ^                ^                            ^         ^
-              |                |                            |         |
-              | reads          | sends Commands             | reads   | writes
-              | shared mem     | (PLAY / PAUSE / SEEK /     | shared  | shared
-              | (position,     |  SET_VOLUME / STOP / ...)  | mem     | mem
-              |  band_levels)  |                            |         |
-              |                v                            |         v
-              |         +-----------------+                 |  +-----------------+
-              |         | cmd_queue       |  ----------->   |  | event_queue     |
-              |         | (mp.Queue)      |                 |  | (mp.Queue)      |
-              |         +-----------------+                 |  +-----------------+
-              |                                             |  TRACK_END /
-              |                                             |  TRACK_FAILED /
-              |                                             |  METADATA_CHANGED
-              |                                             |  / STARTED
-              |                                             |  drained by
-              |                                             |  reader thread
-              |                                             |  in UI process
-              v                                             v
-        +---------------------+                       +---------------------+
-        | Shared memory       |                       | (events fire UI    |
-        | mp.Value:           |                       |  callbacks via     |
-        |   position_frames   |                       |  Textual's         |
-        |   duration_s        |                       |  call_from_thread) |
-        |   paused / stopped  |                       +---------------------+
-        |   volume            |
-        |   replaygain_mult.  |
-        | mp.Array:
-        |   band_levels[48]   |
-        +---------------------+
-```
-
-### Why a subprocess?
-
-The sounddevice audio callback is implemented in Python — it acquires the
-GIL on every fire (~43 Hz at 1024 frames @ 44.1 kHz). When the audio engine
-shared a Python interpreter with the Textual UI, a burst of UI work
-(window resize, focus switch between panes, GC) could hold the GIL long
-enough to starve the callback past PortAudio's deadline → buffer underrun
-→ audible click (xrun).
-
-Earlier mitigations stacked workarounds: 500 ms PortAudio buffer, then
-1 s buffer, resize-debounce, focus-change short-circuits. The current
-architecture eliminates the root cause: the audio engine has its own
-interpreter, its own GIL. UI work in the main process can't stall the
-callback. The PortAudio buffer is back to 200 ms.
-
-### Public interface stays the same
-
-`AudioPlayer` is the public class the UI imports. After the subprocess
-move, its methods (`play`, `stop`, `toggle_pause`, `seek`, `set_volume`,
-`set_airplay`, `set_replaygain_mode`) are thin RPC wrappers — each pushes
-a `Command` onto `cmd_queue` (or writes shared memory). Properties
-(`position`, `band_levels`, `is_playing`, `volume`) read shared memory
-directly. The UI code in `app.py` doesn't know there's a subprocess.
-
-A reader thread in the UI process drains `event_queue` and dispatches to
-the registered callbacks (`on_track_end`, `on_track_failed`,
-`on_metadata_change`). The callbacks fire from the reader thread; UI
-updates inside them route through Textual's `call_from_thread` (same as
-they did in the previous threaded design).
-
-### AirPlay stays in the UI process
-
-`pyatv` is asyncio-based and just sends URLs to the AirPlay device; it
-doesn't run a decoder. There's no audio callback to protect. So the
-`AirPlayController` lives alongside the UI and is consulted directly by
-`AudioPlayer.play()` / `set_volume()` / `toggle_pause()` when a device is
-connected.
-
-## The visualizer (FFT path)
-
-The visualizer is a 48-band spectrum analyser. The math is identical in
-every audio player that has ever drawn one — only the UI plumbing is
-mediakit-specific.
-
-### What the audio callback hands off
-
-Every callback (~43 Hz) gets a chunk of N stereo float32 samples from the
-decoder queue and writes it to PortAudio's output buffer. As a side-effect
-it stashes a reference to that chunk on the engine instance, then runs
-the FFT before publishing the resulting band magnitudes into shared
-memory. Roughly:
-
-```python
-# inside AudioEngine._audio_callback (audio thread, runs in subprocess)
-outdata[:] = chunk * volume * replaygain_multiplier   # the actual playback
-self._latest_chunk = chunk                            # for the visualizer
-self._update_band_levels()                            # FFT + decay (below)
-self._publish_band_levels()                           # write 48 floats to mp.Array
-```
-
-The UI ticks at 30 Hz, reads the 48 floats from shared memory, and renders
-the bars. Producer-faster-than-consumer is fine: the UI just sees the most
-recent published values.
-
-### Step 1: turn samples into a frequency spectrum
-
-Audio samples are amplitude over time — a wiggle. The FFT (Fast Fourier
-Transform) decomposes that wiggle into the strengths of every constituent
-sinewave. NumPy does it in one call:
-
-```python
-mono = chunk.mean(axis=1)            # collapse stereo to mono
-spectrum = np.abs(np.fft.rfft(mono)) # rfft = real-input FFT (twice as fast as
-                                     # the complex version since audio is real)
-                                     # abs() turns complex amplitudes into
-                                     # magnitudes — "how loud is this frequency".
-```
-
-For a 1024-sample chunk at 44.1 kHz, `rfft` returns 513 magnitude bins
-covering 0 Hz → 22 050 Hz (the Nyquist limit). Each bin is ~43 Hz wide
-(`samplerate / chunk_size`).
-
-### Step 2: group bins into bands the eye can read
-
-513 bars don't fit on screen and most of them carry no useful info — the
-top 100 bins are usually inaudible content above 18 kHz. Two more
-problems with showing raw bins:
-
-- Linear bin spacing is wrong for music. Humans perceive pitch
-  geometrically: an octave is a doubling of frequency. C4 → C5 is 261 Hz
-  → 523 Hz; C5 → C6 is 523 → 1046 Hz. Equal-width linear bands collapse
-  the bass into 1-2 bars and waste 30 bars on the brilliance range.
-- Energy is concentrated in the bass. Without geometric spacing, almost
-  every musical signal renders as "leftmost bar maxed out, rest twitching".
-
-Solution: pick band edges on a logarithmic scale. `np.geomspace(1, n_bins, 49)`
-returns 49 numbers between 1 and `n_bins` that double-ish from one to the
-next. Band `i` covers bins `edges[i] .. edges[i+1]`, and we take the
-loudest bin in that range:
-
-```python
-edges = np.geomspace(1, n_bins, VIS_BANDS + 1).astype(int)
-for i in range(VIS_BANDS):
-    lo, hi = edges[i], max(edges[i] + 1, edges[i + 1])
-    peak = float(spectrum[lo:hi].max())   # loudest bin in this geometric band
-```
-
-`max` (peak) instead of `mean` makes percussive transients (a snare, a
-hi-hat) pop visually — averaging would smear them across neighbouring bins.
-
-### Step 3: normalise + smooth
-
-Raw peak magnitudes have no fixed scale (they depend on the chunk size and
-input gain). The `/ 32.0` is a magic number tuned by ear so a typical
-loud passage hits 0.7-0.9 and rare peaks reach 1.0. The `min(1.0, ...)`
-clamps so a clipped input doesn't push bars off-screen.
-
-```python
-level = min(1.0, peak / 32.0)
-prev = self._band_levels[i]
-self._band_levels[i] = max(level, prev * _VIS_DECAY)
-```
-
-The `max(new, prev * decay)` is exponential smoothing on the way DOWN
-only. New peaks pop instantly; bars then decay by 15% per callback
-(`_VIS_DECAY = 0.85`), so a momentary peak fades over ~0.5 s instead of
-disappearing in 23 ms. Asymmetric attack/release is what makes the bars
-look "physical" rather than flickering with the sample-rate noise floor.
-
-### Step 4: render columns of unicode blocks
-
-The Visualizer widget in `tui/widgets.py` consumes the 48 floats and
-draws a column of full blocks (`█`) per band, with sub-cell vertical
-resolution from the partial-block characters `▁▂▃▄▅▆▇█` (the top of each
-bar). Bar width is computed to fill the available content area: prefer
-1-cell gaps between bars; drop the gap on terminals where even
-`bar_width=1` with gaps wouldn't fit. Leftover modulo cells become a
-leading offset so the meter is centered.
 
 ## The serve process (`src/mediakit/audio/serve/`)
 
@@ -396,9 +212,9 @@ Single FastAPI process. Components:
 +-------------------------------------------------+
 ```
 
-The `IndexCache` is the same pattern as the TUI's `AudioPlayer` cache:
-public methods do small things on top of the shared `LibraryIndex` /
-`load_or_scan` machinery. Endpoints in `serve/endpoints/` resolve
+The `IndexCache` wraps the shared `LibraryIndex` / `load_or_scan`
+machinery so endpoints can resolve Subsonic IDs without re-walking the
+filesystem. Endpoints in `serve/endpoints/` resolve
 incoming Subsonic IDs against `albums_by_id` / `tracks_by_id` /
 `artists_by_id` (built from the index by `_reindex`); none of them hit
 the disk on a hot request — even `getCoverArt` has the path resolved
@@ -512,28 +328,24 @@ wait 5 seconds, pull-to-refresh the client.
 |---|---|---|
 | `typer` | `cli/` | CLI plumbing (subcommands, options, autocompletion). |
 | `mutagen` | `metadata/`, `pipeline/` | Read/write tags for FLAC, MP3, MP4, WAV, OGG, OPUS. |
-| `Pillow` | `cover.py`, `pipeline/` | Decode + resize cover images. Defensive against malformed JPEGs. |
-| `httpx` | `enrich/`, `tui/subsonic_client.py` | MusicBrainz / Cover Art Archive / AcoustID / Subsonic API HTTP. |
-| `pydantic` | `library/`, `metadata/` | Data models with type-checking and round-trippable JSON. |
+| `Pillow` | `cover.py`, `pipeline/`, `video/serve/poster.py` | Decode + resize cover images, compose contact-sheet posters. |
+| `httpx` | `enrich/` | MusicBrainz / Cover Art Archive / AcoustID HTTP. |
+| `pydantic` | `library/`, `metadata/`, `video/serve/` | Data models with type-checking and round-trippable JSON. |
 | `rich` | `cli/`, `library/` | Terminal tables, trees, progress bars. |
-| `textual` | `tui/` | The TUI itself (widgets, layout, async event loop). |
-| `PyAV` | `tui/audio_engine.py` | Audio decoding (FLAC, MP3, M4A, OGG, OPUS, Icecast streams). Wraps FFmpeg. |
-| `sounddevice` | `tui/audio_engine.py` | Cross-platform audio output via PortAudio. |
-| `numpy` | `tui/audio_engine.py` | FFT + array math for the visualizer. |
-| `pyatv` | `tui/airplay.py`, `tui/airplay_picker.py` | AirPlay device discovery + control. |
-| `zeroconf` | `serve/discovery.py`, `tui/discovery.py` | mDNS/Bonjour: server advertises, TUI auto-detects. |
+| `zeroconf` | `serve/discovery.py` | mDNS/Bonjour: server advertises so LAN clients can find it. |
 | `watchdog` | `serve/watcher.py` | Filesystem-event observer for auto-rescan. |
-| `FastAPI` | `serve/` | HTTP framework; endpoint routing, JSON serialization. |
+| `FastAPI` | `serve/`, `video/serve/`, `serve_app.py` | HTTP framework; endpoint routing, JSON serialization. |
 | `uvicorn` | `cli/serve.py` | ASGI server that runs the FastAPI app. |
 
-External binaries: `ffmpeg` and `ffprobe` for the convert pipeline +
-on-the-fly transcoding. Optional: `chromaprint` (`fpcalc`) for AcoustID.
+External binaries: `ffmpeg` and `ffprobe` for the convert pipeline,
+on-the-fly Subsonic transcoding, HLS segment generation, and subtitle
+extraction. Optional: `chromaprint` (`fpcalc`) for AcoustID.
 
 ## Where to read next
 
 - [Convert](guides/convert.md) — pipeline stages in detail.
 - [Library](guides/library.md) — audit rules + the SQLite index.
-- [TUI](guides/tui.md) — keybindings + AirPlay + Subsonic-client mode.
 - [Serve](guides/serve.md) — Subsonic API + Tailscale + client setup.
+- [Video](guides/video.md) — HLS, subtitles, posters, folder browser.
 - [Quickstart](guides/quickstart.md) — end-to-end walkthrough including iPhone streaming.
 - [Development](guides/development.md) — directory layout + test patterns.

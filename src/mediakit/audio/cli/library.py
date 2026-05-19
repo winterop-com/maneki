@@ -12,7 +12,7 @@ Subcommands:
 
 The single-command form (`mediakit library DIR --audit / --fix / --cover-pick / ...`) is
 gone; pick a subcommand. The persistent index DB lives at `<DIR>/.mediakit/index.db`
-and is shared by `tui` and `serve`.
+and is shared by `serve`.
 """
 
 from __future__ import annotations

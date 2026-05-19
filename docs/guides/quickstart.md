@@ -37,15 +37,15 @@ pipx install mediakit          # equivalent for pipx users
 pip install mediakit           # plain pip into current env
 ```
 
-Either route pulls every Python dep, including the bundled FFmpeg + PortAudio wheels for the TUI / serve audio paths. The rest of this guide uses `uvx mediakit ...` for examples — substitute `mediakit ...` if you went the persistent-install route.
+Either route pulls every Python dep. The rest of this guide uses `uvx mediakit ...` for examples — substitute `mediakit ...` if you went the persistent-install route.
 
 If you want to hack on MediaKit itself, see [Development](development.md) for the `git clone` + `uv sync` flow.
 
 ### Install system ffmpeg
 
-The bundled FFmpeg wheels handle audio decoding for the TUI and the on-the-fly
-transcoding inside `serve`. The `convert` pipeline itself shells out to a
-system `ffmpeg` / `ffprobe`:
+`mediakit serve` shells out to system `ffmpeg` / `ffprobe` for Subsonic
+on-the-fly transcoding, video HLS segments, and subtitle extraction. The
+`convert` pipeline uses them too:
 
 ```bash
 brew install ffmpeg          # macOS
@@ -79,7 +79,7 @@ hostname -f                               # local hostname
 uvx mediakit --help
 ```
 
-You should see `convert / library / inspect / tui / serve` listed.
+You should see `serve / library / audio / video` listed.
 
 ## 2. Convert a library
 
@@ -272,27 +272,14 @@ Try the things you'd expect from a Subsonic client:
 
 ## 6. Optional: browse + play locally on the Mac
 
-If you also want to browse the same library on the Mac itself:
+`mediakit serve --ui` mounts the web SPA at the same origin as the API.
+Open `http://127.0.0.1:8765/` in any browser and you get the full
+audio + video UI with the same login (admin / admin by default).
 
-```bash
-uvx mediakit audio tui ./output
-```
-
-This is the TUI — three-pane Textual app, library browser on the left, now-playing card + 48-band visualizer + tracklist on the right.
-
-![mediakit TUI — drilled into an album](../screenshots/album-tracks.svg)
-
-Press `?` for the full keybindings panel; the most useful ones to know are `Enter` (play), `Space` (pause), `n`/`p` (next/prev), `<`/`>` (±5s seek), `9`/`0` (volume), `/` (filter the focused pane), `f` (fullscreen visualizer), `q` (quit). Click anywhere on the progress bar to seek to that position.
-
-If the Mac has AirPlay devices on the same network (HomePod, AirPort
-Express, AirPlay-2 Sonos), the TUI can route playback to them.
-Press `a` for the AirPlay picker, pick a device, music plays through
-the speaker instead of the laptop. Iterate with `--airplay 'HomePod'`
-on the CLI for headless / scripted use.
-
-This is unrelated to the iPhone setup — it's about playback on the Mac
-itself. The Subsonic-client mode in `mediakit audio tui --subsonic ...` lets
-you also use the TUI as a Subsonic client to a remote `mediakit audio serve`.
+Press `?` for the keybindings overlay; the most useful ones are
+`Space` (play/pause), `←` / `→` (±5s seek), `↑` / `↓` (volume), `m`
+(mute), `f` (fullscreen video), `Cmd+P` (command palette), `Esc`
+(close modal / exit fullscreen).
 
 ## 7. Day-to-day
 
@@ -361,5 +348,5 @@ encryption + access control for you.
   management command.
 - [Serve](serve.md) — full Subsonic endpoint list, transcoding, mDNS,
   watcher behavior, client compatibility matrix.
-- [TUI](tui.md) — local + radio + Subsonic-client + AirPlay modes,
-  keybindings, layout.
+- [Video](video.md) — HLS pipeline, subtitle handling, contact-sheet
+  posters, folder browser.

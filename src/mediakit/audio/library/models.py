@@ -31,14 +31,14 @@ class LibraryTrack(BaseModel):
     duration_s: float = 0.0
     has_cover: bool = False
     cover_pixels: int = 0
-    # When set, the TUI plays this URL instead of `path` — populated by the
+    # When set, clients play this URL instead of `path` - populated by the
     # Subsonic client mode so the same widgets/format helpers work for both
     # local files and remote streams.
     stream_url: str | None = None
     # ISO 8601 timestamp the track was starred at, or None when not starred.
     # Populated by Subsonic-client mode from `getAlbum` / `getStarred2`
     # responses (the server enriches every payload via `StarStore.enrich`).
-    # The TUI surfaces it as a ♥ glyph in the track row; toggling fires
+    # Clients surface it as a heart glyph in the track row; toggling fires
     # `/rest/star` / `/rest/unstar` and rewrites this field optimistically.
     starred: str | None = None
 
@@ -63,7 +63,7 @@ class LibraryAlbum(BaseModel):
     tracks: list[LibraryTrack] = []
     warnings: list[str] = []
     # When set, this album was sourced from a Subsonic server with this ID.
-    # The TUI uses it to lazy-load tracks via `getAlbum?id=...` when the
+    # Clients use it to lazy-load tracks via `getAlbum?id=...` when the
     # user opens the album, instead of pre-fetching every track at launch.
     subsonic_id: str | None = None
 

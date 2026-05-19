@@ -1,6 +1,6 @@
 """Subsonic internet-radio endpoints, backed by `radio.load_stations()`.
 
-The TUI's `radio.toml` (defaults + user-edited) is the source of truth.
+`radio.toml` (defaults + user-edited) is the source of truth.
 `getInternetRadioStations` exposes that list to Subsonic clients (Symfonium,
 Amperfy, the local web UI). Write endpoints (create/update/delete) stay as
 success no-ops — stations are managed in the TOML file, not via the API.
@@ -39,21 +39,21 @@ async def get_internet_radio_stations() -> dict:
 @router.api_route("/createInternetRadioStation", methods=["GET", "POST", "HEAD"])
 @router.api_route("/createInternetRadioStation.view", methods=["GET", "POST", "HEAD"], include_in_schema=False)
 async def create_internet_radio_station() -> dict:
-    """No-op — stations live in the TUI's local config."""
+    """No-op — stations live in the local config."""
     return envelope()
 
 
 @router.api_route("/updateInternetRadioStation", methods=["GET", "POST", "HEAD"])
 @router.api_route("/updateInternetRadioStation.view", methods=["GET", "POST", "HEAD"], include_in_schema=False)
 async def update_internet_radio_station() -> dict:
-    """No-op — stations live in the TUI's local config."""
+    """No-op — stations live in the local config."""
     return envelope()
 
 
 @router.api_route("/deleteInternetRadioStation", methods=["GET", "POST", "HEAD"])
 @router.api_route("/deleteInternetRadioStation.view", methods=["GET", "POST", "HEAD"], include_in_schema=False)
 async def delete_internet_radio_station() -> dict:
-    """No-op — stations live in the TUI's local config."""
+    """No-op — stations live in the local config."""
     return envelope()
 
 

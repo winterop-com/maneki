@@ -63,7 +63,7 @@ _USER_TEMPLATE = """\
 #
 # mediakit ships curated defaults (see `DEFAULT_STATIONS` in
 # `src/mediakit/audio/radio.py`). Anything you add below appears alongside
-# them in the TUI's Radio list. Stations are deduped by URL; if a user
+# them in the SPA's Radio list. Stations are deduped by URL; if a user
 # entry shares a URL with a baked-in default, your version wins.
 #
 # Format:

@@ -11,7 +11,7 @@ The legacy `~/.config/mediakit/serve.toml` is read as a fallback while
 user runs `mediakit config migrate` (or v0.12 drops the fallback).
 
 Note: this file deliberately does NOT cover `state.toml` (mutable runtime
-state owned by the TUI) or `radio.toml` (user-curated station list).
+state owned by the audio server) or `radio.toml` (user-curated station list).
 Those have different lifecycles; pydantic-settings is for read-only
 config.
 """

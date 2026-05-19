@@ -36,7 +36,7 @@ src/mediakit/audio/
   cli/               typer entry; one file per subcommand
     __init__.py      app = typer.Typer(...) + side-effect imports
     convert.py       cover.py     cover_pick.py    inspect.py
-    library.py       retag.py     serve.py         tui.py
+    library.py       retag.py     serve.py
     _scan.py         shared scan-progress wrapper
   convert.py         ffmpeg encode / remux / copy
   cover.py           cover-source candidates + pick_best + normalise
@@ -56,12 +56,6 @@ src/mediakit/audio/
     discovery.py     watcher.py
     endpoints/       __init__.py  system.py    browsing.py  media.py
                      search.py    scan.py      extras.py
-  tui/               Textual TUI + audio engine
-    __init__.py      app.py       widgets.py
-    player.py        audio_engine.py  audio_proto.py  audio_io.py
-    advance.py       commands.py  formatters.py state.py    types.py
-    subsonic_client.py            airplay.py   airplay_picker.py
-    discovery.py
   enrich/            __init__.py  _http.py     musicbrainz.py
                      coverart.py  musichoarders.py  acoustid.py
 tests/               pytest suite
@@ -70,7 +64,7 @@ pyproject.toml       Makefile     mkdocs.yml
 input/.gitkeep       output/.gitkeep
 ```
 
-The major modules went through a 7-wave refactor early on — every package above (`cli/`, `library/`, `metadata/`, `pipeline/`, `serve/`, `tui/`) used to be a single file. Each split is committed separately; check `git log --oneline | grep "Refactor"` for the history.
+The major modules went through a 7-wave refactor early on — every package above (`cli/`, `library/`, `metadata/`, `pipeline/`, `serve/`) used to be a single file. Each split is committed separately; check `git log --oneline | grep "Refactor"` for the history.
 
 ## Code style
 
@@ -98,9 +92,8 @@ Test patterns:
 - **Convert pipeline**: `silent_flac_template` fixture in `conftest.py` produces a 0.2s silent FLAC via ffmpeg; tests build synthetic libraries from copies.
 - **Library / metadata**: `_make_track` helper writes mutagen tags onto a copy of the silent flac.
 - **Serve API**: synthetic in-memory `LibraryIndex` injected via `app.state.cache._reindex(...)` — no disk walk. FastAPI `TestClient` for HTTP round-trips.
-- **TUI audio engine**: `AudioEngine` is the unit under test; `_FakeOutputStream` replaces `sounddevice.OutputStream` with a thread-driven fake that exercises the callback without opening a real device. `AudioPlayer` (the public RPC client that spawns the subprocess) gets a smoke test for volume; full-engine tests run the engine in-process so monkey-patching works.
-- **AirPlay**: pyatv `scan` / `connect` mocked via `unittest.mock.AsyncMock`.
-- **mDNS**: real Zeroconf register/unregister smoke (skips on environments without IPv4 multicast); listener filtering tested with mocked `ServiceInfo`.
+- **Video HLS**: pure functions (`plan_segments`, `build_manifest`) covered; subprocess-spawning code paths smoke-tested with `monkeypatch` against fake `subprocess.run`.
+- **mDNS**: real Zeroconf register/unregister smoke (skips on environments without IPv4 multicast).
 
 Coverage runs via `make coverage`; CI thresholds set in `pyproject.toml`.
 
@@ -110,7 +103,7 @@ Top-level commands live on the root `app` Typer instance; library-related ones l
 
 1. Create `src/mediakit/audio/cli/<name>.py`:
    ```python
-   # Top-level (e.g. another sibling of convert / inspect / tui / serve):
+   # Top-level (e.g. another sibling of convert / inspect / serve):
    from mediakit.audio.cli import app
 
    @app.command(name="my-cmd")

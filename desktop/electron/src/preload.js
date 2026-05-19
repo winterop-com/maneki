@@ -1,12 +1,8 @@
-// Preload script — runs before the renderer page loads, with access to
-// Node + Electron APIs. Historically exposed a `window.__musickitStore`
-// surface for the legacy vanilla-JS picker; the React frontend at
-// `desktop/react/` uses localStorage directly and doesn't need it, but
-// we keep the bridge in place in case future native features (Now
-// Playing widget, OS notifications) want a backchannel to the main
-// process. Removing it would also mean dropping `electron-store` from
-// package.json — straightforward but separate from the design-v2
-// retirement of the legacy UI.
+// Preload script - runs before the renderer page loads, with access to
+// Node + Electron APIs. Exposes `window.__mediakitStore` for the React
+// frontend at `desktop/react/` (which currently uses localStorage and
+// doesn't need it, but kept for future native features: Now Playing
+// widget, OS notifications, etc).
 
 const { contextBridge } = require("electron");
 const ElectronStore = require("electron-store");
@@ -16,11 +12,11 @@ const ElectronStore = require("electron-store");
 // schema mirrors the Tauri build.
 const store = new ElectronStore({
   name: "mediakit-servers",
-  // No schema — picker will write whatever shape it wants. Validation
+  // No schema - picker will write whatever shape it wants. Validation
   // happens picker-side (filter to {url, last_used_at} entries).
 });
 
-contextBridge.exposeInMainWorld("__musickitStore", {
+contextBridge.exposeInMainWorld("__mediakitStore", {
   get: async (key) => store.get(key),
   set: async (key, value) => {
     store.set(key, value);

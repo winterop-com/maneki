@@ -86,8 +86,8 @@ def create_combined_app(
         enable_auth: if True, require Authorization: Bearer <token> on
             /video/* (Subsonic at /audio/rest/* keeps its own auth). Default
             False so the existing demo page keeps working unchanged.
-        enable_ui: if True, mount the React SPA at /ui/. The SPA lives at
-            desktop/react/ in the repo tree (lifted MusicKit + soon video).
+        enable_ui: if True, mount the React SPA at /. The SPA lives at
+            desktop/react/ in the repo tree.
         ui_dir: explicit path to the SPA directory. Default: auto-discover
             desktop/react/ relative to the repo root.
         audio_use_cache: forwarded to the audio Subsonic app's SQLite index cache.

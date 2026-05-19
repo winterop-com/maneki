@@ -71,8 +71,6 @@ The original `subsonic.org` is dead/abandoned/paid; the actively-maintained clie
 - **[Feishin](https://github.com/jeffvli/feishin)** — Electron, modern UI
 - **[Supersonic](https://github.com/dweymouth/supersonic)** — native Go/Fyne, active
 
-The MediaKit project also runs as a client itself — `mediakit audio tui --subsonic URL` connects to the same API. See [TUI](tui.md) for that.
-
 ## Endpoints implemented
 
 All under `/rest/`. Every endpoint accepts both `GET` and `POST` (some clients prefer one or the other) plus `HEAD` (play:Sub uses it for Content-Length probing).
@@ -162,7 +160,7 @@ Lyrics are sourced from a `<track>.lrc` sidecar (preferred) or the file's embedd
 
 | Endpoint | Returns |
 |---|---|
-| `getInternetRadioStations` | Stations from `radio.load_stations()` — baked-in defaults plus user entries from `~/.config/mediakit/radio.toml`. Same source the TUI uses; the web UI renders the same list. Symfonium / Amperfy / play:Sub pick this up automatically. |
+| `getInternetRadioStations` | Stations from `radio.load_stations()` — baked-in defaults plus user entries from `~/.config/mediakit/radio.toml`. The web UI renders the same list. Symfonium / Amperfy / play:Sub pick this up automatically. |
 | `createInternetRadioStation` / `updateInternetRadioStation` / `deleteInternetRadioStation` | Success-no-op. Stations are managed by editing `radio.toml` directly, not via the API. |
 
 ### Persistent stars (since v0.7.0)
@@ -296,7 +294,7 @@ The HTTP `Authorization: Basic ...` header is **not** read. If your client has a
 
 ## Response format
 
-Spec default is XML; `?f=json` opts into JSON. We honour both via a middleware that re-serialises the underlying dict per request. Most modern clients (Symfonium, Feishin, the MediaKit TUI) send `f=json`; older / iOS clients (Amperfy, play:Sub) often don't and get XML.
+Spec default is XML; `?f=json` opts into JSON. We honour both via a middleware that re-serialises the underlying dict per request. Most modern clients (Symfonium, Feishin) send `f=json`; older / iOS clients (Amperfy, play:Sub) often don't and get XML.
 
 ## CORS
 
@@ -372,13 +370,6 @@ Common destinations:
 ## mDNS / Bonjour
 
 Default-on: `serve` advertises `_subsonic._tcp.local` so Symfonium / Amperfy / Feishin auto-list the server in their setup screens without anyone typing the URL. Same service type Navidrome uses, so existing client ecosystems pick it up automatically.
-
-The `mediakit audio tui` itself can also discover servers:
-
-```bash
-uvx mediakit audio tui --discover                  # list and exit
-uvx mediakit audio tui                             # quick browse + show hint
-```
 
 `--no-mdns` opts out.
 

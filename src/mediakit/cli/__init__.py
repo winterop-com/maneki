@@ -36,7 +36,7 @@ _APP_HELP = (
 
 [bold]Subcommand groups[/]
 
-  [cyan]mediakit audio[/]    Music: convert, audit, TUI, standalone Subsonic server, web UI
+  [cyan]mediakit audio[/]    Music: convert, audit, standalone Subsonic server, web UI
   [cyan]mediakit video[/]    Video: standalone video server
 
 Pass [cyan]--help[/] after any group for its commands.
@@ -251,7 +251,7 @@ app.add_typer(library_app, name="library")
 app.add_typer(
     audio_app,
     name="audio",
-    help="Music library: convert / audit / retag, browse via TUI, stream via Subsonic server.",
+    help="Music library: convert / audit / retag, stream via Subsonic server.",
 )
 app.add_typer(
     video_app,

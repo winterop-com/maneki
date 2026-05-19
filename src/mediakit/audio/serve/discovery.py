@@ -1,7 +1,7 @@
 """mDNS / Bonjour advertisement — `_subsonic._tcp.local`.
 
 Registers a Zeroconf service so LAN clients (Symfonium, Amperfy, the
-mediakit TUI itself) can discover the running serve without typing the
+Subsonic clients themselves) can discover the running serve without typing the
 URL. The same service type Navidrome uses, so existing Subsonic clients
 that auto-list servers pick it up too.
 

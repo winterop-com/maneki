@@ -30,7 +30,7 @@ def read_source(
     casing (`AC/DC`, `ABBA`, `iPhone`, `R.E.M.`) is left alone.
 
     `light=True` skips the two expensive operations the convert pipeline
-    needs but the library scanner / TUI doesn't:
+    needs but the library scanner doesn't:
       - Pillow decode of the embedded picture (for `cover_pixels`)
       - A second mutagen open to read `info.length` (for `duration_s`)
     `has_cover` still works in light mode (presence is checked without

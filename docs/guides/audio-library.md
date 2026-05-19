@@ -135,13 +135,13 @@ uvx mediakit audio library lyrics fetch DIR --all            # re-fetch every tr
 
 For each track without lyrics — no embedded `\xa9lyr` / `USLT` / `LYRICS` tag and no existing `<track>.lrc` sidecar — query [LRCLIB](https://lrclib.net) (free, no API key) and, on a hit, write the result as `<track>.flac.lrc` (or whatever the audio suffix is). Synced bodies (`syncedLyrics` field) are preferred over plain when LRCLIB returns both.
 
-Sidecars take precedence over embedded tags on the next library scan, so user-edited `.lrc` files survive rescans untouched. The TUI's `l` keybind and the server's `/getLyricsBySongId` both pick up the populated lyrics automatically — synced bodies render with a live time-tracked highlight.
+Sidecars take precedence over embedded tags on the next library scan, so user-edited `.lrc` files survive rescans untouched. The server's `/getLyricsBySongId` picks up the populated lyrics automatically — synced bodies render with a live time-tracked highlight in clients that support them.
 
 The command exits non-zero if more than 10% of attempted fetches raise transport errors (HTTP 5xx, timeout, malformed JSON) — early signal of a network outage or LRCLIB API change. 404s ("no match in LRCLIB for this track") do not count toward the failure rate; common for live recordings, deep cuts, and non-English tracks.
 
 ## `index` — manage the persistent SQLite cache
 
-The first scan of any library writes a SQLite cache at `<DIR>/.mediakit/index.db`. On every subsequent launch — `library`, `tui`, or `serve` — the in-memory `LibraryIndex` is hydrated from rows instead of re-reading every audio file's tags. A delta-validate pass then reconciles the DB against any filesystem changes that happened since the last run (added albums, removed albums, tag edits applied with another tool).
+The first scan of any library writes a SQLite cache at `<DIR>/.mediakit/index.db`. On every subsequent launch — `library` or `serve` — the in-memory `LibraryIndex` is hydrated from rows instead of re-reading every audio file's tags. A delta-validate pass then reconciles the DB against any filesystem changes that happened since the last run (added albums, removed albums, tag edits applied with another tool).
 
 The DB is fully derived from the filesystem, so it's always safe to delete.
 
@@ -153,7 +153,7 @@ uvx mediakit audio library index drop    DIR     # delete <DIR>/.mediakit/
 uvx mediakit audio library index rebuild DIR     # wipe + rebuild from scratch
 ```
 
-`--no-cache` (on `tree` / `audit` / `fix` / `tui` / `serve`) skips the DB entirely — useful for read-only mounts where `<DIR>/.mediakit/` can't be created. `--full-rescan` (on the same set) rebuilds the index from scratch on this run. `cover-pick` uses the existing in-memory scan and doesn't expose either flag.
+`--no-cache` (on `tree` / `audit` / `fix` / `serve`) skips the DB entirely — useful for read-only mounts where `<DIR>/.mediakit/` can't be created. `--full-rescan` (on the same set) rebuilds the index from scratch on this run. `cover-pick` uses the existing in-memory scan and doesn't expose either flag.
 
 ### Schema
 

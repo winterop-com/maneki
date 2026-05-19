@@ -1,6 +1,6 @@
 """Rename an album dir on disk to match its tags.
 
-Used by the TUI tag editor (and reusable by the CLI) so changing
+Used by the CLI tag editor so changing
 `tag_album` / `tag_album_artist` / `tag_year` doesn't leave the on-disk
 folder name out of sync. Mirrors the convention `library/convert`
 writes — `<root>/<artist_dir>/YYYY - <album_title>/<files>` — by
