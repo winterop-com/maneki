@@ -109,46 +109,39 @@ def create_combined_app(
     cfg = _resolve_cfg(audio_cfg)
     token_store = TokenStore()
 
-    # Lifespan: kick off the library scan + orphan cleanup + prewarm
-    # entirely in the background so uvicorn signals ready immediately.
-    # The previous implementation ran `list(scan_videos(...))` before
-    # yielding, which walks the whole tree and ffprobes every file for
-    # duration — fine on a 10-video test library, but on a 10000-file
-    # production library uvicorn never reaches "ready" and /capabilities
-    # times out for minutes. Running off the startup-blocking path keeps
-    # the API responsive even while a cold scan is in flight.
+    # Lifespan: orphan-cleanup pass on startup, no eager prewarm.
+    #
+    # The old code spawned a poster-thumbnail prewarm task AND an HLS
+    # seg-0 prewarm task that walked the entire library and produced
+    # ffmpeg jobs for every file. Fine on a 10-video test library;
+    # on a real ~10000-file library this peg the CPU for hours with
+    # 10000 queued background ffmpegs (even with the budget cap of 4
+    # concurrent, that's 4 ffmpegs continuously for a long time and
+    # the laptop fan never spins down).
+    #
+    # New shape: do nothing at startup beyond the cheap orphan-cache
+    # sweep. Posters generate on the first /poster request; HLS
+    # segments transcode on first /hls/seg-N.ts request. The user
+    # pays a one-time ~1-3s cold-play latency for a video they've
+    # never opened, in exchange for the library scan + background
+    # workers staying out of the way until something is actually used.
+    #
+    # The orphan sweep itself is cheap (stat-only walk; no ffprobe)
+    # and runs in a worker thread so the startup remains non-blocking.
     @contextlib.asynccontextmanager
     async def _lifespan(app: FastAPI):  # type: ignore[no-untyped-def]
-        prewarm_tasks: list[asyncio.Task[None]] = []
-
         async def _background_startup() -> None:
             video_sub = next((r.app for r in app.routes if getattr(r, "path", "") == "/video"), None)
             if video_sub is None or not hasattr(video_sub.state, "poster_manager"):
                 return
-            # scan_videos is sync and calls ffprobe per file -
-            # run it in a worker thread so it doesn't block the loop.
-            videos = await asyncio.to_thread(lambda: list(scan_videos(video_sub.state.library_root)))
-            # Orphan cleanup: drop any cached posters / thumbs / HLS
-            # segments / extracted subtitles whose source video is no
-            # longer in the library. Catches renames, moves, deletes,
-            # and "files often get rotated out" cases. Runs before
-            # prewarm so we don't prewarm anything that's about to be
-            # evicted. The new-and-current ids set is built once.
+            # Cheap inventory: file list only, no ffprobe (probe=False).
+            videos = await asyncio.to_thread(
+                lambda: list(scan_videos(video_sub.state.library_root, probe=False))
+            )
             live_ids = {v["id"] for v in videos}
             video_sub.state.poster_manager.clean_orphans(live_ids)
             video_sub.state.hls_manager.clean_orphans(live_ids)
             video_sub.state.subtitle_cache.clean_orphans(live_ids)
-            if videos:
-                # Posters + thumbnails first (fast, visible immediately).
-                prewarm_tasks.append(
-                    asyncio.create_task(video_sub.state.poster_manager.prewarm(videos)),
-                )
-                # Then HLS seg-0 - heavier but makes cold first-play
-                # essentially free. concurrency=1 keeps it from
-                # contending with an active playback transcode.
-                prewarm_tasks.append(
-                    asyncio.create_task(video_sub.state.hls_manager.prewarm_seg0(videos)),
-                )
 
         startup_task = asyncio.create_task(_background_startup())
         try:
@@ -158,12 +151,6 @@ def create_combined_app(
                 startup_task.cancel()
             with contextlib.suppress(asyncio.CancelledError, Exception):
                 await startup_task
-            for task in prewarm_tasks:
-                if not task.done():
-                    task.cancel()
-            for task in prewarm_tasks:
-                with contextlib.suppress(asyncio.CancelledError):
-                    await task
 
     combined = FastAPI(title="mediakit", version=__version__, lifespan=_lifespan)
 

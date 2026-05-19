@@ -114,11 +114,20 @@ def _iter_video_files(root: Path) -> Iterator[Path]:
                 yield child
 
 
-def scan_videos(root: Path) -> list[VideoEntry]:
+def scan_videos(root: Path, *, probe: bool = True) -> list[VideoEntry]:
     """Walk root recursively and return one entry per video file.
 
     IDs are derived from the path under the library root so they're stable
     across rescans (until the file is renamed or moved).
+
+    `probe=True` (default) calls ffprobe per file to populate `duration_s`
+    - fine for small libraries and for endpoints that need duration, but
+    expensive on a 1000+ file library (one ffprobe subprocess per file
+    on cold scan). `probe=False` returns `duration_s=None` for every
+    entry, makes the scan a stat-only walk, and lets the duration be
+    filled in lazily on first use. Server startup uses probe=False so
+    a big library doesn't spawn a thousand ffprobes just to know what's
+    there.
     """
     if not root.is_dir():
         return []
@@ -135,7 +144,7 @@ def scan_videos(root: Path) -> list[VideoEntry]:
                 path=str(path),
                 size_bytes=path.stat().st_size,
                 rel_path=str(rel),
-                duration_s=probe_duration(path),
+                duration_s=probe_duration(path) if probe else None,
                 subtitles=[SubtitleSummary(lang=s.language, format=s.fmt) for s in sidecars],
             )
         )
