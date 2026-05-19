@@ -44,6 +44,32 @@ def test_poster_cleanup_no_cache_dir(tmp_path: Path) -> None:
     assert mgr.clean_orphans({"anything"}) == 0
 
 
+def test_hls_marker_written_on_fresh_dir_survives_restart(tmp_path: Path) -> None:
+    """Fresh server -> marker is written eagerly -> next restart preserves segments.
+
+    The previous bug skipped marker writes when base_dir didn't yet
+    exist. The server then created segment dirs without a marker, and
+    the next startup interpreted the missing marker as a version
+    mismatch and wiped every segment. This regresses the entire
+    persistent-HLS-cache feature, so guard against it.
+    """
+    base = tmp_path / "fresh-hls"
+    # First run: fresh init must create the dir and write the marker.
+    mgr_a = HLSManager(base_dir=base)
+    del mgr_a  # noqa: F841 - just exercising __init__
+    marker = base / ".cache-version"
+    assert marker.is_file()
+    assert marker.read_text(encoding="utf-8").strip() == HLS_CACHE_VERSION
+
+    # Simulate a session writing segments after init.
+    (base / "abc").mkdir()
+    (base / "abc" / "seg-0000.ts").write_bytes(b"x")
+
+    # Second run (server restart): marker matches, nothing should be wiped.
+    HLSManager(base_dir=base)
+    assert (base / "abc" / "seg-0000.ts").exists(), "segments wiped on a restart - cache marker not honoured"
+
+
 def test_hls_cleanup_removes_orphan_session_dirs(tmp_path: Path) -> None:
     _pre_seed_hls_marker(tmp_path)
     mgr = HLSManager(base_dir=tmp_path)

@@ -295,7 +295,7 @@ class OnDemandHLS:
 # Without this, segments produced by old code linger in the cache and
 # the player loads them by URL even though their PTS is now wrong,
 # causing position jumps / subtitle drift.
-HLS_CACHE_VERSION = "2"  # output_ts_offset + avoid_negative_ts=disabled
+HLS_CACHE_VERSION = "3"  # output_ts_offset + hash-suffixed video ids
 
 
 class HLSManager:
@@ -311,18 +311,29 @@ class HLSManager:
         self._invalidate_on_version_mismatch()
 
     def _invalidate_on_version_mismatch(self) -> None:
-        """Wipe the cache when on-disk version != current HLS_CACHE_VERSION."""
-        if not self.base_dir.is_dir():
-            return
+        """Ensure the on-disk version marker exists and matches; wipe on mismatch.
+
+        Always writes the marker (creating base_dir if needed). A previous
+        bug skipped the whole routine when base_dir was missing, so a
+        fresh server happily created `<base>/<video_id>/seg-*.ts` later
+        without ever writing `.cache-version`. The next restart then read
+        the missing marker as a version mismatch and wiped every segment
+        — defeating the entire point of the persistent cache.
+
+        Now: mkdir + marker-write happen unconditionally. The wipe step
+        only fires when there's a real mismatch (existing marker disagrees,
+        or contents exist with no marker at all).
+        """
+        self.base_dir.mkdir(parents=True, exist_ok=True)
         marker = self.base_dir / ".cache-version"
         stored = marker.read_text(encoding="utf-8").strip() if marker.is_file() else ""
         if stored == HLS_CACHE_VERSION:
             return
-        # Wipe all session dirs; segments from older code may have wrong PTS.
+        # Wipe all session dirs; segments from older code may have wrong PTS
+        # or stale id keys.
         for path in self.base_dir.iterdir():
             if path.is_dir():
                 shutil.rmtree(path, ignore_errors=True)
-        self.base_dir.mkdir(parents=True, exist_ok=True)
         marker.write_text(HLS_CACHE_VERSION, encoding="utf-8")
 
     def get_or_create(self, video_id: str, input_path: Path, duration_s: float) -> OnDemandHLS:
