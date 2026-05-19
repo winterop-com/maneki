@@ -288,6 +288,16 @@ class OnDemandHLS:
         shutil.rmtree(self.session_dir, ignore_errors=True)
 
 
+# Bump this whenever the HLS segment generation changes in a way that
+# makes old cached segments incompatible with new ones (e.g. PTS
+# scheme change, codec settings, segment duration). HLSManager wipes
+# the entire HLS cache on startup if the on-disk version mismatches.
+# Without this, segments produced by old code linger in the cache and
+# the player loads them by URL even though their PTS is now wrong,
+# causing position jumps / subtitle drift.
+HLS_CACHE_VERSION = "2"  # output_ts_offset + avoid_negative_ts=disabled
+
+
 class HLSManager:
     """One OnDemandHLS per video; lives for the server process lifetime."""
 
@@ -298,6 +308,22 @@ class HLSManager:
         # callers (mostly tests) don't supply one so the manager stays
         # usable in isolation.
         self.budget = budget or TranscodeBudget()
+        self._invalidate_on_version_mismatch()
+
+    def _invalidate_on_version_mismatch(self) -> None:
+        """Wipe the cache when on-disk version != current HLS_CACHE_VERSION."""
+        if not self.base_dir.is_dir():
+            return
+        marker = self.base_dir / ".cache-version"
+        stored = marker.read_text(encoding="utf-8").strip() if marker.is_file() else ""
+        if stored == HLS_CACHE_VERSION:
+            return
+        # Wipe all session dirs; segments from older code may have wrong PTS.
+        for path in self.base_dir.iterdir():
+            if path.is_dir():
+                shutil.rmtree(path, ignore_errors=True)
+        self.base_dir.mkdir(parents=True, exist_ok=True)
+        marker.write_text(HLS_CACHE_VERSION, encoding="utf-8")
 
     def get_or_create(self, video_id: str, input_path: Path, duration_s: float) -> OnDemandHLS:
         existing = self.sessions.get(video_id)
