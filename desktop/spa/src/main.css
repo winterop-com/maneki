@@ -205,3 +205,93 @@ button {
   font-size: 0.85rem;
   font-family: ui-monospace, SFMono-Regular, "SF Mono", monospace;
 }
+
+/* ------- Video list ------- */
+
+.video-list h2 {
+  font-weight: 500;
+  margin-top: 0;
+}
+
+.video-list ul {
+  list-style: none;
+  margin: 1rem 0;
+  padding: 0;
+  display: grid;
+  gap: 0.5rem;
+}
+
+.video-row {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  width: 100%;
+  padding: 0.8rem 1rem;
+  background: #181818;
+  border-radius: 4px;
+  text-align: left;
+  transition: background 0.12s;
+}
+
+.video-row:hover {
+  background: #242424;
+}
+
+.video-row .title {
+  color: #eee;
+  font-size: 1rem;
+}
+
+.video-row .meta {
+  color: #888;
+  font-size: 0.8rem;
+  margin-top: 0.2rem;
+}
+
+.video-row .subtitle-badge {
+  color: #88aaff;
+}
+
+/* ------- Video player ------- */
+
+.video-player {
+  display: grid;
+  gap: 0.8rem;
+}
+
+.player-header {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.player-header h2 {
+  margin: 0;
+  font-weight: 500;
+  font-size: 1.05rem;
+}
+
+.player-back {
+  padding: 0.3rem 0.6rem;
+  color: #888;
+  border-radius: 3px;
+  font-size: 0.9rem;
+}
+
+.player-back:hover {
+  background: #1a1a1a;
+  color: #ddd;
+}
+
+.video-player video {
+  width: 100%;
+  max-height: 75vh;
+  background: #000;
+  border-radius: 4px;
+}
+
+.player-status {
+  color: #666;
+  font-size: 0.8rem;
+  margin: 0;
+}

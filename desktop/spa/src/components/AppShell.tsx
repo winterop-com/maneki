@@ -8,8 +8,11 @@
 import { useMemo, useState } from "react";
 import type { Capabilities } from "../state/capabilities";
 import { useAuth } from "../state/auth";
+import type { Video } from "../state/videos";
 import { Nav } from "./Nav";
 import type { ViewId } from "./Nav";
+import { VideoList } from "./video/VideoList";
+import { VideoPlayer } from "./video/VideoPlayer";
 
 interface AppShellProps {
   capabilities: Capabilities;
@@ -24,6 +27,7 @@ function defaultViewFor(capabilities: Capabilities): ViewId | null {
 export function AppShell({ capabilities }: AppShellProps): React.ReactElement {
   const { session, logout } = useAuth();
   const [view, setView] = useState<ViewId | null>(() => defaultViewFor(capabilities));
+  const [playing, setPlaying] = useState<Video | null>(null);
 
   const headerText = useMemo(() => {
     const parts = [`${capabilities.server} v${capabilities.version}`];
@@ -31,11 +35,16 @@ export function AppShell({ capabilities }: AppShellProps): React.ReactElement {
     return parts.join("  ·  ");
   }, [capabilities, session]);
 
+  const handleSelect = (next: ViewId): void => {
+    setPlaying(null);
+    setView(next);
+  };
+
   return (
     <div className="shell">
       <aside className="sidebar">
         <h1 className="brand">mediakit</h1>
-        <Nav capabilities={capabilities} current={view} onSelect={setView} />
+        <Nav capabilities={capabilities} current={view} onSelect={handleSelect} />
         {session !== null && (
           <button type="button" className="logout" onClick={logout}>
             sign out
@@ -44,7 +53,11 @@ export function AppShell({ capabilities }: AppShellProps): React.ReactElement {
       </aside>
       <main className="content">
         <p className="header">{headerText}</p>
-        <ViewBody view={view} capabilities={capabilities} />
+        {playing !== null ? (
+          <VideoPlayer video={playing} onClose={() => setPlaying(null)} />
+        ) : (
+          <ViewBody view={view} capabilities={capabilities} onPlayVideo={setPlaying} />
+        )}
       </main>
     </div>
   );
@@ -53,9 +66,10 @@ export function AppShell({ capabilities }: AppShellProps): React.ReactElement {
 interface ViewBodyProps {
   view: ViewId | null;
   capabilities: Capabilities;
+  onPlayVideo: (video: Video) => void;
 }
 
-function ViewBody({ view, capabilities }: ViewBodyProps): React.ReactElement {
+function ViewBody({ view, capabilities, onPlayVideo }: ViewBodyProps): React.ReactElement {
   if (view === null) {
     return (
       <section className="placeholder">
@@ -65,13 +79,7 @@ function ViewBody({ view, capabilities }: ViewBodyProps): React.ReactElement {
     );
   }
   if (view === "video.overview") {
-    return (
-      <section className="placeholder">
-        <h2>Video</h2>
-        <p>Video views land in commit 3.</p>
-        <p className="endpoint">API: {capabilities.endpoints.video_api ?? "(disabled)"}</p>
-      </section>
-    );
+    return <VideoList onSelect={onPlayVideo} />;
   }
   return (
     <section className="placeholder">
