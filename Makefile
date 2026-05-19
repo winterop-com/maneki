@@ -18,12 +18,12 @@ help:
 	@echo "  build        Build release versions of everything; collect into ./dist"
 	@echo "  build-python Build Python wheel + sdist via uv build (-> ./dist)"
 	@echo "  dist-collect Copy desktop build artifacts into ./dist for easy access"
-	@echo "  desktop-tauri        Alias for desktop-tauri-dev"
+	@echo "  desktop-tauri        Build the Tauri desktop app .app bundle (release)"
 	@echo "  desktop-tauri-dev    Run the Tauri desktop app in dev mode (cargo tauri dev)"
-	@echo "  desktop-tauri-build  Build the Tauri desktop app .app bundle (release)"
-	@echo "  desktop-electron     Alias for desktop-electron-dev"
+	@echo "  desktop-tauri-build  Same as desktop-tauri (explicit name)"
+	@echo "  desktop-electron     Build the Electron app .dmg under desktop/electron/dist/"
 	@echo "  desktop-electron-dev Run the Electron desktop app in dev mode (npm start)"
-	@echo "  desktop-electron-build Build the Electron app .dmg under desktop/electron/dist/"
+	@echo "  desktop-electron-build Same as desktop-electron (explicit name)"
 	@echo "  clean        Remove caches and build artifacts"
 
 install:
@@ -155,7 +155,7 @@ desktop-sync-frontend:
 desktop-sync-version:
 	@$(UV) run python scripts/sync_desktop_versions.py
 
-desktop-tauri: desktop-tauri-dev
+desktop-tauri: desktop-tauri-build
 
 desktop-tauri-dev: desktop-sync-frontend
 	@echo ">>> Tauri dev — opens window pointed at desktop/react/index.html"
@@ -169,7 +169,7 @@ desktop-tauri-build: desktop-sync-frontend desktop-sync-version
 	@# ('MediaKit_X.Y.Z_arch.dmg' -> 'MediaKit-Tauri-X.Y.Z-arch.dmg').
 	@$(UV) run python scripts/rename_tauri_artifacts.py
 
-desktop-electron: desktop-electron-dev
+desktop-electron: desktop-electron-build
 
 desktop-electron-dev: desktop-sync-frontend
 	@echo ">>> Electron dev — opens window pointed at desktop/react/index.html"
