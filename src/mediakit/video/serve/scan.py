@@ -1,7 +1,9 @@
-"""Discover video files under <root>/videos/.
+"""Discover video files anywhere under a library root.
 
-Permissive about the subdirectory name (videos/, video/, case-insensitive)
-and the layout inside (flat, Movies/, Shows/, anything).
+Walks the library root recursively and picks up any file whose extension
+matches the supported video set. There is no `videos/` subdirectory
+convention — users point at one directory and we scan both audio and
+video from the same root.
 
 Duration is probed lazily via ffprobe and cached per file path so the
 listing endpoint doesn't pay the probe cost on every request, but also
@@ -16,9 +18,23 @@ import subprocess
 from pathlib import Path
 from typing import TypedDict
 
-VIDEO_EXTENSIONS = frozenset({".mkv", ".mp4", ".m4v", ".webm", ".mov", ".avi", ".ts", ".m2ts", ".wmv"})
+# Common container formats; broader than the original set to cover
+# user libraries with mixed-source content (.flv from YouTube rips,
+# .mpg/.mpeg DVDs, .vob raw DVD tracks, .mts/.3gp camcorder/phone
+# captures, .ogv/.asf older container formats, .divx packaged
+# files). Subtitle-image-only codecs are still filtered downstream
+# by ffmpeg, not here.
+VIDEO_EXTENSIONS = frozenset({
+    ".mkv", ".mp4", ".m4v", ".webm", ".mov", ".avi", ".ts", ".m2ts",
+    ".mts", ".wmv", ".flv", ".mpg", ".mpeg", ".vob", ".ogv", ".ogg",
+    ".3gp", ".3g2", ".asf", ".divx",
+})
 
-VIDEOS_DIR_CANDIDATES = ("videos", "video")
+# Directories we never descend into when scanning. `.mediakit` is the
+# server's own cache (poster art, SQLite index, HLS segments — none
+# are library content). Dotfiles and the audio app's expected
+# `.musickit` legacy location are also skipped.
+_SCAN_SKIP_DIR_NAMES = frozenset({".mediakit", ".musickit", ".git", "__pycache__"})
 
 _DURATION_CACHE: dict[str, float | None] = {}
 
@@ -51,41 +67,45 @@ class FolderEntry(TypedDict):
 
 
 class BrowseResponse(TypedDict):
-    """Result of browsing one directory under <root>/videos/."""
+    """Result of browsing one directory under the library root."""
 
-    rel_path: str  # "" means the videos root, "movies" / "tv/The Americans" etc.
+    rel_path: str  # "" means the library root, "movies" / "tv/The Americans" etc.
     crumbs: list[str]  # ["movies"] or ["tv", "The Americans", "Season 1"]; "" -> []
     folders: list[FolderEntry]
     videos: list[VideoEntry]
 
 
-def find_videos_dir(root: Path) -> Path | None:
-    """Return the videos subdirectory under root, or None if none present.
-
-    Matches 'videos' or 'video' case-insensitively. Returns the first match.
-    """
-    for child in root.iterdir() if root.is_dir() else ():
-        if child.is_dir() and child.name.lower() in VIDEOS_DIR_CANDIDATES:
-            return child
-    return None
+def _iter_video_files(root: Path):
+    """Yield every video file under root, skipping internal cache dirs."""
+    if not root.is_dir():
+        return
+    stack = [root]
+    while stack:
+        current = stack.pop()
+        try:
+            entries = list(current.iterdir())
+        except OSError:
+            continue
+        for child in entries:
+            if child.is_dir():
+                if child.name in _SCAN_SKIP_DIR_NAMES:
+                    continue
+                stack.append(child)
+            elif child.is_file() and child.suffix.lower() in VIDEO_EXTENSIONS:
+                yield child
 
 
 def scan_videos(root: Path) -> list[VideoEntry]:
-    """Walk <root>/videos/ and return one entry per video file.
+    """Walk root recursively and return one entry per video file.
 
-    IDs are derived from the path under the videos directory so they're stable
+    IDs are derived from the path under the library root so they're stable
     across rescans (until the file is renamed or moved).
     """
-    videos_dir = find_videos_dir(root)
-    if videos_dir is None:
+    if not root.is_dir():
         return []
     out: list[VideoEntry] = []
-    for path in sorted(videos_dir.rglob("*")):
-        if not path.is_file():
-            continue
-        if path.suffix.lower() not in VIDEO_EXTENSIONS:
-            continue
-        rel = path.relative_to(videos_dir)
+    for path in sorted(_iter_video_files(root)):
+        rel = path.relative_to(root)
         from mediakit.video.serve.subtitles import discover_sidecars
 
         sidecars = discover_sidecars(path)
@@ -103,26 +123,33 @@ def scan_videos(root: Path) -> list[VideoEntry]:
     return out
 
 
+def has_videos(root: Path) -> bool:
+    """Cheap check: does the library root contain at least one video file?
+
+    Stops at the first match so an empty mount decision doesn't pay for a
+    full library walk.
+    """
+    return next(_iter_video_files(root), None) is not None
+
+
 def browse_dir(root: Path, rel_path: str = "") -> BrowseResponse | None:
-    """List immediate children of <root>/videos/<rel_path>/ for the SPA browser.
+    """List immediate children of <root>/<rel_path>/ for the SPA browser.
 
     Returns folders (non-empty, containing at least one video somewhere in
     their subtree) and videos in the current directory. Subtree video
     counts let the SPA show a folder weight (e.g. "Season 1 - 13 videos").
 
-    rel_path is a POSIX-style path relative to the videos directory.
-    Empty string means the videos root. Returns None when:
-    - <root>/videos/ doesn't exist
-    - the resolved target is outside the videos directory (path traversal)
+    rel_path is a POSIX-style path relative to the library root.
+    Empty string means the library root. Returns None when:
+    - the resolved target is outside the library root (path traversal)
     - the target doesn't exist or isn't a directory
     """
-    videos_dir = find_videos_dir(root)
-    if videos_dir is None:
+    if not root.is_dir():
         return None
-    target = (videos_dir / rel_path).resolve()
-    base = videos_dir.resolve()
+    target = (root / rel_path).resolve()
+    base = root.resolve()
     # Guard against `..` escapes - the resolved target must remain inside
-    # the videos directory tree.
+    # the library root tree.
     if target != base and base not in target.parents:
         return None
     if not target.is_dir():
@@ -133,11 +160,14 @@ def browse_dir(root: Path, rel_path: str = "") -> BrowseResponse | None:
     folders: list[FolderEntry] = []
     videos: list[VideoEntry] = []
     for child in sorted(target.iterdir(), key=lambda p: p.name.lower()):
-        child_rel = child.relative_to(videos_dir)
+        child_rel = child.relative_to(root)
         if child.is_dir():
+            if child.name in _SCAN_SKIP_DIR_NAMES:
+                continue
             count = _count_videos(child)
             if count == 0:
-                # Hide empty subdirs (e.g. proof / nfo dirs) from the browser.
+                # Hide empty subdirs (e.g. proof / nfo dirs, or audio-only
+                # folders when scanning a mixed library) from the browser.
                 continue
             folders.append(
                 FolderEntry(
@@ -186,9 +216,8 @@ def browse_dir(root: Path, rel_path: str = "") -> BrowseResponse | None:
 def _count_videos(dir_path: Path) -> int:
     """Count video files at every depth under `dir_path`. Cheap stat-only walk."""
     count = 0
-    for path in dir_path.rglob("*"):
-        if path.is_file() and path.suffix.lower() in VIDEO_EXTENSIONS:
-            count += 1
+    for _ in _iter_video_files(dir_path):
+        count += 1
     return count
 
 

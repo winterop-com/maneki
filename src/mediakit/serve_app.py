@@ -1,17 +1,18 @@
-"""Combined audio + video FastAPI app for the unified `mediakit serve`.
+"""Combined audio + video FastAPI app for `mediakit serve`.
 
-URL layout:
+URL layout (each kind-prefix only exists when that kind has content):
 
     GET  /capabilities         server identity + what's mounted
     POST /auth/login           exchange username + password for a bearer token
     GET  /auth/me              echo back the authed user (requires bearer)
-    /audio/rest/*              Subsonic (Stage 1 audio code, mounted under /audio)
-    /video/api/*               MediaKit native video API
+    /audio/rest/*              Subsonic (mounted when audio files are present)
+    /video/api/*               MediaKit native video API (mounted when video files are present)
     /video/                    throwaway demo HTML page (retired when SPA lands)
 
-Both audio and video sub-apps are mounted with their existing factories - no
-changes to either kind's standalone behaviour. `mediakit audio serve` and
-`mediakit video serve` keep working as before, exposing routes at root.
+The single library root is scanned for both kinds at startup. The Subsonic
+mount appears only if the scan finds audio files; the video mount appears
+only if it finds video files; pointing at an empty directory yields just
+`/capabilities` and the auth endpoints.
 
 Auth is opt-in: pass `enable_auth=True` (CLI: `mediakit serve --auth`) to
 require a bearer token on /video/* (and future MediaKit-native endpoints).
@@ -35,8 +36,8 @@ from starlette.responses import Response
 
 from mediakit import __version__
 from mediakit.auth import Token, TokenStore
-from mediakit.library import find_audio_dir
-from mediakit.video.serve.scan import find_videos_dir, scan_videos
+from mediakit.library import has_audio, has_video
+from mediakit.video.serve.scan import scan_videos
 
 if TYPE_CHECKING:
     from collections.abc import Awaitable, Callable
@@ -69,8 +70,6 @@ class WhoAmI(BaseModel):
 def create_combined_app(
     *,
     root: Path,
-    enable_audio: bool = True,
-    enable_video: bool = True,
     enable_auth: bool = False,
     enable_ui: bool = False,
     ui_dir: Path | None = None,
@@ -78,12 +77,16 @@ def create_combined_app(
     audio_cfg: ServeConfig | None = None,
     transcode_workers: int | None = None,
 ) -> FastAPI:
-    """Build a FastAPI app that mounts whichever kinds are present at root.
+    """Build a FastAPI app that auto-mounts whichever kinds are present at root.
+
+    The whole library lives under a single `root` directory. Audio and video
+    are detected by file extension anywhere under that root — there is no
+    `audio/`/`videos/` subdirectory convention. A kind with zero matching
+    files is simply not mounted (no Subsonic routes if no audio, no video
+    routes if no video files).
 
     Args:
-        root: library root containing audio/ and/or videos/ subdirectories.
-        enable_audio: if False, skip audio mount even if <root>/audio/ exists.
-        enable_video: if False, skip video mount even if <root>/videos/ exists.
+        root: library root. Scanned recursively for both audio and video files.
         enable_auth: if True, require Authorization: Bearer <token> on
             /video/* (Subsonic at /audio/rest/* keeps its own auth). Default
             False so the existing demo page keeps working unchanged.
@@ -97,8 +100,8 @@ def create_combined_app(
             falling back to admin/admin. Tests pass this explicitly to avoid
             leaking state from shared class-level config caches.
     """
-    audio_dir = find_audio_dir(root) if enable_audio else None
-    video_dir = find_videos_dir(root) if enable_video else None
+    audio_present = has_audio(root)
+    video_present = has_video(root)
     cfg = _resolve_cfg(audio_cfg)
     token_store = TokenStore()
 
@@ -152,12 +155,12 @@ def create_combined_app(
         return {
             "server": "mediakit",
             "version": __version__,
-            "audio": audio_dir is not None,
-            "video": video_dir is not None,
+            "audio": audio_present,
+            "video": video_present,
             "auth_required": enable_auth,
             "endpoints": {
-                "audio_subsonic": "/audio/rest" if audio_dir is not None else None,
-                "video_api": "/video/api" if video_dir is not None else None,
+                "audio_subsonic": "/audio/rest" if audio_present else None,
+                "video_api": "/video/api" if video_present else None,
                 "auth_login": "/auth/login",
             },
         }
@@ -185,10 +188,10 @@ def create_combined_app(
             protected_prefixes=("/video/",),
         )
 
-    if audio_dir is not None:
-        _mount_audio(combined, audio_dir, use_cache=audio_use_cache, cfg=cfg)
+    if audio_present:
+        _mount_audio(combined, root, use_cache=audio_use_cache, cfg=cfg)
 
-    if video_dir is not None:
+    if video_present:
         _mount_video(combined, root, workers=transcode_workers)
 
     if enable_ui:
@@ -258,18 +261,22 @@ class BearerAuthMiddleware(BaseHTTPMiddleware):
         return await call_next(request)
 
 
-def _mount_audio(combined: FastAPI, audio_root: Path, *, use_cache: bool, cfg: ServeConfig) -> None:
-    """Mount the Subsonic app under /audio.
+def _mount_audio(combined: FastAPI, library_root: Path, *, use_cache: bool, cfg: ServeConfig) -> None:
+    """Mount the Subsonic app under /audio against the shared library root.
 
     Triggers the initial library scan synchronously so the first /audio/rest/*
-    request hits a populated IndexCache. Standalone `mediakit audio serve`
-    does this in its CLI; mounting the same app as a sub-app means we have
-    to drive the rebuild ourselves (the IndexCache is created at create_app
-    time but its content isn't populated until rebuild() runs).
+    request hits a populated IndexCache. Mounting the audio sub-app means we
+    drive the rebuild here (the IndexCache is created at create_app time but
+    its content isn't populated until rebuild() runs).
+
+    The audio scanner walks `library_root` recursively for audio extensions,
+    so passing the library root (rather than a subdirectory) is what makes
+    single-library mode work — video subtrees are naturally skipped because
+    they contain no audio files.
     """
     from mediakit.audio.serve import create_app as create_audio_app
 
-    audio_app = create_audio_app(root=audio_root, cfg=cfg, use_cache=use_cache)
+    audio_app = create_audio_app(root=library_root, cfg=cfg, use_cache=use_cache)
     audio_app.state.cache.rebuild()
     combined.mount("/audio", audio_app)
 
