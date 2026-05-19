@@ -51,6 +51,11 @@ desktop/electron/node_modules/
 desktop/electron/dist/
 desktop/electron/package-lock.json
 
+# Vite SPA build outputs + TS incremental build cache
+desktop/spa/node_modules/
+desktop/spa/dist/
+desktop/spa/tsconfig.tsbuildinfo
+
 # Generated bundle so `mediakit ui` can serve the SPA from an installed
 # wheel. `scripts/copy_ui_static.py` mirrors `desktop/frontend/` into
 # here; the canonical source lives in `desktop/frontend/`.
