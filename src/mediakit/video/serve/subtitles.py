@@ -386,3 +386,20 @@ class SubtitleCache:
             if out.exists() and out.stat().st_size > 0:
                 return out
             return await extract_embedded_to_vtt(video_path, stream_index, out)
+
+    def clean_orphans(self, live_ids: set[str]) -> int:
+        """Delete cached subtitle dirs whose video id isn't in `live_ids`."""
+        if not self.cache_dir.is_dir():
+            return 0
+        removed = 0
+        for path in self.cache_dir.iterdir():
+            if not path.is_dir():
+                continue
+            if path.name in live_ids:
+                continue
+            try:
+                shutil.rmtree(path)
+                removed += 1
+            except OSError:
+                pass
+        return removed

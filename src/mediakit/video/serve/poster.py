@@ -337,6 +337,37 @@ class PosterManager:
     def thumbnail_path(self, video_id: str) -> Path:
         return self.cache_dir / f"{video_id}.thumb.jpg"
 
+    def clean_orphans(self, live_ids: set[str]) -> int:
+        """Delete cached posters / thumbs whose video id isn't in `live_ids`.
+
+        Catches the case where a file was renamed, moved, or deleted
+        from the library since the last server run - the old cache
+        entries would otherwise accumulate forever. Returns the number
+        of files removed.
+        """
+        if not self.cache_dir.is_dir():
+            return 0
+        removed = 0
+        for path in self.cache_dir.iterdir():
+            if not path.is_file():
+                continue
+            name = path.name
+            # Recover the video id from the cache filename.
+            # `<id>.png` and `<id>.thumb.jpg` are the two layouts.
+            if name.endswith(".thumb.jpg"):
+                vid = name[: -len(".thumb.jpg")]
+            elif name.endswith(".png"):
+                vid = name[: -len(".png")]
+            else:
+                continue
+            if vid not in live_ids:
+                try:
+                    path.unlink()
+                    removed += 1
+                except OSError:
+                    pass
+        return removed
+
     async def ensure_poster(
         self,
         video_id: str,

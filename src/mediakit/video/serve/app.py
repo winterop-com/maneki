@@ -71,6 +71,7 @@ def create_app(root: Path) -> FastAPI:
     # lifespan - FastAPI does NOT run sub-app lifespans automatically.
     app.state.poster_manager = poster_manager
     app.state.hls_manager = hls_manager
+    app.state.subtitle_cache = subtitle_cache
     app.state.library_root = root
 
     @app.get("/", response_class=HTMLResponse)
@@ -281,6 +282,10 @@ def create_app(root: Path) -> FastAPI:
                 path = await session.ensure_segment(idx)
             except IndexError as exc:
                 raise HTTPException(status_code=404, detail=str(exc)) from exc
+            # Kick off neighbour transcodes in the background so small
+            # scrubs (skip ahead 6-12s) land on a warm cache. Doesn't
+            # block the current response.
+            session.prefetch_neighbors(idx)
             return FileResponse(path, media_type="video/mp2t")
         raise HTTPException(status_code=404, detail=f"unknown hls resource {filename!r}")
 

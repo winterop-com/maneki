@@ -113,6 +113,16 @@ def create_combined_app(
         video_sub = next((r.app for r in app.routes if getattr(r, "path", "") == "/video"), None)
         if video_sub is not None and hasattr(video_sub.state, "poster_manager"):
             videos = list(scan_videos(video_sub.state.library_root))
+            # Orphan cleanup: drop any cached posters / thumbs / HLS
+            # segments / extracted subtitles whose source video is no
+            # longer in the library. Catches renames, moves, deletes,
+            # and "files often get rotated out" cases. Runs before
+            # prewarm so we don't prewarm anything that's about to be
+            # evicted. The new-and-current ids set is built once.
+            live_ids = {v["id"] for v in videos}
+            video_sub.state.poster_manager.clean_orphans(live_ids)
+            video_sub.state.hls_manager.clean_orphans(live_ids)
+            video_sub.state.subtitle_cache.clean_orphans(live_ids)
             if videos:
                 # Posters + thumbnails first (fast, visible immediately).
                 prewarm_tasks.append(

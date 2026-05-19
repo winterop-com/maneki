@@ -113,6 +113,12 @@ class OnDemandHLS:
         # only spawn one ffmpeg. dict grows once per touched segment - fine
         # for VOD sizes (a 2hr movie at 6s segments = 1200 entries max).
         self._segment_locks: dict[int, asyncio.Lock] = {}
+        # Background prefetch tasks keyed by segment index. Drained on
+        # completion so the dict reflects "currently in flight". Capped
+        # by a semaphore so a flurry of forward seeks doesn't spawn
+        # 50 concurrent ffmpeg processes.
+        self._prefetch_tasks: dict[int, asyncio.Task[None]] = {}
+        self._prefetch_sem = asyncio.Semaphore(2)
 
     def manifest(self) -> str:
         return build_manifest(self.segments)
@@ -130,6 +136,38 @@ class OnDemandHLS:
                 return out_path
             await self._transcode_segment(idx)
         return out_path
+
+    def prefetch_neighbors(self, idx: int) -> None:
+        """Kick off background transcodes for `idx+1` and `idx-1` if uncached.
+
+        Helps small forward / backward scrubs land on a warm cache.
+        Forward is the common case (skipping ads / intros, peeking
+        ahead); we still warm idx-1 because back-buttons happen.
+        Fire-and-forget - the call returns immediately; failures are
+        swallowed since prefetch is best-effort.
+        """
+        for candidate in (idx + 1, idx - 1):
+            self._prefetch_one(candidate)
+
+    def _prefetch_one(self, idx: int) -> None:
+        if idx < 0 or idx >= len(self.segments):
+            return
+        if idx in self._prefetch_tasks:
+            return
+        out_path = self.session_dir / f"seg-{idx:04d}.ts"
+        if out_path.exists():
+            return
+        task = asyncio.create_task(self._safe_prefetch(idx))
+        self._prefetch_tasks[idx] = task
+
+    async def _safe_prefetch(self, idx: int) -> None:
+        try:
+            async with self._prefetch_sem:
+                await self.ensure_segment(idx)
+        except Exception:  # noqa: BLE001 - background prefetch must not crash the server
+            pass
+        finally:
+            self._prefetch_tasks.pop(idx, None)
 
     async def _transcode_segment(self, idx: int) -> None:
         spec = self.segments[idx]
@@ -238,6 +276,33 @@ class HLSManager:
 
     def get(self, video_id: str) -> OnDemandHLS | None:
         return self.sessions.get(video_id)
+
+    def clean_orphans(self, live_ids: set[str]) -> int:
+        """Delete cached HLS dirs whose video id isn't in `live_ids`.
+
+        Catches the case where a file was renamed, moved, or deleted
+        from the library since the last server run - the old segment
+        cache would otherwise sit on disk forever. Returns the number
+        of directories removed.
+        """
+        if not self.base_dir.is_dir():
+            return 0
+        removed = 0
+        for path in self.base_dir.iterdir():
+            if not path.is_dir():
+                continue
+            if path.name in live_ids:
+                continue
+            try:
+                shutil.rmtree(path)
+                removed += 1
+                # Also drop any in-memory session for the orphan id, in
+                # case the server has been running long enough to have
+                # an entry from a previous library scan.
+                self.sessions.pop(path.name, None)
+            except OSError:
+                pass
+        return removed
 
     def reset(self) -> None:
         """Drop all sessions and their on-disk caches (used in tests)."""
