@@ -28,17 +28,17 @@ Then on top of that:
   - `library cover IMAGE DIR` / `library cover-pick DIR` / `library retag DIR` — in-place tag and cover edits; semi-automated cover selection via [musichoarders.xyz](https://covers.musichoarders.xyz/)
   - `library lyrics fetch DIR` — populate `<track>.lrc` sidecars from [LRCLIB](https://lrclib.net) (free, no API key, returns synced lyrics for popular tracks)
   - `library index status|drop|rebuild DIR` — manage the persistent SQLite index at `<DIR>/.mediakit/index.db`
-- **`mediakit tui`** — Textual UI: artist/album browser, now-playing visualizer, internet radio, saved Mixes view, and a Subsonic-client mode that connects to your own `serve` over Tailscale. Press `g` on any track to generate a 60-min mix anchored to it; press `l` to swap the visualizer for synced lyrics that track playback line-by-line.
-- **`mediakit serve`** — Subsonic-compatible HTTP server. Any Subsonic client (Symfonium, Amperfy, play:Sub, Feishin) can browse + stream + control via the standard API. mDNS / Bonjour for autodiscovery, ffmpeg-on-the-fly for transcoding, filesystem watcher for auto-rescan when you drop new albums in. Real heart / star button (persistent favourites at `<root>/.mediakit/stars.toml`); LRC bodies promoted to `synced: true` so client lyrics views highlight live.
-- **`mediakit playlist`** — auto-generate `.m3u8` playlists anchored to a seed track using tag-based similarity (artist / genre / year). `gen` writes a mix; `list` / `show` browse what's saved. Output is plain extended M3U so VLC, Subsonic clients, and the TUI's Mixes view all play it.
-- **`mediakit inspect`** — quick tag dump for a single file.
+- **`mediakit audio tui`** — Textual UI: artist/album browser, now-playing visualizer, internet radio, saved Mixes view, and a Subsonic-client mode that connects to your own `serve` over Tailscale. Press `g` on any track to generate a 60-min mix anchored to it; press `l` to swap the visualizer for synced lyrics that track playback line-by-line.
+- **`mediakit audio serve`** — Subsonic-compatible HTTP server. Any Subsonic client (Symfonium, Amperfy, play:Sub, Feishin) can browse + stream + control via the standard API. mDNS / Bonjour for autodiscovery, ffmpeg-on-the-fly for transcoding, filesystem watcher for auto-rescan when you drop new albums in. Real heart / star button (persistent favourites at `<root>/.mediakit/stars.toml`); LRC bodies promoted to `synced: true` so client lyrics views highlight live.
+- **`mediakit audio playlist`** — auto-generate `.m3u8` playlists anchored to a seed track using tag-based similarity (artist / genre / year). `gen` writes a mix; `list` / `show` browse what's saved. Output is plain extended M3U so VLC, Subsonic clients, and the TUI's Mixes view all play it.
+- **`mediakit audio inspect`** — quick tag dump for a single file.
 - **Desktop apps** — Tauri (~15 MB, native WebKit on macOS) and Electron (~120 MB, bundled Chromium) wrappers around a generic Subsonic client UI. URL + Username + Password login; salted-token auth; refresh-restores via URL hash. `.dmg` / `.exe` / `.AppImage` / `.deb` attach to every release. See [Desktop apps](guides/desktop.md).
 - **Mobile** — no MediaKit app of its own; `serve` exposes the standard Subsonic API so play:Sub / Amperfy (iOS) and Symfonium / DSub / Tempo (Android) all work against it. See [Mobile](guides/mobile.md).
 
 ## Quickstart
 
 ```bash
-uvx mediakit convert ./input ./output
+uvx mediakit audio convert ./input ./output
 ```
 
 `uvx` downloads the latest `mediakit` from PyPI, caches it, runs it. For persistent install: `uv tool install mediakit`. New here?
@@ -60,7 +60,7 @@ Years of rip-collection wrangling produces an audio library full of:
 - Various-Artists rips with `album_artist = "VA"` and the real artist hiding in the filename
 - Cover art that's either missing, low-resolution, or back-cover-by-mistake
 
-`mediakit convert` handles all of these; the rest of the CLI gives you tools to browse, play, audit, and stream the result.
+`mediakit audio convert` handles all of these; the rest of the CLI gives you tools to browse, play, audit, and stream the result.
 
 ## Status
 

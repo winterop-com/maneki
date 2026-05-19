@@ -16,7 +16,7 @@ trade-offs you prefer.
 ## What it is
 
 Both wrappers point the embedded webview at any Subsonic-compatible
-server — your own `mediakit serve`, [Navidrome], [Airsonic], whatever.
+server — your own `mediakit audio serve`, [Navidrome], [Airsonic], whatever.
 They're not just thin chrome around the web UI; the SPA inside
 (`desktop/react/`) is a full client: salted-token auth, refresh-restore
 via URL hashes, and a Web Audio FFT visualizer.
@@ -62,7 +62,7 @@ Drag a `.dmg` into your Finder or double-click the `.app` directly.
 1. Launch the app — you get a login screen.
 2. Server URL: `http://<host>:4533` (or whatever your Subsonic-compatible
    server runs on). No `/rest` suffix.
-3. Username + password: same credentials as `mediakit serve`'s config.
+3. Username + password: same credentials as `mediakit audio serve`'s config.
 4. The app connects, fetches the artist list, and remembers the
    credentials in OS-encrypted storage (Keychain on macOS, libsecret
    on Linux, Credential Manager on Windows).

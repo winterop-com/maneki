@@ -10,7 +10,7 @@ The route this guide takes:
 2. Convert a sample library
 3. Audit + auto-fix the warnings
 4. Pick covers for the flagged albums
-5. Start `mediakit serve`
+5. Start `mediakit audio serve`
 6. Set up the iPhone (Tailscale + Amperfy)
 7. Connect Amperfy to the server and play a track
 
@@ -88,7 +88,7 @@ handles `Artist/Album/`, `Artist/Album/CD1/CD2/`, scene-tagged dirs, and
 flat dumps. For a quickstart run a sample of 5–20 albums is enough.
 
 ```bash
-uvx mediakit convert ./input ./output
+uvx mediakit audio convert ./input ./output
 ```
 
 Default output is `output/<Artist>/<YYYY> - <Album>/NN - <Title>.m4a` at
@@ -102,7 +102,7 @@ guide points at that directory.
 ## 3. Audit + fix
 
 ```bash
-uvx mediakit library audit ./output --issues-only
+uvx mediakit audio library audit ./output --issues-only
 ```
 
 Shows a table of every album with at least one warning: missing cover,
@@ -111,8 +111,8 @@ track gaps. You can ignore most of these for a first run; the deterministic
 ones get fixed by:
 
 ```bash
-uvx mediakit library fix ./output --dry-run        # preview
-uvx mediakit library fix ./output                  # apply
+uvx mediakit audio library fix ./output --dry-run        # preview
+uvx mediakit audio library fix ./output                  # apply
 ```
 
 The fixer makes one MusicBrainz HTTP call per flagged album to backfill
@@ -123,7 +123,7 @@ for clean albums means there's nothing to fix.
 For the cover-art warnings, the semi-automated path is:
 
 ```bash
-uvx mediakit library cover-pick ./output
+uvx mediakit audio library cover-pick ./output
 ```
 
 Per album, this:
@@ -145,7 +145,7 @@ dropped.
 ## 4. Start the server
 
 ```bash
-uvx mediakit serve ./output
+uvx mediakit audio serve ./output
 ```
 
 By default this:
@@ -159,7 +159,7 @@ By default this:
 You'll see a startup banner like:
 
 ```
-mediakit serve — Subsonic API for ~/Music
+mediakit audio serve — Subsonic API for ~/Music
   bind: 0.0.0.0:4533
   LAN:  http://192.168.1.42:4533
   Tailscale: http://mlaptop.tail4a4b9a.ts.net:4533
@@ -184,10 +184,10 @@ password = "your-strong-password"
 EOF
 ```
 
-Restart `mediakit serve` — the yellow warning is gone.
+Restart `mediakit audio serve` — the yellow warning is gone.
 
 (If you're upgrading from a pre-v0.11 install with a `serve.toml`, run
-`mediakit config migrate` once to move it to the new format.)
+`mediakit audio config migrate` once to move it to the new format.)
 
 Leave the server running. You can also run it as a background process via
 launchd / systemd; see [Serve](serve.md) for examples.
@@ -231,7 +231,7 @@ recommend for iOS. play:Sub, iSub, Substreamer all work too — Amperfy
 is the most feature-complete, including OpenSubsonic extensions and
 synced lyrics.)
 
-### Connect Amperfy to mediakit serve
+### Connect Amperfy to mediakit audio serve
 
 Open Amperfy → first-launch screen prompts for a server. Fill in:
 
@@ -247,7 +247,7 @@ and `/rest/getArtists` to populate the library. On first connect with a
 If login fails, the most common causes are:
 
 - Tailscale not connected on the iPhone (check the menu icon).
-- Wrong port (mediakit serve uses 4533 by default; some other Subsonic
+- Wrong port (mediakit audio serve uses 4533 by default; some other Subsonic
   servers use 4040).
 - HTTPS expected but not configured. Default `serve` is plain HTTP. If
   Amperfy asks for HTTPS, leave the URL as `http://` and accept the
@@ -275,7 +275,7 @@ Try the things you'd expect from a Subsonic client:
 If you also want to browse the same library on the Mac itself:
 
 ```bash
-uvx mediakit tui ./output
+uvx mediakit audio tui ./output
 ```
 
 This is the TUI — three-pane Textual app, library browser on the left, now-playing card + 48-band visualizer + tracklist on the right.
@@ -291,8 +291,8 @@ the speaker instead of the laptop. Iterate with `--airplay 'HomePod'`
 on the CLI for headless / scripted use.
 
 This is unrelated to the iPhone setup — it's about playback on the Mac
-itself. The Subsonic-client mode in `mediakit tui --subsonic ...` lets
-you also use the TUI as a Subsonic client to a remote `mediakit serve`.
+itself. The Subsonic-client mode in `mediakit audio tui --subsonic ...` lets
+you also use the TUI as a Subsonic client to a remote `mediakit audio serve`.
 
 ## 7. Day-to-day
 
@@ -301,15 +301,15 @@ Once it's running:
 - **Add albums** — drop new dirs into `./output/` (or wherever you
   pointed `serve`). The watcher picks them up within ~5 seconds. New
   album appears in Amperfy's library on next pull-to-refresh.
-- **Edit tags** — `mediakit library retag <album-dir> --year 2020`,
+- **Edit tags** — `mediakit audio library retag <album-dir> --year 2020`,
   `--album-artist 'New Name'`, etc. The watcher catches the file mtime
   changes and re-reads only that album.
-- **Replace covers** — `mediakit library cover <album-dir> new.jpg`
+- **Replace covers** — `mediakit audio library cover <album-dir> new.jpg`
   embeds the new cover into every track.
-- **Audit periodically** — `mediakit library audit ./output --issues-only`
+- **Audit periodically** — `mediakit audio library audit ./output --issues-only`
   surfaces newly-introduced warnings (a recent rip might have
   unexpected scene tags).
-- **Inspect a single track** — `mediakit inspect path/to/track.m4a`
+- **Inspect a single track** — `mediakit audio inspect path/to/track.m4a`
   pretty-prints its tags, embedded picture, ReplayGain.
 
 ## Troubleshooting
@@ -318,7 +318,7 @@ Once it's running:
 
 Check, in order:
 
-1. Is `mediakit serve` still running? Restart if not.
+1. Is `mediakit audio serve` still running? Restart if not.
 2. Is Tailscale connected on the iPhone? Open the app and confirm.
 3. Can you load the JSON probe URL in Mobile Safari? If yes, the
    transport works — the issue is in Amperfy's auth / URL setup.
@@ -340,7 +340,7 @@ filesystem walk + tag read. After that, the SQLite index at
 are re-scanned. If a launch ever feels mysteriously slow, run:
 
 ```bash
-uvx mediakit library index status ./output
+uvx mediakit audio library index status ./output
 ```
 
 to inspect the DB and confirm it exists. `--full-rescan` (on `tree` or

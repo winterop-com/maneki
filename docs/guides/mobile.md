@@ -8,7 +8,7 @@ This guide walks through the four clients that work well in 2026.
 
 ## TL;DR
 
-1. Run `mediakit serve` somewhere your phone can reach (Tailscale, LAN, or
+1. Run `mediakit audio serve` somewhere your phone can reach (Tailscale, LAN, or
    a public URL behind a reverse proxy).
 2. Install one of the apps below.
 3. Point it at `http(s)://<host>:4533/rest`, with the username + password
@@ -109,7 +109,7 @@ Free, open source, works on phone + Android Auto.
 ### "No music shows up"
 
 - The server only sees what's under the path you launched it with:
-  `mediakit serve /path/to/Music`. Verify
+  `mediakit audio serve /path/to/Music`. Verify
   `curl 'http://<host>:4533/rest/getArtists?u=...&p=...&f=json'` returns
   a non-empty list.
 - If `getArtists` returns content but the app's empty, force-rescan

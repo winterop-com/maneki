@@ -1,10 +1,10 @@
-# `mediakit inspect`
+# `mediakit audio inspect`
 
 Quick tag + cover summary for a single audio file.
 
 ```bash
-uvx mediakit inspect PATH
-uvx mediakit inspect PATH --json   # raw model dump for scripting / jq
+uvx mediakit audio inspect PATH
+uvx mediakit audio inspect PATH --json   # raw model dump for scripting / jq
 ```
 
 Prints title, artist, album_artist, album, year, genre, track/disc tuples, BPM, label, catalog, lyrics, replaygain values, MusicBrainz IDs (if present), and embedded picture dimensions, all as labelled rich panels — File, Tags, ReplayGain (when present), Lyrics (when present), Embedded picture (when present). Empty fields are suppressed so the output reflects only what's actually tagged.
@@ -41,6 +41,6 @@ Sample output:
   pixels  ~1,000,000 px
 ```
 
-Pass `--json` to skip the Rich rendering and get the raw `SourceTrack` model serialised for downstream pipes (`uvx mediakit inspect track.m4a --json | jq .title`).
+Pass `--json` to skip the Rich rendering and get the raw `SourceTrack` model serialised for downstream pipes (`uvx mediakit audio inspect track.m4a --json | jq .title`).
 
 Backed by `metadata.read_source(path)` — the same tag reader the convert pipeline uses. So what you see here is what convert sees.

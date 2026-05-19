@@ -32,14 +32,14 @@ Typer **subapp** carrying further verbs (`tree`, `audit`, `fix`, `cover`,
 |   WAV/OGG/OPUS)    |
 +----+---------------+
      |
-     |  mediakit convert
+     |  mediakit audio convert
      v
 +--------------------+
 |  output dir        |   <Artist>/<YYYY> - <Album>/NN - <Title>.m4a
 |  (clean library)   |   one shape, all M4A/AAC unless --format said otherwise
 +----+---------------+
      |
-     |  mediakit library tree | audit | fix | cover-pick | retag
+     |  mediakit audio library tree | audit | fix | cover-pick | retag
      |
      |  (also: hydrates `<output>/.mediakit/index.db`,
      |   the persistent SQLite index of every album/track/
@@ -57,7 +57,7 @@ Typer **subapp** carrying further verbs (`tree`, `audit`, `fix`, `cover`,
    |                                                     |
    v                                                     v
 +----------------------+                +---------------------------+
-| mediakit tui         |                | mediakit serve            |
+| mediakit audio tui         |                | mediakit audio serve            |
 |                      |                |                           |
 | Textual UI process   |                | FastAPI app               |
 |   + audio engine     |                |   + IndexCache            |
@@ -488,7 +488,7 @@ library" button that hits two standard endpoints:
   immediately with `{scanning: true, count: <current-track-count>}`.
   mediakit backs this with `cache.start_background_rescan(force=True)`,
   which spawns a daemon thread running the same full rebuild as
-  `mediakit library index rebuild`.
+  `mediakit audio library index rebuild`.
 - `GET /rest/getScanStatus` — poll endpoint, returns `{scanning: bool,
   count: <track-count>}`. The client polls every second or two while
   `scanning=true`, then refreshes its in-app library view.

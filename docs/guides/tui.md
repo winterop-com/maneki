@@ -1,20 +1,20 @@
-# `mediakit tui`
+# `mediakit audio tui`
 
-A Textual TUI for browsing + playing the converted library, plus a curated radio section, plus a Subsonic-client mode for connecting to a remote `mediakit serve` (or any Subsonic server) over Tailscale.
+A Textual TUI for browsing + playing the converted library, plus a curated radio section, plus a Subsonic-client mode for connecting to a remote `mediakit audio serve` (or any Subsonic server) over Tailscale.
 
 ## Modes
 
 ```bash
-uvx mediakit tui ./output                                # local library + radio
-uvx mediakit tui                                         # radio-only
-uvx mediakit tui --subsonic URL --user U --password P    # Subsonic client mode
-uvx mediakit tui --subsonic URL --user U --password P --save-subsonic
-uvx mediakit tui --saved-subsonic                        # reconnect with saved creds (no flags)
-uvx mediakit tui --forget-subsonic                       # wipe saved creds + exit
-uvx mediakit tui --discover                              # list LAN Subsonic servers + AirPlay devices, exit
-uvx mediakit tui --airplay 'HomePod'                     # route playback to an AirPlay device
-uvx mediakit tui ./output --no-cache                     # skip the index DB (in-memory scan only)
-uvx mediakit tui ./output --full-rescan                  # rebuild the index DB from scratch on launch
+uvx mediakit audio tui ./output                                # local library + radio
+uvx mediakit audio tui                                         # radio-only
+uvx mediakit audio tui --subsonic URL --user U --password P    # Subsonic client mode
+uvx mediakit audio tui --subsonic URL --user U --password P --save-subsonic
+uvx mediakit audio tui --saved-subsonic                        # reconnect with saved creds (no flags)
+uvx mediakit audio tui --forget-subsonic                       # wipe saved creds + exit
+uvx mediakit audio tui --discover                              # list LAN Subsonic servers + AirPlay devices, exit
+uvx mediakit audio tui --airplay 'HomePod'                     # route playback to an AirPlay device
+uvx mediakit audio tui ./output --no-cache                     # skip the index DB (in-memory scan only)
+uvx mediakit audio tui ./output --full-rescan                  # rebuild the index DB from scratch on launch
 ```
 
 Subsonic credentials are saved as a token + salt pair — never the raw password. Authentication on the wire uses the same Subsonic-spec `t` / `s` token mode, so the password never travels in a query string regardless of `--save-subsonic`. The saved block lives in `~/.config/mediakit/state.toml` (mode 0600); `--forget-subsonic` removes it.
@@ -79,7 +79,7 @@ Click semantics on the track list mirror Spotify / iTunes: single click moves th
 
 ## Local library mode
 
-`mediakit tui ./output` hydrates the persistent SQLite index at `<DIR>/.mediakit/index.db` if present (a delta-validate pass picks up filesystem changes since the last run); otherwise it walks the directory via `library.scan` + `library.audit`. Initial scan shows a centred progress overlay with album-by-album feedback; subsequent rescans (`Ctrl+R`) re-validate against the filesystem.
+`mediakit audio tui ./output` hydrates the persistent SQLite index at `<DIR>/.mediakit/index.db` if present (a delta-validate pass picks up filesystem changes since the last run); otherwise it walks the directory via `library.scan` + `library.audit`. Initial scan shows a centred progress overlay with album-by-album feedback; subsequent rescans (`Ctrl+R`) re-validate against the filesystem.
 
 ### Audio engine architecture
 
@@ -117,7 +117,7 @@ Defaults baked into code + user TOML are merged at runtime (deduped by URL, user
 
 ICY metadata polling: while a stream is playing, the decoder thread polls `container.metadata` per packet for `StreamTitle` updates. The "now playing" pane updates with the live song name as the radio station broadcasts it.
 
-Radio launches as a first-class mode — `mediakit tui` with no DIR drops directly into station picking (skipping the library scan entirely).
+Radio launches as a first-class mode — `mediakit audio tui` with no DIR drops directly into station picking (skipping the library scan entirely).
 
 ## Lyrics
 
@@ -128,7 +128,7 @@ Source precedence (set during the library scan):
 1. `<track>.lrc` sidecar next to the audio file (user-editable, survives rescans).
 2. Embedded `\xa9lyr` (MP4) / `USLT` (ID3) / `LYRICS` (FLAC Vorbis) tag, picked up by the same scan that reads other tags.
 
-Sidecars win over embedded so a manually-edited `.lrc` doesn't get overwritten by stale tag data on the next rescan. Populate sidecars in bulk with [`mediakit audio library lyrics fetch`](audio-library.md#fetching-lyrics-from-lrclib) — that command pulls from [LRCLIB](https://lrclib.net) (free, no API key, returns synced lyrics for popular tracks).
+Sidecars win over embedded so a manually-edited `.lrc` doesn't get overwritten by stale tag data on the next rescan. Populate sidecars in bulk with [`mediakit audio library lyrics fetch`](audio-library.md#lyrics-fetch-synced-lyrics-from-lrclib) — that command pulls from [LRCLIB](https://lrclib.net) (free, no API key, returns synced lyrics for popular tracks).
 
 In Subsonic-client mode the TUI calls the server's `/getLyricsBySongId`; the server promotes LRC bodies to `synced: true` automatically, so the highlight tracks playback the same way local mode does.
 
@@ -137,7 +137,7 @@ In Subsonic-client mode the TUI calls the server's `/getLyricsBySongId`; the ser
 Press `g` on a TrackList row to generate a 60-min mix anchored to that track. The action:
 
 1. Resolves the seed (highlighted row, falls back to currently-playing track).
-2. Calls `playlist.generate(index, seed, target_minutes=60)` — same builder as the [`mediakit playlist gen`](playlist.md) CLI.
+2. Calls `playlist.generate(index, seed, target_minutes=60)` — same builder as the [`mediakit audio playlist gen`](playlist.md) CLI.
 3. Persists the result to `<root>/.mediakit/playlists/<slug>.m3u8` for cross-tool reuse (VLC, Subsonic clients).
 4. Wraps the result as a virtual `LibraryAlbum` (`artist_dir = "Mix"`) and starts playback. Next / prev / shuffle / repeat all work on the mix as if it were a regular album.
 
@@ -147,10 +147,10 @@ The on-disk format is the standard extended M3U with `#EXTINF` lines — every a
 
 ## Subsonic-client mode
 
-`mediakit tui --subsonic URL` makes the TUI talk to any Subsonic-compatible server — your own `mediakit serve` over Tailscale, Navidrome, the original Subsonic, etc.
+`mediakit audio tui --subsonic URL` makes the TUI talk to any Subsonic-compatible server — your own `mediakit audio serve` over Tailscale, Navidrome, the original Subsonic, etc.
 
 ```bash
-uvx mediakit tui --subsonic http://mlaptop.tail4a4b9a.ts.net:4533 \
+uvx mediakit audio tui --subsonic http://mlaptop.tail4a4b9a.ts.net:4533 \
              --user mort --password secret
 ```
 
@@ -160,14 +160,14 @@ Add `--save-subsonic` on first connect to persist the (host, user, token, salt) 
 
 ```bash
 # first time — saves on successful connect
-uvx mediakit tui --subsonic http://mlaptop.tail4a4b9a.ts.net:4533 \
+uvx mediakit audio tui --subsonic http://mlaptop.tail4a4b9a.ts.net:4533 \
              --user mort --password secret --save-subsonic
 
 # every time after — no flags needed
-uvx mediakit tui --saved-subsonic
+uvx mediakit audio tui --saved-subsonic
 
 # wipe the saved block when done
-uvx mediakit tui --forget-subsonic
+uvx mediakit audio tui --forget-subsonic
 ```
 
 The same token-auth path is used on the wire for ALL Subsonic-client traffic regardless of `--save-subsonic` — the password isn't put in query strings end-to-end. If state.toml leaks, an attacker gets a usable Subsonic auth pair (until you change the password) but NOT the raw password (so reuse on other services is safe). The file is mode 0600.
@@ -195,9 +195,9 @@ The selected device persists to `state.toml` and auto-resumes on next launch (wi
 CLI flag for headless / scripted use:
 
 ```bash
-uvx mediakit tui --airplay 'HomePod'                            # exact / substring match by name
-uvx mediakit tui --airplay '192.168.1.50'                       # match by address
-uvx mediakit tui --discover                                     # list AirPlay devices (and Subsonic servers) and exit
+uvx mediakit audio tui --airplay 'HomePod'                            # exact / substring match by name
+uvx mediakit audio tui --airplay '192.168.1.50'                       # match by address
+uvx mediakit audio tui --discover                                     # list AirPlay devices (and Subsonic servers) and exit
 ```
 
 `--airplay` hard-fails if no device matches (you asked for a specific one). The auto-resume path (no `--airplay` flag, `state.toml` has a saved device) skips silently if not found.

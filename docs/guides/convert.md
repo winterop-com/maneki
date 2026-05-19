@@ -1,9 +1,9 @@
-# `mediakit convert`
+# `mediakit audio convert`
 
 The heart of the project. Walks an input tree, groups audio files into albums, re-encodes via `ffmpeg`, writes clean tags + a normalised cover, lays the result out as `output/<Artist>/<YYYY> - <Album>/NN - <Title>.<ext>`.
 
 ```
-uvx mediakit convert INPUT_DIR OUTPUT_DIR [...flags]
+uvx mediakit audio convert INPUT_DIR OUTPUT_DIR [...flags]
 ```
 
 Both directories are required (no defaults — `uvx`-installed runs anywhere on the filesystem and silent `./input` / `./output` magic would do the wrong thing). `INPUT_DIR` must exist; `OUTPUT_DIR` is created if missing. `--format` defaults to `auto`.
@@ -98,4 +98,4 @@ Both calls go through a polite client: a 1 req/sec throttle per host, a descript
 - `--cover-max-edge PX` (default 1000)
 - `--acoustid-key TEXT` (or `MEDIAKIT_ACOUSTID_KEY` env var, or `[acoustid].api_key` in `~/.config/mediakit/mediakit.toml`; off by default)
 
-`-v`/`--verbose` is a top-level callback flag — works in any position (`mediakit -v convert …` or `mediakit convert … --verbose`).
+`-v`/`--verbose` is a top-level callback flag — works in any position (`mediakit -v convert …` or `mediakit audio convert … --verbose`).

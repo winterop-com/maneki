@@ -1,19 +1,19 @@
-# `mediakit serve`
+# `mediakit audio serve`
 
 A Subsonic-compatible HTTP server. Any modern Subsonic client (Symfonium, Amperfy, play:Sub, Feishin, Supersonic, DSub) connects, browses, searches, streams, and seeks. Works equally well over LAN and over Tailscale.
 
 ```bash
-uvx mediakit serve TARGET_DIR [--host H] [--port P] [--user U] [--password P] [--no-mdns] [--no-watch] [--no-cache] [--full-rescan]
+uvx mediakit audio serve TARGET_DIR [--host H] [--port P] [--user U] [--password P] [--no-mdns] [--no-watch] [--no-cache] [--full-rescan]
 ```
 
 `TARGET_DIR` is required. `--host 0.0.0.0`, `--port 4533`, credentials default to `admin`/`admin` with a yellow warning. `--no-cache` skips the persistent SQLite index at `<TARGET_DIR>/.mediakit/index.db`; `--full-rescan` rebuilds it from scratch on startup. See [`mediakit audio library index`](audio-library.md#index-manage-the-persistent-sqlite-cache) for index management.
 
-`mediakit serve` exposes only the Subsonic `/rest/*` surface. The browser UI ships separately as the `mediakit ui` command (since 0.20.0) — it static-serves the same SPA the desktop wrappers bundle, with a login picker that points at any Subsonic server. See [`mediakit ui`](ui.md).
+`mediakit audio serve` exposes only the Subsonic `/rest/*` surface. The browser UI ships separately as the `mediakit audio ui` command (since 0.20.0) — it static-serves the same SPA the desktop wrappers bundle, with a login picker that points at any Subsonic server. See [`mediakit audio ui`](ui.md).
 
 ## Startup banner
 
 ```
-mediakit serve — Subsonic API for ~/Music
+mediakit audio serve — Subsonic API for ~/Music
   bind: 0.0.0.0:4533
   LAN:  http://192.168.1.42:4533
   Tailscale: http://my-mac.tail-scale.ts.net:4533
@@ -35,7 +35,7 @@ Unlike most "self-hosted" services, the default is to bind all interfaces, NOT l
 Auth is mandatory (`admin`/`admin` if you don't override), so the binding is safe even on a public Wi-Fi network. If you really want LAN-blind for some reason:
 
 ```bash
-uvx mediakit serve --host 127.0.0.1
+uvx mediakit audio serve --host 127.0.0.1
 ```
 
 ## Tailscale walkthrough
@@ -71,7 +71,7 @@ The original `subsonic.org` is dead/abandoned/paid; the actively-maintained clie
 - **[Feishin](https://github.com/jeffvli/feishin)** — Electron, modern UI
 - **[Supersonic](https://github.com/dweymouth/supersonic)** — native Go/Fyne, active
 
-The MediaKit project also runs as a client itself — `mediakit tui --subsonic URL` connects to the same API. See [TUI](tui.md) for that.
+The MediaKit project also runs as a client itself — `mediakit audio tui --subsonic URL` connects to the same API. See [TUI](tui.md) for that.
 
 ## Endpoints implemented
 
@@ -156,7 +156,7 @@ These are stubs to keep clients quiet on features we don't track yet. They retur
 | `getLyrics?artist=&title=` | Legacy fuzzy lookup. Returns `{artist, title, value}`; empty value when no match (per spec — clients show "no lyrics available"). |
 | `getLyricsBySongId?id=` | OpenSubsonic structured shape. When the stored body looks like LRC (`[mm:ss.xx]` markers), promotes to `synced: true` with `[{start: ms, value: line}, ...]` — Symfonium and Amperfy display the highlight tracking real time. Otherwise returns `synced: false` with one line per text line. |
 
-Lyrics are sourced from a `<track>.lrc` sidecar (preferred) or the file's embedded `\xa9lyr` / `USLT` / `LYRICS` tag. Populate sidecars in bulk with [`mediakit audio library lyrics fetch`](audio-library.md#lyrics--fetch-synced-lyrics-from-lrclib) — pulls from LRCLIB, writes per-track `.lrc` files. Synced lyrics light up automatically the next time the server's index gets reloaded.
+Lyrics are sourced from a `<track>.lrc` sidecar (preferred) or the file's embedded `\xa9lyr` / `USLT` / `LYRICS` tag. Populate sidecars in bulk with [`mediakit audio library lyrics fetch`](audio-library.md#lyrics-fetch-synced-lyrics-from-lrclib) — pulls from LRCLIB, writes per-track `.lrc` files. Synced lyrics light up automatically the next time the server's index gets reloaded.
 
 ### Internet radio
 
@@ -180,18 +180,18 @@ Stars live OUTSIDE the SQLite library index because the index is fully derived f
 
 ## Browser UI
 
-The browser UI used to live inside `mediakit serve` at `/login` + `/web`. As of 0.20.4 it's a separate command — [`mediakit ui`](ui.md) — that static-serves the same SPA the desktop wrappers bundle, with a login picker that points at any Subsonic-compatible server (mediakit serve, Navidrome, Airsonic, Gonic, ...). `mediakit serve` now exposes only the Subsonic `/rest/*` surface.
+The browser UI used to live inside `mediakit audio serve` at `/login` + `/web`. As of 0.20.4 it's a separate command — [`mediakit audio ui`](ui.md) — that static-serves the same SPA the desktop wrappers bundle, with a login picker that points at any Subsonic-compatible server (mediakit audio serve, Navidrome, Airsonic, Gonic, ...). `mediakit audio serve` now exposes only the Subsonic `/rest/*` surface.
 
 ```bash
-mediakit ui --url http://<host>:4533 --user admin --password admin
+mediakit audio ui --url http://<host>:4533 --user admin --password admin
 # opens http://localhost:1888 in the browser, picker pre-filled
 ```
 
-Why split: the SPA is a pure Subsonic client, so coupling it to a co-hosted serve instance was an artificial restriction. `mediakit ui` works against a remote server over Tailscale, a local serve on a different port, Navidrome with no mediakit installed at all — and `mediakit serve` shrinks to a single-purpose API binary.
+Why split: the SPA is a pure Subsonic client, so coupling it to a co-hosted serve instance was an artificial restriction. `mediakit audio ui` works against a remote server over Tailscale, a local serve on a different port, Navidrome with no mediakit installed at all — and `mediakit audio serve` shrinks to a single-purpose API binary.
 
 ## Running as a background service
 
-Once you've got `mediakit serve` working interactively, lift it into a managed service so it boots with the machine and auto-restarts on crash. Both flavours below assume mediakit is installed system-wide (or in a virtualenv) and your library lives at a stable path.
+Once you've got `mediakit audio serve` working interactively, lift it into a managed service so it boots with the machine and auto-restarts on crash. Both flavours below assume mediakit is installed system-wide (or in a virtualenv) and your library lives at a stable path.
 
 ### systemd (Linux)
 
@@ -207,7 +207,7 @@ Wants=network-online.target
 Type=simple
 User=morten
 Group=morten
-ExecStart=/usr/local/bin/mediakit serve /srv/music --host 0.0.0.0 --port 4533
+ExecStart=/usr/local/bin/mediakit audio serve /srv/music --host 0.0.0.0 --port 4533
 Restart=on-failure
 RestartSec=5
 # Hardening — opt out if you actually need broader filesystem / network access.
@@ -317,9 +317,9 @@ password = "supersecret"
 
 Override per-run via `--user` / `--password`; or via env vars (`MEDIAKIT_SERVER__USERNAME`, `MEDIAKIT_SERVER__PASSWORD`). Resolution order: **CLI flags > env vars > TOML > admin/admin default** (with a yellow warning printed for the default).
 
-Run `mediakit config show` to print the resolved config (sensitive values masked) and `mediakit config path` to find the file.
+Run `mediakit audio config show` to print the resolved config (sensitive values masked) and `mediakit audio config path` to find the file.
 
-**Migrating from `serve.toml` (pre-v0.11):** the old `~/.config/mediakit/serve.toml` is still read transparently. Run `mediakit config migrate` once to move it to the new format and drop the deprecation hint.
+**Migrating from `serve.toml` (pre-v0.11):** the old `~/.config/mediakit/serve.toml` is still read transparently. Run `mediakit audio config migrate` once to move it to the new format and drop the deprecation hint.
 
 ## Scrobble forwarder
 
@@ -373,11 +373,11 @@ Common destinations:
 
 Default-on: `serve` advertises `_subsonic._tcp.local` so Symfonium / Amperfy / Feishin auto-list the server in their setup screens without anyone typing the URL. Same service type Navidrome uses, so existing client ecosystems pick it up automatically.
 
-The `mediakit tui` itself can also discover servers:
+The `mediakit audio tui` itself can also discover servers:
 
 ```bash
-uvx mediakit tui --discover                  # list and exit
-uvx mediakit tui                             # quick browse + show hint
+uvx mediakit audio tui --discover                  # list and exit
+uvx mediakit audio tui                             # quick browse + show hint
 ```
 
 `--no-mdns` opts out.

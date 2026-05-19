@@ -1,11 +1,11 @@
-# `mediakit playlist`
+# `mediakit audio playlist`
 
 Auto-generated `.m3u8` playlists anchored to a seed track. Tag-based similarity only — no audio fingerprinting, no remote lookups, no play-history dependency. Available since v0.6.0; TUI integration since v0.6.1; saved-mixes browser since v0.6.2.
 
 ## Quick start
 
 ```bash
-uvx mediakit playlist gen ~/Music \
+uvx mediakit audio playlist gen ~/Music \
     --seed "~/Music/Pixies/1989 - Doolittle/01 - Debaser.m4a" \
     --minutes 60
 ```
@@ -22,9 +22,9 @@ The generated `.m3u8` is a plain extended M3U with `#EXTINF` lines, so VLC, mpv,
 ## Subcommands
 
 ```
-mediakit playlist gen ROOT --seed PATH [--minutes 60] [--name NAME] [--out PATH] [--random-seed N]
-mediakit playlist list ROOT
-mediakit playlist show ROOT NAME
+mediakit audio playlist gen ROOT --seed PATH [--minutes 60] [--name NAME] [--out PATH] [--random-seed N]
+mediakit audio playlist list ROOT
+mediakit audio playlist show ROOT NAME
 ```
 
 ### `gen` — generate a mix
@@ -42,7 +42,7 @@ mediakit playlist show ROOT NAME
 ### `list` — show saved mixes
 
 ```bash
-uvx mediakit playlist list ~/Music
+uvx mediakit audio playlist list ~/Music
 ```
 
 Renders a table of every `.m3u8` under `<ROOT>/.mediakit/playlists/`, with track counts and on-disk paths.
@@ -50,7 +50,7 @@ Renders a table of every `.m3u8` under `<ROOT>/.mediakit/playlists/`, with track
 ### `show` — print a saved mix's tracks
 
 ```bash
-uvx mediakit playlist show ~/Music mix-pixies-debaser
+uvx mediakit audio playlist show ~/Music mix-pixies-debaser
 ```
 
 Prints the resolved track paths from the `.m3u8` with `[y]` / `[n]` markers showing whether each file still exists on disk. Useful for sanity-checking a saved mix after moving / renaming files.
