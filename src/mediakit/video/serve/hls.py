@@ -29,6 +29,7 @@ Trade-offs vs the single long-running ffmpeg approach:
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import math
 import shutil
 import tempfile
@@ -251,12 +252,29 @@ class OnDemandHLS:
             stdout=asyncio.subprocess.DEVNULL,
             stderr=asyncio.subprocess.PIPE,
         )
-        _, stderr = await proc.communicate()
-        if dummy_m3u8.exists():
+        try:
+            _, stderr = await proc.communicate()
+        except asyncio.CancelledError:
+            # Most common path: the browser cancelled the segment fetch
+            # (the user scrubbed away before this one finished). Kill
+            # the ffmpeg subprocess so it doesn't keep burning CPU on
+            # output nobody is waiting for. Without this, rapid scrubs
+            # pile up many concurrent ffmpegs and the whole pipeline
+            # stalls. `proc.kill()` is fire-and-forget; we still await
+            # `wait()` so the file descriptors are cleaned up.
             try:
-                dummy_m3u8.unlink()
-            except OSError:
+                proc.kill()
+            except ProcessLookupError:
                 pass
+            with contextlib.suppress(Exception):
+                await proc.wait()
+            raise
+        finally:
+            if dummy_m3u8.exists():
+                try:
+                    dummy_m3u8.unlink()
+                except OSError:
+                    pass
         if proc.returncode != 0:
             msg = stderr.decode("utf-8", errors="replace").strip().splitlines()
             tail = " | ".join(msg[-3:]) if msg else "(no stderr)"

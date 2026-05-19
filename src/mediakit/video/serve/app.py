@@ -11,6 +11,8 @@ Endpoints:
 
 from __future__ import annotations
 
+import asyncio
+import contextlib
 from pathlib import Path
 from typing import Iterator
 
@@ -289,9 +291,32 @@ def create_app(root: Path, *, budget: TranscodeBudget | None = None) -> FastAPI:
             # Mark this as a foreground transcode for the duration -
             # the shared budget pauses any in-flight background work
             # (prewarm + prefetch) so the player request gets full CPU.
+            # Race the transcode against a disconnect watcher; when the
+            # browser aborts the request (rapid scrubs do this), the
+            # work task is cancelled which propagates into
+            # _transcode_segment and kills the ffmpeg subprocess in its
+            # try/finally. Without this, ffmpeg pile-up == hang.
             async with shared_budget.foreground():
+                work = asyncio.create_task(session.ensure_segment(idx))
+                watcher = asyncio.create_task(_watch_disconnect(request))
                 try:
-                    path = await session.ensure_segment(idx)
+                    done, _ = await asyncio.wait(
+                        {work, watcher},
+                        return_when=asyncio.FIRST_COMPLETED,
+                    )
+                finally:
+                    if not watcher.done():
+                        watcher.cancel()
+                    if work not in done and not work.done():
+                        work.cancel()
+                # Drain cancelled tasks so warnings don't leak.
+                for task in (watcher, work):
+                    with contextlib.suppress(Exception):
+                        await task
+                if watcher in done and work not in done:
+                    raise HTTPException(status_code=499, detail="client disconnected")
+                try:
+                    path = work.result()
                 except IndexError as exc:
                     raise HTTPException(status_code=404, detail=str(exc)) from exc
             # Kick off neighbour transcodes AFTER releasing the
@@ -302,6 +327,14 @@ def create_app(root: Path, *, budget: TranscodeBudget | None = None) -> FastAPI:
         raise HTTPException(status_code=404, detail=f"unknown hls resource {filename!r}")
 
     return app
+
+
+async def _watch_disconnect(request: Request) -> None:
+    """Resolve when the client closes the connection. Polls every 0.5s."""
+    while True:
+        await asyncio.sleep(0.5)
+        if await request.is_disconnected():
+            return
 
 
 def _pick_sidecar(sidecars: list[SubtitleSidecar], lang: str) -> SubtitleSidecar | None:
