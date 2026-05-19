@@ -28,6 +28,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 from fastapi import FastAPI, HTTPException, Request
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
@@ -153,6 +154,26 @@ def create_combined_app(
                 await startup_task
 
     combined = FastAPI(title="mediakit", version=__version__, lifespan=_lifespan)
+
+    # Allow the desktop wrappers (Tauri serves the SPA from
+    # http://tauri.localhost, Electron from a file:// origin) and
+    # any other cross-origin caller to talk to the API. The Subsonic
+    # sub-app already does this for /audio/rest/*; the top-level
+    # routes (/capabilities, /auth/login, /video/api/*) need the
+    # same treatment or fetch() from a wrapper webview gets a CORS
+    # null response and the SPA reports "couldn't reach the server"
+    # even though the server is up and curl works fine.
+    #
+    # `allow_origins=["*"]` matches the self-hosted single-user
+    # threat model. The real security boundary is the bearer token
+    # at /auth/login when --auth is on; CORS is a browser convenience
+    # not an authorisation layer.
+    combined.add_middleware(
+        CORSMiddleware,
+        allow_origins=["*"],
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
 
     @combined.get("/capabilities")
     def capabilities() -> dict[str, object]:
