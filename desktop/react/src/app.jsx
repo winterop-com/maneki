@@ -79,19 +79,23 @@ function App() {
   const [hasVideo, setHasVideo] = uS(false);
   const [kind, setKind] = uS("audio");
   const [selectedVideo, setSelectedVideo] = uS(null);
+  // Re-probe whenever `authed` flips (fresh login: previous effect
+  // run found no session and bailed). The previous `[]` dep ran once
+  // at mount only, so users who logged in on a clean install saw
+  // hasVideo=false forever (rail hidden, video tab unreachable) until
+  // they refreshed the page.
   React.useEffect(() => {
-    window.__mkProbe = { stage: "effect-fired" };
+    if (!authed) return;
     const session = window.MK_API?.loadSession?.();
-    if (!session || typeof window.MK_VIDEO?.capabilities !== "function") {
-      window.__mkProbe = { stage: "no-session-or-mk-video", session: !!session };
-      return;
-    }
+    if (!session || typeof window.MK_VIDEO?.capabilities !== "function") return;
+    let cancelled = false;
     window.MK_VIDEO.capabilities(session).then((caps) => {
-      window.__mkProbe = { stage: "caps-received", caps };
+      if (cancelled) return;
       setHasVideo(caps?.video === true);
       if (caps && typeof caps.audio === "boolean") setHasAudio(caps.audio);
     });
-  }, []);
+    return () => { cancelled = true; };
+  }, [authed]);
   // Auto-switch to video when there's no audio (e.g. mediakit serve
   // --video-only). Doesn't override an explicit user switch.
   React.useEffect(() => {
