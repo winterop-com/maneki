@@ -12,8 +12,12 @@ import pytest
 from mediakit.video.serve.app import _apply_default_priority
 
 
-def _track(lang: str, label: str, default: bool = False) -> dict[str, object]:
-    return {"lang": lang, "label": label, "default": default}
+def _track(lang: str, label: str, default: bool = False, kind: str = "embedded") -> dict[str, object]:
+    return {"lang": lang, "label": label, "default": default, "kind": kind}
+
+
+def _sidecar(lang: str, label: str) -> dict[str, object]:
+    return _track(lang, label, kind="sidecar")
 
 
 def test_no_tracks_is_a_noop() -> None:
@@ -96,6 +100,47 @@ def test_ignores_pre_existing_default_when_no_english() -> None:
     ]
     _apply_default_priority(tracks)
     assert all(t["default"] is False for t in tracks)
+
+
+def test_lone_und_sidecar_becomes_default() -> None:
+    """A `.srt` dropped next to the video with no language tag is the
+    user's explicit "use this" signal."""
+    tracks = [_sidecar("und", "Subtitles")]
+    _apply_default_priority(tracks)
+    assert tracks[0]["default"] is True
+
+
+def test_sidecar_beats_embedded_english() -> None:
+    """An untagged sidecar still wins over a stream-tagged English
+    embedded track - the sidecar is a deliberate user choice."""
+    tracks = [
+        _track("eng", "English"),
+        _sidecar("und", "Subtitles"),
+    ]
+    _apply_default_priority(tracks)
+    assert tracks[0]["default"] is False
+    assert tracks[1]["default"] is True
+
+
+def test_english_sidecar_picked_over_other_sidecars() -> None:
+    """When multiple sidecars exist, prefer English."""
+    tracks = [
+        _sidecar("fr", "FR"),
+        _sidecar("eng", "English"),
+        _sidecar("und", "Subtitles"),
+    ]
+    _apply_default_priority(tracks)
+    assert [t["default"] for t in tracks] == [False, True, False]
+
+
+def test_sdh_sidecar_picked_over_plain_english_sidecar() -> None:
+    tracks = [
+        _sidecar("en", "English"),
+        _sidecar("en", "English (SDH)"),
+    ]
+    _apply_default_priority(tracks)
+    assert tracks[0]["default"] is False
+    assert tracks[1]["default"] is True
 
 
 def test_sdh_in_unrelated_word_is_not_a_false_positive() -> None:

@@ -536,23 +536,29 @@ body[data-platform="darwin"]:not([data-shell="browser"]) .mk-kind-rail {
    font-family inline on the cue container; the user "captions
    settings" menu still wins over this if they explicitly pick a font
    or colour. */
+/* Subtitle styling: a sensible default (small white monospace with a
+   tight outline + soft shadow, no background box). The captions-
+   settings menu in the player chrome can still override every property
+   here - that's why we only use `!important` on background. video.js
+   sets `background-color` INLINE on the cue (the opaque-box default
+   look), so an external rule without `!important` can't win there.
+   Everything else (font, size, colour, shadow) is plain CSS that the
+   user's menu choices override naturally. */
 .video-js .vjs-text-track-display .vjs-text-track-cue,
 .video-js .vjs-text-track-display .vjs-text-track-cue > div {
   background: transparent !important;
   background-color: transparent !important;
-  color: #fff !important;
-  font-family: "JetBrains Mono NL", "JetBrains Mono", "SF Mono", ui-monospace, Menlo, monospace !important;
-  font-weight: 500 !important;
-  /* video.js auto-scales cues with player height and ends up ~28px in
-     fullscreen, which feels shouty. Cap at 22px (matches the user's
-     mpv `sub-font-size=22`) and let the captions-settings menu bump it
-     if needed. Stays readable down to 16px on narrow windows. */
-  font-size: clamp(16px, 1.8vw, 22px) !important;
-  line-height: 1.25 !important;
+  color: #fff;
+  font-family: "JetBrains Mono NL", "JetBrains Mono", "SF Mono", ui-monospace, Menlo, monospace;
+  font-weight: 500;
+  /* video.js auto-scales cues with player height; cap so fullscreen
+     doesn't shout. Users can bump via the captions-settings menu. */
+  font-size: clamp(14px, 1.6vw, 20px);
+  line-height: 1.25;
   text-shadow:
     -1px -1px 0 #000,
     1px -1px 0 #000,
     -1px 1px 0 #000,
     1px 1px 0 #000,
-    0 1px 3px rgba(0, 0, 0, 0.85) !important;
+    0 1px 3px rgba(0, 0, 0, 0.85);
 }

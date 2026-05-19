@@ -405,20 +405,35 @@ def _looks_like_sdh(track: dict[str, object]) -> bool:
 
 
 def _apply_default_priority(tracks: list[dict[str, object]]) -> None:
-    """Set `default` on exactly one track using English (SDH) > English priority.
+    """Set `default` on exactly one track using a priority chain.
 
-    No default is set when no English track exists. Mutates in place so
-    the caller's listing reflects the choice.
+    Priority:
+      1. Any sidecar (`.srt` / `.vtt`). The user explicitly placed a
+         subtitle file next to the video, so they want it on. Prefer
+         English / English-SDH when there are multiple sidecars.
+      2. Embedded English (SDH / closed-captions / hearing-impaired).
+      3. Embedded plain English.
+      4. No default.
+
+    Mutates in place so the caller's listing reflects the choice.
     """
     if not tracks:
         return
-    chosen: dict[str, object] | None = next(
-        (t for t in tracks if _is_english(t) and _looks_like_sdh(t)),
-        None,
-    )
-    if chosen is None:
+    sidecars = [t for t in tracks if t.get("kind") == "sidecar"]
+    if sidecars:
+        chosen: dict[str, object] | None = next(
+            (t for t in sidecars if _is_english(t) and _looks_like_sdh(t)),
+            None,
+        ) or next(
+            (t for t in sidecars if _is_english(t)),
+            None,
+        ) or sidecars[0]
+    else:
         chosen = next(
-            (t for t in tracks if _is_english(t) and not _looks_like_sdh(t)),
+            (t for t in tracks if _is_english(t) and _looks_like_sdh(t)),
+            None,
+        ) or next(
+            (t for t in tracks if _is_english(t)),
             None,
         )
     for t in tracks:
