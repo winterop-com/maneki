@@ -242,6 +242,14 @@ async def extract_embedded_to_vtt(
     before invoking this. Image-based subtitle codecs (PGS, VobSub) will
     fail here even if accidentally requested - probe_embedded_subtitles
     already filters them out of the listing.
+
+    After ffmpeg runs we post-process the file to subtract the source's
+    first-frame PTS from every cue timestamp. The HLS muxer normalises
+    each segment's PTS to start near 0, so the player's currentTime is
+    playback-relative; raw extracted cues use source PTS, which means
+    a non-zero start_time (common for mp4) shows up as a constant drift
+    that gets very visible after seeking. Shifting once at extraction
+    time makes the cached .vtt match the player's timeline directly.
     """
     if not video_path.is_file():
         raise FileNotFoundError(video_path)
@@ -249,10 +257,6 @@ async def extract_embedded_to_vtt(
     if ffmpeg is None:
         raise RuntimeError("ffmpeg is required to extract embedded subtitles")
     out_path.parent.mkdir(parents=True, exist_ok=True)
-    # `-map 0:<stream_index>` picks the exact stream by container index
-    # (NOT the s:0 / s:1 relative index); the probe gives us the absolute
-    # index so the two match. `-c:s webvtt` converts whatever text codec
-    # ffmpeg sees (subrip / ass / mov_text) into WebVTT.
     args = [
         ffmpeg,
         "-hide_banner",
@@ -263,6 +267,11 @@ async def extract_embedded_to_vtt(
         str(video_path),
         "-map",
         f"0:{stream_index}",
+        # `-copyts` tells ffmpeg to keep source PTS as-is in the output
+        # instead of letting the webvtt muxer normalise / rebase. Without
+        # this the .mkv subtitle stream's stored timestamps can drift
+        # relative to the video stream (visible after seeking).
+        "-copyts",
         "-c:s",
         "webvtt",
         "-f",
@@ -281,7 +290,76 @@ async def extract_embedded_to_vtt(
         raise RuntimeError(f"ffmpeg failed for stream {stream_index} (rc={proc.returncode}): {tail}")
     if not out_path.exists() or out_path.stat().st_size == 0:
         raise RuntimeError(f"ffmpeg ran but produced no output for stream {stream_index}")
+
+    offset = _probe_video_start_time(video_path)
+    if offset > 0.001:
+        shifted = shift_vtt_timestamps(out_path.read_text(encoding="utf-8", errors="replace"), -offset)
+        out_path.write_text(shifted, encoding="utf-8")
     return out_path
+
+
+def _probe_video_start_time(video_path: Path) -> float:
+    """Return the first video frame's PTS in seconds. 0.0 if unknown."""
+    ffprobe = shutil.which("ffprobe")
+    if ffprobe is None:
+        return 0.0
+    try:
+        result = subprocess.run(  # noqa: S603 - args constructed locally
+            [
+                ffprobe,
+                "-v",
+                "error",
+                "-select_streams",
+                "v:0",
+                "-show_entries",
+                "stream=start_time",
+                "-of",
+                "csv=p=0",
+                str(video_path),
+            ],
+            capture_output=True,
+            text=True,
+            timeout=5.0,
+            check=False,
+        )
+    except (subprocess.TimeoutExpired, OSError):
+        return 0.0
+    raw = result.stdout.strip()
+    if not raw or raw == "N/A":
+        return 0.0
+    try:
+        return float(raw)
+    except ValueError:
+        return 0.0
+
+
+_VTT_TIMESTAMP = re.compile(r"(\d{1,2}):(\d{2}):(\d{2})\.(\d{3})")
+
+
+def shift_vtt_timestamps(text: str, offset_s: float) -> str:
+    """Add `offset_s` seconds to every HH:MM:SS.mmm in a WebVTT string.
+
+    Negative offsets clamp to 00:00:00.000 so a cue near the very start
+    can't end up with negative time (which a few players reject). Only
+    timestamps in the standard WebVTT cue format are touched; cue ids,
+    payload text, and headers pass through.
+    """
+
+    def _shift(match: re.Match[str]) -> str:
+        h, m, s, ms = (int(g) for g in match.groups())
+        total = h * 3600 + m * 60 + s + ms / 1000.0 + offset_s
+        if total < 0:
+            total = 0.0
+        hh = int(total // 3600)
+        mm = int((total % 3600) // 60)
+        ss = int(total % 60)
+        mmm = int(round((total - int(total)) * 1000))
+        if mmm == 1000:  # rounding overflow
+            ss += 1
+            mmm = 0
+        return f"{hh:02d}:{mm:02d}:{ss:02d}.{mmm:03d}"
+
+    return _VTT_TIMESTAMP.sub(_shift, text)
 
 
 class SubtitleCache:

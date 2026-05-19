@@ -18,6 +18,7 @@ from mediakit.video.serve.subtitles import (
     EmbeddedSubtitle,
     SubtitleCache,
     probe_embedded_subtitles,
+    shift_vtt_timestamps,
 )
 
 
@@ -149,3 +150,40 @@ def test_subtitle_cache_path_layout(tmp_path: Path) -> None:
     cache = SubtitleCache(cache_dir=tmp_path)
     p = cache.path_for("show-s01e01", 2)
     assert p == tmp_path / "show-s01e01" / "embed-2.vtt"
+
+
+def test_shift_vtt_timestamps_subtracts_offset() -> None:
+    src = (
+        "WEBVTT\n\n"
+        "00:00:11.929 --> 00:00:14.523\n"
+        "He's a very good listener.\n\n"
+        "00:01:00.500 --> 00:01:02.000\n"
+        "Hello world.\n"
+    )
+    shifted = shift_vtt_timestamps(src, -0.083)
+    assert "00:00:11.846 --> 00:00:14.440" in shifted
+    assert "00:01:00.417 --> 00:01:01.917" in shifted
+
+
+def test_shift_vtt_timestamps_clamps_at_zero() -> None:
+    """Negative results clamp to 00:00:00.000 - no negative timestamps."""
+    src = (
+        "WEBVTT\n\n"
+        "00:00:00.050 --> 00:00:02.000\n"
+        "Early cue.\n"
+    )
+    shifted = shift_vtt_timestamps(src, -0.100)
+    assert "00:00:00.000 --> 00:00:01.900" in shifted
+
+
+def test_shift_vtt_timestamps_handles_rounding_overflow() -> None:
+    """ms=999 + small offset shouldn't produce ms=1000."""
+    src = "WEBVTT\n\n00:00:01.999 --> 00:00:03.000\nhello\n"
+    shifted = shift_vtt_timestamps(src, 0.002)
+    # 1.999 + 0.002 = 2.001 -> 00:00:02.001
+    assert "00:00:02.001" in shifted
+
+
+def test_shift_vtt_timestamps_no_op_for_zero_offset() -> None:
+    src = "WEBVTT\n\n00:00:11.929 --> 00:00:14.523\nhi\n"
+    assert shift_vtt_timestamps(src, 0.0) == src
