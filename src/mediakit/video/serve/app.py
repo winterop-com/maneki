@@ -21,7 +21,7 @@ from mediakit import __version__
 from mediakit.video.serve.demo import DEMO_HTML
 from mediakit.video.serve.hls import HLSManager
 from mediakit.video.serve.poster import PosterManager
-from mediakit.video.serve.scan import VideoEntry, scan_videos
+from mediakit.video.serve.scan import BrowseResponse, VideoEntry, browse_dir, scan_videos
 from mediakit.video.serve.subtitles import (
     SubtitleSidecar,
     discover_sidecars,
@@ -85,6 +85,19 @@ def create_app(root: Path) -> FastAPI:
     def list_videos() -> list[VideoEntry]:
         """Return a flat list of every video file under <root>/videos/."""
         return scan_videos(root)
+
+    @app.get("/api/browse")
+    def browse(path: str = "") -> BrowseResponse:
+        """List immediate children of <root>/videos/<path>/ (folders + videos).
+
+        Powers the SPA's click-in folder navigator. The empty path browses
+        the videos root. Returns 404 when the path escapes the videos
+        directory or doesn't exist as a directory.
+        """
+        result = browse_dir(root, path)
+        if result is None:
+            raise HTTPException(status_code=404, detail=f"no such folder under videos/: {path!r}")
+        return result
 
     @app.get("/api/videos/{video_id}/stream")
     def stream_video(video_id: str, request: Request) -> Response:

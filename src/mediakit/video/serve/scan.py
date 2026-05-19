@@ -42,6 +42,23 @@ class VideoEntry(TypedDict):
     subtitles: list[SubtitleSummary]
 
 
+class FolderEntry(TypedDict):
+    """One subdirectory in a browse response."""
+
+    name: str
+    rel_path: str
+    video_count: int  # videos in this folder and all descendants
+
+
+class BrowseResponse(TypedDict):
+    """Result of browsing one directory under <root>/videos/."""
+
+    rel_path: str  # "" means the videos root, "movies" / "tv/The Americans" etc.
+    crumbs: list[str]  # ["movies"] or ["tv", "The Americans", "Season 1"]; "" -> []
+    folders: list[FolderEntry]
+    videos: list[VideoEntry]
+
+
 def find_videos_dir(root: Path) -> Path | None:
     """Return the videos subdirectory under root, or None if none present.
 
@@ -84,6 +101,81 @@ def scan_videos(root: Path) -> list[VideoEntry]:
             )
         )
     return out
+
+
+def browse_dir(root: Path, rel_path: str = "") -> BrowseResponse | None:
+    """List immediate children of <root>/videos/<rel_path>/ for the SPA browser.
+
+    Returns folders (non-empty, containing at least one video somewhere in
+    their subtree) and videos in the current directory. Subtree video
+    counts let the SPA show a folder weight (e.g. "Season 1 - 13 videos").
+
+    rel_path is a POSIX-style path relative to the videos directory.
+    Empty string means the videos root. Returns None when:
+    - <root>/videos/ doesn't exist
+    - the resolved target is outside the videos directory (path traversal)
+    - the target doesn't exist or isn't a directory
+    """
+    videos_dir = find_videos_dir(root)
+    if videos_dir is None:
+        return None
+    target = (videos_dir / rel_path).resolve()
+    base = videos_dir.resolve()
+    # Guard against `..` escapes - the resolved target must remain inside
+    # the videos directory tree.
+    if target != base and base not in target.parents:
+        return None
+    if not target.is_dir():
+        return None
+
+    from mediakit.video.serve.subtitles import discover_sidecars
+
+    folders: list[FolderEntry] = []
+    videos: list[VideoEntry] = []
+    for child in sorted(target.iterdir(), key=lambda p: p.name.lower()):
+        child_rel = child.relative_to(videos_dir)
+        if child.is_dir():
+            count = _count_videos(child)
+            if count == 0:
+                # Hide empty subdirs (e.g. proof / nfo dirs) from the browser.
+                continue
+            folders.append(
+                FolderEntry(
+                    name=child.name,
+                    rel_path=child_rel.as_posix(),
+                    video_count=count,
+                )
+            )
+        elif child.is_file() and child.suffix.lower() in VIDEO_EXTENSIONS:
+            sidecars = discover_sidecars(child)
+            videos.append(
+                VideoEntry(
+                    id=_make_id(child_rel),
+                    name=child.stem,
+                    path=str(child),
+                    size_bytes=child.stat().st_size,
+                    rel_path=child_rel.as_posix(),
+                    duration_s=probe_duration(child),
+                    subtitles=[SubtitleSummary(lang=s.language, format=s.fmt) for s in sidecars],
+                )
+            )
+
+    crumbs = [c for c in rel_path.split("/") if c]
+    return BrowseResponse(
+        rel_path=rel_path,
+        crumbs=crumbs,
+        folders=folders,
+        videos=videos,
+    )
+
+
+def _count_videos(dir_path: Path) -> int:
+    """Count video files at every depth under `dir_path`. Cheap stat-only walk."""
+    count = 0
+    for path in dir_path.rglob("*"):
+        if path.is_file() and path.suffix.lower() in VIDEO_EXTENSIONS:
+            count += 1
+    return count
 
 
 def probe_duration(path: Path) -> float | None:
