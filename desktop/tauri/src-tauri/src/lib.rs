@@ -66,27 +66,16 @@ fn write_bounds(app: &tauri::AppHandle, bounds: &WindowBounds) {
     }
 }
 
-/// Native window-level fullscreen. The HTML5 Fullscreen API only
-/// scales the video element inside the window; on macOS the menu bar
-/// + dock still peek. `setFullscreen(true)` here drives the real OS
-/// fullscreen (separate Space, everything hidden) - which is the
-/// whole reason to ship a desktop wrapper for the video pipeline.
-#[tauri::command]
-fn set_fullscreen(window: tauri::WebviewWindow, on: bool) -> Result<(), String> {
-    window.set_fullscreen(on).map_err(|e| e.to_string())
-}
-
-#[tauri::command]
-fn is_fullscreen(window: tauri::WebviewWindow) -> Result<bool, String> {
-    window.is_fullscreen().map_err(|e| e.to_string())
-}
+// Fullscreen is driven from the JS side via Tauri 2's built-in
+// `core:window:allow-set-fullscreen` permission - no custom invoke
+// handler needed. See desktop/react/src/_desktop.js.
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_store::Builder::default().build())
-        .invoke_handler(tauri::generate_handler![set_fullscreen, is_fullscreen])
+        .invoke_handler(tauri::generate_handler![])
         .setup(|app| {
             let window = app.get_webview_window("main").expect("main window");
             let scale = window.scale_factor().unwrap_or(1.0);
