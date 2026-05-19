@@ -188,6 +188,25 @@ function VideoPlayerPane({ session, video, onClose }) {
   useEff_vv(() => {
     const el = videoRef.current;
     if (el === null || typeof window.videojs !== "function") return undefined;
+    // Seed a smaller-than-default caption size BEFORE video.js init
+    // reads localStorage. video.js's 100% baseline is uncomfortably
+    // large at fullscreen and our previous attempts to override via
+    // setValues() or CSS either didn't apply (race with cue render)
+    // or broke the captions menu's "Text size" dropdown. This pre-
+    // seed writes the exact localStorage key video.js reads on init
+    // (`vjs-text-track-settings`) - but only when no user value
+    // exists yet, so anything the user picks from the menu after-
+    // wards wins on subsequent loads.
+    try {
+      if (!window.localStorage.getItem("vjs-text-track-settings")) {
+        window.localStorage.setItem(
+          "vjs-text-track-settings",
+          JSON.stringify({ fontPercent: "0.50" }),
+        );
+      }
+    } catch (_e) {
+      // ignore - private browsing / no quota
+    }
     const player = window.videojs(el, {
       controls: true,
       autoplay: false,
