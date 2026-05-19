@@ -268,22 +268,33 @@ function VideoPlayerPane({ session, video, onClose }) {
     // quick presses) requests segments faster than ffmpeg produces
     // them; video.js then blacklists the only playlist with "Playback
     // cannot continue. No available working or supported playlists."
-    // and the player gets stuck in error state (picture frozen on
-    // last decoded frame, subtitles gone). For a single-playlist VOD
-    // there is no other playlist to fall back to, so blacklisting
-    // serves no purpose - just retry the same source. We listen for
-    // the player's `error` event, clear the error, and re-load the
-    // HLS URL at the position the player was trying to seek to.
+    // and the player gets stuck in error state. For a single-playlist
+    // VOD there is no other playlist to fall back to, so blacklisting
+    // serves no purpose — we clear the error and re-load the same
+    // source at the seek position the player was trying to reach.
+    //
+    // Guard against re-entry: each player.src() reload can itself
+    // fire an error during init (HLS manifest fetch, first segment
+    // 404 if the player picks an uncached position) which would
+    // trigger the handler again → infinite reload loop. Allow at
+    // most one recovery per 8s window per video. If we're still in
+    // error after that, the user can hit Close + reopen.
+    let lastRecoveryAt = 0;
+    const RECOVERY_COOLDOWN_MS = 8000;
     const recoverFromBlacklist = () => {
       try {
         const err = player.error();
         if (!err) return;
         const msg = String(err.message || "");
-        // Match both video.js's wording and vhs's specific phrase.
         if (!/playlists?|MEDIA_ERR_NETWORK|exhausted/i.test(msg)) return;
+        const now = Date.now();
+        if (now - lastRecoveryAt < RECOVERY_COOLDOWN_MS) {
+          // Already attempted recently - leave the error visible so
+          // the user knows the player needs a manual reset.
+          return;
+        }
+        lastRecoveryAt = now;
         const lastTime = player.currentTime();
-        // Clear and reload. video.js refuses to do anything until
-        // error() is reset to null.
         player.error(null);
         player.src({
           src: window.MK_VIDEO.hlsUrl(session, video.id),
