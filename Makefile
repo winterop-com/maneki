@@ -1,4 +1,4 @@
-.PHONY: help install lint check test coverage docs docs-serve docs-build docs-screenshots build build-python dist-collect desktop-sync-frontend desktop-sync-version desktop-tauri desktop-tauri-dev desktop-tauri-build desktop-electron desktop-electron-dev desktop-electron-build ui-static-sync clean
+.PHONY: help install lint check test coverage docs docs-serve docs-build docs-screenshots build build-python dist-collect desktop-sync-frontend desktop-sync-version desktop-tauri desktop-tauri-dev desktop-tauri-build _wipe-tauri-userdata desktop-electron desktop-electron-dev desktop-electron-build _wipe-electron-userdata ui-static-sync clean
 
 UV := $(shell command -v uv 2> /dev/null)
 
@@ -19,10 +19,10 @@ help:
 	@echo "  build-python Build Python wheel + sdist via uv build (-> ./dist)"
 	@echo "  dist-collect Copy desktop build artifacts into ./dist for easy access"
 	@echo "  desktop-tauri        Build the Tauri desktop app .app bundle (release)"
-	@echo "  desktop-tauri-dev    Run the Tauri desktop app in dev mode (cargo tauri dev)"
+	@echo "  desktop-tauri-dev    Run Tauri dev (wipes user-data first for a fresh launch)"
 	@echo "  desktop-tauri-build  Same as desktop-tauri (explicit name)"
 	@echo "  desktop-electron     Build the Electron app .dmg under desktop/electron/dist/"
-	@echo "  desktop-electron-dev Run the Electron desktop app in dev mode (npm start)"
+	@echo "  desktop-electron-dev Run Electron dev (wipes user-data first for a fresh launch)"
 	@echo "  desktop-electron-build Same as desktop-electron (explicit name)"
 	@echo "  clean        Remove caches and build artifacts"
 
@@ -157,7 +157,20 @@ desktop-sync-version:
 
 desktop-tauri: desktop-tauri-build
 
-desktop-tauri-dev: desktop-sync-frontend
+# Wipe Tauri / WebKit user-data dirs so every dev launch starts fresh
+# (no leftover localStorage, cookies, saved session, IndexedDB, or
+# WKWebView cache). macOS-only paths; production builds keep their
+# data per the OS conventions.
+_wipe-tauri-userdata:
+	@echo ">>> Wiping Tauri user-data dirs (com.winterop.mediakit)"
+	@rm -rf "$$HOME/Library/Application Support/com.winterop.mediakit"
+	@rm -rf "$$HOME/Library/Caches/com.winterop.mediakit"
+	@rm -rf "$$HOME/Library/WebKit/com.winterop.mediakit"
+	@rm -rf "$$HOME/Library/HTTPStorages/com.winterop.mediakit"
+	@rm -rf "$$HOME/Library/Cookies/com.winterop.mediakit.binarycookies"
+	@rm -rf "$$HOME/Library/Preferences/com.winterop.mediakit.plist"
+
+desktop-tauri-dev: desktop-sync-frontend _wipe-tauri-userdata
 	@echo ">>> Tauri dev — opens window pointed at desktop/react/index.html"
 	@cd desktop/tauri/src-tauri && cargo tauri dev
 
@@ -171,7 +184,21 @@ desktop-tauri-build: desktop-sync-frontend desktop-sync-version
 
 desktop-electron: desktop-electron-build
 
-desktop-electron-dev: desktop-sync-frontend
+# Same idea as the Tauri wipe but for Electron's storage paths.
+# Electron uses the appName (MediaKit) for its user-data directory,
+# with a fallback under the electron appId; clear both so a stale
+# install can't survive.
+_wipe-electron-userdata:
+	@echo ">>> Wiping Electron user-data dirs"
+	@rm -rf "$$HOME/Library/Application Support/MediaKit"
+	@rm -rf "$$HOME/Library/Application Support/mediakit-desktop-electron"
+	@rm -rf "$$HOME/Library/Application Support/com.winterop.mediakit.electron"
+	@rm -rf "$$HOME/Library/Caches/MediaKit"
+	@rm -rf "$$HOME/Library/Caches/com.winterop.mediakit.electron"
+	@rm -rf "$$HOME/Library/Preferences/com.winterop.mediakit.electron.plist"
+	@rm -rf "$$HOME/Library/Preferences/MediaKit.plist"
+
+desktop-electron-dev: desktop-sync-frontend _wipe-electron-userdata
 	@echo ">>> Electron dev — opens window pointed at desktop/react/index.html"
 	@cd desktop/electron && (test -d node_modules || npm install) && npm start
 
