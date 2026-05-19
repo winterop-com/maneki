@@ -72,25 +72,26 @@ function App() {
   // `true` for MediaKit servers with /video/api/* or `false` for everything
   // else, including non-MediaKit Subsonic servers like Navidrome). The
   // sidebar's VIDEO section is hidden when hasVideo !== true.
-  // hasAudio defaults to true because the user got here via Subsonic auth -
-  // they wouldn't have logged in if there were no audio. cap probe overrides
-  // when /capabilities reports otherwise (e.g. video-only mediakit server,
-  // if/when login becomes optional). hasVideo defaults to false and only
-  // flips on when /capabilities confirms a video mount on this origin.
+  // Vertical-tabs mode: the whole SPA is either in "audio" or "video"
+  // mode at a time (matching the user's "play music OR watch a movie"
+  // intent). hasAudio/hasVideo control which tabs are shown.
   const [hasAudio, setHasAudio] = uS(true);
   const [hasVideo, setHasVideo] = uS(false);
+  const [kind, setKind] = uS("audio");
   const [selectedVideo, setSelectedVideo] = uS(null);
   React.useEffect(() => {
     const session = window.MK_API?.loadSession?.();
     if (!session || typeof window.MK_VIDEO?.capabilities !== "function") return;
     window.MK_VIDEO.capabilities(session).then((caps) => {
       setHasVideo(caps?.video === true);
-      // Only override hasAudio if the server explicitly says audio:false
-      // (a mediakit serve --video-only). Non-MediaKit Subsonic servers
-      // skip /capabilities entirely and we keep the default true.
       if (caps && typeof caps.audio === "boolean") setHasAudio(caps.audio);
     });
   }, []);
+  // Auto-switch to video when there's no audio (e.g. mediakit serve
+  // --video-only). Doesn't override an explicit user switch.
+  React.useEffect(() => {
+    if (!hasAudio && hasVideo) setKind("video");
+  }, [hasAudio, hasVideo]);
   const session = window.MK_API?.loadSession?.() || null;
 
   // Star state (per-track keyed "artistId/albumId/trackN")
@@ -462,8 +463,16 @@ function App() {
 
   const palette = PALETTES[t.accent] || PALETTES.tokyo;
 
+  // Alias the namespaced component to a local PascalCase identifier - Babel-
+  // standalone's JSX has trouble with <window.MK_X /> directly (renders to
+  // null silently), so the workaround is `const X = window.MK_X` first.
+  const KindRail = window.MK_KindRail;
   return (
-    <div className="mk-shell" data-layout={t.layout}>
+    <div className="mk-root">
+      {hasAudio && hasVideo && (
+        <KindRail kind={kind} setKind={setKind}/>
+      )}
+      <div className="mk-shell" data-layout={t.layout}>
       <window.MK_TopBar
         user={user}
         q={q} setQ={(v) => { setQ(v); setSearchOpen(true); }}
@@ -515,7 +524,7 @@ function App() {
         fullscreenViz={fullscreenViz} setFullscreenViz={setFullscreenViz}
         shuffle={shuffle} repeat={repeat}
         setShowLyrics={setShowLyrics}
-        hasAudio={hasAudio} hasVideo={hasVideo} session={session}
+        hasAudio={hasAudio} hasVideo={hasVideo} kind={kind} setKind={setKind} session={session}
         selectedVideo={selectedVideo} setSelectedVideo={setSelectedVideo}
       />
 
@@ -549,6 +558,7 @@ function App() {
       )}
 
       <window.MK_TweaksControls tweak={tweak} t={t} setShowConn={setShowConn} />
+      </div>
     </div>
   );
 }

@@ -324,3 +324,61 @@ body[data-platform="darwin"] .mk-fs-controls,
 body[data-platform="darwin"] .mk-fs-controls button {
   -webkit-app-region: no-drag;
 }
+
+/* === Vertical kind rail (Audio / Video tabs) =============================
+ * Lives on the very left of the window, outside mk-shell, full window height.
+ * Visible only when both kinds exist on the server. Clicking switches the
+ * whole SPA between play-music and watch-a-movie modes.
+ */
+.mk-root {
+  display: flex;
+  height: 100vh;
+  width: 100vw;
+}
+.mk-root .mk-shell {
+  flex: 1;
+  min-width: 0;
+  height: 100vh;
+}
+.mk-kind-rail {
+  width: 60px;
+  height: 100vh;
+  background: var(--panel);
+  border-right: 1px solid var(--line);
+  display: flex;
+  flex-direction: column;
+  padding: 8px 0;
+  gap: 2px;
+  flex-shrink: 0;
+}
+.mk-kind-tab {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 14px 4px;
+  background: transparent;
+  border: 0;
+  border-left: 3px solid transparent;
+  color: var(--text-dim);
+  cursor: pointer;
+  transition: background 100ms, color 100ms, border-color 100ms;
+}
+.mk-kind-tab:hover {
+  color: var(--text);
+  background: var(--bg-elev);
+}
+.mk-kind-tab.active {
+  color: var(--accent);
+  border-left-color: var(--accent);
+  background: var(--bg-elev);
+}
+.mk-kind-tab svg {
+  display: block;
+}
+.mk-kind-label {
+  font-family: var(--mk-mono);
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+}

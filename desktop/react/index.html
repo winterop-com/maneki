@@ -15,9 +15,12 @@
        the next design-zip drop. -->
   <link rel="stylesheet" href="desktop-overrides.css" />
   <!-- video.js v10 (CDN). Wraps HLS internally; no separate hls.js needed.
-       Used by the VIDEO section's player pane (src/video-views.jsx). -->
+       Used by the VIDEO section's player pane (src/video-views.jsx).
+       Loaded without `defer` so window.videojs is defined by the time
+       Babel-standalone evaluates the JSX (otherwise the player init
+       useEffect runs before videojs exists and silently bails). -->
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/video.js@10/dist/video-js.min.css" />
-  <script src="https://cdn.jsdelivr.net/npm/video.js@10/dist/video.min.js" defer></script>
+  <script src="https://cdn.jsdelivr.net/npm/video.js@10/dist/video.min.js"></script>
   <script>
     // Tag the platform on <body> so desktop-overrides.css can apply
     // macOS-only rules (traffic-light clearance, app-region: drag).
