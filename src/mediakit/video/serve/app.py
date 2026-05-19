@@ -20,6 +20,7 @@ from fastapi.responses import FileResponse, HTMLResponse, Response, StreamingRes
 from mediakit import __version__
 from mediakit.video.serve.demo import DEMO_HTML
 from mediakit.video.serve.hls import HLSManager
+from mediakit.video.serve.poster import PosterManager
 from mediakit.video.serve.scan import VideoEntry, scan_videos
 from mediakit.video.serve.subtitles import (
     SubtitleSidecar,
@@ -59,6 +60,9 @@ def create_app(root: Path) -> FastAPI:
     """
     app = FastAPI(title="mediakit-video", version=__version__)
     hls_manager = HLSManager()
+    # Posters live under <root>/.mediakit/posters/ - library-local cache
+    # so they survive server restarts and follow the library if moved.
+    poster_manager = PosterManager(cache_dir=root / ".mediakit" / "posters")
 
     @app.get("/", response_class=HTMLResponse)
     def demo_page() -> str:
@@ -107,6 +111,44 @@ def create_app(root: Path) -> FastAPI:
             headers={"Cache-Control": "no-cache"},
         )
 
+    @app.get("/api/videos/{video_id}/poster")
+    async def video_poster(video_id: str) -> Response:
+        """Serve the contact-sheet poster (9-frame mosaic with header)."""
+        entry = _find(video_id, root)
+        try:
+            assert_ffmpeg_available()
+        except FFmpegNotFoundError as exc:
+            raise HTTPException(status_code=503, detail=str(exc)) from exc
+        try:
+            path = await poster_manager.ensure_poster(
+                video_id,
+                Path(entry["path"]),
+                size_bytes=entry["size_bytes"],
+                title=entry["name"],
+                duration_s=entry["duration_s"],
+            )
+        except RuntimeError as exc:
+            raise HTTPException(status_code=503, detail=str(exc)) from exc
+        return FileResponse(path, media_type="image/png")
+
+    @app.get("/api/videos/{video_id}/thumbnail")
+    async def video_thumbnail(video_id: str) -> Response:
+        """Serve a single-frame JPEG thumbnail for the video-list row icon."""
+        entry = _find(video_id, root)
+        try:
+            assert_ffmpeg_available()
+        except FFmpegNotFoundError as exc:
+            raise HTTPException(status_code=503, detail=str(exc)) from exc
+        try:
+            path = await poster_manager.ensure_thumbnail(
+                video_id,
+                Path(entry["path"]),
+                duration_s=entry["duration_s"],
+            )
+        except RuntimeError as exc:
+            raise HTTPException(status_code=503, detail=str(exc)) from exc
+        return FileResponse(path, media_type="image/jpeg")
+
     @app.get("/api/videos/{video_id}/subtitles")
     def list_subtitles(video_id: str) -> list[dict[str, str]]:
         """List subtitle sidecars discovered next to the video file."""
@@ -134,13 +176,13 @@ def create_app(root: Path) -> FastAPI:
 
     @app.get("/api/videos/{video_id}/hls/{filename}")
     async def hls_file(video_id: str, filename: str) -> Response:
-        """Serve an HLS playlist or fMP4 segment for the given video.
+        """Serve an HLS playlist, init segment, or fMP4 segment.
 
-        On first request (typically `index.m3u8`), spawns ffmpeg into a
-        per-video temp dir. Subsequent requests for segments are served
-        as files as soon as ffmpeg writes them. Segments take a moment
-        to appear at first - the request blocks up to ~10s for the
-        target file to materialise.
+        - `index.m3u8`: synthesised from ffprobe duration. Returned
+          instantly with full segment list + #EXT-X-ENDLIST so the
+          player treats it as VOD (scrub anywhere).
+        - `init.mp4`: emitted alongside segment 0 by ffmpeg's HLS muxer.
+        - `seg-NNNN.m4s`: transcoded on first request, cached on disk.
         """
         if "/" in filename or filename.startswith("."):
             raise HTTPException(status_code=400, detail="invalid filename")
@@ -150,15 +192,28 @@ def create_app(root: Path) -> FastAPI:
         except FFmpegNotFoundError as exc:
             raise HTTPException(status_code=503, detail=str(exc)) from exc
 
-        session = await hls_manager.get_or_start(video_id, Path(entry["path"]))
-        # 60s covers ffmpeg startup + first-segment encode for typical 1080p H.264
-        # sources. Segments after the first appear faster (ffmpeg is steady-state by
-        # then) so callers can use shorter client-side timeouts if they want.
-        try:
-            target = await session.wait_for(filename, timeout=60.0)
-        except TimeoutError as exc:
-            raise HTTPException(status_code=504, detail=str(exc)) from exc
-        return FileResponse(target, media_type=_hls_media_type(filename))
+        duration = entry["duration_s"]
+        if duration is None or duration <= 0:
+            raise HTTPException(status_code=503, detail="cannot determine video duration for HLS")
+
+        session = hls_manager.get_or_create(video_id, Path(entry["path"]), duration)
+
+        if filename == "index.m3u8":
+            return Response(
+                content=session.manifest(),
+                media_type="application/vnd.apple.mpegurl",
+            )
+        if filename.startswith("seg-") and filename.endswith(".ts"):
+            try:
+                idx = int(filename[len("seg-") : -len(".ts")])
+            except ValueError as exc:
+                raise HTTPException(status_code=400, detail="invalid segment filename") from exc
+            try:
+                path = await session.ensure_segment(idx)
+            except IndexError as exc:
+                raise HTTPException(status_code=404, detail=str(exc)) from exc
+            return FileResponse(path, media_type="video/mp2t")
+        raise HTTPException(status_code=404, detail=f"unknown hls resource {filename!r}")
 
     return app
 
@@ -169,14 +224,6 @@ def _pick_sidecar(sidecars: list[SubtitleSidecar], lang: str) -> SubtitleSidecar
         if s.language == lang:
             return s
     return None
-
-
-def _hls_media_type(filename: str) -> str:
-    if filename.endswith(".m3u8"):
-        return "application/vnd.apple.mpegurl"
-    if filename.endswith(".m4s") or filename == "init.mp4":
-        return "video/mp4"
-    return "application/octet-stream"
 
 
 def _find(video_id: str, root: Path) -> VideoEntry:
