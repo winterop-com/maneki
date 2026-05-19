@@ -21,6 +21,11 @@ from mediakit import __version__
 from mediakit.video.serve.demo import DEMO_HTML
 from mediakit.video.serve.hls import HLSManager
 from mediakit.video.serve.scan import VideoEntry, scan_videos
+from mediakit.video.serve.subtitles import (
+    SubtitleSidecar,
+    discover_sidecars,
+    to_webvtt,
+)
 from mediakit.video.serve.transcode import (
     FFmpegNotFoundError,
     assert_ffmpeg_available,
@@ -102,6 +107,31 @@ def create_app(root: Path) -> FastAPI:
             headers={"Cache-Control": "no-cache"},
         )
 
+    @app.get("/api/videos/{video_id}/subtitles")
+    def list_subtitles(video_id: str) -> list[dict[str, str]]:
+        """List subtitle sidecars discovered next to the video file."""
+        entry = _find(video_id, root)
+        sidecars = discover_sidecars(Path(entry["path"]))
+        return [
+            {
+                "lang": s.language,
+                "format": s.fmt,
+                "url": f"/api/videos/{video_id}/subtitles/{s.language}",
+            }
+            for s in sidecars
+        ]
+
+    @app.get("/api/videos/{video_id}/subtitles/{lang}")
+    def stream_subtitle(video_id: str, lang: str) -> Response:
+        """Serve the requested subtitle as WebVTT (.srt is converted on the fly)."""
+        entry = _find(video_id, root)
+        sidecars = discover_sidecars(Path(entry["path"]))
+        match = _pick_sidecar(sidecars, lang)
+        if match is None:
+            raise HTTPException(status_code=404, detail=f"no subtitle for lang {lang!r}")
+        body = to_webvtt(match.path)
+        return Response(content=body, media_type="text/vtt; charset=utf-8")
+
     @app.get("/api/videos/{video_id}/hls/{filename}")
     async def hls_file(video_id: str, filename: str) -> Response:
         """Serve an HLS playlist or fMP4 segment for the given video.
@@ -131,6 +161,14 @@ def create_app(root: Path) -> FastAPI:
         return FileResponse(target, media_type=_hls_media_type(filename))
 
     return app
+
+
+def _pick_sidecar(sidecars: list[SubtitleSidecar], lang: str) -> SubtitleSidecar | None:
+    """Return the sidecar whose language matches `lang` exactly, or None."""
+    for s in sidecars:
+        if s.language == lang:
+            return s
+    return None
 
 
 def _hls_media_type(filename: str) -> str:

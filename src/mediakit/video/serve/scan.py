@@ -23,6 +23,13 @@ VIDEOS_DIR_CANDIDATES = ("videos", "video")
 _DURATION_CACHE: dict[str, float | None] = {}
 
 
+class SubtitleSummary(TypedDict):
+    """One subtitle sidecar surfaced in the video list response."""
+
+    lang: str
+    format: str  # "srt" or "vtt"
+
+
 class VideoEntry(TypedDict):
     """Metadata for one indexed video file."""
 
@@ -32,6 +39,7 @@ class VideoEntry(TypedDict):
     size_bytes: int
     rel_path: str
     duration_s: float | None
+    subtitles: list[SubtitleSummary]
 
 
 def find_videos_dir(root: Path) -> Path | None:
@@ -61,6 +69,9 @@ def scan_videos(root: Path) -> list[VideoEntry]:
         if path.suffix.lower() not in VIDEO_EXTENSIONS:
             continue
         rel = path.relative_to(videos_dir)
+        from mediakit.video.serve.subtitles import discover_sidecars
+
+        sidecars = discover_sidecars(path)
         out.append(
             VideoEntry(
                 id=_make_id(rel),
@@ -69,6 +80,7 @@ def scan_videos(root: Path) -> list[VideoEntry]:
                 size_bytes=path.stat().st_size,
                 rel_path=str(rel),
                 duration_s=probe_duration(path),
+                subtitles=[SubtitleSummary(lang=s.language, format=s.fmt) for s in sidecars],
             )
         )
     return out
