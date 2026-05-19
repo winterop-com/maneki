@@ -12,20 +12,37 @@
 // HTML5 thing they had before.
 
 (function () {
-  const tauriCore = window.__TAURI__?.core;
-  const electronBridge = window.__mediakitDesktop;
+  const tauri = window.__TAURI__;
+  const electronBridge = window.__manekiDesktop;
 
   let kind = null;
-  if (tauriCore && typeof tauriCore.invoke === "function") {
+  if (tauri && (tauri.window || tauri.webviewWindow)) {
     kind = "tauri";
   } else if (electronBridge && typeof electronBridge.setFullscreen === "function") {
     kind = "electron";
   }
 
+  // Tauri 2 exposes the current window via either
+  // `__TAURI__.window.getCurrentWindow()` or
+  // `__TAURI__.webviewWindow.getCurrentWebviewWindow()` depending on
+  // the API generation. We try both so we work across plugin
+  // version bumps. Returns null in non-Tauri contexts.
+  function getTauriWindow() {
+    if (!tauri) return null;
+    if (typeof tauri.window?.getCurrentWindow === "function") return tauri.window.getCurrentWindow();
+    if (typeof tauri.webviewWindow?.getCurrentWebviewWindow === "function") {
+      return tauri.webviewWindow.getCurrentWebviewWindow();
+    }
+    if (typeof tauri.window?.getCurrent === "function") return tauri.window.getCurrent();
+    return null;
+  }
+
   async function setFullscreen(on) {
     try {
       if (kind === "tauri") {
-        await tauriCore.invoke("set_fullscreen", { on: !!on });
+        const win = getTauriWindow();
+        if (!win || typeof win.setFullscreen !== "function") return false;
+        await win.setFullscreen(!!on);
         return await isFullscreen();
       }
       if (kind === "electron") {
@@ -39,7 +56,11 @@
 
   async function isFullscreen() {
     try {
-      if (kind === "tauri") return await tauriCore.invoke("is_fullscreen");
+      if (kind === "tauri") {
+        const win = getTauriWindow();
+        if (!win || typeof win.isFullscreen !== "function") return false;
+        return await win.isFullscreen();
+      }
       if (kind === "electron") return await electronBridge.isFullscreen();
     } catch (e) {
       console.warn("[MK_DESKTOP] isFullscreen failed:", e);

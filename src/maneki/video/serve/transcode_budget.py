@@ -32,7 +32,7 @@ import asyncio
 import contextlib
 import os
 import time
-from collections.abc import AsyncIterator
+from collections.abc import AsyncGenerator
 
 from pydantic import BaseModel, ConfigDict
 
@@ -107,7 +107,7 @@ class TranscodeBudget:
         )
 
     @contextlib.asynccontextmanager
-    async def foreground(self) -> AsyncIterator[None]:
+    async def foreground(self) -> AsyncGenerator[None, None]:
         """Wrap a foreground transcode. Background workers pause for the duration."""
         self._foreground_count += 1
         self._idle_event.clear()
@@ -153,7 +153,7 @@ class TranscodeBudget:
             await asyncio.sleep(0.25)
 
     @contextlib.asynccontextmanager
-    async def background_slot(self) -> AsyncIterator[None]:
+    async def background_slot(self) -> AsyncGenerator[None, None]:
         """Acquire a background worker slot, yielding to foreground first.
 
         Order: wait for idle + quiet period -> acquire semaphore ->

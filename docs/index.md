@@ -2,8 +2,13 @@
 
 A Python 3.13 CLI for a self-hosted media library: convert arbitrary audio rips (FLAC / MP3 / M4A / WAV / OGG / OPUS) into a clean tagged library and serve it over LAN / Tailscale via a Subsonic-compatible HTTP server, plus a video pipeline (HLS streaming with on-demand segments, sidecar + embedded subtitles, contact-sheet posters, folder browser) all behind one `maneki serve` and one web SPA.
 
-!!! info "The name"
-    **Maneki** (招き) is the Japanese word for *beckoning* — as in the *maneki-neko* (招き猫), the cat figurine with a raised paw that invites guests in. The name fits a self-hosted server: it sits quietly on your shelf and politely waves your media in when you come knocking. Pronounced *mah-neh-kee*.
+## The name
+
+**Maneki** (招き, *mah-neh-kee*) is the Japanese word for *beckoning*. It's the verb-form of *maneki-neko* (招き猫) — the small ceramic cat with a raised paw you've seen on shop counters and restaurant windows across Japan. The cat sits there quietly all day; when you walk in, its paw is already up, inviting you in. Whoever placed it didn't have to do anything; the cat does the welcoming.
+
+A self-hosted media server has the same job. It lives on a box in the corner. You don't see it, you don't manage it, you don't poke at it. When you open the app on your phone or laptop and want to watch a film or play music, your library should already be there, ready, waving you in. No URL to type, no port to remember, no "is the server up?" — just open and play.
+
+That's what `maneki serve <library>` aims to be: the cat on the shelf.
 
 ## What it does
 

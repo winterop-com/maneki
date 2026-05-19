@@ -1,4 +1,4 @@
-// MediaKit main app — three-pane browse, now-playing, transport, overlays.
+// Maneki main app — three-pane browse, now-playing, transport, overlays.
 
 const { useState: uS, useEffect: uE, useMemo: uM, useRef: uR, useCallback: uC } = React;
 
@@ -17,7 +17,7 @@ const TWEAK_DEFAULTS = /*EDITMODE-BEGIN*/{
 }/*EDITMODE-END*/;
 
 // Layout variants:
-//   topband   — current MediaKit: Now Playing as top hero band (with Spectrum)
+//   topband   — current Maneki: Now Playing as top hero band (with Spectrum)
 //   bottombar — slim bottom transport bar + expandable mini-player
 //   rightrail — Spotify-ish dedicated right column for Now Playing
 
@@ -69,8 +69,8 @@ function App() {
   const [albumId, setAlbumId] = uS(null);
 
   // Video — `hasVideo` is null until the capability probe completes (then
-  // `true` for MediaKit servers with /video/api/* or `false` for everything
-  // else, including non-MediaKit Subsonic servers like Navidrome). The
+  // `true` for Maneki servers with /video/api/* or `false` for everything
+  // else, including non-Maneki Subsonic servers like Navidrome). The
   // sidebar's VIDEO section is hidden when hasVideo !== true.
   // Vertical-tabs mode: the whole SPA is either in "audio" or "video"
   // mode at a time (matching the user's "play music OR watch a movie"
@@ -79,20 +79,52 @@ function App() {
   const [hasVideo, setHasVideo] = uS(false);
   const [kind, setKind] = uS("audio");
   const [selectedVideo, setSelectedVideo] = uS(null);
+  // Player-only fullscreen mode. CSS pins .mk-video-player-pane to
+  // the viewport and hides everything else when this is true. We
+  // drive it ourselves instead of trying to use the HTML5
+  // Fullscreen API because that API is unreliable in WKWebView
+  // (Tauri) and the user wants ONLY the video element to fill the
+  // screen, not the whole window (window-level fullscreen leaves
+  // the topbar / video list visible at their grid sizes).
+  const [playerFs, setPlayerFs] = uS(false);
+  const togglePlayerFs = React.useCallback(() => setPlayerFs((v) => !v), []);
+  // Toggle a body data attribute so the CSS rule can target the
+  // outermost element; React owns the state but CSS owns the layout.
+  // Also drive native OS window fullscreen via MK_DESKTOP when
+  // running inside a desktop wrapper. The CSS pin makes the player
+  // pane fill the window; the OS fullscreen makes the WINDOW fill
+  // the screen (separate Space on macOS, menu bar + dock hidden).
+  // Combined: video covers the entire physical display with no
+  // chrome of any kind. In a plain browser tab MK_DESKTOP.kind is
+  // null and the OS call no-ops, so the CSS pin is the whole story.
   React.useEffect(() => {
-    window.__mkProbe = { stage: "effect-fired" };
+    document.body.dataset.playerFullscreen = playerFs ? "true" : "false";
+    if (window.MK_DESKTOP?.kind) window.MK_DESKTOP.setFullscreen(playerFs);
+    return () => { document.body.dataset.playerFullscreen = "false"; };
+  }, [playerFs]);
+  // When the selection clears (Close button), exit fullscreen too -
+  // there's nothing to be fullscreen on.
+  React.useEffect(() => {
+    if (!selectedVideo && playerFs) setPlayerFs(false);
+  }, [selectedVideo, playerFs]);
+  // Re-probe whenever `authed` flips (fresh login: previous effect
+  // run found no session and bailed). The previous `[]` dep ran once
+  // at mount only, so users who logged in on a clean install saw
+  // hasVideo=false forever (rail hidden, video tab unreachable) until
+  // they refreshed the page.
+  React.useEffect(() => {
+    if (!authed) return;
     const session = window.MK_API?.loadSession?.();
-    if (!session || typeof window.MK_VIDEO?.capabilities !== "function") {
-      window.__mkProbe = { stage: "no-session-or-mk-video", session: !!session };
-      return;
-    }
+    if (!session || typeof window.MK_VIDEO?.capabilities !== "function") return;
+    let cancelled = false;
     window.MK_VIDEO.capabilities(session).then((caps) => {
-      window.__mkProbe = { stage: "caps-received", caps };
+      if (cancelled) return;
       setHasVideo(caps?.video === true);
       if (caps && typeof caps.audio === "boolean") setHasAudio(caps.audio);
     });
-  }, []);
-  // Auto-switch to video when there's no audio (e.g. mediakit serve
+    return () => { cancelled = true; };
+  }, [authed]);
+  // Auto-switch to video when there's no audio (e.g. maneki serve
   // --video-only). Doesn't override an explicit user switch.
   React.useEffect(() => {
     if (!hasAudio && hasVideo) setKind("video");
@@ -378,31 +410,24 @@ function App() {
         switch (e.key) {
           case "f":
             e.preventDefault();
-            // In the Tauri / Electron desktop wrappers MK_DESKTOP.kind
-            // is set and we drive native OS fullscreen (macOS: separate
-            // Space, menu bar + dock hidden) on top of video.js's own
-            // fullscreen. In a plain browser fall back to the HTML5
-            // Fullscreen API alone; `navigationUI: 'hide'` asks Chrome
-            // to drop its URL/tab strip (it usually complies).
-            if (p.isFullscreen()) {
-              p.exitFullscreen();
-              if (window.MK_DESKTOP?.kind) window.MK_DESKTOP.setFullscreen(false);
-            } else {
-              if (window.MK_DESKTOP?.kind) window.MK_DESKTOP.setFullscreen(true);
-              p.requestFullscreen({ navigationUI: "hide" });
-            }
+            // SPA-side player-only fullscreen: CSS pins the player
+            // pane to the viewport and hides everything else. Works
+            // identically in browser / Tauri / Electron (the
+            // HTML5 Fullscreen API is unreliable in WKWebView).
+            togglePlayerFs();
             return;
           case " ":
             e.preventDefault();
             if (p.paused()) p.play(); else p.pause();
             return;
           case "Escape":
-            // Priority: close any open modal first, then fullscreen.
-            // Without this branch, Esc would be swallowed below and
-            // the shortcuts/palette/lyrics overlays would be stuck open.
+            // Priority: close any open modal first, then exit
+            // player-only fullscreen, then any HTML5 fullscreen
+            // that might still be active.
             if (showShortcuts) { setShowShortcuts(false); return; }
             if (showPalette) { setShowPalette(false); return; }
             if (showLyrics) { setShowLyrics(false); return; }
+            if (playerFs) { setPlayerFs(false); return; }
             if (p.isFullscreen()) p.exitFullscreen();
             return;
           case "ArrowLeft":
@@ -474,7 +499,7 @@ function App() {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [authed, now, dur, fullscreenViz, showShortcuts, showPalette, showLyrics, searchOpen, kind, selectedVideo]);
+  }, [authed, now, dur, fullscreenViz, showShortcuts, showPalette, showLyrics, searchOpen, kind, selectedVideo, playerFs]);
 
   // Sign out
   const signOut = () => {
@@ -517,15 +542,7 @@ function App() {
       if (c.label === "Volume down") { p.volume(Math.max(0, p.volume() - 0.1)); return; }
       if (c.label === "Toggle mute") { p.muted(!p.muted()); return; }
       if (c.label === "Toggle fullscreen") {
-        // Mirror the `f` keybinding: prefer native OS fullscreen in
-        // the desktop wrappers, fall back to HTML5 in the browser.
-        if (p.isFullscreen()) {
-          p.exitFullscreen();
-          if (window.MK_DESKTOP?.kind) window.MK_DESKTOP.setFullscreen(false);
-        } else {
-          if (window.MK_DESKTOP?.kind) window.MK_DESKTOP.setFullscreen(true);
-          p.requestFullscreen({ navigationUI: "hide" });
-        }
+        togglePlayerFs();
         return;
       }
       return;
@@ -564,7 +581,7 @@ function App() {
       return (
         <div className="mk-resume-shell">
           <div className="mk-resume-card">
-            <div className="mk-resume-brand">MediaKit</div>
+            <div className="mk-resume-brand">Maneki</div>
             <div className="mk-resume-spinner" aria-hidden="true" />
             <div className="mk-resume-label">Loading library…</div>
           </div>

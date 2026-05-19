@@ -1,9 +1,9 @@
-// MediaKit-native video API client - talks to /video/api/* on the same
+// Maneki-native video API client - talks to /video/api/* on the same
 // origin as the Subsonic mount. Probes /capabilities to find out whether
-// the server has video at all; on non-MediaKit Subsonic servers
+// the server has video at all; on non-Maneki Subsonic servers
 // (Navidrome, etc.) the probe 404s and the SPA hides the VIDEO section.
 //
-// Auth: when the server has /auth/login enabled (--auth flag on mediakit
+// Auth: when the server has /auth/login enabled (--auth flag on maneki
 // serve), every /video/* request needs an Authorization: Bearer header.
 // For v0 we run without --auth so the bearer machinery is stubbed; when
 // --auth lands in the SPA flow this module gets the token via window.MK_AUTH.
@@ -14,18 +14,28 @@
 (function () {
   "use strict";
 
-  // Use the page's origin (window.location.origin) rather than deriving from
-  // session.baseUrl. The SPA is always served by mediakit serve --ui from the
-  // same origin as the video API, and using window.location.origin sidesteps
-  // a CORS gotcha when the user types "localhost" but the page is at
-  // "127.0.0.1" (or vice versa) - the browser treats those as separate
-  // origins and blocks cross-origin fetches without CORS preflight.
-  function videoApiBase() {
-    return window.location.origin + "/video/api";
+  // Derive the API root from the session's baseUrl. The login flow
+  // stores baseUrl as "<host>/audio" for maneki (Subsonic mounted
+  // under /audio) or "<host>" for a 3rd-party Subsonic server.
+  // Strip the trailing /audio to get the host root, then add /video/api
+  // or /capabilities as needed.
+  //
+  // Previous version used window.location.origin, which works fine
+  // when the SPA is served by `maneki serve --ui` (origin matches
+  // the API). In Tauri / Electron the origin is `http://tauri.localhost`
+  // or `file://` - wrong for every video / capabilities call, so the
+  // VIDEO kind never appeared in the desktop wrappers.
+  function apiRoot(session) {
+    const base = (session && session.baseUrl) || "";
+    return base.replace(/\/audio\/?$/, "");
   }
 
-  function capabilitiesUrl() {
-    return window.location.origin + "/capabilities";
+  function videoApiBase(session) {
+    return apiRoot(session) + "/video/api";
+  }
+
+  function capabilitiesUrl(session) {
+    return apiRoot(session) + "/capabilities";
   }
 
   async function call(url) {
@@ -37,58 +47,58 @@
   }
 
   const MK_VIDEO = {
-    async capabilities(_session) {
+    async capabilities(session) {
       try {
-        return await call(capabilitiesUrl());
+        return await call(capabilitiesUrl(session));
       } catch {
-        // No /capabilities endpoint (non-MediaKit server, or SPA hosted
-        // separately from a mediakit serve --ui mount). Treat as
+        // No /capabilities endpoint (non-Maneki server, or SPA hosted
+        // separately from a maneki serve --ui mount). Treat as
         // audio-only - the user is here because Subsonic auth worked.
         return { audio: true, video: false };
       }
     },
 
-    async list(_session) {
-      return call(`${videoApiBase()}/videos`);
+    async list(session) {
+      return call(`${videoApiBase(session)}/videos`);
     },
 
     // Browse a single directory under the library root. `path` is the
     // POSIX-style relative path; empty string browses the root.
     // Returns { rel_path, crumbs, folders, videos } - the SPA's folder
     // navigator drives off this.
-    async browse(_session, path = "") {
-      const url = `${videoApiBase()}/browse${path ? `?path=${encodeURIComponent(path)}` : ""}`;
+    async browse(session, path = "") {
+      const url = `${videoApiBase(session)}/browse${path ? `?path=${encodeURIComponent(path)}` : ""}`;
       return call(url);
     },
 
     // Filename substring search across the whole library. Empty `q`
     // returns []. Server caps results so the SPA doesn't have to.
-    async search(_session, q) {
+    async search(session, q) {
       const trimmed = (q || "").trim();
       if (!trimmed) return [];
-      const url = `${videoApiBase()}/search?q=${encodeURIComponent(trimmed)}`;
+      const url = `${videoApiBase(session)}/search?q=${encodeURIComponent(trimmed)}`;
       return call(url);
     },
 
-    async subtitles(_session, videoId) {
+    async subtitles(session, videoId) {
       try {
-        return await call(`${videoApiBase()}/videos/${encodeURIComponent(videoId)}/subtitles`);
+        return await call(`${videoApiBase(session)}/videos/${encodeURIComponent(videoId)}/subtitles`);
       } catch {
         return [];
       }
     },
 
     // For passing to <video> / video.js as a source. Returns absolute URL.
-    hlsUrl(_session, videoId) {
-      return `${videoApiBase()}/videos/${encodeURIComponent(videoId)}/hls/index.m3u8`;
+    hlsUrl(session, videoId) {
+      return `${videoApiBase(session)}/videos/${encodeURIComponent(videoId)}/hls/index.m3u8`;
     },
 
-    streamUrl(_session, videoId) {
-      return `${videoApiBase()}/videos/${encodeURIComponent(videoId)}/stream`;
+    streamUrl(session, videoId) {
+      return `${videoApiBase(session)}/videos/${encodeURIComponent(videoId)}/stream`;
     },
 
-    subtitleUrl(_session, videoId, lang) {
-      return `${videoApiBase()}/videos/${encodeURIComponent(videoId)}/subtitles/${encodeURIComponent(lang)}`;
+    subtitleUrl(session, videoId, lang) {
+      return `${videoApiBase(session)}/videos/${encodeURIComponent(videoId)}/subtitles/${encodeURIComponent(lang)}`;
     },
 
     // Build a subtitle URL from the listing's track_id. Handles both
@@ -98,19 +108,19 @@
     // sub-app, which doesn't know its mount prefix (/video). This way
     // we always go through the same `videoApiBase()` everything else
     // uses, so prefix changes only need to update one place.
-    subtitleTrackUrl(_session, videoId, trackId) {
+    subtitleTrackUrl(session, videoId, trackId) {
       const tail = trackId.startsWith("sidecar:")
         ? encodeURIComponent(trackId.slice("sidecar:".length))
         : trackId.replace(":", "-"); // "embed:2" -> "embed-2"
-      return `${videoApiBase()}/videos/${encodeURIComponent(videoId)}/subtitles/${tail}`;
+      return `${videoApiBase(session)}/videos/${encodeURIComponent(videoId)}/subtitles/${tail}`;
     },
 
-    posterUrl(_session, videoId) {
-      return `${videoApiBase()}/videos/${encodeURIComponent(videoId)}/poster`;
+    posterUrl(session, videoId) {
+      return `${videoApiBase(session)}/videos/${encodeURIComponent(videoId)}/poster`;
     },
 
-    thumbnailUrl(_session, videoId) {
-      return `${videoApiBase()}/videos/${encodeURIComponent(videoId)}/thumbnail`;
+    thumbnailUrl(session, videoId) {
+      return `${videoApiBase(session)}/videos/${encodeURIComponent(videoId)}/thumbnail`;
     },
   };
 

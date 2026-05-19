@@ -1,5 +1,5 @@
 // Subsonic API client — talks to any spec-compliant `/rest/*` server
-// (mediakit serve, Navidrome, Airsonic, Gonic, ...).
+// (maneki serve, Navidrome, Airsonic, Gonic, ...).
 //
 // Auth model: salted-token. The user submits the password ONCE at the
 // login screen; we immediately compute `(salt, token=md5(password +
@@ -15,16 +15,16 @@
 // expires its derived token after a while.
 //
 // Lives outside the Claude Designer artifact (note the leading
-// underscore) so future zip drops only replace src/*.jsx + mediakit.css
+// underscore) so future zip drops only replace src/*.jsx + maneki.css
 // without touching the wiring layer. The artifact reaches us through
 // `window.MK_API`.
 
 (function () {
   "use strict";
 
-  const STORAGE_KEY = "mediakit.design.session";
+  const STORAGE_KEY = "maneki.design.session";
 
-  const CLIENT_NAME = "mediakit-design";
+  const CLIENT_NAME = "maneki-design";
   const API_VERSION = "1.16.1";
 
   function genSalt() {

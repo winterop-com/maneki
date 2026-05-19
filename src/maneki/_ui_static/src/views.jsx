@@ -3,7 +3,7 @@
 const { useEffect: useEff_v, useState: useSt_v, useRef: useRef_v } = React;
 
 function LoginView({ onConnect, themeMode, busyLabel }) {
-  // sameOrigin === true when the SPA is being served by `mediakit serve
+  // sameOrigin === true when the SPA is being served by `maneki serve
   // --ui` on the same origin as the API. Detected via /capabilities; if
   // that responds with our shape, hide the URL field entirely and post
   // to `<origin>/audio` (the Subsonic mount inside the unified server).
@@ -11,15 +11,25 @@ function LoginView({ onConnect, themeMode, busyLabel }) {
   // In the desktop wrappers (Tauri / Electron) the SPA is loaded as
   // file://, so window.location.origin won't talk to a server at all.
   // We fall back to probing http://127.0.0.1:8765/capabilities so a
-  // user running `mediakit serve` locally gets the URL field hidden
+  // user running `maneki serve` locally gets the URL field hidden
   // and zero typing required.
   //
   // sameOrigin / localServer === null while probing, then the probe
-  // result; either true means "found a local MediaKit, hide URL".
+  // result; either true means "found a local Maneki, hide URL".
   const [autoDetected, setAutoDetected] = useSt_v(null);  // null | "same-origin" | "localhost" | "none"
   const [detectedBase, setDetectedBase] = useSt_v("");
-  const isDesktop = window.location.protocol === "file:" || window.location.protocol === "tauri:";
-  const [url, setUrl] = useSt_v(isDesktop ? "http://127.0.0.1:8765/audio" : window.location.origin + "/audio");
+  // Desktop = Tauri or Electron wrapper. Can't rely on
+  // window.location.protocol because Tauri 2 serves the SPA from
+  // http://tauri.localhost/ (not file:// or tauri://) so a
+  // protocol check would say "browser". Check for the runtime
+  // globals instead. index.html sets body.dataset.shell from the
+  // same signals, so this stays in sync with the CSS rules.
+  const isDesktop = !!window.__TAURI__ || (navigator.userAgent || "").toLowerCase().includes("electron/");
+  // Just the base URL - no /audio mount suffix. The wiring layer
+  // probes /capabilities on submit and appends /audio itself when
+  // it confirms the server is maneki. For 3rd-party Subsonic
+  // servers (Navidrome, Airsonic) the URL stays as-is.
+  const [url, setUrl] = useSt_v(isDesktop ? "http://127.0.0.1:8765" : window.location.origin);
   const [user, setUser] = useSt_v("admin");
   const [pw, setPw] = useSt_v("");
   const [busy, setBusy] = useSt_v(false);
@@ -33,7 +43,7 @@ function LoginView({ onConnect, themeMode, busyLabel }) {
         const resp = await fetch(origin + "/capabilities", { cache: "no-store" });
         if (!resp.ok) return null;
         const caps = await resp.json();
-        if (caps && caps.server === "mediakit" && caps.endpoints?.audio_subsonic) {
+        if (caps && caps.server === "maneki" && caps.endpoints?.audio_subsonic) {
           return { caps, origin };
         }
       } catch (_e) {
@@ -43,7 +53,7 @@ function LoginView({ onConnect, themeMode, busyLabel }) {
     }
 
     (async () => {
-      // 1. Same-origin probe (works when SPA is served by `mediakit
+      // 1. Same-origin probe (works when SPA is served by `maneki
       //    serve --ui`). Skipped on file:// since same-origin requests
       //    against file:// can't reach any HTTP server.
       let hit = null;
@@ -53,18 +63,18 @@ function LoginView({ onConnect, themeMode, busyLabel }) {
         if (hit) kind = "same-origin";
       }
       // 2. Localhost fallback - the typical desktop-wrapper case where
-      //    the user has `mediakit serve` running on the default port.
+      //    the user has `maneki serve` running on the default port.
       if (!hit) {
         hit = await probe("http://127.0.0.1:8765");
         if (hit) kind = "localhost";
       }
       if (cancelled) return;
       if (hit) {
-        // _api.js appends `/rest/<verb>` itself; /capabilities reports
-        // the full mount path as `/audio/rest`, so strip the trailing
-        // `/rest` to leave just the base mount.
-        const mount = hit.caps.endpoints.audio_subsonic.replace(/\/rest\/?$/, "");
-        setUrl(hit.origin + mount);
+        // Leave the URL as just the origin - the wiring layer appends
+        // /audio at submit time, so the user never sees the mount
+        // path. We still store the detected origin so the help text
+        // can show what we found.
+        setUrl(hit.origin);
         setDetectedBase(hit.origin);
         setAutoDetected(kind);
       } else {
@@ -93,20 +103,27 @@ function LoginView({ onConnect, themeMode, busyLabel }) {
   return (
     <div className="mk-login-shell">
       <div className="mk-login-brand">
-        <div className="mk-login-logo">MediaKit</div>
+        <div className="mk-login-logo">Maneki</div>
         <div className="mk-login-tag">desktop · v{document.querySelector('meta[name="mk-version"]')?.content || "?"}</div>
       </div>
-      <form className="mk-login-card" onSubmit={submit}>
+      {/* noValidate: our custom check above ("Username and password
+          are required") is the source of truth. Tauri's WKWebView
+          and Electron's Chromium both occasionally surface obscure
+          HTML5 validation errors (e.g. "The string did not match the
+          expected pattern") from autofill / password-manager hints
+          when no pattern attribute is set; switching off native
+          validation removes that whole class of misleading errors. */}
+      <form className="mk-login-card" onSubmit={submit} noValidate>
         <div className="mk-login-title">
-          {localFound ? "Sign in to MediaKit" : "Connect to a MediaKit / Subsonic server"}
+          {localFound ? "Sign in to Maneki" : "Connect to a Maneki server"}
         </div>
         <div className="mk-login-help">
           {autoDetected === "same-origin" && <>Talking to <code className="mono">{detectedBase}</code></>}
-          {autoDetected === "localhost" && <>Found a local MediaKit at <code className="mono">{detectedBase}</code></>}
+          {autoDetected === "localhost" && <>Found a local Maneki at <code className="mono">{detectedBase}</code></>}
           {autoDetected === "none" && (
             isDesktop
-              ? <>No local MediaKit found at <code className="mono">127.0.0.1:8765</code>. Start one with <code>mediakit serve &lt;library&gt;</code>, or point at a remote server below.</>
-              : <>Defaults to the same origin as the SPA. Also works against any spec-compliant Subsonic server (Navidrome, Airsonic, Gonic, etc.).</>
+              ? <>No local Maneki found at <code className="mono">127.0.0.1:8765</code>. Start one with <code>maneki serve &lt;library&gt;</code>, or point at a remote server below.</>
+              : <>Defaults to the same origin as the SPA.</>
           )}
           {autoDetected === null && <>Looking for a local server…</>}
         </div>
@@ -129,9 +146,6 @@ function LoginView({ onConnect, themeMode, busyLabel }) {
           <button type="submit" className="mk-btn-primary" disabled={busy}>
             {busy ? (busyLabel || "Connecting…") : "Sign in"}
           </button>
-          <div className="mk-login-foot">
-            Default credentials are <code>admin</code> / <code>admin</code> until you set <code>--user</code> / <code>--password</code> on <code>mediakit serve</code>.
-          </div>
         </div>
       </form>
     </div>

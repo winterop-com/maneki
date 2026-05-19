@@ -1,6 +1,6 @@
 // VIDEO section views - VideosPane (list) + VideoPlayerPane (player).
 //
-// Styled with the mk-* tokens already in mediakit.css so the look matches
+// Styled with the mk-* tokens already in maneki.css so the look matches
 // the rest of the SPA (Tokyo-Night palette, monospace meta, blue accent).
 //
 // Playback uses video.js v10 loaded via CDN (index.html). On mount it
@@ -188,6 +188,23 @@ function VideoPlayerPane({ session, video, onClose }) {
   useEff_vv(() => {
     const el = videoRef.current;
     if (el === null || typeof window.videojs !== "function") return undefined;
+    // Seed a smaller-than-default caption size BEFORE video.js init
+    // reads localStorage. video.js's 100% baseline scales by player
+    // height; at 1080p+ fullscreen it eats a third of the screen.
+    // 0.50 (the menu's smallest preset) is still big in fullscreen,
+    // so go with the raw menu minimum AND apply it explicitly after
+    // init for good measure. Seed only writes when no user value
+    // exists, so anything picked from the menu afterwards wins.
+    try {
+      if (!window.localStorage.getItem("vjs-text-track-settings")) {
+        window.localStorage.setItem(
+          "vjs-text-track-settings",
+          JSON.stringify({ fontPercent: "0.50" }),
+        );
+      }
+    } catch (_e) {
+      // ignore - private browsing / no quota
+    }
     const player = window.videojs(el, {
       controls: true,
       autoplay: false,
@@ -201,7 +218,7 @@ function VideoPlayerPane({ session, video, onClose }) {
       // Contact-sheet poster: shows the video at a glance while paused
       // (and during seek buffer stalls) instead of a blank canvas.
       // Generated server-side; first request transcodes ~9 frames, then
-      // cached on disk under <root>/.mediakit/posters/.
+      // cached on disk under <root>/.maneki/posters/.
       poster: window.MK_VIDEO.posterUrl(session, video.id),
       // Tell the browser to hide ALL its own chrome (URL bar, tab strip)
       // when entering fullscreen. The default 'auto' lets Chrome keep
@@ -233,14 +250,67 @@ function VideoPlayerPane({ session, video, onClose }) {
     // visualizer overlay. Cleared in the cleanup below.
     window.MK_VIDEO_PLAYER = player;
 
-    // Captions size: video.js's 100% baseline is bigger than feels
-    // right. Pre-seeding a smaller default via the textTrackSettings
-    // API doesn't actually apply (video.js's cue-render path reads
-    // settings late and partial setValues calls don't always land),
-    // so we lean on `persistTextTrackSettings: true` above instead:
-    // the user picks a size once from the captions-settings menu and
-    // it sticks across videos + reloads. Defaults to 100% on first
-    // visit.
+    // Captions size: also call setValues explicitly so video.js's
+    // initial cue render uses our smaller default even before it
+    // reads localStorage. The seed above covers persistence across
+    // reloads; this covers the current player's first frame.
+    try {
+      const settings = typeof player.textTrackSettings === "function"
+        ? player.textTrackSettings()
+        : player.textTrackSettings;
+      settings?.setValues?.({ fontPercent: "0.50" });
+      settings?.updateDisplay?.();
+    } catch (_e) {
+      // older video.js builds may not expose this; safe to skip.
+    }
+
+    // Rapid-scrub recovery. Fast-forwarding (right-arrow held / many
+    // quick presses) requests segments faster than ffmpeg produces
+    // them; video.js then blacklists the only playlist with "Playback
+    // cannot continue. No available working or supported playlists."
+    // and the player gets stuck in error state. For a single-playlist
+    // VOD there is no other playlist to fall back to, so blacklisting
+    // serves no purpose — we clear the error and re-load the same
+    // source at the seek position the player was trying to reach.
+    //
+    // Guard against re-entry: each player.src() reload can itself
+    // fire an error during init (HLS manifest fetch, first segment
+    // 404 if the player picks an uncached position) which would
+    // trigger the handler again → infinite reload loop. Allow at
+    // most one recovery per 8s window per video. If we're still in
+    // error after that, the user can hit Close + reopen.
+    let lastRecoveryAt = 0;
+    const RECOVERY_COOLDOWN_MS = 8000;
+    const recoverFromBlacklist = () => {
+      try {
+        const err = player.error();
+        if (!err) return;
+        const msg = String(err.message || "");
+        if (!/playlists?|MEDIA_ERR_NETWORK|exhausted/i.test(msg)) return;
+        const now = Date.now();
+        if (now - lastRecoveryAt < RECOVERY_COOLDOWN_MS) {
+          // Already attempted recently - leave the error visible so
+          // the user knows the player needs a manual reset.
+          return;
+        }
+        lastRecoveryAt = now;
+        const lastTime = player.currentTime();
+        player.error(null);
+        player.src({
+          src: window.MK_VIDEO.hlsUrl(session, video.id),
+          type: "application/x-mpegURL",
+        });
+        player.one("loadedmetadata", () => {
+          try {
+            if (Number.isFinite(lastTime) && lastTime > 0) {
+              player.currentTime(lastTime);
+            }
+            player.play().catch(() => {});
+          } catch (_e) { /* dead player */ }
+        });
+      } catch (_e) { /* dead player */ }
+    };
+    player.on("error", recoverFromBlacklist);
 
     // Recovery for MSE buffer lockups. Two failure modes:
     //   1. alt-tab away, return, player stuck (browser throttles MSE

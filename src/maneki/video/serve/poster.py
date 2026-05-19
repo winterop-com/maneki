@@ -216,7 +216,7 @@ def _compose_sheet(
         row = idx // cols
         col = idx % cols
         with Image.open(frame_path) as img:
-            thumb = img.convert("RGB").resize((thumb_w, thumb_h), Image.LANCZOS)
+            thumb = img.convert("RGB").resize((thumb_w, thumb_h), Image.Resampling.LANCZOS)
         x = col * thumb_w + (col + 1) * pad
         y = header_h + row * thumb_h + (row + 1) * pad
         sheet.paste(thumb, (x, y))
@@ -282,12 +282,13 @@ async def generate_thumbnail(
     duration = duration_s if duration_s is not None else probe_duration(input_path)
     if duration is None or duration <= 0:
         raise RuntimeError(f"cannot determine duration for {input_path}")
-    if _ffmpeg_bin() is None:
+    ffmpeg = _ffmpeg_bin()
+    if ffmpeg is None:
         raise RuntimeError("ffmpeg is required to generate thumbnails")
     out_path.parent.mkdir(parents=True, exist_ok=True)
     ts = duration * 0.3
     args = [
-        _ffmpeg_bin(),
+        ffmpeg,
         "-hide_banner",
         "-loglevel",
         "error",
@@ -461,12 +462,14 @@ class PosterManager:
         async def _poster(entry: dict[str, object]) -> None:
             async with self.budget.background_slot():
                 try:
+                    raw_size = entry["size_bytes"]
+                    raw_dur = entry.get("duration_s")
                     await self.ensure_poster(
                         str(entry["id"]),
                         Path(str(entry["path"])),
-                        size_bytes=int(entry["size_bytes"]),  # type: ignore[arg-type]
+                        size_bytes=int(raw_size) if isinstance(raw_size, (int, str, bytes)) else 0,
                         title=str(entry["name"]),
-                        duration_s=entry.get("duration_s"),  # type: ignore[arg-type]
+                        duration_s=float(raw_dur) if isinstance(raw_dur, (int, float)) else None,
                     )
                 except Exception:  # noqa: BLE001
                     pass

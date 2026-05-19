@@ -333,11 +333,13 @@ def create_app(root: Path, *, budget: TranscodeBudget | None = None) -> FastAPI:
             async with shared_budget.foreground():
                 work = asyncio.create_task(session.ensure_segment(idx))
                 watcher = asyncio.create_task(_watch_disconnect(request))
+                done: set[asyncio.Future[object]] = set()
                 try:
-                    done, _ = await asyncio.wait(
+                    done_raw, _ = await asyncio.wait(
                         {work, watcher},
                         return_when=asyncio.FIRST_COMPLETED,
                     )
+                    done = done_raw  # type: ignore[assignment]
                 finally:
                     if not watcher.done():
                         watcher.cancel()

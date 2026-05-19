@@ -4,7 +4,7 @@
 // noise-modulated peaks, smoothed falloff) so it reads as believable.
 //
 // Styles supported:
-//   "bars"      classic vertical bars (current MediaKit look)
+//   "bars"      classic vertical bars (current Maneki look)
 //   "mirror"    bars mirrored above/below a centerline
 //   "radial"    polar bars radiating outward
 //   "ambient"   low-contrast blurred wash (sits behind content)

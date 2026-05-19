@@ -25,6 +25,35 @@
   "use strict";
 
   // ---------------------------------------------------------------
+  // 0. Helpers
+  // ---------------------------------------------------------------
+
+  // Decide whether the user's base URL is maneki (Subsonic mounted
+  // under /audio) or a 3rd-party Subsonic server (REST at the root).
+  // Probes <url>/capabilities once; on maneki shape returns
+  // `<url>/audio`, otherwise returns `<url>` unchanged. Fails-open
+  // (returns the URL as-is) on any network error so the rest of the
+  // login flow can surface a useful auth/connection error instead of
+  // a probe error.
+  async function resolveSubsonicBase(url) {
+    // If the user already typed a path that ends with the maneki
+    // mount (`/audio` or `/audio/`), trust them and don't double-append.
+    if (/\/audio\/?$/.test(url)) return url.replace(/\/+$/, "");
+    try {
+      const resp = await fetch(url + "/capabilities", { cache: "no-store" });
+      if (resp.ok) {
+        const caps = await resp.json();
+        if (caps && caps.server === "maneki" && caps.endpoints?.audio_subsonic) {
+          return url + "/audio";
+        }
+      }
+    } catch (_e) {
+      // ignore - 3rd-party server or network error
+    }
+    return url;
+  }
+
+  // ---------------------------------------------------------------
   // 1. Patch MK_LoginView so onConnect runs a real auth + data load.
   // ---------------------------------------------------------------
   const OriginalLoginView = window.MK_LoginView;
@@ -42,9 +71,17 @@
       // message. Without re-throw the form silently looks like nothing
       // happened on connection-refused / wrong-credentials.
       try {
+        // maneki mounts the Subsonic API at <base>/audio/rest/* (so
+        // the unified server can host /video/* alongside). 3rd-party
+        // Subsonic servers (Navidrome, Airsonic) put it at /rest/*
+        // directly. Probe /capabilities to figure out which we're
+        // talking to, then append /audio to the user's URL when it's
+        // maneki. The user only ever types the base URL.
+        const trimmed = url.replace(/\/+$/, "");
+        const baseUrl = await resolveSubsonicBase(trimmed);
         setBusyLabel("Connecting…");
         const session = await window.MK_API.login({
-          baseUrl: url,
+          baseUrl,
           user,
           password: pass,
         });
@@ -117,7 +154,7 @@
   // (also a single round-trip).
   //
   // Concurrency: we kick all `getArtist` calls in parallel (Promise.all)
-  // rather than serialising them. The mediakit serve bump-tested its
+  // rather than serialising them. The maneki serve bump-tested its
   // thread pool to 256 for exactly this; other Subsonic servers handle
   // it fine too. For libraries with hundreds of artists this turns a
   // multi-second waterfall into a single round-trip + the slowest
@@ -128,7 +165,7 @@
     // Skip the Subsonic phase entirely on a video-only library — the
     // server doesn't mount /audio/* there, so getArtists would 404 and
     // trigger the "Lost connection" banner. We probe /capabilities
-    // first (always exists) to decide. Non-mediakit Subsonic servers
+    // first (always exists) to decide. Non-maneki Subsonic servers
     // don't have /capabilities, so a fetch failure means "treat as an
     // audio server and let getArtists run as before".
     let hasAudio = true;

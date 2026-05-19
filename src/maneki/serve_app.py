@@ -132,13 +132,23 @@ def create_combined_app(
     @contextlib.asynccontextmanager
     async def _lifespan(app: FastAPI):  # type: ignore[no-untyped-def]
         async def _background_startup() -> None:
-            video_sub = next((r.app for r in app.routes if getattr(r, "path", "") == "/video"), None)
-            if video_sub is None or not hasattr(video_sub.state, "poster_manager"):
-                return
-            # Cheap inventory: file list only, no ffprobe (probe=False).
-            videos = await asyncio.to_thread(
-                lambda: list(scan_videos(video_sub.state.library_root, probe=False))
+            from typing import cast
+
+            from starlette.routing import Mount
+
+            # Mount.app is typed as the generic ASGI callable; we know
+            # the /video mount holds a FastAPI sub-app with our custom
+            # `state` attributes attached in _mount_video. Cast so
+            # mypy lets us reach into it.
+            video_sub_app: FastAPI | None = next(
+                (cast(FastAPI, r.app) for r in app.routes if isinstance(r, Mount) and r.path == "/video"),
+                None,
             )
+            if video_sub_app is None or not hasattr(video_sub_app.state, "poster_manager"):
+                return
+            video_sub = video_sub_app
+            # Cheap inventory: file list only, no ffprobe (probe=False).
+            videos = await asyncio.to_thread(lambda: list(scan_videos(video_sub.state.library_root, probe=False)))
             live_ids = {v["id"] for v in videos}
             video_sub.state.poster_manager.clean_orphans(live_ids)
             video_sub.state.hls_manager.clean_orphans(live_ids)

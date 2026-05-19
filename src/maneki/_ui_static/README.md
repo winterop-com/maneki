@@ -1,6 +1,6 @@
-# MediaKit Design v2 (Claude Designer prototype)
+# Maneki Design v2 (Claude Designer prototype)
 
-The MediaKit desktop UI. The source files in `src/` are the raw output
+The Maneki desktop UI. The source files in `src/` are the raw output
 of Claude Designer — sibling JSX modules that share state via
 `window.MK_*` globals. `index.html` loads them in dependency order via
 Babel-standalone so the prototype runs with no build step (same
@@ -17,7 +17,7 @@ etc.) get replaced wholesale on each iteration.
 desktop/react/
 ├── index.html          ← entry — boots React UMD + Babel + script tags
 ├── main.jsx            ← renders <window.MK_App /> into #root
-├── mediakit.css        ← all styles, theme tokens, layout variants
+├── maneki.css        ← all styles, theme tokens, layout variants
 ├── favicon.svg
 └── src/
     ├── data.jsx           mock library data → window.MK_DATA
