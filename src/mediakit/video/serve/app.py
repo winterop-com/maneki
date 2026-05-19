@@ -190,6 +190,13 @@ def create_app(root: Path, *, budget: TranscodeBudget | None = None) -> FastAPI:
         for the player's language picker), and a `url` the SPA can wire
         straight to a <track src=...> element. Image-based embedded
         codecs (PGS, VobSub) are filtered out upstream.
+
+        The `default` flag is rewritten so at most one track is marked
+        default, with priority English (SDH / HoH / closed captions) >
+        plain English > none. ffprobe's stream-disposition default is
+        ignored on purpose - real-world files often have "Spanish"
+        marked default by upload tools, which isn't what an English-
+        speaking viewer expects.
         """
         entry = _find(video_id, root)
         video_path = Path(entry["path"])
@@ -214,10 +221,11 @@ def create_app(root: Path, *, budget: TranscodeBudget | None = None) -> FastAPI:
                     "lang": e.language,
                     "label": _track_label(e.language, e.title) + (" (forced)" if e.forced else ""),
                     "format": e.codec_name,
-                    "default": e.default,
+                    "default": False,
                     "url": f"/api/videos/{video_id}/subtitles/embed-{e.stream_index}",
                 }
             )
+        _apply_default_priority(tracks)
         return tracks
 
     @app.get("/api/videos/{video_id}/subtitles/{key}")
@@ -369,6 +377,52 @@ _LANG_NAMES = {
     "pl": "Polish", "pol": "Polish",
     "und": "Subtitles",
 }
+
+
+_ENGLISH_LANGS = frozenset({"en", "eng"})
+
+# Substring patterns that suggest a subtitle track is intended for the
+# deaf / hard-of-hearing (or US-style closed captions, which include
+# sound-effect descriptions and speaker IDs and are functionally
+# equivalent). Matched case-insensitively against the track label.
+# Spaces / brackets around "cc" keep us from matching unrelated words
+# like "Picollo" or "Soccer".
+_SDH_PATTERNS = (
+    "sdh",
+    "(cc)", "[cc]", " cc", "cc ",
+    "hearing impaired",
+    "hoh ", " hoh", "(hoh)", "[hoh]",
+)
+
+
+def _is_english(track: dict[str, object]) -> bool:
+    return str(track.get("lang", "")).lower() in _ENGLISH_LANGS
+
+
+def _looks_like_sdh(track: dict[str, object]) -> bool:
+    label = str(track.get("label", "")).lower()
+    return any(pat in label for pat in _SDH_PATTERNS)
+
+
+def _apply_default_priority(tracks: list[dict[str, object]]) -> None:
+    """Set `default` on exactly one track using English (SDH) > English priority.
+
+    No default is set when no English track exists. Mutates in place so
+    the caller's listing reflects the choice.
+    """
+    if not tracks:
+        return
+    chosen: dict[str, object] | None = next(
+        (t for t in tracks if _is_english(t) and _looks_like_sdh(t)),
+        None,
+    )
+    if chosen is None:
+        chosen = next(
+            (t for t in tracks if _is_english(t) and not _looks_like_sdh(t)),
+            None,
+        )
+    for t in tracks:
+        t["default"] = t is chosen
 
 
 def _track_label(lang: str, title: str | None) -> str:
