@@ -15,31 +15,20 @@ body {
   min-height: 100vh;
 }
 
-.app {
-  max-width: 900px;
+button {
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+  background: none;
+  border: none;
+}
+
+/* ------- Status / loading / error screens ------- */
+
+.status {
+  max-width: 700px;
   margin: 2rem auto;
   padding: 0 1rem;
-}
-
-h1 {
-  font-weight: 500;
-  margin: 0 0 0.5rem;
-}
-
-dl {
-  display: grid;
-  grid-template-columns: max-content 1fr;
-  gap: 0.4rem 1.2rem;
-  margin: 1rem 0;
-  font-size: 0.95rem;
-}
-
-dt {
-  color: #888;
-}
-
-dd {
-  margin: 0;
 }
 
 .error {
@@ -50,8 +39,169 @@ dd {
   border: 1px solid #5a2222;
 }
 
-.footer {
+/* ------- Login ------- */
+
+.login {
+  max-width: 360px;
+  margin: 5rem auto;
+  padding: 0 1rem;
+}
+
+.login .subtitle {
+  color: #888;
+  margin-bottom: 1.5rem;
+}
+
+.login form {
+  display: grid;
+  gap: 1rem;
+}
+
+.login label {
+  display: grid;
+  gap: 0.3rem;
+  color: #888;
+  font-size: 0.85rem;
+}
+
+.login input {
+  font: inherit;
+  padding: 0.5rem 0.7rem;
+  background: #1c1c1c;
+  border: 1px solid #333;
+  border-radius: 4px;
+  color: #ddd;
+}
+
+.login input:focus {
+  outline: 1px solid #888;
+  border-color: #888;
+}
+
+.login button[type="submit"] {
+  padding: 0.6rem;
+  background: #2a4a8a;
+  border-radius: 4px;
+  color: #fff;
+  font-weight: 500;
+  transition: background 0.15s;
+}
+
+.login button[type="submit"]:hover:not(:disabled) {
+  background: #345abe;
+}
+
+.login button[type="submit"]:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+/* ------- Shell layout ------- */
+
+.shell {
+  display: grid;
+  grid-template-columns: 240px 1fr;
+  min-height: 100vh;
+}
+
+.sidebar {
+  background: #0c0c0c;
+  border-right: 1px solid #222;
+  padding: 1.2rem 0.8rem;
+  display: flex;
+  flex-direction: column;
+}
+
+.sidebar .brand {
+  font-size: 1.2rem;
+  font-weight: 500;
+  margin: 0 0.4rem 1.5rem;
+}
+
+.sidebar .logout {
+  margin-top: auto;
+  padding: 0.5rem 0.6rem;
+  font-size: 0.85rem;
   color: #666;
-  font-size: 0.8rem;
-  margin-top: 2rem;
+  text-align: left;
+}
+
+.sidebar .logout:hover {
+  color: #ddd;
+}
+
+/* ------- Nav ------- */
+
+.nav-section {
+  margin-bottom: 0.8rem;
+}
+
+.nav-header {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  width: 100%;
+  padding: 0.3rem 0.4rem;
+  color: #888;
+  font-size: 0.75rem;
+  letter-spacing: 0.08em;
+  font-weight: 500;
+  text-align: left;
+}
+
+.nav-header:hover {
+  color: #ddd;
+}
+
+.nav-header .caret {
+  display: inline-block;
+  width: 0.8em;
+  font-size: 0.7em;
+}
+
+.nav-items {
+  list-style: none;
+  margin: 0.3rem 0 0;
+  padding: 0;
+}
+
+.nav-item {
+  width: 100%;
+  padding: 0.4rem 0.6rem 0.4rem 1.4rem;
+  font-size: 0.95rem;
+  color: #ccc;
+  border-radius: 3px;
+  text-align: left;
+}
+
+.nav-item:hover {
+  background: #1a1a1a;
+}
+
+.nav-item.selected {
+  background: #2a2a2a;
+  color: #fff;
+}
+
+/* ------- Content area ------- */
+
+.content {
+  padding: 1.5rem 2rem;
+}
+
+.content .header {
+  color: #666;
+  font-size: 0.85rem;
+  margin: 0 0 1.5rem;
+}
+
+.placeholder h2 {
+  font-weight: 500;
+  margin-top: 0;
+}
+
+.placeholder .endpoint {
+  color: #888;
+  font-size: 0.85rem;
+  font-family: ui-monospace, SFMono-Regular, "SF Mono", monospace;
 }

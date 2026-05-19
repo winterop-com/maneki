@@ -1,52 +1,61 @@
-import { useEffect, useState } from "react";
+/**
+ * Top-level orchestration. Three states:
+ *
+ *   1. Capabilities loading -> spinner-style placeholder.
+ *   2. Capabilities loaded, auth_required, no token -> LoginScreen.
+ *   3. Capabilities loaded, authenticated (or no auth needed) -> AppShell.
+ *
+ * The auth context lives at the root so AppShell + LoginScreen share the
+ * same session state.
+ */
 
-interface Capabilities {
-  server: string;
-  version: string;
-  audio: boolean;
-  video: boolean;
-  auth_required: boolean;
-  endpoints: Record<string, string | null>;
+import { useEffect, useState } from "react";
+import { AppShell } from "./components/AppShell";
+import { LoginScreen } from "./components/LoginScreen";
+import { AuthProvider, useAuth } from "./state/auth";
+import { fetchCapabilities } from "./state/capabilities";
+import type { Capabilities } from "./state/capabilities";
+
+export function App(): React.ReactElement {
+  return (
+    <AuthProvider>
+      <AppRoot />
+    </AuthProvider>
+  );
 }
 
-/**
- * Commit 1 placeholder. Fetches /capabilities to prove the SPA can talk to the
- * server, then renders identity + presence flags. Real nav, login, and views
- * land in the next commits.
- */
-export function App(): React.ReactElement {
+function AppRoot(): React.ReactElement {
   const [caps, setCaps] = useState<Capabilities | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const { isAuthenticated } = useAuth();
 
   useEffect(() => {
-    void fetch("/capabilities")
-      .then((r) => (r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`))))
-      .then((data: Capabilities) => setCaps(data))
+    void fetchCapabilities()
+      .then((data) => setCaps(data))
       .catch((err: unknown) => setError(err instanceof Error ? err.message : String(err)));
   }, []);
 
-  return (
-    <main className="app">
-      <h1>mediakit</h1>
-      {error !== null && <p className="error">cannot reach /capabilities: {error}</p>}
-      {caps !== null && (
-        <dl>
-          <dt>server</dt>
-          <dd>
-            {caps.server} v{caps.version}
-          </dd>
-          <dt>audio</dt>
-          <dd>{caps.audio ? "yes" : "no"}</dd>
-          <dt>video</dt>
-          <dd>{caps.video ? "yes" : "no"}</dd>
-          <dt>auth required</dt>
-          <dd>{caps.auth_required ? "yes" : "no"}</dd>
-        </dl>
-      )}
-      {error === null && caps === null && <p>loading...</p>}
-      <p className="footer">
-        SPA scaffold (commit 1). Nav / login / video player land in subsequent commits.
-      </p>
-    </main>
-  );
+  if (error !== null) {
+    return (
+      <main className="status">
+        <h1>mediakit</h1>
+        <p className="error">cannot reach the server: {error}</p>
+      </main>
+    );
+  }
+
+  if (caps === null) {
+    return (
+      <main className="status">
+        <h1>mediakit</h1>
+        <p>loading...</p>
+      </main>
+    );
+  }
+
+  if (caps.auth_required && !isAuthenticated) {
+    return <LoginScreen />;
+  }
+
+  return <AppShell capabilities={caps} />;
 }
