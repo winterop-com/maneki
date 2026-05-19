@@ -37,6 +37,7 @@ from pathlib import Path
 from pydantic import BaseModel, ConfigDict
 
 from mediakit.video.serve.transcode import FFmpegNotFoundError
+from mediakit.video.serve.transcode_budget import TranscodeBudget
 
 # 6s chunks: standard HLS recommendation - large enough that per-segment
 # ffmpeg startup overhead isn't a bottleneck, small enough that seek
@@ -103,7 +104,14 @@ def build_manifest(segments: list[SegmentSpec], seg_len: float = SEG_LEN) -> str
 class OnDemandHLS:
     """Per-video transcode session. Segments materialise on demand."""
 
-    def __init__(self, video_id: str, input_path: Path, duration_s: float, session_dir: Path) -> None:
+    def __init__(
+        self,
+        video_id: str,
+        input_path: Path,
+        duration_s: float,
+        session_dir: Path,
+        budget: TranscodeBudget,
+    ) -> None:
         self.video_id = video_id
         self.input_path = input_path
         self.duration_s = duration_s
@@ -114,11 +122,11 @@ class OnDemandHLS:
         # for VOD sizes (a 2hr movie at 6s segments = 1200 entries max).
         self._segment_locks: dict[int, asyncio.Lock] = {}
         # Background prefetch tasks keyed by segment index. Drained on
-        # completion so the dict reflects "currently in flight". Capped
-        # by a semaphore so a flurry of forward seeks doesn't spawn
-        # 50 concurrent ffmpeg processes.
+        # completion so the dict reflects "currently in flight".
+        # Concurrency is managed by the shared TranscodeBudget so
+        # prefetch yields to foreground play requests automatically.
         self._prefetch_tasks: dict[int, asyncio.Task[None]] = {}
-        self._prefetch_sem = asyncio.Semaphore(2)
+        self._budget = budget
 
     def manifest(self) -> str:
         return build_manifest(self.segments)
@@ -162,7 +170,7 @@ class OnDemandHLS:
 
     async def _safe_prefetch(self, idx: int) -> None:
         try:
-            async with self._prefetch_sem:
+            async with self._budget.background_slot():
                 await self.ensure_segment(idx)
         except Exception:  # noqa: BLE001 - background prefetch must not crash the server
             pass
@@ -261,16 +269,20 @@ class OnDemandHLS:
 class HLSManager:
     """One OnDemandHLS per video; lives for the server process lifetime."""
 
-    def __init__(self, base_dir: Path | None = None) -> None:
+    def __init__(self, base_dir: Path | None = None, budget: TranscodeBudget | None = None) -> None:
         self.base_dir = base_dir or Path(tempfile.gettempdir()) / "mediakit-hls"
         self.sessions: dict[str, OnDemandHLS] = {}
+        # A budget is required at runtime; default to a fresh one when
+        # callers (mostly tests) don't supply one so the manager stays
+        # usable in isolation.
+        self.budget = budget or TranscodeBudget()
 
     def get_or_create(self, video_id: str, input_path: Path, duration_s: float) -> OnDemandHLS:
         existing = self.sessions.get(video_id)
         if existing is not None:
             return existing
         session_dir = self.base_dir / video_id
-        session = OnDemandHLS(video_id, input_path, duration_s, session_dir)
+        session = OnDemandHLS(video_id, input_path, duration_s, session_dir, self.budget)
         self.sessions[video_id] = session
         return session
 
@@ -310,12 +322,7 @@ class HLSManager:
             session.cleanup_dir()
         self.sessions.clear()
 
-    async def prewarm_seg0(
-        self,
-        entries: list[dict[str, object]],
-        *,
-        max_concurrency: int = 1,
-    ) -> None:
+    async def prewarm_seg0(self, entries: list[dict[str, object]]) -> None:
         """Pre-transcode segment 0 of every video so first-play is instant.
 
         Without this, clicking a video for the first time waits 1-3s for
@@ -323,29 +330,27 @@ class HLSManager:
         start decoding. With it, the cold-play latency drops to just the
         HTTP fetch (~10ms) for any video the prewarm has reached.
 
-        Concurrency defaults to 1 because the transcode is CPU-heavy
-        (libx264 software encode) and the prewarm is background work -
-        an actively-playing video gets priority. Skips entries that are
-        already cached or have no usable duration.
+        Concurrency is bounded by the shared TranscodeBudget - each
+        prewarm transcode acquires a background slot, which automatically
+        yields to any in-flight foreground player request. Skips entries
+        that are already cached or have no usable duration.
         """
         if not entries:
             return
-        sem = asyncio.Semaphore(max_concurrency)
 
         async def _warm(entry: dict[str, object]) -> None:
-            async with sem:
-                duration = entry.get("duration_s")
-                if not isinstance(duration, (int, float)) or duration <= 0:
-                    return
-                video_id = str(entry["id"])
-                input_path = Path(str(entry["path"]))
-                session = self.get_or_create(video_id, input_path, float(duration))
-                if not session.segments:
-                    return
-                # ensure_segment is no-op when the file already exists.
-                try:
+            duration = entry.get("duration_s")
+            if not isinstance(duration, (int, float)) or duration <= 0:
+                return
+            video_id = str(entry["id"])
+            input_path = Path(str(entry["path"]))
+            session = self.get_or_create(video_id, input_path, float(duration))
+            if not session.segments:
+                return
+            try:
+                async with self.budget.background_slot():
                     await session.ensure_segment(0)
-                except Exception:  # noqa: BLE001 - prewarm must not crash the server
-                    pass
+            except Exception:  # noqa: BLE001 - prewarm must not crash the server
+                pass
 
         await asyncio.gather(*(_warm(e) for e in entries))

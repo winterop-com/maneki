@@ -34,6 +34,7 @@ from mediakit.video.serve.transcode import (
     assert_ffmpeg_available,
     transcode_to_mp4,
 )
+from mediakit.video.serve.transcode_budget import TranscodeBudget
 
 # Module-level HLS manager so sessions survive across requests within one
 # server process. Each create_app call gets its own (passed in via closure),
@@ -52,19 +53,25 @@ _MIME_BY_EXT: dict[str, str] = {
 }
 
 
-def create_app(root: Path) -> FastAPI:
+def create_app(root: Path, *, budget: TranscodeBudget | None = None) -> FastAPI:
     """Build the FastAPI app rooted at the given library directory.
 
     Args:
         root: library root. The app scans <root>/videos/ on each request (no
             persistent cache in this base layer - simplicity over performance
             for v0; SQLite cache is the next layer up).
+        budget: shared foreground-priority transcode scheduler. When None
+            a fresh one is created with the default worker count.
     """
     app = FastAPI(title="mediakit-video", version=__version__)
-    hls_manager = HLSManager()
+    shared_budget = budget if budget is not None else TranscodeBudget()
+    hls_manager = HLSManager(budget=shared_budget)
     # Posters live under <root>/.mediakit/posters/ - library-local cache
     # so they survive server restarts and follow the library if moved.
-    poster_manager = PosterManager(cache_dir=root / ".mediakit" / "posters")
+    poster_manager = PosterManager(
+        cache_dir=root / ".mediakit" / "posters",
+        budget=shared_budget,
+    )
     subtitle_cache = SubtitleCache(cache_dir=root / ".mediakit" / "subs")
     # Exposed on app.state so callers running this app as a mounted
     # sub-app (mediakit serve --ui) can trigger prewarm from their own
@@ -73,6 +80,7 @@ def create_app(root: Path) -> FastAPI:
     app.state.hls_manager = hls_manager
     app.state.subtitle_cache = subtitle_cache
     app.state.library_root = root
+    app.state.budget = shared_budget
 
     @app.get("/", response_class=HTMLResponse)
     def demo_page() -> str:
@@ -278,13 +286,17 @@ def create_app(root: Path) -> FastAPI:
                 idx = int(filename[len("seg-") : -len(".ts")])
             except ValueError as exc:
                 raise HTTPException(status_code=400, detail="invalid segment filename") from exc
-            try:
-                path = await session.ensure_segment(idx)
-            except IndexError as exc:
-                raise HTTPException(status_code=404, detail=str(exc)) from exc
-            # Kick off neighbour transcodes in the background so small
-            # scrubs (skip ahead 6-12s) land on a warm cache. Doesn't
-            # block the current response.
+            # Mark this as a foreground transcode for the duration -
+            # the shared budget pauses any in-flight background work
+            # (prewarm + prefetch) so the player request gets full CPU.
+            async with shared_budget.foreground():
+                try:
+                    path = await session.ensure_segment(idx)
+                except IndexError as exc:
+                    raise HTTPException(status_code=404, detail=str(exc)) from exc
+            # Kick off neighbour transcodes AFTER releasing the
+            # foreground marker so they themselves can be paused by
+            # the next foreground request.
             session.prefetch_neighbors(idx)
             return FileResponse(path, media_type="video/mp2t")
         raise HTTPException(status_code=404, detail=f"unknown hls resource {filename!r}")

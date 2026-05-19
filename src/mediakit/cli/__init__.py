@@ -81,6 +81,19 @@ def serve_cmd(
         bool,
         typer.Option("--ui", help="Also serve the MediaKit SPA at /ui/ (from desktop/react/)"),
     ] = False,
+    workers: Annotated[
+        int,
+        typer.Option(
+            "--workers",
+            "-w",
+            min=0,
+            help=(
+                "Background transcode workers (HLS prewarm + neighbour prefetch + posters). "
+                "0 (default) = cpu_count() // 2, capped at 4. Foreground player requests always "
+                "preempt background work regardless of this value."
+            ),
+        ),
+    ] = 0,
 ) -> None:
     """Start the combined audio + video server.
 
@@ -112,13 +125,16 @@ def serve_cmd(
         enable_video=not audio_only,
         enable_auth=auth,
         enable_ui=ui,
+        transcode_workers=workers or None,
     )
     flags: list[str] = []
     if auth:
         flags.append("auth on /video/*")
     if ui:
         flags.append("SPA at /ui/")
-    flag_note = f" ({', '.join(flags)})" if flags else ""
+    actual_workers = workers or "auto"
+    flags.append(f"workers={actual_workers}")
+    flag_note = f" ({', '.join(flags)})"
     typer.echo(f"mediakit serve - {root.resolve()} on http://{host}:{port}{flag_note}")
     uvicorn.run(combined, host=host, port=port, log_level="info")
 

@@ -26,6 +26,7 @@ from PIL import Image, ImageDraw, ImageFont
 from pydantic import BaseModel, ConfigDict
 
 from mediakit.video.serve.scan import probe_duration
+from mediakit.video.serve.transcode_budget import TranscodeBudget
 
 POSTER_THUMB_WIDTH = 320
 POSTER_PADDING = 6
@@ -324,12 +325,15 @@ class PosterManager:
     smaller than PNG for a single photograph.
     """
 
-    def __init__(self, cache_dir: Path) -> None:
+    def __init__(self, cache_dir: Path, budget: TranscodeBudget | None = None) -> None:
         self.cache_dir = cache_dir
         # One lock per (video_id, kind) so concurrent first requests for
         # the same asset don't both fire ffmpeg, but poster + thumbnail
         # requests for the same video can run in parallel.
         self._locks: dict[tuple[str, str], asyncio.Lock] = {}
+        # Shared with HLSManager so prewarm yields to active playback.
+        # Falls back to a fresh budget when callers (tests) don't supply.
+        self.budget = budget or TranscodeBudget()
 
     def poster_path(self, video_id: str) -> Path:
         return self.cache_dir / f"{video_id}.png"
@@ -412,12 +416,7 @@ class PosterManager:
                 duration_s=duration_s,
             )
 
-    async def prewarm(
-        self,
-        entries: list[dict[str, object]],
-        *,
-        max_concurrency: int = 2,
-    ) -> None:
+    async def prewarm(self, entries: list[dict[str, object]]) -> None:
         """Warm caches for every video: subtitle probe, thumbnail, poster.
 
         Walks the supplied video listing and ensures all three are
@@ -426,32 +425,30 @@ class PosterManager:
         cold browse-after-restart is instant. Thumbnails next (row
         icons); posters last (only visible after a row is clicked).
 
-        Both ffmpeg / ffprobe steps run through a small worker pool so
-        the host's CPU isn't pegged while real playback might be in
-        flight. Designed to be fire-and-forget from the FastAPI startup
-        hook - callers should
-        `asyncio.create_task(manager.prewarm(...))`.
+        Concurrency is bounded by the shared TranscodeBudget - background
+        slots automatically yield to any in-flight foreground player
+        request. Designed to be fire-and-forget from the FastAPI lifespan
+        hook.
 
         Each entry is a dict with keys: id, path, size_bytes, name,
         duration_s. Matches VideoEntry.
         """
         if not entries:
             return
-        sem = asyncio.Semaphore(max_concurrency)
 
         async def _probe_subs(entry: dict[str, object]) -> None:
             # The probe itself is sync (subprocess.run blocks), so run
             # it in a thread to keep the event loop responsive.
             from mediakit.video.serve.subtitles import probe_embedded_subtitles
 
-            async with sem:
+            async with self.budget.background_slot():
                 try:
                     await asyncio.to_thread(probe_embedded_subtitles, Path(str(entry["path"])))
                 except Exception:  # noqa: BLE001
                     pass
 
         async def _thumb(entry: dict[str, object]) -> None:
-            async with sem:
+            async with self.budget.background_slot():
                 try:
                     await self.ensure_thumbnail(
                         str(entry["id"]),
@@ -462,7 +459,7 @@ class PosterManager:
                     pass
 
         async def _poster(entry: dict[str, object]) -> None:
-            async with sem:
+            async with self.budget.background_slot():
                 try:
                     await self.ensure_poster(
                         str(entry["id"]),

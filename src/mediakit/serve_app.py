@@ -76,6 +76,7 @@ def create_combined_app(
     ui_dir: Path | None = None,
     audio_use_cache: bool = True,
     audio_cfg: ServeConfig | None = None,
+    transcode_workers: int | None = None,
 ) -> FastAPI:
     """Build a FastAPI app that mounts whichever kinds are present at root.
 
@@ -188,7 +189,7 @@ def create_combined_app(
         _mount_audio(combined, audio_dir, use_cache=audio_use_cache, cfg=cfg)
 
     if video_dir is not None:
-        _mount_video(combined, root)
+        _mount_video(combined, root, workers=transcode_workers)
 
     if enable_ui:
         # Mount the SPA at "/" LAST. FastAPI/Starlette match routes in
@@ -273,11 +274,17 @@ def _mount_audio(combined: FastAPI, audio_root: Path, *, use_cache: bool, cfg: S
     combined.mount("/audio", audio_app)
 
 
-def _mount_video(combined: FastAPI, library_root: Path) -> None:
-    """Mount the video app under /video."""
-    from mediakit.video.serve import create_app as create_video_app
+def _mount_video(combined: FastAPI, library_root: Path, *, workers: int | None) -> None:
+    """Mount the video app under /video.
 
-    video_app = create_video_app(library_root)
+    `workers` controls the shared TranscodeBudget's background worker
+    count. None = use the budget's default (cpu_count // 2, capped 4).
+    """
+    from mediakit.video.serve import create_app as create_video_app
+    from mediakit.video.serve.transcode_budget import TranscodeBudget
+
+    budget = TranscodeBudget(max_workers=workers) if workers is not None else None
+    video_app = create_video_app(library_root, budget=budget)
     combined.mount("/video", video_app)
 
 
