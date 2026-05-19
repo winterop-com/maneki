@@ -3,35 +3,93 @@
 const { useEffect: useEff_v, useState: useSt_v, useRef: useRef_v } = React;
 
 function LoginView({ onConnect, themeMode, busyLabel }) {
-  const [url, setUrl] = useSt_v("http://localhost:4533");
+  // sameOrigin === true when the SPA is being served by `mediakit serve
+  // --ui` on the same origin as the API. Detected via /capabilities; if
+  // that responds with our shape, hide the URL field entirely and post
+  // to `<origin>/audio` (the Subsonic mount inside the unified server).
+  //
+  // In the desktop wrappers (Tauri / Electron) the SPA is loaded as
+  // file://, so window.location.origin won't talk to a server at all.
+  // We fall back to probing http://127.0.0.1:8765/capabilities so a
+  // user running `mediakit serve` locally gets the URL field hidden
+  // and zero typing required.
+  //
+  // sameOrigin / localServer === null while probing, then the probe
+  // result; either true means "found a local MediaKit, hide URL".
+  const [autoDetected, setAutoDetected] = useSt_v(null);  // null | "same-origin" | "localhost" | "none"
+  const [detectedBase, setDetectedBase] = useSt_v("");
+  const isDesktop = window.location.protocol === "file:" || window.location.protocol === "tauri:";
+  const [url, setUrl] = useSt_v(isDesktop ? "http://127.0.0.1:8765/audio" : window.location.origin + "/audio");
   const [user, setUser] = useSt_v("admin");
   const [pw, setPw] = useSt_v("");
   const [busy, setBusy] = useSt_v(false);
   const [err, setErr] = useSt_v("");
 
+  useEff_v(() => {
+    let cancelled = false;
+
+    async function probe(origin) {
+      try {
+        const resp = await fetch(origin + "/capabilities", { cache: "no-store" });
+        if (!resp.ok) return null;
+        const caps = await resp.json();
+        if (caps && caps.server === "mediakit" && caps.endpoints?.audio_subsonic) {
+          return { caps, origin };
+        }
+      } catch (_e) {
+        // ignore - probe failed
+      }
+      return null;
+    }
+
+    (async () => {
+      // 1. Same-origin probe (works when SPA is served by `mediakit
+      //    serve --ui`). Skipped on file:// since same-origin requests
+      //    against file:// can't reach any HTTP server.
+      let hit = null;
+      let kind = "none";
+      if (!isDesktop) {
+        hit = await probe(window.location.origin);
+        if (hit) kind = "same-origin";
+      }
+      // 2. Localhost fallback - the typical desktop-wrapper case where
+      //    the user has `mediakit serve` running on the default port.
+      if (!hit) {
+        hit = await probe("http://127.0.0.1:8765");
+        if (hit) kind = "localhost";
+      }
+      if (cancelled) return;
+      if (hit) {
+        // _api.js appends `/rest/<verb>` itself; /capabilities reports
+        // the full mount path as `/audio/rest`, so strip the trailing
+        // `/rest` to leave just the base mount.
+        const mount = hit.caps.endpoints.audio_subsonic.replace(/\/rest\/?$/, "");
+        setUrl(hit.origin + mount);
+        setDetectedBase(hit.origin);
+        setAutoDetected(kind);
+      } else {
+        setAutoDetected("none");
+      }
+    })();
+
+    return () => { cancelled = true; };
+  }, [isDesktop]);
+
   const submit = (e) => {
     e.preventDefault();
     setErr("");
     if (!url.trim() || !user.trim() || !pw) {
-      // Password is part of the Subsonic auth contract — every endpoint
-      // needs either `?u=&p=` (plain) or `?u=&t=&s=` (salted token, which
-      // we always compute from the password). Without it, the request
-      // would 401 and the user would see a less-helpful network error.
-      setErr("Server URL, username, and password are all required.");
+      setErr("Username and password are required.");
       return;
     }
     setBusy(true);
-    // Wiring layer (`_wiring.jsx`) replaces `props.onConnect` with an
-    // async function that does real Subsonic auth + library fetch. The
-    // original fake 700ms timeout fired regardless of result; we await
-    // the real call instead so "Connecting…" stays on while the network
-    // round-trip is in flight.
     Promise.resolve()
       .then(() => onConnect({ url, user, pass: pw }))
       .catch((e) => setErr(String(e?.message || e)))
       .finally(() => setBusy(false));
   };
 
+  const localFound = autoDetected === "same-origin" || autoDetected === "localhost";
   return (
     <div className="mk-login-shell">
       <div className="mk-login-brand">
@@ -39,16 +97,26 @@ function LoginView({ onConnect, themeMode, busyLabel }) {
         <div className="mk-login-tag">desktop · v{document.querySelector('meta[name="mk-version"]')?.content || "?"}</div>
       </div>
       <form className="mk-login-card" onSubmit={submit}>
-        <div className="mk-login-title">Connect to a Subsonic server</div>
+        <div className="mk-login-title">
+          {localFound ? "Sign in to MediaKit" : "Connect to a MediaKit / Subsonic server"}
+        </div>
         <div className="mk-login-help">
-          Works against any spec-compliant server: <code>mediakit serve</code>, Navidrome,
-          Airsonic, Gonic, etc.
+          {autoDetected === "same-origin" && <>Talking to <code className="mono">{detectedBase}</code></>}
+          {autoDetected === "localhost" && <>Found a local MediaKit at <code className="mono">{detectedBase}</code></>}
+          {autoDetected === "none" && (
+            isDesktop
+              ? <>No local MediaKit found at <code className="mono">127.0.0.1:8765</code>. Start one with <code>mediakit serve &lt;library&gt;</code>, or point at a remote server below.</>
+              : <>Defaults to the same origin as the SPA. Also works against any spec-compliant Subsonic server (Navidrome, Airsonic, Gonic, etc.).</>
+          )}
+          {autoDetected === null && <>Looking for a local server…</>}
         </div>
         <div className="mk-login-inner">
-          <label className="mk-field">
-            <span>Server URL</span>
-            <input value={url} onChange={(e) => setUrl(e.target.value)} className="mono" />
-          </label>
+          {!localFound && (
+            <label className="mk-field">
+              <span>Server URL</span>
+              <input value={url} onChange={(e) => setUrl(e.target.value)} className="mono" />
+            </label>
+          )}
           <label className="mk-field">
             <span>Username</span>
             <input value={user} onChange={(e) => setUser(e.target.value)} className="mono" />
@@ -59,11 +127,10 @@ function LoginView({ onConnect, themeMode, busyLabel }) {
           </label>
           {err && <div className="mk-login-error">{err}</div>}
           <button type="submit" className="mk-btn-primary" disabled={busy}>
-            {busy ? (busyLabel || "Connecting…") : "Connect"}
+            {busy ? (busyLabel || "Connecting…") : "Sign in"}
           </button>
           <div className="mk-login-foot">
-            Credentials are sent via <code>?u=&amp;p=</code> over your Subsonic endpoint —
-            use HTTPS in production.
+            Default credentials are <code>admin</code> / <code>admin</code> until you set <code>--user</code> / <code>--password</code> on <code>mediakit serve</code>.
           </div>
         </div>
       </form>

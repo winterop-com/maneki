@@ -64,9 +64,40 @@ function App() {
   const [resuming, setResuming] = uS(() => !!window.MK_API?.loadSession?.());
 
   // Browse selection
-  const [section, setSection] = uS("library"); // "library" | "stations" | "starred"
+  const [section, setSection] = uS("library"); // "library" | "stations" | "starred" | "videos"
   const [artistId, setArtistId] = uS(null);
   const [albumId, setAlbumId] = uS(null);
+
+  // Video — `hasVideo` is null until the capability probe completes (then
+  // `true` for MediaKit servers with /video/api/* or `false` for everything
+  // else, including non-MediaKit Subsonic servers like Navidrome). The
+  // sidebar's VIDEO section is hidden when hasVideo !== true.
+  // Vertical-tabs mode: the whole SPA is either in "audio" or "video"
+  // mode at a time (matching the user's "play music OR watch a movie"
+  // intent). hasAudio/hasVideo control which tabs are shown.
+  const [hasAudio, setHasAudio] = uS(true);
+  const [hasVideo, setHasVideo] = uS(false);
+  const [kind, setKind] = uS("audio");
+  const [selectedVideo, setSelectedVideo] = uS(null);
+  React.useEffect(() => {
+    window.__mkProbe = { stage: "effect-fired" };
+    const session = window.MK_API?.loadSession?.();
+    if (!session || typeof window.MK_VIDEO?.capabilities !== "function") {
+      window.__mkProbe = { stage: "no-session-or-mk-video", session: !!session };
+      return;
+    }
+    window.MK_VIDEO.capabilities(session).then((caps) => {
+      window.__mkProbe = { stage: "caps-received", caps };
+      setHasVideo(caps?.video === true);
+      if (caps && typeof caps.audio === "boolean") setHasAudio(caps.audio);
+    });
+  }, []);
+  // Auto-switch to video when there's no audio (e.g. mediakit serve
+  // --video-only). Doesn't override an explicit user switch.
+  React.useEffect(() => {
+    if (!hasAudio && hasVideo) setKind("video");
+  }, [hasAudio, hasVideo]);
+  const session = window.MK_API?.loadSession?.() || null;
 
   // Star state (per-track keyed "artistId/albumId/trackN")
   const [starred, setStarred] = uS(() => {
@@ -337,6 +368,86 @@ function App() {
         e.preventDefault(); setShowPalette((v) => !v); return;
       }
       if (isInput) return;
+      // In video mode the focal player is the video.js instance, not the
+      // audio chrome. Route every audio-aware key (transport + arrows +
+      // mute) to the video player and `return` so the audio switch below
+      // can't fire and clobber state. Help/palette shortcuts (?, Cmd+P)
+      // are global, handled above this block.
+      if (kind === "video" && selectedVideo && window.MK_VIDEO_PLAYER) {
+        const p = window.MK_VIDEO_PLAYER;
+        switch (e.key) {
+          case "f":
+            e.preventDefault();
+            // In the Tauri / Electron desktop wrappers MK_DESKTOP.kind
+            // is set and we drive native OS fullscreen (macOS: separate
+            // Space, menu bar + dock hidden) on top of video.js's own
+            // fullscreen. In a plain browser fall back to the HTML5
+            // Fullscreen API alone; `navigationUI: 'hide'` asks Chrome
+            // to drop its URL/tab strip (it usually complies).
+            if (p.isFullscreen()) {
+              p.exitFullscreen();
+              if (window.MK_DESKTOP?.kind) window.MK_DESKTOP.setFullscreen(false);
+            } else {
+              if (window.MK_DESKTOP?.kind) window.MK_DESKTOP.setFullscreen(true);
+              p.requestFullscreen({ navigationUI: "hide" });
+            }
+            return;
+          case " ":
+            e.preventDefault();
+            if (p.paused()) p.play(); else p.pause();
+            return;
+          case "Escape":
+            // Priority: close any open modal first, then fullscreen.
+            // Without this branch, Esc would be swallowed below and
+            // the shortcuts/palette/lyrics overlays would be stuck open.
+            if (showShortcuts) { setShowShortcuts(false); return; }
+            if (showPalette) { setShowPalette(false); return; }
+            if (showLyrics) { setShowLyrics(false); return; }
+            if (p.isFullscreen()) p.exitFullscreen();
+            return;
+          case "ArrowLeft":
+            e.preventDefault();
+            p.currentTime(Math.max(0, p.currentTime() - 5));
+            return;
+          case "ArrowRight":
+            e.preventDefault();
+            p.currentTime(Math.min(p.duration() || Infinity, p.currentTime() + 5));
+            return;
+          case "ArrowUp":
+            e.preventDefault();
+            p.volume(Math.min(1, p.volume() + 0.05));
+            if (p.muted()) p.muted(false);
+            return;
+          case "ArrowDown":
+            e.preventDefault();
+            p.volume(Math.max(0, p.volume() - 0.05));
+            return;
+          case "m":
+            p.muted(!p.muted());
+            return;
+          case "?":
+            // Handle here so the audio switch below can't also run and
+            // unexpectedly affect playback state. setShowShortcuts is
+            // the only side effect we want.
+            setShowShortcuts((v) => !v);
+            return;
+          // Audio-only transport / nav keys are no-ops in video mode -
+          // swallow them so they can't reach the audio shortcuts below.
+          case "n": case "p": case "s": case "r": case "l": case "/":
+            return;
+          default:
+            // Fall through so help/palette and other globals still work.
+            break;
+        }
+      }
+      // In video mode without a selected video, swallow audio-only
+      // shortcuts so they can't (eg) activate the audio FFT visualiser
+      // overlay or trigger transport on a player that doesn't exist.
+      // The cross-mode keys (?, Esc, Cmd+P) are handled above.
+      const isVideoModeNoPlayer = kind === "video";
+      if (isVideoModeNoPlayer && ["f", "l", "/", "s", "r", "n", " ", "m", "ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"].includes(e.key)) {
+        return;
+      }
       switch (e.key) {
         case " ": e.preventDefault(); handlePlayPause(); break;
         case "n": handleNext(); break;
@@ -363,7 +474,7 @@ function App() {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [authed, now, dur, fullscreenViz, showShortcuts, showPalette, showLyrics, searchOpen]);
+  }, [authed, now, dur, fullscreenViz, showShortcuts, showPalette, showLyrics, searchOpen, kind, selectedVideo]);
 
   // Sign out
   const signOut = () => {
@@ -384,8 +495,41 @@ function App() {
     window.MK_AUDIO?.pause?.();
   };
 
-  // Palette command runner — minimal subset that maps to existing actions.
+  // Palette command runner. In video mode, commands route to the
+  // video.js player (when one is mounted) instead of the audio chrome.
+  // Cross-mode commands (Show shortcuts, Sign out) work either way.
   const runCmd = (c) => {
+    const p = window.MK_VIDEO_PLAYER;
+    // Cross-mode commands (work without a player loaded).
+    if (c.label === "Show keyboard shortcuts") { setShowShortcuts(true); return; }
+    if (c.label === "Sign out") { signOut(); return; }
+    if (c.label === "Switch to audio" && hasAudio) { setKind("audio"); return; }
+    if (c.label === "Switch to video" && hasVideo) { setKind("video"); return; }
+    if (kind === "video") {
+      // All other commands in video mode are no-ops without a player.
+      // Falling through to the audio branch (eg activating the FFT
+      // visualiser overlay) makes the app look broken.
+      if (!p) return;
+      if (c.label === "Play / pause") { if (p.paused()) p.play(); else p.pause(); return; }
+      if (c.label === "Seek backward 5s") { p.currentTime(Math.max(0, p.currentTime() - 5)); return; }
+      if (c.label === "Seek forward 5s") { p.currentTime(Math.min(p.duration() || Infinity, p.currentTime() + 5)); return; }
+      if (c.label === "Volume up") { p.volume(Math.min(1, p.volume() + 0.1)); if (p.muted()) p.muted(false); return; }
+      if (c.label === "Volume down") { p.volume(Math.max(0, p.volume() - 0.1)); return; }
+      if (c.label === "Toggle mute") { p.muted(!p.muted()); return; }
+      if (c.label === "Toggle fullscreen") {
+        // Mirror the `f` keybinding: prefer native OS fullscreen in
+        // the desktop wrappers, fall back to HTML5 in the browser.
+        if (p.isFullscreen()) {
+          p.exitFullscreen();
+          if (window.MK_DESKTOP?.kind) window.MK_DESKTOP.setFullscreen(false);
+        } else {
+          if (window.MK_DESKTOP?.kind) window.MK_DESKTOP.setFullscreen(true);
+          p.requestFullscreen({ navigationUI: "hide" });
+        }
+        return;
+      }
+      return;
+    }
     if (c.label === "Play / pause") handlePlayPause();
     else if (c.label === "Next track") handleNext();
     else if (c.label === "Previous track") handlePrev();
@@ -437,8 +581,14 @@ function App() {
 
   const palette = PALETTES[t.accent] || PALETTES.tokyo;
 
+  // Alias the namespaced component to a local PascalCase identifier - Babel-
+  // standalone's JSX has trouble with <window.MK_X /> directly (renders to
+  // null silently), so the workaround is `const X = window.MK_X` first.
+  const KindRail = window.MK_KindRail;
   return (
-    <div className="mk-shell" data-layout={t.layout}>
+    <div className="mk-root" data-kind={kind}>
+      <KindRail kind={kind} setKind={setKind} hasAudio={hasAudio} hasVideo={hasVideo}/>
+      <div className="mk-shell" data-layout={t.layout}>
       <window.MK_TopBar
         user={user}
         q={q} setQ={(v) => { setQ(v); setSearchOpen(true); }}
@@ -490,17 +640,20 @@ function App() {
         fullscreenViz={fullscreenViz} setFullscreenViz={setFullscreenViz}
         shuffle={shuffle} repeat={repeat}
         setShowLyrics={setShowLyrics}
+        hasAudio={hasAudio} hasVideo={hasVideo} kind={kind} setKind={setKind} session={session}
+        selectedVideo={selectedVideo} setSelectedVideo={setSelectedVideo}
+        q={q}
       />
 
       <window.MK_SearchDropdown
-        q={searchOpen ? q : ""}
+        q={searchOpen && kind !== "video" ? q : ""}
         results={results}
         anchorEl={searchInputRef.current}
         onPick={pickSearchResult}
         onClose={() => setSearchOpen(false)}
       />
-      <window.MK_ShortcutsOverlay open={showShortcuts} onClose={() => setShowShortcuts(false)} />
-      <window.MK_CommandPalette open={showPalette} onClose={() => setShowPalette(false)} onRun={runCmd} />
+      <window.MK_ShortcutsOverlay open={showShortcuts} onClose={() => setShowShortcuts(false)} kind={kind} />
+      <window.MK_CommandPalette open={showPalette} onClose={() => setShowPalette(false)} onRun={runCmd} kind={kind} hasAudio={hasAudio} hasVideo={hasVideo} />
       <window.MK_LyricsOverlay
         open={showLyrics && !!nowTrack}
         onClose={() => setShowLyrics(false)}
@@ -522,6 +675,7 @@ function App() {
       )}
 
       <window.MK_TweaksControls tweak={tweak} t={t} setShowConn={setShowConn} />
+      </div>
     </div>
   );
 }

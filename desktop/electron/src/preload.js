@@ -4,7 +4,7 @@
 // doesn't need it, but kept for future native features: Now Playing
 // widget, OS notifications, etc).
 
-const { contextBridge } = require("electron");
+const { contextBridge, ipcRenderer } = require("electron");
 const ElectronStore = require("electron-store");
 
 // Single store instance, scoped to a JSON file in app.getPath('userData').
@@ -28,4 +28,13 @@ contextBridge.exposeInMainWorld("__mediakitStore", {
   // no-op so the picker's await chain stays uniform with the Tauri
   // path (which DOES require an explicit save()).
   save: async () => {},
+});
+
+// Native desktop bridge - things that don't have a useful HTML5
+// equivalent. The flagship use is window-level fullscreen, which on
+// macOS opens a separate Space and hides the menu bar + dock - the
+// HTML5 Fullscreen API does neither.
+contextBridge.exposeInMainWorld("__mediakitDesktop", {
+  setFullscreen: (on) => ipcRenderer.invoke("desktop:setFullscreen", !!on),
+  isFullscreen: () => ipcRenderer.invoke("desktop:isFullscreen"),
 });

@@ -378,8 +378,19 @@ function App() {
         switch (e.key) {
           case "f":
             e.preventDefault();
-            // navigationUI: 'hide' so Chrome also hides its URL/tab bar.
-            if (p.isFullscreen()) p.exitFullscreen(); else p.requestFullscreen({ navigationUI: "hide" });
+            // In the Tauri / Electron desktop wrappers MK_DESKTOP.kind
+            // is set and we drive native OS fullscreen (macOS: separate
+            // Space, menu bar + dock hidden) on top of video.js's own
+            // fullscreen. In a plain browser fall back to the HTML5
+            // Fullscreen API alone; `navigationUI: 'hide'` asks Chrome
+            // to drop its URL/tab strip (it usually complies).
+            if (p.isFullscreen()) {
+              p.exitFullscreen();
+              if (window.MK_DESKTOP?.kind) window.MK_DESKTOP.setFullscreen(false);
+            } else {
+              if (window.MK_DESKTOP?.kind) window.MK_DESKTOP.setFullscreen(true);
+              p.requestFullscreen({ navigationUI: "hide" });
+            }
             return;
           case " ":
             e.preventDefault();
@@ -506,7 +517,15 @@ function App() {
       if (c.label === "Volume down") { p.volume(Math.max(0, p.volume() - 0.1)); return; }
       if (c.label === "Toggle mute") { p.muted(!p.muted()); return; }
       if (c.label === "Toggle fullscreen") {
-        if (p.isFullscreen()) p.exitFullscreen(); else p.requestFullscreen({ navigationUI: "hide" });
+        // Mirror the `f` keybinding: prefer native OS fullscreen in
+        // the desktop wrappers, fall back to HTML5 in the browser.
+        if (p.isFullscreen()) {
+          p.exitFullscreen();
+          if (window.MK_DESKTOP?.kind) window.MK_DESKTOP.setFullscreen(false);
+        } else {
+          if (window.MK_DESKTOP?.kind) window.MK_DESKTOP.setFullscreen(true);
+          p.requestFullscreen({ navigationUI: "hide" });
+        }
         return;
       }
       return;

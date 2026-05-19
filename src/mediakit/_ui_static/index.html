@@ -6,14 +6,21 @@
   <!-- Bumped by scripts/sync_desktop_versions.py from pyproject.toml so
        the login screen / About string stays in sync with the released
        Python package. Hand-edit only if you're also editing pyproject. -->
-  <meta name="mk-version" content="0.23.15" />
+  <meta name="mk-version" content="0.1.0" />
   <title>MediaKit (design v2)</title>
   <link rel="icon" type="image/svg+xml" href="favicon.svg" />
-  <link rel="stylesheet" href="mediakit.css" />
+  <link rel="stylesheet" href="mediakit.css?v=0.1.0-d44" />
   <!-- Desktop-wrapper overrides — loads AFTER mediakit.css so it can
        override designer-output styles without editing them. Survives
-       the next design-zip drop. -->
-  <link rel="stylesheet" href="desktop-overrides.css" />
+       the next design-zip drop. Versioned alongside the JSX files so
+       a sync_desktop_versions.py bump invalidates the CSS cache too. -->
+  <link rel="stylesheet" href="desktop-overrides.css?v=0.1.0-d44" />
+  <!-- video.js v8 (latest on npm/jsdelivr - v10 isn't published). Wraps
+       HLS via the bundled @videojs/http-streaming. Loaded without `defer`
+       so window.videojs is defined by the time Babel-standalone evaluates
+       the JSX. -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/video.js@8/dist/video-js.min.css" />
+  <script src="https://cdn.jsdelivr.net/npm/video.js@8/dist/video.min.js"></script>
   <script>
     // Tag the platform on <body> so desktop-overrides.css can apply
     // macOS-only rules (traffic-light clearance, app-region: drag).
@@ -25,6 +32,13 @@
       document.body.dataset.platform =
         plat.startsWith("mac") || ua.includes("mac os") ? "darwin" :
         plat.startsWith("win") || ua.includes("windows") ? "win32" : "linux";
+      // Distinguish desktop wrapper (Tauri/Electron, where native traffic
+      // lights overlap the top of the page) from a plain browser tab
+      // (no traffic lights, so the traffic-light clearance must NOT
+      // apply or the topbar looks pushed-in for no reason).
+      document.body.dataset.shell =
+        window.__TAURI__ ? "tauri" :
+        ua.includes("electron/") ? "electron" : "browser";
       // Tauri's WebKit ignores `-webkit-app-region: drag` (we use that
       // for Electron). Tauri uses an HTML attribute instead. The
       // designer artifact's `.mk-topbar` is rendered by React after
@@ -115,27 +129,30 @@
        — survives drop-in updates".
        The `?v=` query string is rewritten by scripts/sync_desktop_versions.py
        so every release busts the webview cache. -->
-  <script src="src/_md5.js?v=0.23.15"></script>
-  <script src="src/_api.js?v=0.23.15"></script>
-  <script src="src/_audio.js?v=0.23.15"></script>
+  <script src="src/_md5.js?v=0.1.0"></script>
+  <script src="src/_api.js?v=0.1.0"></script>
+  <script src="src/_audio.js?v=0.1.0"></script>
+  <script src="src/_video.js?v=0.1.0"></script>
+  <script src="src/_desktop.js?v=0.1.0"></script>
 
   <!-- Designer artifact. Dependency order: data → covers → visualizer →
        views → overlays → tweaks-panel → chrome → app. Each declares
        globals the later files read. Keep this list in sync with
        desktop/react/src/. -->
-  <script type="text/babel" data-presets="react" src="src/data.jsx?v=0.23.15"></script>
-  <script type="text/babel" data-presets="react" src="src/covers.jsx?v=0.23.15"></script>
-  <script type="text/babel" data-presets="react" src="src/visualizer.jsx?v=0.23.15"></script>
-  <script type="text/babel" data-presets="react" src="src/views.jsx?v=0.23.15"></script>
-  <script type="text/babel" data-presets="react" src="src/overlays.jsx?v=0.23.15"></script>
-  <script type="text/babel" data-presets="react" src="src/tweaks-panel.jsx?v=0.23.15"></script>
-  <script type="text/babel" data-presets="react" src="src/chrome.jsx?v=0.23.15"></script>
-  <script type="text/babel" data-presets="react" src="src/app.jsx?v=0.23.15"></script>
+  <script type="text/babel" data-presets="react" src="src/data.jsx?v=0.1.0"></script>
+  <script type="text/babel" data-presets="react" src="src/covers.jsx?v=0.1.0"></script>
+  <script type="text/babel" data-presets="react" src="src/visualizer.jsx?v=0.1.0"></script>
+  <script type="text/babel" data-presets="react" src="src/views.jsx?v=0.1.0"></script>
+  <script type="text/babel" data-presets="react" src="src/overlays.jsx?v=0.1.0"></script>
+  <script type="text/babel" data-presets="react" src="src/tweaks-panel.jsx?v=0.1.0"></script>
+  <script type="text/babel" data-presets="react" src="src/chrome.jsx?v=0.1.0"></script>
+  <script type="text/babel" data-presets="react" src="src/video-views.jsx?v=0.1.0"></script>
+  <script type="text/babel" data-presets="react" src="src/app.jsx?v=0.1.0"></script>
 
   <!-- Wiring layer (continued) — _wiring.jsx monkey-patches the
        artifact's MK_LoginView / MK_makeCover and registers the
        library-loader before main.jsx renders <App />. -->
-  <script type="text/babel" data-presets="react" src="src/_wiring.jsx?v=0.23.15"></script>
-  <script type="text/babel" data-presets="react" src="main.jsx?v=0.23.15"></script>
+  <script type="text/babel" data-presets="react" src="src/_wiring.jsx?v=0.1.0"></script>
+  <script type="text/babel" data-presets="react" src="main.jsx?v=0.1.0"></script>
 </body>
 </html>

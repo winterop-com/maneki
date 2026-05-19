@@ -17,9 +17,12 @@
  * detects `navigator.platform`.
  */
 
-body[data-platform="darwin"] .mk-topbar {
+body[data-platform="darwin"]:not([data-shell="browser"]) .mk-topbar {
   /* Push the entire topbar grid right of the traffic lights — three
-   * buttons + padding measure ~78px on standard window chrome. */
+   * buttons + padding measure ~78px on standard window chrome. Only
+   * applies inside the Tauri/Electron desktop wrappers; in a regular
+   * browser tab there are no traffic lights so the padding would just
+   * be dead space. */
   padding-left: 80px;
   /* The native title-bar buttons sit inside a 28px-tall strip; the
    * topbar's own 40px height already swallows that, but make the
@@ -323,4 +326,263 @@ body[data-platform="darwin"] .mk-fs-close,
 body[data-platform="darwin"] .mk-fs-controls,
 body[data-platform="darwin"] .mk-fs-controls button {
   -webkit-app-region: no-drag;
+}
+
+/* === Vertical kind rail (Audio / Video tabs) =============================
+ * Lives on the very left of the window, outside mk-shell, full window height.
+ * Visible only when both kinds exist on the server. Clicking switches the
+ * whole SPA between play-music and watch-a-movie modes.
+ */
+.mk-root {
+  display: flex;
+  height: 100vh;
+  width: 100vw;
+}
+.mk-root .mk-shell {
+  flex: 1;
+  min-width: 0;
+  height: 100vh;
+}
+.mk-kind-rail {
+  width: 36px;
+  height: 100vh;
+  background: var(--panel);
+  border-right: 1px solid var(--line);
+  display: flex;
+  flex-direction: column;
+  padding: 0;
+  gap: 0;
+  flex-shrink: 0;
+}
+/* Inside the Tauri / Electron desktop wrappers on macOS, the native
+   traffic-light buttons sit at the top-left of the window and would
+   overlap the AUDIO tab. The topbar pads itself down (above); the kind
+   rail lives outside .mk-shell so it needs the matching offset of its
+   own. Plain-browser tabs have no traffic lights, so no offset. */
+body[data-platform="darwin"]:not([data-shell="browser"]) .mk-kind-rail {
+  padding-top: 32px;
+}
+.mk-kind-tab {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 28px 0;
+  background: transparent;
+  border: 0;
+  border-left: 2px solid transparent;
+  color: var(--text-dim);
+  cursor: pointer;
+  transition: background 100ms, color 100ms, border-color 100ms;
+}
+.mk-kind-tab:hover {
+  color: var(--text);
+  background: var(--bg-elev);
+}
+.mk-kind-tab.active {
+  color: var(--accent);
+  border-left-color: var(--accent);
+  background: var(--bg-elev);
+}
+.mk-kind-label {
+  /* Vertical typesetting: text rotates 90deg so it reads top-to-bottom
+     along the rail. Larger + bolder than the old horizontal label since
+     it's the only thing on the tab. */
+  writing-mode: vertical-rl;
+  text-orientation: mixed;
+  font-family: var(--mk-mono);
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.25em;
+  text-transform: uppercase;
+}
+
+/* Tighten the topbar grid: search on the left (auto-width so it doesn't
+   inflate), brand centred in the stretched middle column, user + sign-out
+   on the right. The previous "1fr auto 1fr" left a lot of empty space
+   between the search box (fixed 280px) and the brand. */
+.mk-root .mk-topbar {
+  grid-template-columns: auto 1fr auto;
+  /* Pull the search-wrap flush with the kind-rail edge - the default
+     14px padding leaves a visible gap that reads as wasted space.
+     Right side keeps the padding so Sign-out doesn't kiss the window
+     edge. Desktop wrappers override padding-left back via the
+     traffic-light clearance rule above. */
+  padding-left: 6px;
+}
+.mk-root .mk-topbar-left {
+  justify-self: start;
+}
+.mk-root .mk-topbar-right {
+  justify-self: end;
+}
+
+/* Video-mode browse grid. Sidebar is null in video mode, so override the
+   default `220px 280px 1fr` audio grid: video list on the left, a thin
+   draggable divider, then the player. List width is driven by a CSS
+   variable so the splitter can mutate it directly without going through
+   React state on every mousemove. When no video is selected the splitter
+   isn't rendered and the player column collapses to zero, but `auto` for
+   the divider keeps the rule sensible in both cases. The list column is
+   wider than feels strictly necessary for the player preview because
+   (a) real-world filenames are long and want the room, (b) the player
+   is usually opened fullscreen anyway so the in-pane preview is
+   secondary. */
+.mk-browse.mk-browse-video {
+  --mk-video-list-w: 480px;
+  grid-template-columns: var(--mk-video-list-w) auto 1fr;
+}
+
+.mk-vsplit {
+  width: 6px;
+  cursor: col-resize;
+  background: transparent;
+  border-left: 1px solid var(--line);
+  border-right: 1px solid transparent;
+  transition: background-color 120ms ease, border-color 120ms ease;
+  user-select: none;
+  touch-action: none;
+}
+.mk-vsplit:hover,
+.mk-vsplit:active {
+  background-color: var(--accent);
+  border-left-color: var(--accent);
+  border-right-color: var(--accent);
+}
+
+/* Pane scroll for the video browser - it's a single long list (current
+   directory contents), no inner overflow container, so the pane itself
+   scrolls. */
+.mk-root[data-kind="video"] .mk-albums-pane {
+  overflow-y: auto;
+}
+
+/* Breadcrumb header for the folder navigator. Sticks to the top of the
+   pane while the list scrolls underneath. */
+.mk-video-crumbs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  align-items: baseline;
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: var(--panel);
+  border-bottom: 1px solid var(--line);
+}
+.mk-crumb {
+  font-family: var(--mk-mono);
+  font-size: 11px;
+  letter-spacing: 0.3px;
+  text-transform: uppercase;
+  color: var(--text-soft);
+  max-width: 160px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.mk-crumb.active {
+  color: var(--accent);
+}
+.mk-crumb-link {
+  cursor: pointer;
+}
+.mk-crumb-link:hover {
+  color: var(--text);
+}
+.mk-crumb-sep {
+  color: var(--text-dim);
+  font-size: 11px;
+}
+
+/* Folder row in the browser - same shape as a video row but with a
+   folder icon background and an arrow affordance. */
+.mk-folder-row {
+  cursor: pointer;
+}
+.mk-folder-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg-elev2);
+  color: var(--accent);
+}
+
+/* In video mode the topbar search swaps the folder browser for a flat
+   list of filename-substring matches across the whole library. The
+   `/` shortcut + search-clear button work the same way. Empty query
+   = back to the folder browser. */
+
+/* Tint the video.js player wrapper + <video> element with the app's
+   panel colour BEFORE any frame is decoded, so the empty player area
+   blends with the surrounding UI instead of standing out as a black
+   or grey rectangle. Chrome's default <video> background is a light
+   grey placeholder and video.js's default is solid black - either
+   reads as a placeholder bug next to the dark Tokyo-Night chrome.
+   Once frames arrive, the video pixels paint over this anyway. */
+.vjs-tech,
+.video-js,
+[data-vjs-player] {
+  background-color: var(--bg-elev, #1a1d2e);
+}
+/* In fullscreen the letterbox area should be solid black (cinema
+   convention - matches YouTube, Plex, Netflix). The panel tint above
+   would otherwise show as dark-blue bars beside / above the video. */
+.video-js.vjs-fullscreen,
+.video-js.vjs-fullscreen .vjs-tech {
+  background-color: #000;
+}
+
+/* Drop the browser's default focus outline on the player surface - it
+   appears as a stark blue rectangle around the video after any click
+   on the canvas. Focus rings on the actual interactive controls (the
+   buttons / scrub bar / volume slider inside .vjs-control-bar) stay,
+   so keyboard a11y is unaffected. */
+.video-js:focus,
+.video-js:focus-visible,
+.vjs-tech:focus,
+.vjs-tech:focus-visible,
+[data-vjs-player]:focus,
+[data-vjs-player]:focus-visible {
+  outline: none;
+  box-shadow: none;
+}
+
+/* Subtitle styling - match mpv's clean look: white sans-serif text on a
+   transparent background with a thin black outline + a soft drop
+   shadow, instead of video.js's default opaque black box. The outline
+   is faked with four `text-shadow`s pointing in each diagonal so the
+   characters stay legible against bright + dark scenes alike.
+   `!important` is needed because video.js sets background-color and
+   font-family inline on the cue container; the user "captions
+   settings" menu still wins over this if they explicitly pick a font
+   or colour. */
+/* Subtitle styling. video.js applies inline styles on each
+   `.vjs-text-track-cue` (direction, font: <size>px sans-serif,
+   background-color, layout). Inline beats any external CSS without
+   `!important`, so:
+   - We override background-color with `!important` to defeat the
+     opaque-box default look. This intentionally blocks the menu's
+     "background" picker - acceptable since the menu's other options
+     are the ones users actually reach for.
+   - For colour / shadow / weight / line-height - video.js doesn't
+     touch them inline, so plain CSS wins and the menu can still
+     override.
+   - For font-family and font-size we DON'T fight video.js. The size
+     default is set via player.textTrackSettings.setValues({fontPercent})
+     at player init (see video-views.jsx), and the menu then dials
+     relative to that baseline. font-family is left as video.js's
+     default sans-serif so the menu's font picker works untouched. */
+.video-js .vjs-text-track-display .vjs-text-track-cue,
+.video-js .vjs-text-track-display .vjs-text-track-cue > div {
+  background: transparent !important;
+  background-color: transparent !important;
+  color: #fff;
+  font-weight: 500;
+  line-height: 1.25;
+  text-shadow:
+    -1px -1px 0 #000,
+    1px -1px 0 #000,
+    -1px 1px 0 #000,
+    1px 1px 0 #000,
+    0 1px 3px rgba(0, 0, 0, 0.85);
 }

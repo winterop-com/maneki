@@ -17,7 +17,7 @@
 //     on every launch obscures the small login window and makes the
 //     "is the app working?" question harder to answer at a glance.
 
-const { app, BrowserWindow, screen } = require("electron");
+const { app, BrowserWindow, ipcMain, screen } = require("electron");
 const path = require("path");
 // electron-store v8 needs `Store.initRenderer()` called once in the main
 // process to register the IPC handler the renderer-side preload uses.
@@ -122,6 +122,20 @@ function createWindow() {
 
   mainWindow.loadFile(path.join(__dirname, "..", "..", "react", "index.html"));
 }
+
+// IPC: native fullscreen toggle for the renderer's MK_DESKTOP bridge.
+// HTML5 Fullscreen API works for the video element only and on macOS
+// leaves the menu bar peeking; mainWindow.setFullScreen(true) is the
+// real macOS fullscreen (separate Space, everything hidden).
+ipcMain.handle("desktop:setFullscreen", (_evt, on) => {
+  if (!mainWindow || mainWindow.isDestroyed()) return false;
+  mainWindow.setFullScreen(!!on);
+  return mainWindow.isFullScreen();
+});
+ipcMain.handle("desktop:isFullscreen", () => {
+  if (!mainWindow || mainWindow.isDestroyed()) return false;
+  return mainWindow.isFullScreen();
+});
 
 app.whenReady().then(() => {
   createWindow();

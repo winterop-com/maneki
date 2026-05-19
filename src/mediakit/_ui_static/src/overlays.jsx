@@ -2,7 +2,7 @@
 
 const { useState, useEffect, useRef, useMemo } = React;
 
-const SHORTCUTS = [
+const SHORTCUTS_AUDIO = [
   { keys: ["Space"], label: "Play / pause" },
   { keys: ["n"], label: "Next track" },
   { keys: ["p"], label: "Previous track" },
@@ -17,18 +17,32 @@ const SHORTCUTS = [
   { keys: ["?"], label: "Toggle this panel" },
 ];
 
+const SHORTCUTS_VIDEO = [
+  { keys: ["Space"], label: "Play / pause" },
+  { keys: ["←", "→"], sep: "/", label: "Seek −5s / +5s" },
+  { keys: ["↑", "↓"], sep: "/", label: "Volume up / down" },
+  { keys: ["m"], label: "Mute / unmute" },
+  { keys: ["f"], label: "Toggle fullscreen" },
+  { keys: ["Esc"], label: "Exit fullscreen / close modal" },
+  { keys: ["⌘", "P"], sep: "+", label: "Command palette" },
+  { keys: ["?"], label: "Toggle this panel" },
+];
+
 function Kbd({ k }) {
   return <span className="kbd">{k}</span>;
 }
 
-function ShortcutsOverlay({ open, onClose }) {
+function ShortcutsOverlay({ open, onClose, kind }) {
   if (!open) return null;
+  const list = kind === "video" ? SHORTCUTS_VIDEO : SHORTCUTS_AUDIO;
   return (
     <div className="mk-modal-scrim" onClick={onClose}>
       <div className="mk-modal" onClick={(e) => e.stopPropagation()}>
-        <div className="mk-modal-title">Keyboard shortcuts</div>
+        <div className="mk-modal-title">
+          Keyboard shortcuts <span style={{ opacity: 0.5, fontSize: 12 }}>· {kind || "audio"}</span>
+        </div>
         <div className="mk-shortcut-list">
-          {SHORTCUTS.map((s, i) => (
+          {list.map((s, i) => (
             <div className="mk-shortcut-row" key={i}>
               <div className="mk-shortcut-keys">
                 {s.keys.map((k, j) => (
@@ -48,7 +62,7 @@ function ShortcutsOverlay({ open, onClose }) {
   );
 }
 
-const PALETTE_CMDS = [
+const PALETTE_CMDS_AUDIO_BASE = [
   { label: "Play / pause", k: "space" },
   { label: "Next track", k: "n" },
   { label: "Previous track", k: "p" },
@@ -65,10 +79,20 @@ const PALETTE_CMDS = [
   { label: "Star current track", k: "*" },
   { label: "Go to Starred", k: "g s" },
   { label: "Go to Stations", k: "g r" },
-  { label: "Sign out", k: "⌘ Q" },
 ];
 
-function CommandPalette({ open, onClose, onRun }) {
+const PALETTE_CMDS_VIDEO_BASE = [
+  { label: "Play / pause", k: "space" },
+  { label: "Seek backward 5s", k: "←" },
+  { label: "Seek forward 5s", k: "→" },
+  { label: "Volume up", k: "↑" },
+  { label: "Volume down", k: "↓" },
+  { label: "Toggle mute", k: "m" },
+  { label: "Toggle fullscreen", k: "f" },
+  { label: "Show keyboard shortcuts", k: "?" },
+];
+
+function CommandPalette({ open, onClose, onRun, kind, hasAudio = true, hasVideo = false }) {
   const [q, setQ] = useState("");
   const [sel, setSel] = useState(0);
   const inpRef = useRef(null);
@@ -79,11 +103,21 @@ function CommandPalette({ open, onClose, onRun }) {
       setTimeout(() => inpRef.current?.focus(), 30);
     }
   }, [open]);
+  // Build the kind-specific list, then append cross-mode commands.
+  // Switch-kind commands only show when the other kind is actually
+  // mounted on the server - otherwise switching takes the SPA to an
+  // empty pane and looks broken.
+  const base = kind === "video" ? PALETTE_CMDS_VIDEO_BASE : PALETTE_CMDS_AUDIO_BASE;
+  const tail = [];
+  if (kind === "video" && hasAudio) tail.push({ label: "Switch to audio", k: "" });
+  if (kind === "audio" && hasVideo) tail.push({ label: "Switch to video", k: "" });
+  tail.push({ label: "Sign out", k: "" });
+  const cmds = [...base, ...tail];
   const list = useMemo(() => {
-    if (!q.trim()) return PALETTE_CMDS;
+    if (!q.trim()) return cmds;
     const ql = q.toLowerCase();
-    return PALETTE_CMDS.filter((c) => c.label.toLowerCase().includes(ql));
-  }, [q]);
+    return cmds.filter((c) => c.label.toLowerCase().includes(ql));
+  }, [q, cmds]);
   if (!open) return null;
   return (
     <div className="mk-modal-scrim" onClick={onClose}>

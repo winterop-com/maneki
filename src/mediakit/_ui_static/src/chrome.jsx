@@ -35,8 +35,92 @@ function TopBar({ user, q, setQ, onFocusSearch, onSignOut, searchInputRef }) {
   );
 }
 
-// Sidebar with library navigation (Radio, Starred, Artists).
-function Sidebar({ section, setSection, ARTISTS, artistId, setArtistId, loaded }) {
+// Vertical kind-rail: the leftmost column. The parent gates rendering on
+// hasAudio && hasVideo, so this component just renders the two tabs.
+// Labels are typeset vertically (writing-mode rotation) - no icon, just
+// the kind name large and clear.
+function KindRail({ kind, setKind, hasAudio = true, hasVideo = true }) {
+  // Hide the rail entirely when only one kind is mounted - there's
+  // nothing to switch between, and the empty rail just steals
+  // horizontal space and gives a confusing visual hint that a
+  // disabled tab exists.
+  if (!hasAudio || !hasVideo) return null;
+  return (
+    <div className="mk-kind-rail">
+      <button
+        type="button"
+        className={"mk-kind-tab" + (kind === "audio" ? " active" : "")}
+        onClick={() => setKind("audio")}
+        title="Audio"
+      >
+        <span className="mk-kind-label">AUDIO</span>
+      </button>
+      <button
+        type="button"
+        className={"mk-kind-tab" + (kind === "video" ? " active" : "")}
+        onClick={() => setKind("video")}
+        title="Video"
+      >
+        <span className="mk-kind-label">VIDEO</span>
+      </button>
+    </div>
+  );
+}
+
+// Sidebar - per-kind. Audio mode shows Radio / Starred / Artists.
+// Video mode renders nothing here - the video list IS the primary view, so
+// there's no need for a sidebar nav with a single "Videos" item. When
+// movies / shows / continue-watching land later, a video sidebar with
+// real nav items can come back.
+// Draggable column divider between the video list and the player pane.
+// Lives inside the .mk-browse-video grid (column 2 of 3). On mousedown
+// it captures the initial pointer X and the current list-column width,
+// then on mousemove updates the --mk-video-list-w CSS variable on the
+// parent grid. Width is intentionally NOT persisted — starts fresh at
+// the CSS default (480px) on every page load.
+function VideoSplitter() {
+  const { useCallback } = React;
+  const onMouseDown = useCallback((e) => {
+    e.preventDefault();
+    const grid = e.currentTarget.parentElement;
+    if (!grid) return;
+    const startX = e.clientX;
+    const computed = getComputedStyle(grid).getPropertyValue("--mk-video-list-w").trim();
+    const startW = parseFloat(computed) || grid.querySelector(".mk-albums-pane")?.getBoundingClientRect().width || 480;
+    const gridW = grid.getBoundingClientRect().width;
+    // Hard floor so the list stays usable; hard ceiling that always
+    // leaves at least 360px for the player and never exceeds 70% of
+    // the grid width (whichever is stricter).
+    const minW = 280;
+    const maxW = Math.max(minW + 80, Math.min(Math.floor(gridW - 360), Math.floor(gridW * 0.7)));
+    document.body.style.cursor = "col-resize";
+    document.body.style.userSelect = "none";
+    const onMove = (ev) => {
+      const next = Math.min(maxW, Math.max(minW, startW + (ev.clientX - startX)));
+      grid.style.setProperty("--mk-video-list-w", next + "px");
+    };
+    const onUp = () => {
+      document.removeEventListener("mousemove", onMove);
+      document.removeEventListener("mouseup", onUp);
+      document.body.style.cursor = "";
+      document.body.style.userSelect = "";
+    };
+    document.addEventListener("mousemove", onMove);
+    document.addEventListener("mouseup", onUp);
+  }, []);
+  return (
+    <div
+      className="mk-vsplit"
+      onMouseDown={onMouseDown}
+      role="separator"
+      aria-orientation="vertical"
+      title="Drag to resize"
+    />
+  );
+}
+
+function Sidebar({ kind, section, setSection, ARTISTS, artistId, setArtistId, loaded }) {
+  if (kind === "video") return null;
   return (
     <div className="mk-sidebar mk-pane">
       <div className="mk-pane-section">
@@ -64,7 +148,10 @@ function Sidebar({ section, setSection, ARTISTS, artistId, setArtistId, loaded }
         </div>
       </div>
       <div className="mk-pane-section mk-artists">
-        <div className="mk-pane-label">Artists <span className="mk-count">({ARTISTS.length})</span></div>
+        <div className="mk-pane-label" style={{ display: "flex", justifyContent: "space-between" }}>
+          <span>Artists</span>
+          <span className="mk-count">({ARTISTS.length})</span>
+        </div>
         <div className="mk-artist-list">
           {!loaded && [0,1,2,3].map((i) => <div key={i} className="mk-skel" style={{height: 14, margin: "6px 0"}}/>)}
           {loaded && ARTISTS.map((a) => (
@@ -516,16 +603,37 @@ function MainArea(props) {
     />
   );
 
+  const { kind, session, selectedVideo, setSelectedVideo, q } = props;
+  const videoMode = kind === "video";
+  const videoSearchActive = videoMode && (q || "").trim().length > 0;
   const browse = (
-    <div className="mk-browse">
-      <Sidebar section={section} setSection={setSection} ARTISTS={ARTISTS} artistId={artistId} setArtistId={(id) => { setSection("library"); setArtistId(id); }} loaded={loaded}/>
-      {section === "library" && <AlbumsPane artist={artist} albumId={albumId} setAlbumId={setAlbumId} loaded={loaded}/>}
-      {section === "library" && <TracksPane artist={artist} album={album} playTrack={playTrack} now={now} isStarred={isStarred} toggleStar={toggleStar} loaded={loaded}/>}
-      {section === "stations" && <StationsPane STATIONS={STATIONS} playStation={playStation} now={now} loaded={loaded}/>}
-      {section === "starred" && <StarredPane starredTracks={starredTracks} playTrack={playTrack} toggleStar={toggleStar}/>}
+    <div className={"mk-browse" + (videoMode ? " mk-browse-video" : "")}>
+      <Sidebar kind={kind} section={section} setSection={setSection} ARTISTS={ARTISTS} artistId={artistId} setArtistId={(id) => { setSection("library"); setArtistId(id); }} loaded={loaded}/>
+      {!videoMode && section === "library" && <AlbumsPane artist={artist} albumId={albumId} setAlbumId={setAlbumId} loaded={loaded}/>}
+      {!videoMode && section === "library" && <TracksPane artist={artist} album={album} playTrack={playTrack} now={now} isStarred={isStarred} toggleStar={toggleStar} loaded={loaded}/>}
+      {!videoMode && section === "stations" && <StationsPane STATIONS={STATIONS} playStation={playStation} now={now} loaded={loaded}/>}
+      {!videoMode && section === "starred" && <StarredPane starredTracks={starredTracks} playTrack={playTrack} toggleStar={toggleStar}/>}
+      {videoMode && session && !videoSearchActive && <MK_VideosPane session={session} selectedId={selectedVideo?.id} onSelect={setSelectedVideo}/>}
+      {videoMode && session && videoSearchActive && <window.MK_VideoSearchPane session={session} q={q} selectedId={selectedVideo?.id} onSelect={setSelectedVideo}/>}
+      {videoMode && session && <VideoSplitter/>}
+      {videoMode && session && selectedVideo && (
+        // Key on video.id so React unmounts + remounts the player when
+        // the selection changes. Without the key, the component instance
+        // sticks around and video.js's dispose + re-init on the same
+        // <video> ref leaves the player in an error state (full-black
+        // overlay) because video.js has already mangled the DOM around
+        // the element by the time the second init runs.
+        <MK_VideoPlayerPane key={selectedVideo.id} session={session} video={selectedVideo} onClose={() => setSelectedVideo(null)}/>
+      )}
     </div>
   );
 
+  // Video mode hides the audio NowPlaying entirely. The video player is
+  // the focal point; running audio playback alongside is a separate (later)
+  // design decision.
+  if (videoMode) {
+    return <div className="mk-body layout-topband">{browse}</div>;
+  }
   if (t.layout === "rightrail") {
     return (
       <div className="mk-body layout-rightrail">
@@ -603,6 +711,6 @@ function TweaksControls({ tweak, t, setShowConn }) {
 }
 
 Object.assign(window, {
-  MK_TopBar: TopBar, MK_MainArea: MainArea,
+  MK_TopBar: TopBar, MK_MainArea: MainArea, MK_KindRail: KindRail,
   MK_FullscreenViz: FullscreenViz, MK_TweaksControls: TweaksControls,
 });
