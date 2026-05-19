@@ -109,18 +109,25 @@ def create_combined_app(
     cfg = _resolve_cfg(audio_cfg)
     token_store = TokenStore()
 
-    # Lifespan: kick off video poster/thumbnail prewarm in the
-    # background so opening any video for the first time is instant.
-    # Sub-app startup events don't run when mounted (FastAPI quirk), so
-    # the top-level lifespan is the canonical place for cross-cutting
-    # startup work. Cancel the task on shutdown so uvicorn can exit
-    # cleanly mid-prewarm.
+    # Lifespan: kick off the library scan + orphan cleanup + prewarm
+    # entirely in the background so uvicorn signals ready immediately.
+    # The previous implementation ran `list(scan_videos(...))` before
+    # yielding, which walks the whole tree and ffprobes every file for
+    # duration — fine on a 10-video test library, but on a 10000-file
+    # production library uvicorn never reaches "ready" and /capabilities
+    # times out for minutes. Running off the startup-blocking path keeps
+    # the API responsive even while a cold scan is in flight.
     @contextlib.asynccontextmanager
     async def _lifespan(app: FastAPI):  # type: ignore[no-untyped-def]
         prewarm_tasks: list[asyncio.Task[None]] = []
-        video_sub = next((r.app for r in app.routes if getattr(r, "path", "") == "/video"), None)
-        if video_sub is not None and hasattr(video_sub.state, "poster_manager"):
-            videos = list(scan_videos(video_sub.state.library_root))
+
+        async def _background_startup() -> None:
+            video_sub = next((r.app for r in app.routes if getattr(r, "path", "") == "/video"), None)
+            if video_sub is None or not hasattr(video_sub.state, "poster_manager"):
+                return
+            # scan_videos is sync and calls ffprobe per file -
+            # run it in a worker thread so it doesn't block the loop.
+            videos = await asyncio.to_thread(lambda: list(scan_videos(video_sub.state.library_root)))
             # Orphan cleanup: drop any cached posters / thumbs / HLS
             # segments / extracted subtitles whose source video is no
             # longer in the library. Catches renames, moves, deletes,
@@ -142,9 +149,15 @@ def create_combined_app(
                 prewarm_tasks.append(
                     asyncio.create_task(video_sub.state.hls_manager.prewarm_seg0(videos)),
                 )
+
+        startup_task = asyncio.create_task(_background_startup())
         try:
             yield
         finally:
+            if not startup_task.done():
+                startup_task.cancel()
+            with contextlib.suppress(asyncio.CancelledError, Exception):
+                await startup_task
             for task in prewarm_tasks:
                 if not task.done():
                     task.cancel()
