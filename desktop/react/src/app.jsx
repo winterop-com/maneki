@@ -79,6 +79,26 @@ function App() {
   const [hasVideo, setHasVideo] = uS(false);
   const [kind, setKind] = uS("audio");
   const [selectedVideo, setSelectedVideo] = uS(null);
+  // Player-only fullscreen mode. CSS pins .mk-video-player-pane to
+  // the viewport and hides everything else when this is true. We
+  // drive it ourselves instead of trying to use the HTML5
+  // Fullscreen API because that API is unreliable in WKWebView
+  // (Tauri) and the user wants ONLY the video element to fill the
+  // screen, not the whole window (window-level fullscreen leaves
+  // the topbar / video list visible at their grid sizes).
+  const [playerFs, setPlayerFs] = uS(false);
+  const togglePlayerFs = React.useCallback(() => setPlayerFs((v) => !v), []);
+  // Toggle a body data attribute so the CSS rule can target the
+  // outermost element; React owns the state but CSS owns the layout.
+  React.useEffect(() => {
+    document.body.dataset.playerFullscreen = playerFs ? "true" : "false";
+    return () => { document.body.dataset.playerFullscreen = "false"; };
+  }, [playerFs]);
+  // When the selection clears (Close button), exit fullscreen too -
+  // there's nothing to be fullscreen on.
+  React.useEffect(() => {
+    if (!selectedVideo && playerFs) setPlayerFs(false);
+  }, [selectedVideo, playerFs]);
   // Re-probe whenever `authed` flips (fresh login: previous effect
   // run found no session and bailed). The previous `[]` dep ran once
   // at mount only, so users who logged in on a clean install saw
@@ -382,29 +402,24 @@ function App() {
         switch (e.key) {
           case "f":
             e.preventDefault();
-            // HTML5 Fullscreen API on the video.js root element -
-            // makes JUST the video element take the screen. In the
-            // desktop wrappers the webview chrome doesn't show, so
-            // this IS the "real" fullscreen the user expects.
-            // We do NOT also drive window-level fullscreen here
-            // (MK_DESKTOP.setFullscreen) - that put the whole app
-            // including the video list + topbar into fullscreen
-            // with the video still at its grid size, the opposite
-            // of what the player needs.
-            if (p.isFullscreen()) p.exitFullscreen();
-            else p.requestFullscreen({ navigationUI: "hide" });
+            // SPA-side player-only fullscreen: CSS pins the player
+            // pane to the viewport and hides everything else. Works
+            // identically in browser / Tauri / Electron (the
+            // HTML5 Fullscreen API is unreliable in WKWebView).
+            togglePlayerFs();
             return;
           case " ":
             e.preventDefault();
             if (p.paused()) p.play(); else p.pause();
             return;
           case "Escape":
-            // Priority: close any open modal first, then fullscreen.
-            // Without this branch, Esc would be swallowed below and
-            // the shortcuts/palette/lyrics overlays would be stuck open.
+            // Priority: close any open modal first, then exit
+            // player-only fullscreen, then any HTML5 fullscreen
+            // that might still be active.
             if (showShortcuts) { setShowShortcuts(false); return; }
             if (showPalette) { setShowPalette(false); return; }
             if (showLyrics) { setShowLyrics(false); return; }
+            if (playerFs) { setPlayerFs(false); return; }
             if (p.isFullscreen()) p.exitFullscreen();
             return;
           case "ArrowLeft":
@@ -476,7 +491,7 @@ function App() {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [authed, now, dur, fullscreenViz, showShortcuts, showPalette, showLyrics, searchOpen, kind, selectedVideo]);
+  }, [authed, now, dur, fullscreenViz, showShortcuts, showPalette, showLyrics, searchOpen, kind, selectedVideo, playerFs]);
 
   // Sign out
   const signOut = () => {
@@ -519,10 +534,7 @@ function App() {
       if (c.label === "Volume down") { p.volume(Math.max(0, p.volume() - 0.1)); return; }
       if (c.label === "Toggle mute") { p.muted(!p.muted()); return; }
       if (c.label === "Toggle fullscreen") {
-        // Mirror the `f` keybinding: HTML5 fullscreen on the video
-        // element only, not the whole window.
-        if (p.isFullscreen()) p.exitFullscreen();
-        else p.requestFullscreen({ navigationUI: "hide" });
+        togglePlayerFs();
         return;
       }
       return;

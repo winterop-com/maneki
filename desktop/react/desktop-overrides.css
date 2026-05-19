@@ -586,3 +586,47 @@ body[data-platform="darwin"]:not([data-shell="browser"]) .mk-kind-rail {
     1px 1px 0 #000,
     0 1px 3px rgba(0, 0, 0, 0.85);
 }
+
+/* === Player-only fullscreen ============================================
+ * Pressing `f` on a video (or "Toggle fullscreen" from the palette)
+ * pins .mk-video-player-pane to the viewport and hides every other
+ * piece of chrome - topbar, kind rail, video list, audio NowPlaying,
+ * splitter, drag strip. CSS-only so it works identically in browser,
+ * Tauri WKWebView, and Electron Chromium (the HTML5 Fullscreen API
+ * does not). Escape clears the body data-attribute via the React
+ * handler in app.jsx.
+ */
+body[data-player-fullscreen="true"] .mk-drag-strip,
+body[data-player-fullscreen="true"] .mk-kind-rail,
+body[data-player-fullscreen="true"] .mk-topbar,
+body[data-player-fullscreen="true"] .mk-albums-pane,
+body[data-player-fullscreen="true"] .mk-vsplit,
+body[data-player-fullscreen="true"] .mk-now-playing,
+body[data-player-fullscreen="true"] .mk-body-rail {
+  display: none !important;
+}
+body[data-player-fullscreen="true"] .mk-root,
+body[data-player-fullscreen="true"] .mk-shell,
+body[data-player-fullscreen="true"] .mk-body,
+body[data-player-fullscreen="true"] .mk-browse {
+  display: block !important;
+  width: 100vw !important;
+  height: 100vh !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  grid-template-columns: none !important;
+}
+body[data-player-fullscreen="true"] .mk-tracks-pane {
+  position: fixed !important;
+  inset: 0 !important;
+  width: 100vw !important;
+  height: 100vh !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  z-index: 9000;
+  background: #000;
+}
+body[data-player-fullscreen="true"] .mk-tracks-pane .video-js {
+  width: 100% !important;
+  height: 100% !important;
+}
