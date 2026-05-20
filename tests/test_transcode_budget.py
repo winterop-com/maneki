@@ -168,6 +168,41 @@ async def test_quiet_period_resets_on_unpause() -> None:
     assert waited_from_last_fg >= 0.35, f"bg started {waited_from_last_fg:.3f}s after most recent fg, expected >= 0.35"
 
 
+async def test_background_slot_quiet_false_yields_to_fg_but_skips_quiet() -> None:
+    """`quiet=False` (on-demand row thumbnails / posters) yields to in-flight
+    foreground but does NOT wait the post-foreground quiet period.
+
+    The quiet period is for speculative prewarm; user-driven calls show
+    visible "still empty" placeholders if they sit blocked for 30s after
+    every pause.
+    """
+    import time
+
+    budget = TranscodeBudget(max_workers=2, quiet_after_fg_s=0.5)
+    bg_started_at: list[float] = []
+    fg_ended_at: list[float] = []
+
+    async def foreground() -> None:
+        async with budget.foreground():
+            await asyncio.sleep(0.05)
+        fg_ended_at.append(time.monotonic())
+
+    async def on_demand() -> None:
+        async with budget.background_slot(quiet=False):
+            bg_started_at.append(time.monotonic())
+
+    fg_task = asyncio.create_task(foreground())
+    await asyncio.sleep(0)
+    bg_task = asyncio.create_task(on_demand())
+    await asyncio.gather(fg_task, bg_task)
+
+    # Yielded to fg (so started after fg ended)...
+    assert bg_started_at[0] >= fg_ended_at[0]
+    # ...but did NOT honour the 0.5s quiet period.
+    gap = bg_started_at[0] - fg_ended_at[0]
+    assert gap < 0.2, f"on-demand waited {gap:.3f}s after fg; should resume immediately"
+
+
 async def test_state_reflects_in_flight_counts() -> None:
     budget = TranscodeBudget(max_workers=2)
     assert budget.state().foreground_in_flight == 0

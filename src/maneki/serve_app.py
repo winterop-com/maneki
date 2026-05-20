@@ -38,7 +38,6 @@ from starlette.responses import Response
 from maneki import __version__
 from maneki.auth import Token, TokenStore
 from maneki.library import has_audio, has_video
-from maneki.video.serve.scan import scan_videos
 
 if TYPE_CHECKING:
     from collections.abc import Awaitable, Callable
@@ -147,8 +146,17 @@ def create_combined_app(
             if video_sub_app is None or not hasattr(video_sub_app.state, "poster_manager"):
                 return
             video_sub = video_sub_app
-            # Cheap inventory: file list only, no ffprobe (probe=False).
-            videos = await asyncio.to_thread(lambda: list(scan_videos(video_sub.state.library_root, probe=False)))
+            # Prewarm scan: walks the library and ffprobes every file.
+            # Updates the per-app `scan_tracker` so the SPA can render a
+            # real progressbar instead of a bare spinner while the cold
+            # scan runs. The result is cached on `video_cache` so the
+            # next /api/videos / /capabilities / /api/search call is a
+            # cheap dict lookup. Also doubles as the inventory for the
+            # orphan-cache sweep below.
+            from maneki.video.serve.scan import prewarm_scan
+
+            videos = await prewarm_scan(video_sub.state.library_root, video_sub.state.scan_tracker)
+            video_sub.state.video_cache = videos
             live_ids = {v["id"] for v in videos}
             video_sub.state.poster_manager.clean_orphans(live_ids)
             video_sub.state.hls_manager.clean_orphans(live_ids)

@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import logging
 from pathlib import Path
 from typing import Iterator
 
@@ -24,6 +25,7 @@ from maneki.video.serve.demo import DEMO_HTML
 from maneki.video.serve.hls import HLSManager
 from maneki.video.serve.poster import PosterManager
 from maneki.video.serve.scan import BrowseResponse, VideoEntry, browse_dir, scan_videos
+from maneki.video.serve.scan_state import ScanState, VideoScanTracker
 from maneki.video.serve.subtitles import (
     SubtitleCache,
     SubtitleSidecar,
@@ -37,6 +39,8 @@ from maneki.video.serve.transcode import (
     transcode_to_mp4,
 )
 from maneki.video.serve.transcode_budget import TranscodeBudget
+
+log = logging.getLogger(__name__)
 
 # Module-level HLS manager so sessions survive across requests within one
 # server process. Each create_app call gets its own (passed in via closure),
@@ -83,6 +87,28 @@ def create_app(root: Path, *, budget: TranscodeBudget | None = None) -> FastAPI:
     app.state.subtitle_cache = subtitle_cache
     app.state.library_root = root
     app.state.budget = shared_budget
+    # Background-prewarm state. The parent app's lifespan walks the
+    # library once at startup, populates `video_cache`, and ticks
+    # `scan_tracker` per file so the SPA can render a progressbar.
+    # Listing endpoints below read from `video_cache` when it's warm
+    # (typical case after the first second of uptime); they fall back
+    # to a synchronous `scan_videos(root)` on cold misses so the API
+    # still works without the prewarm (tests, direct sub-app use).
+    # Mirrored onto app.state so the parent app's lifespan can mutate
+    # them via the mount handle.
+    scan_tracker = VideoScanTracker()
+    video_cache: list[VideoEntry] = []
+    app.state.scan_tracker = scan_tracker
+    app.state.video_cache = video_cache
+
+    def _videos() -> list[VideoEntry]:
+        # Re-read app.state every call so updates from the lifespan
+        # prewarm (which writes `video_sub.state.video_cache = ...`)
+        # are visible here.
+        cache: list[VideoEntry] = app.state.video_cache
+        if cache:
+            return cache
+        return scan_videos(root)
 
     @app.get("/", response_class=HTMLResponse)
     def demo_page() -> str:
@@ -92,7 +118,7 @@ def create_app(root: Path, *, budget: TranscodeBudget | None = None) -> FastAPI:
     @app.get("/capabilities")
     def capabilities() -> dict[str, object]:
         """Return server identity + which kinds are present at the root."""
-        videos = scan_videos(root)
+        videos = _videos()
         return {
             "server": "maneki",
             "version": __version__,
@@ -104,7 +130,18 @@ def create_app(root: Path, *, budget: TranscodeBudget | None = None) -> FastAPI:
     @app.get("/api/videos")
     def list_videos() -> list[VideoEntry]:
         """Return a flat list of every video file under the library root."""
-        return scan_videos(root)
+        return _videos()
+
+    @app.get("/api/scan_status")
+    def scan_status() -> ScanState:
+        """Return the current scan progress for the SPA's loading bar.
+
+        While `scanning=true` the SPA polls this endpoint and renders a
+        progressbar from `scanned / total`. Once `scanning=false` it
+        hits `/api/videos` (now backed by the warm cache) for the real
+        listing.
+        """
+        return scan_tracker.snapshot()
 
     @app.get("/api/search")
     def search_videos(q: str = "", limit: int = 200) -> list[VideoEntry]:
@@ -124,7 +161,7 @@ def create_app(root: Path, *, budget: TranscodeBudget | None = None) -> FastAPI:
         if not needle:
             return []
         out: list[VideoEntry] = []
-        for entry in scan_videos(root):
+        for entry in _videos():
             hay = (entry["name"] + " " + entry["rel_path"]).lower()
             if needle in hay:
                 out.append(entry)
@@ -178,14 +215,23 @@ def create_app(root: Path, *, budget: TranscodeBudget | None = None) -> FastAPI:
             assert_ffmpeg_available()
         except FFmpegNotFoundError as exc:
             raise HTTPException(status_code=503, detail=str(exc)) from exc
+        # Cache-hit fast path: a synthesised poster on disk skips the
+        # budget entirely so a warm library has zero gating overhead.
+        cached = poster_manager.poster_path(video_id)
+        if cached.exists():
+            return FileResponse(cached, media_type="image/png")
         try:
-            path = await poster_manager.ensure_poster(
-                video_id,
-                Path(entry["path"]),
-                size_bytes=entry["size_bytes"],
-                title=entry["name"],
-                duration_s=entry["duration_s"],
-            )
+            # quiet=False: user is actively waiting on the row icon, so
+            # we yield to in-flight playback but skip the 30s quiet
+            # period that prewarm uses.
+            async with shared_budget.background_slot(quiet=False):
+                path = await poster_manager.ensure_poster(
+                    video_id,
+                    Path(entry["path"]),
+                    size_bytes=entry["size_bytes"],
+                    title=entry["name"],
+                    duration_s=entry["duration_s"],
+                )
         except RuntimeError as exc:
             raise HTTPException(status_code=503, detail=str(exc)) from exc
         return FileResponse(path, media_type="image/png")
@@ -198,12 +244,16 @@ def create_app(root: Path, *, budget: TranscodeBudget | None = None) -> FastAPI:
             assert_ffmpeg_available()
         except FFmpegNotFoundError as exc:
             raise HTTPException(status_code=503, detail=str(exc)) from exc
+        cached = poster_manager.thumbnail_path(video_id)
+        if cached.exists():
+            return FileResponse(cached, media_type="image/jpeg")
         try:
-            path = await poster_manager.ensure_thumbnail(
-                video_id,
-                Path(entry["path"]),
-                duration_s=entry["duration_s"],
-            )
+            async with shared_budget.background_slot(quiet=False):
+                path = await poster_manager.ensure_thumbnail(
+                    video_id,
+                    Path(entry["path"]),
+                    duration_s=entry["duration_s"],
+                )
         except RuntimeError as exc:
             raise HTTPException(status_code=503, detail=str(exc)) from exc
         return FileResponse(path, media_type="image/jpeg")

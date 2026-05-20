@@ -62,6 +62,20 @@
       return call(`${videoApiBase(session)}/videos`);
     },
 
+    // Poll target: returns { scanning, phase, total, scanned } where
+    // phase is "idle" / "walking" / "probing" / "done". The SPA's
+    // VideosPane polls this every ~500ms during cold start so the
+    // user sees a real progressbar instead of a bare "loading..." line.
+    // Returns null on any fetch error so the caller can fall back to
+    // the indeterminate spinner without crashing the poll loop.
+    async scanStatus(session) {
+      try {
+        return await call(`${videoApiBase(session)}/scan_status`);
+      } catch {
+        return null;
+      }
+    },
+
     // Browse a single directory under the library root. `path` is the
     // POSIX-style relative path; empty string browses the root.
     // Returns { rel_path, crumbs, folders, videos } - the SPA's folder

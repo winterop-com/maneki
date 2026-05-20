@@ -12,12 +12,19 @@ doesn't pre-probe an entire 1000-file library at startup.
 
 from __future__ import annotations
 
+import asyncio
 import json
+import logging
 import shutil
 import subprocess
 from collections.abc import Iterator
 from pathlib import Path
-from typing import TypedDict
+from typing import TYPE_CHECKING, TypedDict
+
+if TYPE_CHECKING:
+    from maneki.video.serve.scan_state import VideoScanTracker
+
+log = logging.getLogger(__name__)
 
 # Common container formats; broader than the original set to cover
 # user libraries with mixed-source content (.flv from YouTube rips,
@@ -148,6 +155,48 @@ def scan_videos(root: Path, *, probe: bool = True) -> list[VideoEntry]:
                 subtitles=[SubtitleSummary(lang=s.language, format=s.fmt) for s in sidecars],
             )
         )
+    return out
+
+
+async def prewarm_scan(root: Path, tracker: VideoScanTracker) -> list[VideoEntry]:
+    """Walk the library, probe every file, and report progress on the tracker.
+
+    Runs the walk + per-file ffprobe in worker threads so we don't block
+    the event loop. Probing dominates the cost on a cold library; the
+    walk itself is stat-only and fast. The result populates
+    `_DURATION_CACHE` as a side effect so the next `scan_videos(root)`
+    is effectively a cache hit.
+
+    Caller is expected to put this on a `lifespan` startup task and stash
+    the returned list on `app.state` for the listing endpoints to read.
+    """
+    log.info("video scan: walking %s", root)
+    tracker.begin_walk()
+    paths = await asyncio.to_thread(lambda: sorted(_iter_video_files(root)))
+    tracker.set_total(len(paths))
+    log.info("video scan: found %d files; probing durations", len(paths))
+
+    from maneki.video.serve.subtitles import discover_sidecars
+
+    out: list[VideoEntry] = []
+    for path in paths:
+        rel = path.relative_to(root)
+        duration = await asyncio.to_thread(probe_duration, path)
+        sidecars = await asyncio.to_thread(discover_sidecars, path)
+        out.append(
+            VideoEntry(
+                id=_make_id(rel),
+                name=path.stem,
+                path=str(path),
+                size_bytes=path.stat().st_size,
+                rel_path=str(rel),
+                duration_s=duration,
+                subtitles=[SubtitleSummary(lang=s.language, format=s.fmt) for s in sidecars],
+            )
+        )
+        tracker.tick()
+    tracker.finish()
+    log.info("video scan: complete (%d videos)", len(out))
     return out
 
 
