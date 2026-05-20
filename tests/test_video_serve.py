@@ -23,6 +23,42 @@ def client(library_root: Path) -> TestClient:
     return TestClient(create_app(library_root))
 
 
+def test_scan_status_idle_before_prewarm(client: TestClient) -> None:
+    """Without the parent app's lifespan running, the tracker stays idle.
+
+    The endpoint must still return a valid `ScanState` so the SPA's
+    poll loop never sees a 404 / 500 — that would lock the progressbar
+    in its initial state forever.
+    """
+    resp = client.get("/api/scan_status")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["scanning"] is False
+    assert data["phase"] == "idle"
+    assert data["scanned"] == 0
+    assert data["total"] == 0
+
+
+def test_scan_status_reports_done_after_prewarm(library_root: Path) -> None:
+    """After running the prewarm helper, the tracker reads `done` + total."""
+    import asyncio
+
+    from maneki.video.serve.scan import prewarm_scan
+
+    app = create_app(library_root)
+    videos = asyncio.run(prewarm_scan(library_root, app.state.scan_tracker))
+    app.state.video_cache = videos
+
+    client = TestClient(app)
+    data = client.get("/api/scan_status").json()
+    assert data["scanning"] is False
+    assert data["phase"] == "done"
+    assert data["total"] == 1
+    assert data["scanned"] == 1
+    # Listing endpoints now read from the warm cache.
+    assert client.get("/api/videos").json()[0]["name"] == "ep1"
+
+
 def test_capabilities_reports_video_present(client: TestClient) -> None:
     resp = client.get("/capabilities")
     assert resp.status_code == 200

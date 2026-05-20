@@ -44,6 +44,12 @@ function VideosPane({ session, selectedId, onSelect }) {
   const [path, setPath] = useSt_vv("");
   const [entries, setEntries] = useSt_vv(null);
   const [error, setError] = useSt_vv(null);
+  // Live scan progress (`{ scanning, phase, total, scanned }`) for the
+  // root-level cold start. Polled only while entries are still null
+  // AND the server reports scanning=true; once the prewarm finishes
+  // (or once /api/browse returns) we stop polling and let the listing
+  // take over.
+  const [scan, setScan] = useSt_vv(null);
 
   useEff_vv(() => {
     let cancelled = false;
@@ -54,6 +60,32 @@ function VideosPane({ session, selectedId, onSelect }) {
     );
     return () => { cancelled = true; };
   }, [session, path]);
+
+  // Scan-progress poll. Runs only while the library is still loading
+  // at the root (path === "" and entries === null). The server's
+  // background prewarm walks + ffprobes every file; we render its
+  // count / total so the user sees real progress instead of a
+  // spinner. 500ms cadence is fast enough to feel live without
+  // hammering the server (each tick is one stat-only endpoint hit).
+  useEff_vv(() => {
+    if (path !== "" || entries !== null || !window.MK_VIDEO.scanStatus) return;
+    let cancelled = false;
+    let timer = null;
+    const poll = async () => {
+      const status = await window.MK_VIDEO.scanStatus(session);
+      if (cancelled) return;
+      setScan(status);
+      // Stop polling once the prewarm reports done. The /api/browse
+      // effect above will pick up the now-warm cache on its next tick.
+      if (status && !status.scanning && status.phase === "done") return;
+      timer = setTimeout(poll, 500);
+    };
+    poll();
+    return () => {
+      cancelled = true;
+      if (timer !== null) clearTimeout(timer);
+    };
+  }, [session, path, entries]);
 
   const crumbs = entries?.crumbs || [];
   const folders = entries?.folders || [];
@@ -87,7 +119,34 @@ function VideosPane({ session, selectedId, onSelect }) {
         })}
       </div>
       {error !== null && <div className="mk-empty"><div className="mk-empty-title">{error}</div></div>}
-      {error === null && entries === null && <div className="mk-empty"><div className="mk-empty-title">loading...</div></div>}
+      {error === null && entries === null && (
+        <div className="mk-empty">
+          <div className="mk-empty-title">
+            {scan && scan.phase === "probing" ? "Scanning library" : "Loading library"}
+          </div>
+          <div className="mk-scan-progress">
+            <div
+              className="mk-scan-progress-bar"
+              style={{
+                // `--mk-progress` drives the width of the filled portion
+                // (matches the audio scrubber pattern in maneki.css).
+                // Indeterminate during the walking phase: total is 0
+                // until the file list is known, so we show a pulsing
+                // empty bar in that case.
+                "--mk-progress":
+                  scan && scan.total > 0
+                    ? `${Math.min(100, Math.round((scan.scanned / scan.total) * 100))}%`
+                    : "0%",
+              }}
+            />
+          </div>
+          <div className="mk-empty-sub mono">
+            {scan && scan.total > 0
+              ? `${scan.scanned} / ${scan.total} videos`
+              : "discovering files..."}
+          </div>
+        </div>
+      )}
       {empty && (
         <div className="mk-empty">
           <div className="mk-empty-icon">

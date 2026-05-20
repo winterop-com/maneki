@@ -375,6 +375,36 @@ body {
 .mk-empty-title { color: var(--text-soft); font-size: 13px; font-style: italic; margin-bottom: 4px; }
 .mk-empty-sub { color: var(--text-dim); font-size: 12px; max-width: 320px; line-height: 1.5; }
 
+/* Loading progressbar — used by the video pane while the server's
+ * background prewarm walks + ffprobes the library. Width is driven
+ * by `--mk-progress` (same pattern as the audio scrubber). The
+ * indeterminate state (total unknown yet) pulses via the `pulse`
+ * keyframes so the user knows the server is alive even before it
+ * has a file count to report. */
+.mk-scan-progress {
+  width: 220px;
+  height: 4px;
+  margin: 10px 0 8px;
+  border-radius: 2px;
+  background: var(--vol-track, rgba(255,255,255,0.08));
+  overflow: hidden;
+}
+.mk-scan-progress-bar {
+  height: 100%;
+  width: var(--mk-progress, 0%);
+  background: var(--accent);
+  border-radius: 2px;
+  transition: width 200ms ease-out;
+}
+.mk-scan-progress-bar[style*="--mk-progress: 0%"] {
+  width: 30%;
+  animation: mk-scan-pulse 1.2s ease-in-out infinite;
+}
+@keyframes mk-scan-pulse {
+  0%   { transform: translateX(-100%); }
+  100% { transform: translateX(330%); }
+}
+
 /* Skeleton */
 .mk-skel {
   display: block;

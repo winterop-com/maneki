@@ -153,23 +153,38 @@ class TranscodeBudget:
             await asyncio.sleep(0.25)
 
     @contextlib.asynccontextmanager
-    async def background_slot(self) -> AsyncGenerator[None, None]:
+    async def background_slot(self, *, quiet: bool = True) -> AsyncGenerator[None, None]:
         """Acquire a background worker slot, yielding to foreground first.
 
-        Order: wait for idle + quiet period -> acquire semaphore ->
-        re-check idle. The re-check matters because a foreground
-        request can arrive while we're queued on the semaphore;
-        without it a background transcode would start anyway and
-        compete for ffmpeg CPU.
+        Order: wait for idle (+ quiet period when `quiet=True`) -> acquire
+        semaphore -> re-check idle. The re-check matters because a foreground
+        request can arrive while we're queued on the semaphore; without it
+        a background transcode would start anyway and compete for ffmpeg CPU.
+
+        `quiet=True` (default) is for speculative work like prewarm and
+        prefetch: after a foreground request finishes the slot waits the
+        full quiet period before starting, so a paused user who scrubs
+        again doesn't trigger a flurry of ffmpegs.
+
+        `quiet=False` is for user-driven on-demand work (row thumbnails,
+        clicked posters): the user is actively waiting on the result, so
+        yield to in-flight foreground but resume as soon as it clears —
+        a 30s gap before the row icons appear feels broken.
         """
-        await self._wait_for_quiet()
+        if quiet:
+            await self._wait_for_quiet()
+        else:
+            await self._idle_event.wait()
         async with self._background_sem:
             # Foreground may have arrived while we were waiting on the
-            # semaphore. Re-check, and re-honour the quiet period if so.
+            # semaphore. Re-check; honour the quiet period only when asked.
             while not self._idle_event.is_set() or (
-                time.monotonic() - self._last_foreground_at < self._quiet_after_fg_s
+                quiet and time.monotonic() - self._last_foreground_at < self._quiet_after_fg_s
             ):
-                await self._wait_for_quiet()
+                if quiet:
+                    await self._wait_for_quiet()
+                else:
+                    await self._idle_event.wait()
             self._background_count += 1
             try:
                 yield
