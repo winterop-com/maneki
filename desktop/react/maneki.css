@@ -375,6 +375,82 @@ body {
 .mk-empty-title { color: var(--text-soft); font-size: 13px; font-style: italic; margin-bottom: 4px; }
 .mk-empty-sub { color: var(--text-dim); font-size: 12px; max-width: 320px; line-height: 1.5; }
 
+/* Small refresh-icon button in the VideosPane crumbs strip. Pushed to
+ * the right via the parent's flex layout (mk-pane-label has
+ * `justify-content: space-between`); auto-margin-left keeps it
+ * pinned even when crumbs wrap. */
+.mk-rescan-btn {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: 1px solid var(--line);
+  color: var(--text-dim);
+  border-radius: 3px;
+  padding: 3px 5px;
+  cursor: pointer;
+  transition: background-color 120ms ease, color 120ms ease, border-color 120ms ease;
+}
+.mk-rescan-btn:hover {
+  color: var(--text);
+  border-color: var(--accent);
+  background: var(--bg-elev);
+}
+.mk-rescan-btn:active {
+  background: var(--bg-elev2);
+}
+
+/* Top-of-stage banner shown when the player hits an unrecoverable
+ * error (HLS playlist exhausted past the cooldown, segment 503,
+ * codec mismatch). Sits absolutely positioned so the player layout
+ * below stays put while the banner fades in / out. */
+.mk-video-stage { position: relative; }
+.mk-player-error {
+  position: absolute;
+  top: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 10px 14px;
+  border-radius: 4px;
+  background: rgba(120, 30, 30, 0.92);
+  color: #ffe7e3;
+  border: 1px solid rgba(255, 90, 80, 0.5);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.35);
+  max-width: 80%;
+  font-size: 12px;
+  line-height: 1.4;
+}
+.mk-player-error-msg {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.mk-player-error-msg strong {
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  opacity: 0.85;
+}
+.mk-player-error-retry {
+  background: rgba(255, 255, 255, 0.12);
+  color: inherit;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  padding: 5px 12px;
+  border-radius: 3px;
+  font-size: 11px;
+  cursor: pointer;
+  transition: background-color 120ms ease;
+}
+.mk-player-error-retry:hover {
+  background: rgba(255, 255, 255, 0.22);
+}
+
 /* Loading progressbar — used by the video pane while the server's
  * background prewarm walks + ffprobes the library. Width is driven
  * by `--mk-progress` (same pattern as the audio scrubber). The
