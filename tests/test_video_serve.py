@@ -37,10 +37,11 @@ def test_scan_status_idle_before_prewarm(client: TestClient) -> None:
     assert data["phase"] == "idle"
     assert data["scanned"] == 0
     assert data["total"] == 0
+    assert data["walked"] == 0
 
 
 def test_scan_status_reports_done_after_prewarm(library_root: Path) -> None:
-    """After running the prewarm helper, the tracker reads `done` + total."""
+    """After running the prewarm helper, the tracker reads `done` + total + walked."""
     import asyncio
 
     from maneki.video.serve.scan import prewarm_scan
@@ -55,6 +56,10 @@ def test_scan_status_reports_done_after_prewarm(library_root: Path) -> None:
     assert data["phase"] == "done"
     assert data["total"] == 1
     assert data["scanned"] == 1
+    # walk_tick should have been called once per file discovered (the
+    # walking-phase progress counter the SPA renders before total is
+    # known).
+    assert data["walked"] == 1
     # Listing endpoints now read from the warm cache.
     assert client.get("/api/videos").json()[0]["name"] == "ep1"
 
@@ -89,6 +94,42 @@ def test_thumbnail_endpoint_returns_placeholder_on_cache_miss(client: TestClient
     assert resp.headers["content-type"].startswith("image/svg+xml")
     assert resp.headers.get("cache-control") == "no-store"
     assert b"<svg" in resp.content
+
+
+def test_scan_endpoint_returns_503_without_trigger(client: TestClient) -> None:
+    """The sub-app on its own (no parent lifespan) has no `trigger_rescan`.
+
+    The endpoint should surface that as a 503, not crash or 500. The
+    parent app's lifespan attaches `state.trigger_rescan` so this only
+    bites tests / direct sub-app users.
+    """
+    resp = client.post("/api/scan")
+    assert resp.status_code == 503
+    assert "trigger" in resp.json()["detail"]
+
+
+def test_scan_endpoint_kicks_rescan_when_wired(library_root: Path) -> None:
+    """When the parent lifespan has wired `trigger_rescan`, POST /api/scan calls it."""
+    import asyncio as _asyncio
+
+    app = create_app(library_root)
+    called: list[bool] = []
+
+    async def fake_trigger() -> None:
+        called.append(True)
+
+    app.state.trigger_rescan = fake_trigger
+    with TestClient(app) as client:
+        resp = client.post("/api/scan")
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["started"] is True
+        # Status snapshot included for the SPA poll-loop fast-path.
+        assert "status" in body
+        # Give the event loop a tick to run the create_task we kicked.
+        _asyncio.run(_asyncio.sleep(0))
+    # The fake trigger ran on the loop spawned by TestClient.
+    assert called == [True]
 
 
 def test_cancel_session_when_no_session_is_idempotent(client: TestClient) -> None:

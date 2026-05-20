@@ -166,6 +166,31 @@ def create_app(root: Path, *, budget: TranscodeBudget | None = None) -> FastAPI:
         """
         return scan_tracker.snapshot()
 
+    @app.post("/api/scan")
+    async def trigger_scan() -> dict[str, object]:
+        """Kick a manual library rescan. Mirrors the audio /rest/startScan.
+
+        Fire-and-forget: returns immediately with the tracker's current
+        snapshot. The client polls /api/scan_status for live progress.
+        No-op if a scan is already running (the rescan callback itself
+        guards against re-entry via the scan_tracker phase). Returns
+        503 if the parent app's lifespan hasn't wired up the callback
+        yet (cold start race) or when running without a parent (tests
+        importing the sub-app directly).
+        """
+        trigger = getattr(app.state, "trigger_rescan", None)
+        if trigger is None:
+            raise HTTPException(
+                status_code=503,
+                detail="scan trigger not yet available; the server is still starting up",
+            )
+        # Don't await -- the rescan can take many seconds on a big
+        # library, the caller wants the request to return now and poll
+        # /api/scan_status instead.
+        asyncio.create_task(trigger())
+        snap = scan_tracker.snapshot()
+        return {"started": True, "status": snap.model_dump()}
+
     @app.get("/api/search")
     def search_videos(q: str = "", limit: int = 200) -> list[VideoEntry]:
         """Substring-match `q` against video name + rel_path; return ranked matches.

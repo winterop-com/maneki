@@ -158,33 +158,81 @@ def scan_videos(root: Path, *, probe: bool = True) -> list[VideoEntry]:
     return out
 
 
+# Concurrent ffprobes during prewarm. Each probe is ~50-300ms wall-clock
+# (mostly I/O / ffprobe startup) so high concurrency moves the needle on
+# a cold library; the cap stops a 10k-file library from spawning 10k
+# subprocesses at once and exhausting file descriptors.
+_PREWARM_PROBE_CONCURRENCY = 8
+
+# How often the prewarm emits a terminal heartbeat log line during the
+# walk + probe phases. Without these the user running `maneki serve` on
+# a big / slow library sees nothing between "walking" and "complete" -
+# which on a 10k-file USB drive can be minutes.
+_WALK_LOG_EVERY = 250
+_PROBE_LOG_EVERY = 50
+
+
 async def prewarm_scan(root: Path, tracker: VideoScanTracker) -> list[VideoEntry]:
     """Walk the library, probe every file, and report progress on the tracker.
 
-    Runs the walk + per-file ffprobe in worker threads so we don't block
-    the event loop. Probing dominates the cost on a cold library; the
-    walk itself is stat-only and fast. The result populates
-    `_DURATION_CACHE` as a side effect so the next `scan_videos(root)`
-    is effectively a cache hit.
+    Two-phase, both reported live to the SPA progressbar:
+
+    1. **Walk** — directory traversal. We tick `walked` per file as it's
+       discovered so the SPA shows "discovering: N files" instead of an
+       opaque pulse. On deep trees the walk itself takes a few seconds.
+
+    2. **Probe** — ffprobe each file for duration + sidecar discovery.
+       Parallelised at `_PREWARM_PROBE_CONCURRENCY` so a 1000-file
+       library finishes in ~25s instead of ~200s (each ffprobe is
+       ~100-200ms wall-clock, dominated by subprocess startup). Each
+       probe ticks `scanned` so the progressbar advances live.
+
+    The walk runs in a single worker thread (cheap, sequential is fine).
+    Probes are awaitable; gather + Semaphore caps in-flight work.
+    Populates `_DURATION_CACHE` as a side effect, so the next
+    `scan_videos(root)` is effectively a cache hit.
 
     Caller is expected to put this on a `lifespan` startup task and stash
     the returned list on `app.state` for the listing endpoints to read.
     """
     log.info("video scan: walking %s", root)
     tracker.begin_walk()
-    paths = await asyncio.to_thread(lambda: sorted(_iter_video_files(root)))
+
+    paths: list[Path] = []
+
+    def _walk_with_progress() -> None:
+        # Append + tick inline so the SPA sees the count grow live.
+        # `tracker.walk_tick` is just an int increment; safe from a
+        # worker thread under GIL semantics. Periodically also log a
+        # terminal heartbeat so a `maneki serve /huge/library` shows
+        # forward motion in stdout, not just a long silence.
+        for p in _iter_video_files(root):
+            paths.append(p)
+            tracker.walk_tick()
+            if len(paths) % _WALK_LOG_EVERY == 0:
+                log.info("video scan: walked %d files so far...", len(paths))
+        paths.sort()
+
+    await asyncio.to_thread(_walk_with_progress)
     tracker.set_total(len(paths))
-    log.info("video scan: found %d files; probing durations", len(paths))
+    log.info(
+        "video scan: walk done, found %d files; probing durations (concurrency=%d)",
+        len(paths),
+        _PREWARM_PROBE_CONCURRENCY,
+    )
 
     from maneki.video.serve.subtitles import discover_sidecars
 
-    out: list[VideoEntry] = []
-    for path in paths:
-        rel = path.relative_to(root)
-        duration = await asyncio.to_thread(probe_duration, path)
-        sidecars = await asyncio.to_thread(discover_sidecars, path)
-        out.append(
-            VideoEntry(
+    sem = asyncio.Semaphore(_PREWARM_PROBE_CONCURRENCY)
+    out: list[VideoEntry | None] = [None] * len(paths)
+    total = len(paths)
+
+    async def _probe_one(i: int, path: Path) -> None:
+        async with sem:
+            duration = await asyncio.to_thread(probe_duration, path)
+            sidecars = await asyncio.to_thread(discover_sidecars, path)
+            rel = path.relative_to(root)
+            out[i] = VideoEntry(
                 id=_make_id(rel),
                 name=path.stem,
                 path=str(path),
@@ -193,11 +241,21 @@ async def prewarm_scan(root: Path, tracker: VideoScanTracker) -> list[VideoEntry
                 duration_s=duration,
                 subtitles=[SubtitleSummary(lang=s.language, format=s.fmt) for s in sidecars],
             )
-        )
-        tracker.tick()
+            tracker.tick()
+            # `_scanned` is incremented atomically under GIL; reading it
+            # right after the bump is fine for a "did we hit a log-worthy
+            # multiple?" check, even under high concurrency.
+            done = tracker.snapshot().scanned
+            if done % _PROBE_LOG_EVERY == 0 or done == total:
+                log.info("video scan: probed %d / %d files", done, total)
+
+    await asyncio.gather(*(_probe_one(i, p) for i, p in enumerate(paths)))
     tracker.finish()
-    log.info("video scan: complete (%d videos)", len(out))
-    return out
+    # All slots filled by the time gather() returns, but the type checker
+    # doesn't know that; the cast lets the function signature stay clean.
+    results: list[VideoEntry] = [e for e in out if e is not None]
+    log.info("video scan: complete (%d videos)", len(results))
+    return results
 
 
 def has_videos(root: Path) -> bool:

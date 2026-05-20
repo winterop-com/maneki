@@ -18,6 +18,7 @@ convention).
 from __future__ import annotations
 
 import asyncio
+import logging
 import math
 import shutil
 from pathlib import Path
@@ -29,6 +30,8 @@ from maneki.video.serve.scan import probe_duration
 from maneki.video.serve.transcode import low_priority_kwargs
 from maneki.video.serve.transcode_budget import TranscodeBudget
 
+log = logging.getLogger(__name__)
+
 POSTER_THUMB_WIDTH = 320
 POSTER_PADDING = 6
 POSTER_HEADER_HEIGHT = 64
@@ -39,6 +42,12 @@ POSTER_HEADER_FG = (220, 224, 232)
 POSTER_HEADER_DIM = (140, 150, 175)
 POSTER_TS_BG = (0, 0, 0, 180)
 POSTER_TS_FG = (245, 247, 252)
+
+# How often `prewarm()` logs a per-phase heartbeat. The actual interval
+# auto-shrinks for small libraries (so a 30-video library still shows
+# ticks instead of one line) - this is the upper bound used for big
+# libraries.
+_PREWARM_LOG_EVERY = 25
 _FONT_CANDIDATES = (
     "/System/Library/Fonts/SFMono-Regular.otf",
     "/System/Library/Fonts/Menlo.ttc",
@@ -447,9 +456,34 @@ class PosterManager:
 
         Each entry is a dict with keys: id, path, size_bytes, name,
         duration_s. Matches VideoEntry.
+
+        Emits a terminal heartbeat every _PREWARM_LOG_EVERY completions
+        in each phase so a `maneki serve --prewarm-images /huge/library`
+        shows live progress instead of one "starting" line followed by
+        minutes of silence.
         """
         if not entries:
             return
+
+        total = len(entries)
+        # Per-phase heartbeat. Each phase fans out asyncio.gather() so
+        # completions arrive in roughly the order the budget grants
+        # slots; the counter is incremented exactly once per finished
+        # task. Logging every 25 keeps a 1313-video library showing a
+        # tick every few seconds without spamming a small library.
+        log_every = max(1, min(_PREWARM_LOG_EVERY, total // 20 or 1))
+
+        async def _phase_runner(
+            label: str,
+            workers: list[asyncio.Future[None]],
+        ) -> None:
+            done = 0
+            log.info("prewarm-images: %s phase starting (%d videos)", label, total)
+            for fut in asyncio.as_completed(workers):
+                await fut
+                done += 1
+                if done % log_every == 0 or done == total:
+                    log.info("prewarm-images: %s %d / %d", label, done, total)
 
         async def _probe_subs(entry: dict[str, object]) -> None:
             # The probe itself is sync (subprocess.run blocks), so run
@@ -488,6 +522,6 @@ class PosterManager:
                 except Exception:  # noqa: BLE001
                     pass
 
-        await asyncio.gather(*(_probe_subs(e) for e in entries))
-        await asyncio.gather(*(_thumb(e) for e in entries))
-        await asyncio.gather(*(_poster(e) for e in entries))
+        await _phase_runner("subtitle-probe", [asyncio.ensure_future(_probe_subs(e)) for e in entries])
+        await _phase_runner("thumbnails", [asyncio.ensure_future(_thumb(e)) for e in entries])
+        await _phase_runner("posters", [asyncio.ensure_future(_poster(e)) for e in entries])
