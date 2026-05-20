@@ -24,8 +24,9 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import logging
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -43,6 +44,8 @@ if TYPE_CHECKING:
     from collections.abc import Awaitable, Callable
 
     from maneki.audio.serve.config import ServeConfig
+
+_log = logging.getLogger(__name__)
 
 
 class LoginRequest(BaseModel):
@@ -76,6 +79,8 @@ def create_combined_app(
     audio_use_cache: bool = True,
     audio_cfg: ServeConfig | None = None,
     transcode_workers: int | None = None,
+    rescan: bool = False,
+    prewarm_images: bool = False,
 ) -> FastAPI:
     """Build a FastAPI app that auto-mounts whichever kinds are present at root.
 
@@ -103,6 +108,20 @@ def create_combined_app(
             (prewarm, neighbour prefetch, poster generation). None uses
             the TranscodeBudget default (cpu_count // 2, capped at 4).
             Foreground player requests always preempt background work.
+        rescan: when True, wipe the on-disk thumbnail / poster cache
+            before startup so the next browse / prewarm regenerates
+            everything. Use after files change underneath the server
+            (renames, edits) so cached cover sheets get refreshed.
+            Default False keeps prior runs' work.
+        prewarm_images: when True, generate every video's row thumbnail
+            and contact-sheet poster during startup (heavy: ~1-2s per
+            thumbnail + ~3-5s per poster, niced + 1-thread so it
+            doesn't fight foreground playback). Default False -- thumbs
+            generate on first SPA browse, posters on first /poster
+            request. Pair with --rescan when you actually want every
+            asset rebuilt; without --rescan, prewarm-images skips files
+            whose cache already exists, so it's idempotent and cheap on
+            a second run.
     """
     audio_present = has_audio(root)
     video_present = has_video(root)
@@ -130,29 +149,40 @@ def create_combined_app(
     # and runs in a worker thread so the startup remains non-blocking.
     @contextlib.asynccontextmanager
     async def _lifespan(app: FastAPI):  # type: ignore[no-untyped-def]
-        async def _background_startup() -> None:
-            from typing import cast
+        import shutil
+        from typing import cast
 
-            from starlette.routing import Mount
+        from starlette.routing import Mount
 
-            # Mount.app is typed as the generic ASGI callable; we know
-            # the /video mount holds a FastAPI sub-app with our custom
-            # `state` attributes attached in _mount_video. Cast so
-            # mypy lets us reach into it.
-            video_sub_app: FastAPI | None = next(
-                (cast(FastAPI, r.app) for r in app.routes if isinstance(r, Mount) and r.path == "/video"),
-                None,
-            )
+        # Mount.app is typed as the generic ASGI callable; we know
+        # the /video mount holds a FastAPI sub-app with our custom
+        # `state` attributes attached in _mount_video. Cast so
+        # mypy lets us reach into it.
+        video_sub_app: FastAPI | None = next(
+            (cast(FastAPI, r.app) for r in app.routes if isinstance(r, Mount) and r.path == "/video"),
+            None,
+        )
+        # VideoLibraryWatcher uses a deferred import so the heavy
+        # `watchdog` dependency only loads when a video mount is
+        # actually present.
+        watcher: Any = None
+
+        async def _do_scan(*, do_prewarm_images: bool) -> None:
+            """One pass of library scan + orphan sweep + optional image prewarm.
+
+            Re-entry guard: skips when the tracker already reports
+            scanning=True. asyncio is single-threaded so the check + the
+            subsequent `prewarm_scan` (which calls `begin_walk` before
+            its first await) execute atomically; a second concurrent
+            caller can't race past the guard.
+            """
             if video_sub_app is None or not hasattr(video_sub_app.state, "poster_manager"):
                 return
             video_sub = video_sub_app
-            # Prewarm scan: walks the library and ffprobes every file.
-            # Updates the per-app `scan_tracker` so the SPA can render a
-            # real progressbar instead of a bare spinner while the cold
-            # scan runs. The result is cached on `video_cache` so the
-            # next /api/videos / /capabilities / /api/search call is a
-            # cheap dict lookup. Also doubles as the inventory for the
-            # orphan-cache sweep below.
+            if video_sub.state.scan_tracker.snapshot().scanning:
+                _log.info("scan: already in progress, skipping")
+                return
+
             from maneki.video.serve.scan import prewarm_scan
 
             videos = await prewarm_scan(video_sub.state.library_root, video_sub.state.scan_tracker)
@@ -162,6 +192,48 @@ def create_combined_app(
             video_sub.state.hls_manager.clean_orphans(live_ids)
             video_sub.state.subtitle_cache.clean_orphans(live_ids)
 
+            if do_prewarm_images:
+                _log.info("prewarm-images: starting thumbnail/poster generation for %d videos", len(videos))
+                await video_sub.state.poster_manager.prewarm([dict(v) for v in videos])
+                _log.info("prewarm-images: done")
+
+        async def _rescan_callback() -> None:
+            """Watcher / endpoint entry point. Honours --prewarm-images for follow-ups."""
+            await _do_scan(do_prewarm_images=prewarm_images)
+
+        async def _background_startup() -> None:
+            if video_sub_app is None or not hasattr(video_sub_app.state, "poster_manager"):
+                return
+            video_sub = video_sub_app
+
+            # --rescan: blow away the on-disk thumbnail + poster cache so
+            # the next prewarm / on-demand request regenerates everything.
+            # Subtitle + HLS caches stay (those are content-addressed and
+            # don't go stale the same way a poster does when a user
+            # re-encodes or re-edits a file).
+            if rescan:
+                cache_dir = video_sub.state.poster_manager.cache_dir
+                if cache_dir.is_dir():
+                    _log.info("rescan: wiping poster/thumbnail cache at %s", cache_dir)
+                    shutil.rmtree(cache_dir, ignore_errors=True)
+
+            # Initial library scan. _do_scan also drives subsequent
+            # watcher-triggered rescans, so any change here is shared.
+            await _do_scan(do_prewarm_images=prewarm_images)
+
+            # Expose the rescan trigger to the video sub-app so POST
+            # /api/scan can fire it without reaching across the mount.
+            video_sub.state.trigger_rescan = _rescan_callback
+
+            # Start the filesystem watcher so a new file dropped under
+            # the library root triggers a debounced rescan within ~5s,
+            # no SPA action / server restart required.
+            from maneki.video.serve.watcher import VideoLibraryWatcher
+
+            nonlocal watcher
+            watcher = VideoLibraryWatcher(video_sub.state.library_root, _rescan_callback)
+            watcher.start(asyncio.get_running_loop())
+
         startup_task = asyncio.create_task(_background_startup())
         try:
             yield
@@ -170,6 +242,9 @@ def create_combined_app(
                 startup_task.cancel()
             with contextlib.suppress(asyncio.CancelledError, Exception):
                 await startup_task
+            if watcher is not None:
+                with contextlib.suppress(Exception):
+                    watcher.stop()
 
     combined = FastAPI(title="maneki", version=__version__, lifespan=_lifespan)
 

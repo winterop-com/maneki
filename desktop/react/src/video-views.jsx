@@ -185,7 +185,11 @@ function VideosPane({ session, selectedId, onSelect }) {
       {error === null && entries === null && (
         <div className="mk-empty">
           <div className="mk-empty-title">
-            {scan && scan.phase === "probing" ? "Scanning library" : "Loading library"}
+            {scan && scan.phase === "probing"
+              ? "Scanning library"
+              : scan && scan.phase === "walking"
+              ? "Discovering files"
+              : "Loading library"}
           </div>
           <div className="mk-scan-progress">
             <div
@@ -206,6 +210,8 @@ function VideosPane({ session, selectedId, onSelect }) {
           <div className="mk-empty-sub mono">
             {scan && scan.total > 0
               ? `${scan.scanned} / ${scan.total} videos`
+              : scan && scan.walked > 0
+              ? `${scan.walked} files found...`
               : "discovering files..."}
           </div>
         </div>

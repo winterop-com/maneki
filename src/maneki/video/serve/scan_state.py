@@ -29,7 +29,9 @@ class ScanState(BaseModel):
 
     `total` is best-effort — it's only known after the initial directory
     walk finishes, so the probing phase reports a real ratio while the
-    walking phase reports `total=0` (the SPA treats that as indeterminate).
+    walking phase reports `total=0` (the SPA treats that as indeterminate
+    on the progressbar fill, but still surfaces `walked` as a live
+    "discovered N files" counter so the user sees forward motion).
     """
 
     model_config = ConfigDict(frozen=True)
@@ -38,6 +40,7 @@ class ScanState(BaseModel):
     phase: ScanPhase
     total: int
     scanned: int
+    walked: int
 
 
 class VideoScanTracker:
@@ -52,12 +55,25 @@ class VideoScanTracker:
         self._phase: ScanPhase = "idle"
         self._total: int = 0
         self._scanned: int = 0
+        self._walked: int = 0
 
     def begin_walk(self) -> None:
         """Mark the scan as started; total is not known yet."""
         self._phase = "walking"
         self._total = 0
         self._scanned = 0
+        self._walked = 0
+
+    def walk_tick(self, n: int = 1) -> None:
+        """Increment the live walk-phase counter.
+
+        Called from the directory walker as files are discovered so the
+        SPA can render "discovering: 1247 files" while the total is still
+        unknown. On a large library with deep folder trees the walk
+        itself takes several seconds; without this counter the SPA
+        renders an indeterminate pulse with no signal of forward motion.
+        """
+        self._walked += n
 
     def set_total(self, total: int) -> None:
         """Switch to the probing phase once the file list is known."""
@@ -80,4 +96,5 @@ class VideoScanTracker:
             phase=self._phase,
             total=self._total,
             scanned=self._scanned,
+            walked=self._walked,
         )

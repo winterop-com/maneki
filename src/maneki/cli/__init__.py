@@ -88,6 +88,27 @@ def serve_cmd(
             ),
         ),
     ] = 0,
+    rescan: Annotated[
+        bool,
+        typer.Option(
+            "--rescan",
+            help=(
+                "Wipe the cached thumbnails / posters before startup so they regenerate. "
+                "Use this when files changed underneath the server (renames, edits)."
+            ),
+        ),
+    ] = False,
+    prewarm_images: Annotated[
+        bool,
+        typer.Option(
+            "--prewarm-images",
+            help=(
+                "Generate every video's row thumbnail and contact-sheet poster during startup. "
+                "Heavy: ~1-2s per thumbnail + ~3-5s per poster. Default off - thumbs generate "
+                "on first SPA browse. Pair with --rescan to force a full rebuild."
+            ),
+        ),
+    ] = False,
 ) -> None:
     """Start the Maneki server.
 
@@ -109,26 +130,68 @@ def serve_cmd(
     demo page at /video/ doesn't speak the auth flow yet, so --auth and the
     demo are currently mutually exclusive in practice.
     """
+    import logging
+
     import uvicorn
 
     from maneki.serve_app import create_combined_app
+
+    # Single unified log config for everything in this process. Without
+    # this, two formats coexist: uvicorn's bare `INFO:     <message>`
+    # and stdlib's whatever-basicConfig-set-up — which mixes badly in
+    # the terminal. Bringing every logger through one formatter means
+    # `maneki.video.serve.scan: ...`, `uvicorn.access: GET /...`, and
+    # `maneki.audio.library.db: ...` all line up.
+    #
+    # Force=True on basicConfig ensures the call wins even if an
+    # earlier import already attached a root handler.
+    log_format = "%(asctime)s %(levelname)s %(name)s: %(message)s"
+    log_datefmt = "%H:%M:%S"
+    logging.basicConfig(level=logging.INFO, format=log_format, datefmt=log_datefmt, force=True)
+    uvicorn_log_config: dict[str, object] = {
+        "version": 1,
+        "disable_existing_loggers": False,
+        "formatters": {
+            "default": {"format": log_format, "datefmt": log_datefmt},
+        },
+        "handlers": {
+            "default": {
+                "class": "logging.StreamHandler",
+                "formatter": "default",
+                "stream": "ext://sys.stderr",
+            },
+        },
+        "loggers": {
+            # Replace uvicorn's `default` formatter (the `INFO:` lines)
+            # with ours; propagate=False so we don't get each line twice.
+            "uvicorn": {"handlers": ["default"], "level": "INFO", "propagate": False},
+            "uvicorn.error": {"handlers": ["default"], "level": "INFO", "propagate": False},
+            "uvicorn.access": {"handlers": ["default"], "level": "INFO", "propagate": False},
+        },
+    }
 
     combined = create_combined_app(
         root=root.resolve(),
         enable_auth=auth,
         enable_ui=ui,
         transcode_workers=workers or None,
+        rescan=rescan,
+        prewarm_images=prewarm_images,
     )
     flags: list[str] = []
     if auth:
         flags.append("auth on /video/*")
     if ui:
         flags.append("SPA at /")
+    if rescan:
+        flags.append("rescan")
+    if prewarm_images:
+        flags.append("prewarm-images")
     actual_workers = workers or "auto"
     flags.append(f"workers={actual_workers}")
     flag_note = f" ({', '.join(flags)})"
     typer.echo(f"maneki serve - {root.resolve()} on http://{host}:{port}{flag_note}")
-    uvicorn.run(combined, host=host, port=port, log_level="info")
+    uvicorn.run(combined, host=host, port=port, log_config=uvicorn_log_config)
 
 
 @app.callback()

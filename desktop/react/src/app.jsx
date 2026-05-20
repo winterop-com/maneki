@@ -422,11 +422,30 @@ function App() {
         switch (e.key) {
           case "f":
             e.preventDefault();
-            // SPA-side player-only fullscreen: CSS pins the player
-            // pane to the viewport and hides everything else. Works
-            // identically in browser / Tauri / Electron (the
-            // HTML5 Fullscreen API is unreliable in WKWebView).
-            togglePlayerFs();
+            // Browser: use the HTML5 Fullscreen API on the player so the
+            // browser chrome (URL bar, tab strip) actually disappears
+            // and the video covers the physical screen — what YouTube
+            // does, what the user expects. video.js wraps the call so
+            // we go through `requestFullscreen()` on the player root
+            // and get the controls overlay for free.
+            //
+            // Tauri / Electron: WKWebView's HTML5 Fullscreen API is
+            // flaky, so fall back to the CSS-pin (`playerFs`) path
+            // which is also what the desktop wrappers' native window
+            // fullscreen hook into. Detection mirrors _video.js's
+            // `isDesktop` check.
+            {
+              const isDesktopWebview =
+                !!window.__TAURI__
+                || (navigator.userAgent || "").toLowerCase().includes("electron/");
+              if (isDesktopWebview) {
+                togglePlayerFs();
+              } else if (p.isFullscreen()) {
+                p.exitFullscreen();
+              } else {
+                p.requestFullscreen();
+              }
+            }
             return;
           case " ":
             e.preventDefault();
@@ -559,7 +578,15 @@ function App() {
       if (c.label === "Toggle mute") { p.muted(!p.muted()); return; }
       if (c.label === "Toggle theater mode") { setTheater((v) => !v); return; }
       if (c.label === "Toggle fullscreen") {
-        togglePlayerFs();
+        // Same browser vs desktop split as the `f` shortcut: HTML5
+        // Fullscreen API in the browser (covers the physical screen),
+        // CSS-pin fallback in WKWebView / Electron.
+        const isDesktopWebview =
+          !!window.__TAURI__
+          || (navigator.userAgent || "").toLowerCase().includes("electron/");
+        if (isDesktopWebview) togglePlayerFs();
+        else if (p.isFullscreen()) p.exitFullscreen();
+        else p.requestFullscreen();
         return;
       }
       return;
