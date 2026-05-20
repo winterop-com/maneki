@@ -88,6 +88,18 @@ function App() {
   // the topbar / video list visible at their grid sizes).
   const [playerFs, setPlayerFs] = uS(false);
   const togglePlayerFs = React.useCallback(() => setPlayerFs((v) => !v), []);
+  // Theater mode: like YouTube's `t` shortcut. Hides the videos list +
+  // splitter so the player pane spans the entire video area. Lighter
+  // than playerFs (the topbar / mode rail stay visible); CSS drives the
+  // layout via the body[data-video-theater] attribute.
+  const [theater, setTheater] = uS(false);
+  React.useEffect(() => {
+    document.body.dataset.videoTheater = theater ? "true" : "false";
+    return () => { document.body.dataset.videoTheater = "false"; };
+  }, [theater]);
+  React.useEffect(() => {
+    if (!selectedVideo && theater) setTheater(false);
+  }, [selectedVideo, theater]);
   // Toggle a body data attribute so the CSS rule can target the
   // outermost element; React owns the state but CSS owns the layout.
   // Also drive native OS window fullscreen via MK_DESKTOP when
@@ -450,6 +462,10 @@ function App() {
           case "m":
             p.muted(!p.muted());
             return;
+          case "t":
+            e.preventDefault();
+            setTheater((v) => !v);
+            return;
           case "?":
             // Handle here so the audio switch below can't also run and
             // unexpectedly affect playback state. setShowShortcuts is
@@ -499,7 +515,7 @@ function App() {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [authed, now, dur, fullscreenViz, showShortcuts, showPalette, showLyrics, searchOpen, kind, selectedVideo, playerFs]);
+  }, [authed, now, dur, fullscreenViz, showShortcuts, showPalette, showLyrics, searchOpen, kind, selectedVideo, playerFs, theater]);
 
   // Sign out
   const signOut = () => {
@@ -541,6 +557,7 @@ function App() {
       if (c.label === "Volume up") { p.volume(Math.min(1, p.volume() + 0.1)); if (p.muted()) p.muted(false); return; }
       if (c.label === "Volume down") { p.volume(Math.max(0, p.volume() - 0.1)); return; }
       if (c.label === "Toggle mute") { p.muted(!p.muted()); return; }
+      if (c.label === "Toggle theater mode") { setTheater((v) => !v); return; }
       if (c.label === "Toggle fullscreen") {
         togglePlayerFs();
         return;

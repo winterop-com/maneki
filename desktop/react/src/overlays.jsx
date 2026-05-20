@@ -22,6 +22,7 @@ const SHORTCUTS_VIDEO = [
   { keys: ["←", "→"], sep: "/", label: "Seek −5s / +5s" },
   { keys: ["↑", "↓"], sep: "/", label: "Volume up / down" },
   { keys: ["m"], label: "Mute / unmute" },
+  { keys: ["t"], label: "Toggle theater mode" },
   { keys: ["f"], label: "Toggle fullscreen" },
   { keys: ["Esc"], label: "Exit fullscreen / close modal" },
   { keys: ["⌘", "P"], sep: "+", label: "Command palette" },
@@ -88,6 +89,7 @@ const PALETTE_CMDS_VIDEO_BASE = [
   { label: "Volume up", k: "↑" },
   { label: "Volume down", k: "↓" },
   { label: "Toggle mute", k: "m" },
+  { label: "Toggle theater mode", k: "t" },
   { label: "Toggle fullscreen", k: "f" },
   { label: "Show keyboard shortcuts", k: "?" },
 ];

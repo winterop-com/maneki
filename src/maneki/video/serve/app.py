@@ -42,6 +42,23 @@ from maneki.video.serve.transcode_budget import TranscodeBudget
 
 log = logging.getLogger(__name__)
 
+# Inline SVG used as the row-icon placeholder while a real thumbnail is
+# still being generated. Vector so one source scales for both the 320px
+# row icon and any zoom; rect background matches `--panel` from the SPA
+# so it blends with the surrounding pane. A small play triangle hints
+# that the placeholder is "a video" rather than a missing file. Served
+# verbatim with `Cache-Control: no-store` so the browser refetches when
+# the SPA bumps the img src after a /thumbnails/ready poll.
+_THUMB_PLACEHOLDER_SVG: bytes = (
+    b'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 180" '
+    b'preserveAspectRatio="xMidYMid meet">'
+    b'<rect width="320" height="180" fill="#1c2030"/>'
+    b'<g transform="translate(160 90)">'
+    b'<circle r="26" fill="#2a3045"/>'
+    b'<polygon points="-7,-11 11,0 -7,11" fill="#5a6280"/>'
+    b"</g></svg>"
+)
+
 # Module-level HLS manager so sessions survive across requests within one
 # server process. Each create_app call gets its own (passed in via closure),
 # scoped to that app's lifetime.
@@ -100,6 +117,12 @@ def create_app(root: Path, *, budget: TranscodeBudget | None = None) -> FastAPI:
     video_cache: list[VideoEntry] = []
     app.state.scan_tracker = scan_tracker
     app.state.video_cache = video_cache
+    # Track in-flight background thumbnail / poster generations so the
+    # endpoint's instant-placeholder path doesn't spawn duplicate ffmpeg
+    # tasks on rapid polling (the SPA refreshes /thumbnails/ready every
+    # few seconds while a folder is open).
+    _thumb_in_flight: set[str] = set()
+    _poster_in_flight: set[str] = set()
 
     def _videos() -> list[VideoEntry]:
         # Re-read app.state every call so updates from the lifespan
@@ -207,56 +230,156 @@ def create_app(root: Path, *, budget: TranscodeBudget | None = None) -> FastAPI:
             headers={"Cache-Control": "no-cache"},
         )
 
+    def _placeholder_response() -> Response:
+        """Return the inline SVG placeholder for an asset still being generated.
+
+        Status 202 says "request accepted, work is in progress". Browsers
+        render the body as a normal image regardless of status code, but
+        the 202 leaves a clear breadcrumb in network logs while debugging.
+        `no-store` keeps the browser from caching the placeholder so the
+        SPA's later `?v=<token>` bump always hits the server again.
+        """
+        return Response(
+            content=_THUMB_PLACEHOLDER_SVG,
+            media_type="image/svg+xml",
+            status_code=202,
+            headers={"Cache-Control": "no-store"},
+        )
+
+    def _schedule_thumbnail(video_id: str, path: Path, duration_s: float | None) -> None:
+        if video_id in _thumb_in_flight:
+            return
+        _thumb_in_flight.add(video_id)
+
+        async def _run() -> None:
+            try:
+                async with shared_budget.background_slot(quiet=False):
+                    await poster_manager.ensure_thumbnail(
+                        video_id,
+                        path,
+                        duration_s=duration_s,
+                    )
+            except Exception:  # noqa: BLE001 - background work must not crash the server
+                log.warning("thumbnail generation failed for %s", video_id, exc_info=True)
+            finally:
+                _thumb_in_flight.discard(video_id)
+
+        asyncio.create_task(_run())
+
+    def _schedule_poster(
+        video_id: str,
+        path: Path,
+        *,
+        size_bytes: int,
+        title: str,
+        duration_s: float | None,
+    ) -> None:
+        if video_id in _poster_in_flight:
+            return
+        _poster_in_flight.add(video_id)
+
+        async def _run() -> None:
+            try:
+                async with shared_budget.background_slot(quiet=False):
+                    await poster_manager.ensure_poster(
+                        video_id,
+                        path,
+                        size_bytes=size_bytes,
+                        title=title,
+                        duration_s=duration_s,
+                    )
+            except Exception:  # noqa: BLE001
+                log.warning("poster generation failed for %s", video_id, exc_info=True)
+            finally:
+                _poster_in_flight.discard(video_id)
+
+        asyncio.create_task(_run())
+
     @app.get("/api/videos/{video_id}/poster")
     async def video_poster(video_id: str) -> Response:
-        """Serve the contact-sheet poster (9-frame mosaic with header)."""
+        """Serve the contact-sheet poster, or a placeholder while it's being generated.
+
+        Cache hit: returns the cached PNG (200 OK). Cache miss: returns the
+        inline-SVG placeholder (202 Accepted) and schedules background
+        generation. The SPA polls /api/thumbnails/ready to discover when
+        the real poster lands and bumps its img src to refetch.
+        """
         entry = _find(video_id, root)
-        try:
-            assert_ffmpeg_available()
-        except FFmpegNotFoundError as exc:
-            raise HTTPException(status_code=503, detail=str(exc)) from exc
-        # Cache-hit fast path: a synthesised poster on disk skips the
-        # budget entirely so a warm library has zero gating overhead.
         cached = poster_manager.poster_path(video_id)
         if cached.exists():
             return FileResponse(cached, media_type="image/png")
         try:
-            # quiet=False: user is actively waiting on the row icon, so
-            # we yield to in-flight playback but skip the 30s quiet
-            # period that prewarm uses.
-            async with shared_budget.background_slot(quiet=False):
-                path = await poster_manager.ensure_poster(
-                    video_id,
-                    Path(entry["path"]),
-                    size_bytes=entry["size_bytes"],
-                    title=entry["name"],
-                    duration_s=entry["duration_s"],
-                )
-        except RuntimeError as exc:
-            raise HTTPException(status_code=503, detail=str(exc)) from exc
-        return FileResponse(path, media_type="image/png")
-
-    @app.get("/api/videos/{video_id}/thumbnail")
-    async def video_thumbnail(video_id: str) -> Response:
-        """Serve a single-frame JPEG thumbnail for the video-list row icon."""
-        entry = _find(video_id, root)
-        try:
             assert_ffmpeg_available()
         except FFmpegNotFoundError as exc:
             raise HTTPException(status_code=503, detail=str(exc)) from exc
+        _schedule_poster(
+            video_id,
+            Path(entry["path"]),
+            size_bytes=entry["size_bytes"],
+            title=entry["name"],
+            duration_s=entry["duration_s"],
+        )
+        return _placeholder_response()
+
+    @app.get("/api/videos/{video_id}/thumbnail")
+    async def video_thumbnail(video_id: str) -> Response:
+        """Serve a single-frame thumbnail, or a placeholder while it's generating.
+
+        Cache hit: returns the cached JPEG. Cache miss: returns the inline-SVG
+        placeholder (202) and schedules background generation; the SPA
+        polls /api/thumbnails/ready to flip from placeholder to real frame.
+        """
+        entry = _find(video_id, root)
         cached = poster_manager.thumbnail_path(video_id)
         if cached.exists():
             return FileResponse(cached, media_type="image/jpeg")
         try:
-            async with shared_budget.background_slot(quiet=False):
-                path = await poster_manager.ensure_thumbnail(
-                    video_id,
-                    Path(entry["path"]),
-                    duration_s=entry["duration_s"],
-                )
-        except RuntimeError as exc:
+            assert_ffmpeg_available()
+        except FFmpegNotFoundError as exc:
             raise HTTPException(status_code=503, detail=str(exc)) from exc
-        return FileResponse(path, media_type="image/jpeg")
+        _schedule_thumbnail(video_id, Path(entry["path"]), entry["duration_s"])
+        return _placeholder_response()
+
+    @app.delete("/api/videos/{video_id}/session")
+    def cancel_session(video_id: str) -> dict[str, int]:
+        """Cancel any in-flight HLS prefetch tasks for this video.
+
+        Called from the SPA's VideoPlayerPane cleanup right after
+        `player.dispose()`. Without this, speculative neighbour-segment
+        transcodes kicked off by the user's last segment request can
+        keep draining CPU for tens of seconds after the user has clicked
+        Close - the server was happily reporting `seg-0245.ts ... seg-0260.ts`
+        long after playback visibly stopped.
+
+        Returns the number of tasks cancelled (0 when there's no active
+        session, e.g. the SPA's image preloader hit thumbnails but never
+        actually opened the video). Idempotent - safe to call multiple
+        times or for ids that never streamed.
+        """
+        session = hls_manager.get(video_id)
+        if session is None:
+            return {"cancelled": 0}
+        return {"cancelled": session.cancel_prefetch()}
+
+    @app.get("/api/thumbnails/ready")
+    def thumbnails_ready() -> dict[str, list[str]]:
+        """Return the set of video IDs whose row thumbnail is cached on disk.
+
+        SPA polls this every few seconds while a folder is open. When an
+        id newly appears here, the SPA bumps that row's <img> src with a
+        version-bump query string so the placeholder gets swapped for the
+        real frame without a page reload.
+        """
+        cache_dir = poster_manager.cache_dir
+        if not cache_dir.is_dir():
+            return {"ready": []}
+        suffix = ".thumb.jpg"
+        ready: list[str] = []
+        for child in cache_dir.iterdir():
+            name = child.name
+            if name.endswith(suffix) and child.is_file():
+                ready.append(name[: -len(suffix)])
+        return {"ready": ready}
 
     @app.get("/api/videos/{video_id}/subtitles")
     def list_subtitles(video_id: str) -> list[dict[str, object]]:

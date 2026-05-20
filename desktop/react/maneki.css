@@ -405,6 +405,67 @@ body {
   100% { transform: translateX(330%); }
 }
 
+/* === Video player pane =================================================
+ * Theater layout: fixed header + a dark "stage" that fills the rest of
+ * the pane. The stage centers the player horizontally AND caps its
+ * width by (stage height x 16/9) so a wide-but-short pane doesn't
+ * leave a giant empty strip below the player. With `fluid: true` on
+ * video.js, capping the width also caps the height -- the player
+ * grows to fill whichever dimension is the binding one. */
+.mk-video-player-pane { padding: 0; }
+.mk-video-player-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px var(--mk-pane-pad) 8px;
+  border-bottom: 1px solid var(--line-soft);
+  min-width: 0;
+}
+.mk-video-player-titles { flex: 1; min-width: 0; }
+.mk-video-player-name {
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.mk-video-player-meta {
+  margin-top: 2px;
+  color: var(--text-dim);
+  font-family: var(--mk-mono);
+  font-size: 10px;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.mk-video-stage {
+  flex: 1;
+  min-height: 0;
+  background: #000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 14px;
+  container-type: size;
+}
+.mk-video-frame {
+  width: 100%;
+  /* The 28px subtracted from 100cqh accounts for the stage's 14px
+     top+bottom padding (cqh measures the container's padding box). */
+  max-width: calc((100cqh - 28px) * 16 / 9);
+}
+.mk-video-frame > div[data-vjs-player] { width: 100%; }
+/* Subtle YouTube-style rounded corners. overflow: hidden on the
+   video.js root clips both the <video> element AND the control bar
+   overlay so the corners stay clean during playback. */
+.mk-video-frame .video-js {
+  border-radius: 3px;
+  overflow: hidden;
+}
+
 /* Skeleton */
 .mk-skel {
   display: block;

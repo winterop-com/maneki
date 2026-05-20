@@ -59,6 +59,47 @@ def test_scan_status_reports_done_after_prewarm(library_root: Path) -> None:
     assert client.get("/api/videos").json()[0]["name"] == "ep1"
 
 
+def test_thumbnails_ready_empty_when_cache_cold(client: TestClient) -> None:
+    """Fresh server has nothing cached, so /thumbnails/ready returns an empty list."""
+    data = client.get("/api/thumbnails/ready").json()
+    assert data == {"ready": []}
+
+
+def test_thumbnails_ready_lists_cached_ids(client: TestClient, library_root: Path) -> None:
+    """When a thumbnail file lives on disk under the poster cache, its id appears."""
+    cache_dir = library_root / ".maneki" / "posters"
+    cache_dir.mkdir(parents=True, exist_ok=True)
+    (cache_dir / "abc-12345678.thumb.jpg").write_bytes(b"\xff\xd8\xff")
+    (cache_dir / "abc-12345678.png").write_bytes(b"\x89PNG\r\n\x1a\n")  # poster, not a thumb
+    data = client.get("/api/thumbnails/ready").json()
+    assert data == {"ready": ["abc-12345678"]}
+
+
+def test_thumbnail_endpoint_returns_placeholder_on_cache_miss(client: TestClient) -> None:
+    """Cache miss => 202 + SVG placeholder + Cache-Control: no-store.
+
+    The SPA renders the SVG into the row icon instantly; the server
+    schedules background ffmpeg generation. The next /thumbnails/ready
+    poll picks up the new file and triggers a refetch.
+    """
+    entries = client.get("/api/videos").json()
+    video_id = entries[0]["id"]
+    resp = client.get(f"/api/videos/{video_id}/thumbnail")
+    assert resp.status_code == 202
+    assert resp.headers["content-type"].startswith("image/svg+xml")
+    assert resp.headers.get("cache-control") == "no-store"
+    assert b"<svg" in resp.content
+
+
+def test_cancel_session_when_no_session_is_idempotent(client: TestClient) -> None:
+    """Closing the player for a video that never streamed is a no-op (0 cancelled)."""
+    entries = client.get("/api/videos").json()
+    video_id = entries[0]["id"]
+    resp = client.delete(f"/api/videos/{video_id}/session")
+    assert resp.status_code == 200
+    assert resp.json() == {"cancelled": 0}
+
+
 def test_capabilities_reports_video_present(client: TestClient) -> None:
     resp = client.get("/capabilities")
     assert resp.status_code == 200

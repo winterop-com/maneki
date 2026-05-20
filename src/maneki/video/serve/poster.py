@@ -26,6 +26,7 @@ from PIL import Image, ImageDraw, ImageFont
 from pydantic import BaseModel, ConfigDict
 
 from maneki.video.serve.scan import probe_duration
+from maneki.video.serve.transcode import low_priority_kwargs
 from maneki.video.serve.transcode_budget import TranscodeBudget
 
 POSTER_THUMB_WIDTH = 320
@@ -126,11 +127,18 @@ async def _extract_frame(input_path: Path, timestamp_s: float, out_path: Path) -
     if ffmpeg is None:
         return False
     out_path.parent.mkdir(parents=True, exist_ok=True)
+    # `-threads 1` keeps each poster-frame ffmpeg pegged to a single
+    # CPU thread; combined with the OS-idle priority below this lets
+    # foreground HLS segment transcodes (running at normal priority,
+    # without the threads cap) reliably win CPU even when 9 of these
+    # are running in parallel via `_gather_frames`.
     args = [
         ffmpeg,
         "-hide_banner",
         "-loglevel",
         "error",
+        "-threads",
+        "1",
         "-ss",
         f"{timestamp_s:.3f}",
         "-i",
@@ -146,6 +154,7 @@ async def _extract_frame(input_path: Path, timestamp_s: float, out_path: Path) -
         *args,
         stdout=asyncio.subprocess.DEVNULL,
         stderr=asyncio.subprocess.DEVNULL,
+        **low_priority_kwargs(),
     )
     rc = await proc.wait()
     return rc == 0 and out_path.exists()
@@ -287,11 +296,15 @@ async def generate_thumbnail(
         raise RuntimeError("ffmpeg is required to generate thumbnails")
     out_path.parent.mkdir(parents=True, exist_ok=True)
     ts = duration * 0.3
+    # `-threads 1` + OS-idle priority so a folder of N row-thumbnail
+    # generations can't starve the foreground HLS segment transcoder.
     args = [
         ffmpeg,
         "-hide_banner",
         "-loglevel",
         "error",
+        "-threads",
+        "1",
         "-ss",
         f"{ts:.3f}",
         "-i",
@@ -309,6 +322,7 @@ async def generate_thumbnail(
         *args,
         stdout=asyncio.subprocess.DEVNULL,
         stderr=asyncio.subprocess.DEVNULL,
+        **low_priority_kwargs(),
     )
     rc = await proc.wait()
     if rc != 0 or not out_path.exists():

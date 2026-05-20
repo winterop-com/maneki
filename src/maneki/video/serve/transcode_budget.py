@@ -45,6 +45,14 @@ from pydantic import BaseModel, ConfigDict
 # the clock over.
 DEFAULT_QUIET_AFTER_FG_S: float = 30.0
 
+# Shorter quiet period for on-demand `quiet=False` background work
+# (row thumbnails / posters / HLS prefetch). Steady-state playback
+# fires a new foreground HLS segment every ~6s; with a 3s threshold,
+# the system rarely stays quiet long enough between segments for
+# background work to acquire a slot mid-playback. When the user pauses
+# for 3+ seconds, the budget releases and queued thumbnails fill in.
+DEFAULT_ONDEMAND_QUIET_S: float = 3.0
+
 
 def default_workers() -> int:
     """Conservative default: half the CPU count, min 1, max 4.
@@ -79,6 +87,7 @@ class TranscodeBudget:
         max_workers: int | None = None,
         *,
         quiet_after_fg_s: float = DEFAULT_QUIET_AFTER_FG_S,
+        ondemand_quiet_s: float = DEFAULT_ONDEMAND_QUIET_S,
     ) -> None:
         workers = max_workers if max_workers is not None and max_workers > 0 else default_workers()
         self._max_workers = workers
@@ -89,6 +98,7 @@ class TranscodeBudget:
         self._idle_event = asyncio.Event()
         self._idle_event.set()
         self._quiet_after_fg_s = quiet_after_fg_s
+        self._ondemand_quiet_s = ondemand_quiet_s
         # Monotonic timestamp of the last foreground request that
         # finished. -inf means "no foreground has ever happened" -
         # background work can start immediately on a fresh server
@@ -121,16 +131,22 @@ class TranscodeBudget:
                 self._last_foreground_at = time.monotonic()
                 self._idle_event.set()
 
-    async def _wait_for_quiet(self) -> None:
+    async def _wait_for_quiet(self, quiet_window_s: float | None = None) -> None:
         """Sleep until both idle_event is set AND the quiet period has elapsed.
 
         Resets the wait if a new foreground request kicks `last_foreground_at`
         forward while we're sleeping (e.g. user unpauses).
+
+        `quiet_window_s` overrides the default per-budget quiet window;
+        used by `background_slot(quiet=False)` to wait the shorter
+        on-demand window (a few seconds) instead of the full prewarm
+        window (~30s) so row icons fill in faster after a pause.
         """
+        window = self._quiet_after_fg_s if quiet_window_s is None else quiet_window_s
         while True:
             await self._idle_event.wait()
             quiet_for = time.monotonic() - self._last_foreground_at
-            remaining = self._quiet_after_fg_s - quiet_for
+            remaining = window - quiet_for
             if remaining <= 0:
                 return
             # Sleep for the shorter of (remaining quiet time, until
@@ -156,35 +172,35 @@ class TranscodeBudget:
     async def background_slot(self, *, quiet: bool = True) -> AsyncGenerator[None, None]:
         """Acquire a background worker slot, yielding to foreground first.
 
-        Order: wait for idle (+ quiet period when `quiet=True`) -> acquire
-        semaphore -> re-check idle. The re-check matters because a foreground
-        request can arrive while we're queued on the semaphore; without it
-        a background transcode would start anyway and compete for ffmpeg CPU.
+        Order: wait for idle (+ quiet window) -> acquire semaphore ->
+        re-check idle. The re-check matters because a foreground request
+        can arrive while we're queued on the semaphore; without it a
+        background transcode would start anyway and compete for ffmpeg
+        CPU.
 
-        `quiet=True` (default) is for speculative work like prewarm and
-        prefetch: after a foreground request finishes the slot waits the
-        full quiet period before starting, so a paused user who scrubs
-        again doesn't trigger a flurry of ffmpegs.
+        Two flavours of quiet window:
 
-        `quiet=False` is for user-driven on-demand work (row thumbnails,
-        clicked posters): the user is actively waiting on the result, so
-        yield to in-flight foreground but resume as soon as it clears —
-        a 30s gap before the row icons appear feels broken.
+        - `quiet=True` (default) waits the full `quiet_after_fg_s` (~30s)
+          after the last foreground request before resuming. Right for
+          speculative prewarm and prefetch: a paused user who scrubs
+          again shouldn't trigger a flurry of ffmpegs.
+
+        - `quiet=False` waits the shorter `ondemand_quiet_s` (~3s).
+          Right for user-driven on-demand work (row thumbnails, clicked
+          posters): the user is actively waiting on the result, so we
+          want to resume as soon as playback genuinely pauses. Steady-
+          state HLS playback (a foreground segment every ~6s) keeps the
+          system out of the 3s quiet window so background work still
+          holds off during continuous playback - the row icons just
+          fill in once the user pauses.
         """
-        if quiet:
-            await self._wait_for_quiet()
-        else:
-            await self._idle_event.wait()
+        quiet_window = self._quiet_after_fg_s if quiet else self._ondemand_quiet_s
+        await self._wait_for_quiet(quiet_window)
         async with self._background_sem:
             # Foreground may have arrived while we were waiting on the
-            # semaphore. Re-check; honour the quiet period only when asked.
-            while not self._idle_event.is_set() or (
-                quiet and time.monotonic() - self._last_foreground_at < self._quiet_after_fg_s
-            ):
-                if quiet:
-                    await self._wait_for_quiet()
-                else:
-                    await self._idle_event.wait()
+            # semaphore. Re-check using the same quiet window.
+            while not self._idle_event.is_set() or time.monotonic() - self._last_foreground_at < quiet_window:
+                await self._wait_for_quiet(quiet_window)
             self._background_count += 1
             try:
                 yield
