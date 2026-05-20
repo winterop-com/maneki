@@ -381,6 +381,7 @@ def _probe_duration_uncached(path: Path) -> float | None:
                 "json",
                 str(path),
             ],
+            stdin=subprocess.DEVNULL,
             capture_output=True,
             text=True,
             timeout=5.0,

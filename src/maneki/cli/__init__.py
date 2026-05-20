@@ -130,45 +130,22 @@ def serve_cmd(
     demo page at /video/ doesn't speak the auth flow yet, so --auth and the
     demo are currently mutually exclusive in practice.
     """
-    import logging
-
     import uvicorn
 
+    from maneki.audio.serve.logging import configure_logging
     from maneki.serve_app import create_combined_app
 
-    # Single unified log config for everything in this process. Without
-    # this, two formats coexist: uvicorn's bare `INFO:     <message>`
-    # and stdlib's whatever-basicConfig-set-up — which mixes badly in
-    # the terminal. Bringing every logger through one formatter means
-    # `maneki.video.serve.scan: ...`, `uvicorn.access: GET /...`, and
-    # `maneki.audio.library.db: ...` all line up.
-    #
-    # Force=True on basicConfig ensures the call wins even if an
-    # earlier import already attached a root handler.
-    log_format = "%(asctime)s %(levelname)s %(name)s: %(message)s"
-    log_datefmt = "%H:%M:%S"
-    logging.basicConfig(level=logging.INFO, format=log_format, datefmt=log_datefmt, force=True)
-    uvicorn_log_config: dict[str, object] = {
-        "version": 1,
-        "disable_existing_loggers": False,
-        "formatters": {
-            "default": {"format": log_format, "datefmt": log_datefmt},
-        },
-        "handlers": {
-            "default": {
-                "class": "logging.StreamHandler",
-                "formatter": "default",
-                "stream": "ext://sys.stderr",
-            },
-        },
-        "loggers": {
-            # Replace uvicorn's `default` formatter (the `INFO:` lines)
-            # with ours; propagate=False so we don't get each line twice.
-            "uvicorn": {"handlers": ["default"], "level": "INFO", "propagate": False},
-            "uvicorn.error": {"handlers": ["default"], "level": "INFO", "propagate": False},
-            "uvicorn.access": {"handlers": ["default"], "level": "INFO", "propagate": False},
-        },
-    }
+    # Single unified log config for everything the server emits. Both
+    # `maneki.*` and `uvicorn.*` loggers reparent through structlog's
+    # ProcessorFormatter so every line — startup banner, scan progress,
+    # request logs from AccessLogMiddleware, errors — flows through the
+    # same renderer. Pretty (coloured ConsoleRenderer) by default;
+    # `MANEKI_LOG_FORMAT=json` switches to JSONRenderer for shipping.
+    configure_logging()
+    # Tell uvicorn to NOT install its own logging config — configure_logging()
+    # already wired up the root handler and reparented uvicorn's loggers
+    # through it. Passing log_config=None preserves our setup.
+    uvicorn_log_config = None
 
     combined = create_combined_app(
         root=root.resolve(),
@@ -178,6 +155,8 @@ def serve_cmd(
         rescan=rescan,
         prewarm_images=prewarm_images,
     )
+    import structlog
+
     flags: list[str] = []
     if auth:
         flags.append("auth on /video/*")
@@ -189,8 +168,17 @@ def serve_cmd(
         flags.append("prewarm-images")
     actual_workers = workers or "auto"
     flags.append(f"workers={actual_workers}")
-    flag_note = f" ({', '.join(flags)})"
-    typer.echo(f"maneki serve - {root.resolve()} on http://{host}:{port}{flag_note}")
+    # Banner through structlog so it matches the rest of the server's
+    # output (timestamp + level + key=value); the previous `typer.echo`
+    # call printed a plain line that broke the alignment of an
+    # otherwise-uniform stream.
+    structlog.get_logger("maneki.serve").info(
+        "maneki serve starting",
+        root=str(root.resolve()),
+        host=host,
+        port=port,
+        flags=", ".join(flags),
+    )
     uvicorn.run(combined, host=host, port=port, log_config=uvicorn_log_config)
 
 

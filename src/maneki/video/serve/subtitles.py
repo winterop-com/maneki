@@ -197,6 +197,7 @@ def probe_embedded_subtitles(video_path: Path) -> list[EmbeddedSubtitle]:
     try:
         result = subprocess.run(  # noqa: S603 - args are constructed locally
             args,
+            stdin=subprocess.DEVNULL,
             capture_output=True,
             text=True,
             timeout=10.0,
@@ -259,6 +260,7 @@ async def extract_embedded_to_vtt(
     out_path.parent.mkdir(parents=True, exist_ok=True)
     args = [
         ffmpeg,
+        "-nostdin",
         "-hide_banner",
         "-loglevel",
         "error",
@@ -280,6 +282,7 @@ async def extract_embedded_to_vtt(
     ]
     proc = await asyncio.create_subprocess_exec(
         *args,
+        stdin=asyncio.subprocess.DEVNULL,
         stdout=asyncio.subprocess.DEVNULL,
         stderr=asyncio.subprocess.PIPE,
     )
@@ -317,6 +320,7 @@ def _probe_video_start_time(video_path: Path) -> float:
                 "csv=p=0",
                 str(video_path),
             ],
+            stdin=subprocess.DEVNULL,
             capture_output=True,
             text=True,
             timeout=5.0,
