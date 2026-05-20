@@ -104,7 +104,7 @@ function LoginView({ onConnect, themeMode, busyLabel }) {
     <div className="mk-login-shell">
       <div className="mk-login-brand">
         <div className="mk-login-logo">Maneki</div>
-        <div className="mk-login-tag">desktop · v{document.querySelector('meta[name="mk-version"]')?.content || "?"}</div>
+        <div className="mk-login-tag">{isDesktop ? "desktop" : "web"} · v{document.querySelector('meta[name="mk-version"]')?.content || "?"}</div>
       </div>
       {/* noValidate: our custom check above ("Username and password
           are required") is the source of truth. Tauri's WKWebView

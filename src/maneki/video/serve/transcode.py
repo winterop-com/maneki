@@ -15,9 +15,13 @@ guessing wrong is higher.
 from __future__ import annotations
 
 import asyncio
+import os
 import shutil
+import subprocess
+import sys
 from collections.abc import AsyncIterator
 from pathlib import Path
+from typing import Any
 
 
 class FFmpegNotFoundError(RuntimeError):
@@ -40,6 +44,41 @@ def assert_ffmpeg_available() -> None:
     the async generator (which only runs once iteration begins).
     """
     _ffmpeg_path()
+
+
+def _idle_preexec() -> None:
+    """preexec_fn that demotes the child to OS-idle scheduling priority.
+
+    Sits at module scope (not nested in a factory) so the function is
+    picklable across the asyncio subprocess pipe and so we don't allocate
+    a fresh closure on every spawn.
+    """
+    try:  # pragma: no cover - exercised by spawned subprocesses
+        os.nice(19)
+    except (AttributeError, OSError):
+        pass
+
+
+def low_priority_kwargs() -> dict[str, Any]:
+    """Return Popen / create_subprocess_exec kwargs that demote priority.
+
+    Spawned ffmpegs (background thumbnail / poster / HLS prefetch) compete
+    with the foreground HLS segment transcoder at the OS scheduler level
+    — ffmpeg grabs all the threads it can get by default, so the
+    foreground player request stutters even when our asyncio-level
+    `TranscodeBudget` is keeping background work below the concurrency
+    cap. Lowering the OS priority of the background subprocess means the
+    kernel preempts it the moment the foreground transcoder has work,
+    even if both are runnable.
+
+    Unix: `os.nice(19)` in a preexec_fn (lowest priority allowed without
+    root).  Windows: `IDLE_PRIORITY_CLASS` via `creationflags`. Other
+    platforms: empty dict (no-op).
+    """
+    if sys.platform == "win32":  # pragma: no cover - non-Mac/Linux runtime
+        idle_class = getattr(subprocess, "IDLE_PRIORITY_CLASS", 0)
+        return {"creationflags": idle_class} if idle_class else {}
+    return {"preexec_fn": _idle_preexec}
 
 
 def _build_args(input_path: Path) -> list[str]:

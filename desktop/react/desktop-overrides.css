@@ -596,6 +596,24 @@ body[data-platform="darwin"]:not([data-shell="browser"]) .mk-kind-rail {
  * does not). Escape clears the body data-attribute via the React
  * handler in app.jsx.
  */
+/* Theater mode: hides the videos list + splitter so the player pane
+ * spans the whole video grid area. Lighter than player-fullscreen
+ * (topbar / mode rail stay visible); driven by app.jsx setting
+ * data-video-theater on <body> in response to the `t` shortcut.
+ *
+ * Collapsing to a SINGLE column (not "0 0 1fr") is deliberate: when
+ * the videos list and splitter are display:none, the remaining
+ * player pane auto-flows into the first available column. With
+ * "0 0 1fr" it would land in column 1 (zero width) and disappear;
+ * with a single 1fr column it lands in the only column there is. */
+body[data-video-theater="true"] .mk-browse-video {
+  grid-template-columns: 1fr !important;
+}
+body[data-video-theater="true"] .mk-browse-video .mk-albums-pane,
+body[data-video-theater="true"] .mk-browse-video .mk-vsplit {
+  display: none !important;
+}
+
 body[data-player-fullscreen="true"] .mk-drag-strip,
 body[data-player-fullscreen="true"] .mk-kind-rail,
 body[data-player-fullscreen="true"] .mk-topbar,
@@ -616,7 +634,7 @@ body[data-player-fullscreen="true"] .mk-browse {
   margin: 0 !important;
   grid-template-columns: none !important;
 }
-body[data-player-fullscreen="true"] .mk-tracks-pane {
+body[data-player-fullscreen="true"] .mk-video-player-pane {
   position: fixed !important;
   inset: 0 !important;
   width: 100vw !important;
@@ -631,10 +649,19 @@ body[data-player-fullscreen="true"] .mk-tracks-pane {
  * top of the viewport and push the video.js control bar mid-screen
  * instead of at the bottom. Hide them so the player covers edge to
  * edge - Esc / f exits, no Close button needed in fullscreen. */
-body[data-player-fullscreen="true"] .mk-tracks-pane > .mk-pane-label {
+body[data-player-fullscreen="true"] .mk-video-player-pane > .mk-pane-label {
   display: none !important;
 }
-body[data-player-fullscreen="true"] .mk-tracks-pane > div[data-vjs-player] {
+body[data-player-fullscreen="true"] .mk-video-player-pane .mk-video-stage {
+  padding: 0 !important;
+  background: #000 !important;
+}
+body[data-player-fullscreen="true"] .mk-video-player-pane .mk-video-frame {
+  max-width: none !important;
+  width: 100% !important;
+  height: 100% !important;
+}
+body[data-player-fullscreen="true"] .mk-video-player-pane div[data-vjs-player] {
   margin: 0 !important;
   width: 100% !important;
   height: 100% !important;
@@ -644,12 +671,12 @@ body[data-player-fullscreen="true"] .mk-tracks-pane > div[data-vjs-player] {
  * own object-fit so the picture stays correctly letterboxed inside).
  * Without this the player paints inside a 16:9 box that's smaller
  * than the viewport and the scrub bar sits mid-screen. */
-body[data-player-fullscreen="true"] .mk-tracks-pane .video-js {
+body[data-player-fullscreen="true"] .mk-video-player-pane .video-js {
   width: 100% !important;
   height: 100% !important;
   padding-top: 0 !important;
 }
-body[data-player-fullscreen="true"] .mk-tracks-pane .video-js.vjs-fluid {
+body[data-player-fullscreen="true"] .mk-video-player-pane .video-js.vjs-fluid {
   padding-top: 0 !important;
   height: 100vh !important;
 }

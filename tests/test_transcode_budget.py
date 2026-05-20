@@ -168,17 +168,23 @@ async def test_quiet_period_resets_on_unpause() -> None:
     assert waited_from_last_fg >= 0.35, f"bg started {waited_from_last_fg:.3f}s after most recent fg, expected >= 0.35"
 
 
-async def test_background_slot_quiet_false_yields_to_fg_but_skips_quiet() -> None:
+async def test_background_slot_quiet_false_uses_short_window() -> None:
     """`quiet=False` (on-demand row thumbnails / posters) yields to in-flight
-    foreground but does NOT wait the post-foreground quiet period.
+    foreground AND waits the shorter on-demand quiet window before resuming.
 
-    The quiet period is for speculative prewarm; user-driven calls show
-    visible "still empty" placeholders if they sit blocked for 30s after
-    every pause.
+    Steady-state HLS playback fires foreground segments every ~6s; with a
+    sub-segment on-demand quiet window, the budget keeps holding background
+    work off during continuous playback. The on-demand window is much
+    shorter than the prewarm `quiet_after_fg_s` so the icons fill in
+    quickly once the user actually pauses.
     """
     import time
 
-    budget = TranscodeBudget(max_workers=2, quiet_after_fg_s=0.5)
+    budget = TranscodeBudget(
+        max_workers=2,
+        quiet_after_fg_s=2.0,
+        ondemand_quiet_s=0.3,
+    )
     bg_started_at: list[float] = []
     fg_ended_at: list[float] = []
 
@@ -198,9 +204,11 @@ async def test_background_slot_quiet_false_yields_to_fg_but_skips_quiet() -> Non
 
     # Yielded to fg (so started after fg ended)...
     assert bg_started_at[0] >= fg_ended_at[0]
-    # ...but did NOT honour the 0.5s quiet period.
     gap = bg_started_at[0] - fg_ended_at[0]
-    assert gap < 0.2, f"on-demand waited {gap:.3f}s after fg; should resume immediately"
+    # ...respected the on-demand quiet window of 0.3s...
+    assert gap >= 0.25, f"on-demand started {gap:.3f}s after fg; expected >= 0.25 (the on-demand window)"
+    # ...but did NOT wait the longer 2s prewarm window.
+    assert gap < 1.0, f"on-demand waited {gap:.3f}s after fg; the prewarm window shouldn't have applied"
 
 
 async def test_state_reflects_in_flight_counts() -> None:

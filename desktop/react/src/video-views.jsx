@@ -40,6 +40,21 @@ function fmtSize(bytes) {
 // - `entries`: the response from /api/browse?path=<path>.
 // We refetch every time `path` changes, so backing out via a breadcrumb
 // pops back to the previously-fetched parent.
+// Inline data-URI placeholder for the <img onError> fallback. Belt-and-
+// braces in case the server's 202 placeholder never reaches the element
+// (HTTP error, mid-flight abort, etc.). Same look as the server-side
+// SVG so swapping in/out is invisible.
+const THUMB_FALLBACK_SVG =
+  "data:image/svg+xml;utf8," +
+  encodeURIComponent(
+    '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 180" preserveAspectRatio="xMidYMid meet">' +
+      '<rect width="320" height="180" fill="#1c2030"/>' +
+      '<g transform="translate(160 90)">' +
+      '<circle r="26" fill="#2a3045"/>' +
+      '<polygon points="-7,-11 11,0 -7,11" fill="#5a6280"/>' +
+      "</g></svg>",
+  );
+
 function VideosPane({ session, selectedId, onSelect }) {
   const [path, setPath] = useSt_vv("");
   const [entries, setEntries] = useSt_vv(null);
@@ -50,6 +65,12 @@ function VideosPane({ session, selectedId, onSelect }) {
   // (or once /api/browse returns) we stop polling and let the listing
   // take over.
   const [scan, setScan] = useSt_vv(null);
+  // Per-video-id refresh counter. Bumped when /thumbnails/ready newly
+  // reports an id as cached so the row's <img> src changes (appending
+  // ?v=<token>) and the browser refetches the now-warm thumbnail. Maps
+  // id -> int; missing entries render the bare URL (cache hit) or the
+  // server placeholder (cache miss).
+  const [thumbToken, setThumbToken] = useSt_vv({});
 
   useEff_vv(() => {
     let cancelled = false;
@@ -91,6 +112,48 @@ function VideosPane({ session, selectedId, onSelect }) {
   const folders = entries?.folders || [];
   const videos = entries?.videos || [];
   const empty = entries !== null && folders.length === 0 && videos.length === 0;
+
+  // Poll /thumbnails/ready while there are videos in the current folder
+  // whose thumbnails haven't been bumped yet. When an id newly appears
+  // in the ready set we increment its token; the <img> below renders
+  // `<url>?v=<token>` so the browser refetches and the placeholder
+  // swaps for the real frame. Stops polling once every visible video
+  // is bumped (or when the pane unmounts / path changes).
+  useEff_vv(() => {
+    if (!window.MK_VIDEO.thumbnailsReady || videos.length === 0) return undefined;
+    let cancelled = false;
+    let timer = null;
+    const tick = async () => {
+      if (cancelled) return;
+      const data = await window.MK_VIDEO.thumbnailsReady(session);
+      if (cancelled) return;
+      if (data && Array.isArray(data.ready)) {
+        const readySet = new Set(data.ready);
+        const visibleIds = videos.map((v) => v.id);
+        setThumbToken((prev) => {
+          let changed = false;
+          const next = { ...prev };
+          for (const id of visibleIds) {
+            if (readySet.has(id) && !next[id]) {
+              next[id] = 1;
+              changed = true;
+            }
+          }
+          return changed ? next : prev;
+        });
+        // Stop once every visible row has been bumped at least once.
+        const allBumped = visibleIds.every((id) => readySet.has(id));
+        if (allBumped) return;
+      }
+      timer = setTimeout(tick, 4000);
+    };
+    tick();
+    return () => {
+      cancelled = true;
+      if (timer !== null) clearTimeout(timer);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [session, path, videos.length]);
 
   return (
     <div className="mk-pane mk-albums-pane">
@@ -194,9 +257,17 @@ function VideosPane({ session, selectedId, onSelect }) {
             >
               <img
                 className="mk-album-cover-sm"
-                src={window.MK_VIDEO.thumbnailUrl(session, v.id)}
+                src={
+                  window.MK_VIDEO.thumbnailUrl(session, v.id)
+                  + (thumbToken[v.id] ? `?v=${thumbToken[v.id]}` : "")
+                }
                 alt=""
                 loading="lazy"
+                onError={(e) => {
+                  if (e.currentTarget.src !== THUMB_FALLBACK_SVG) {
+                    e.currentTarget.src = THUMB_FALLBACK_SVG;
+                  }
+                }}
                 style={{ objectFit: "cover", background: "var(--bg-elev2)" }}
               />
               <div className="mk-album-meta">
@@ -415,6 +486,13 @@ function VideoPlayerPane({ session, video, onClose }) {
       window.MK_VIDEO_PLAYER = null;
       try { player.dispose(); } catch { /* ignore */ }
       playerRef.current = null;
+      // Tell the server to drop any in-flight HLS prefetch tasks for
+      // this video. Without this, neighbour-segment transcodes queued
+      // behind the last segment request keep eating CPU long after
+      // the player visibly closes. `keepalive: true` (inside the API
+      // method) ensures the request survives this synchronous cleanup
+      // even if the tab is closing.
+      try { window.MK_VIDEO.cancelSession(session, video.id); } catch { /* ignore */ }
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [video.id]);
@@ -455,26 +533,43 @@ function VideoPlayerPane({ session, video, onClose }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [subtitles, video.id]);
 
+  const subCount = subtitles.length;
+  const metaBits = [
+    Number.isFinite(video.duration_s) ? fmtDuration(video.duration_s) : null,
+    Number.isFinite(video.size_bytes) ? fmtSize(video.size_bytes) : null,
+    subCount > 0 ? `${subCount} subtitle${subCount === 1 ? "" : "s"}` : null,
+  ].filter(Boolean);
   return (
-    <div className="mk-pane mk-tracks-pane" style={{ padding: 14 }}>
-      <div className="mk-pane-label" style={{
-        display: "flex", justifyContent: "space-between", alignItems: "center",
-      }}>
-        <span>{video.name}</span>
+    <div className="mk-pane mk-video-player-pane">
+      <div className="mk-video-player-header">
+        <div className="mk-video-player-titles">
+          <div className="mk-video-player-name">{video.name}</div>
+          {metaBits.length > 0 && (
+            <div className="mk-video-player-meta">{metaBits.join(" · ")}</div>
+          )}
+        </div>
         <button className="mk-signout" onClick={onClose} style={{ fontSize: 11 }}>Close</button>
       </div>
-      <div data-vjs-player style={{ marginTop: 10 }}>
-        <video
-          ref={videoRef}
-          className="video-js vjs-big-play-centered vjs-fluid"
-          playsInline
-          crossOrigin="anonymous"
-        >
-          {/* Subtitle <track> children are registered programmatically
-              via player.addRemoteTextTrack() in the useEffect above so
-              video.js's SubsCapsButton reliably sees them. JSX-rendered
-              tracks were racy with the player init. */}
-        </video>
+      <div className="mk-video-stage">
+        <div className="mk-video-frame">
+          {/* video.js v10 latches onto the [data-vjs-player] element and
+              rewrites its className on init, which is why we don't put
+              mk-video-frame on it directly - we'd lose the class the
+              moment the player initialises. */}
+          <div data-vjs-player>
+            <video
+              ref={videoRef}
+              className="video-js vjs-big-play-centered vjs-fluid"
+              playsInline
+              crossOrigin="anonymous"
+            >
+              {/* Subtitle <track> children are registered programmatically
+                  via player.addRemoteTextTrack() in the useEffect above so
+                  video.js's SubsCapsButton reliably sees them. JSX-rendered
+                  tracks were racy with the player init. */}
+            </video>
+          </div>
+        </div>
       </div>
     </div>
   );
@@ -539,6 +634,11 @@ function VideoSearchPane({ session, q, selectedId, onSelect }) {
                 src={window.MK_VIDEO.thumbnailUrl(session, v.id)}
                 alt=""
                 loading="lazy"
+                onError={(e) => {
+                  if (e.currentTarget.src !== THUMB_FALLBACK_SVG) {
+                    e.currentTarget.src = THUMB_FALLBACK_SVG;
+                  }
+                }}
                 style={{ objectFit: "cover", background: "var(--bg-elev2)" }}
               />
               <div className="mk-album-meta">

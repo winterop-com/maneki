@@ -37,7 +37,7 @@ from pathlib import Path
 
 from pydantic import BaseModel, ConfigDict
 
-from maneki.video.serve.transcode import FFmpegNotFoundError
+from maneki.video.serve.transcode import FFmpegNotFoundError, low_priority_kwargs
 from maneki.video.serve.transcode_budget import TranscodeBudget
 
 # 6s chunks: standard HLS recommendation - large enough that per-segment
@@ -130,8 +130,13 @@ class OnDemandHLS:
     def manifest(self) -> str:
         return build_manifest(self.segments)
 
-    async def ensure_segment(self, idx: int) -> Path:
-        """Return the path to segment `idx`, transcoding it if not cached."""
+    async def ensure_segment(self, idx: int, *, low_priority: bool = False) -> Path:
+        """Return the path to segment `idx`, transcoding it if not cached.
+
+        `low_priority=True` (used by the prefetch path) demotes the spawned
+        ffmpeg to OS-idle priority + 1 thread so a foreground transcode
+        kicked off mid-prefetch wins CPU.
+        """
         if idx < 0 or idx >= len(self.segments):
             raise IndexError(f"segment {idx} out of range (have {len(self.segments)})")
         out_path = self.session_dir / f"seg-{idx:04d}.ts"
@@ -141,7 +146,7 @@ class OnDemandHLS:
         async with lock:
             if out_path.exists():
                 return out_path
-            await self._transcode_segment(idx)
+            await self._transcode_segment(idx, low_priority=low_priority)
         return out_path
 
     def prefetch_neighbors(self, idx: int) -> None:
@@ -170,13 +175,13 @@ class OnDemandHLS:
     async def _safe_prefetch(self, idx: int) -> None:
         try:
             async with self._budget.background_slot():
-                await self.ensure_segment(idx)
+                await self.ensure_segment(idx, low_priority=True)
         except Exception:  # noqa: BLE001 - background prefetch must not crash the server
             pass
         finally:
             self._prefetch_tasks.pop(idx, None)
 
-    async def _transcode_segment(self, idx: int) -> None:
+    async def _transcode_segment(self, idx: int, *, low_priority: bool = False) -> None:
         spec = self.segments[idx]
         self.session_dir.mkdir(parents=True, exist_ok=True)
         # Each segment is encoded as an independent slice, but its output
@@ -202,11 +207,17 @@ class OnDemandHLS:
         # `-force_key_frames expr:gte(t,0)` makes the first frame a
         # keyframe so the segment is independently decodable.
         dummy_m3u8 = self.session_dir / f"_dummy_{idx}.m3u8"
+        # Prefetch / background segments are pinned to a single ffmpeg
+        # thread so the OS-idle priority kicks in cleanly; foreground
+        # segments use ffmpeg's default thread count (auto = many) so
+        # the player's segment lands as fast as possible.
+        thread_args = ["-threads", "1"] if low_priority else []
         args = [
             _ffmpeg_path(),
             "-hide_banner",
             "-loglevel",
             "warning",
+            *thread_args,
             "-ss",
             f"{spec.start_s:.6f}",
             "-i",
@@ -249,10 +260,12 @@ class OnDemandHLS:
             str(idx),
             str(dummy_m3u8),
         ]
+        spawn_kwargs = low_priority_kwargs() if low_priority else {}
         proc = await asyncio.create_subprocess_exec(
             *args,
             stdout=asyncio.subprocess.DEVNULL,
             stderr=asyncio.subprocess.PIPE,
+            **spawn_kwargs,
         )
         try:
             _, stderr = await proc.communicate()
@@ -284,6 +297,25 @@ class OnDemandHLS:
 
     def cleanup_dir(self) -> None:
         shutil.rmtree(self.session_dir, ignore_errors=True)
+
+    def cancel_prefetch(self) -> int:
+        """Cancel every in-flight neighbour-prefetch task.
+
+        Called when the SPA closes the player so speculative segment
+        transcodes that were queued behind the user's last segment
+        request don't keep draining CPU after the user has visibly
+        stopped watching. Returns the number of tasks cancelled (mostly
+        useful for tests). Best-effort: a task that has already crossed
+        into ffmpeg subprocess.run will see CancelledError propagate
+        from its `await proc.communicate()`, which kills the subprocess
+        via the existing CancelledError handler in `_transcode_segment`.
+        """
+        cancelled = 0
+        for task in list(self._prefetch_tasks.values()):
+            if not task.done():
+                task.cancel()
+                cancelled += 1
+        return cancelled
 
 
 # Bump this whenever the HLS segment generation changes in a way that

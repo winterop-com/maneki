@@ -136,6 +136,37 @@
     thumbnailUrl(session, videoId) {
       return `${videoApiBase(session)}/videos/${encodeURIComponent(videoId)}/thumbnail`;
     },
+
+    // Returns { ready: [video_id, ...] } - the set of ids whose row
+    // thumbnail is cached on disk right now. VideosPane polls this
+    // every few seconds while a folder is open so it can swap the
+    // SVG placeholder for the real frame as each thumbnail finishes
+    // generating, without forcing a full page refresh. Returns null
+    // on error so the caller doesn't crash its poll loop.
+    async thumbnailsReady(session) {
+      try {
+        return await call(`${videoApiBase(session)}/thumbnails/ready`);
+      } catch {
+        return null;
+      }
+    },
+
+    // Server-side hook: kill any in-flight HLS prefetch / transcode
+    // for this video. Called from VideoPlayerPane cleanup so closing
+    // the player actually stops the segment pipeline instead of
+    // letting ~30s of speculative transcodes drain to disk. Uses
+    // `keepalive: true` so the browser still sends the request even
+    // when the component is unmounting / the tab is closing. Best-
+    // effort: failures are swallowed since there's nothing useful
+    // to do on the SPA side if the server's already gone.
+    async cancelSession(session, videoId) {
+      try {
+        await fetch(
+          `${videoApiBase(session)}/videos/${encodeURIComponent(videoId)}/session`,
+          { method: "DELETE", keepalive: true },
+        );
+      } catch { /* best-effort */ }
+    },
   };
 
   window.MK_VIDEO = MK_VIDEO;
