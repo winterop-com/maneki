@@ -30,6 +30,7 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import logging
 import math
 import shutil
 import tempfile
@@ -39,6 +40,8 @@ from pydantic import BaseModel, ConfigDict
 
 from maneki.video.serve.transcode import FFmpegNotFoundError, low_priority_kwargs
 from maneki.video.serve.transcode_budget import TranscodeBudget
+
+_log = logging.getLogger(__name__)
 
 # 6s chunks: standard HLS recommendation - large enough that per-segment
 # ffmpeg startup overhead isn't a bottleneck, small enough that seek
@@ -176,8 +179,21 @@ class OnDemandHLS:
         try:
             async with self._budget.background_slot():
                 await self.ensure_segment(idx, low_priority=True)
-        except Exception:  # noqa: BLE001 - background prefetch must not crash the server
-            pass
+        except asyncio.CancelledError:
+            # Cancellation is the expected path when the player closes
+            # mid-stream — quiet.
+            raise
+        except Exception as exc:  # noqa: BLE001 - background prefetch must not crash the server
+            # Was previously a silent `pass`. A single corrupt source
+            # file used to drop every neighbour transcode with no
+            # signal in the logs; now the user sees the first failure
+            # and can decide whether to investigate.
+            _log.warning(
+                "hls: prefetch failed for %s seg-%04d: %s",
+                self.video_id,
+                idx,
+                exc,
+            )
         finally:
             self._prefetch_tasks.pop(idx, None)
 
@@ -393,23 +409,30 @@ class HLSManager:
         cache would otherwise sit on disk forever. Returns the number
         of directories removed.
         """
-        if not self.base_dir.is_dir():
-            return 0
         removed = 0
-        for path in self.base_dir.iterdir():
-            if not path.is_dir():
-                continue
-            if path.name in live_ids:
-                continue
-            try:
-                shutil.rmtree(path)
-                removed += 1
-                # Also drop any in-memory session for the orphan id, in
-                # case the server has been running long enough to have
-                # an entry from a previous library scan.
-                self.sessions.pop(path.name, None)
-            except OSError:
-                pass
+        if self.base_dir.is_dir():
+            for path in self.base_dir.iterdir():
+                if not path.is_dir():
+                    continue
+                if path.name in live_ids:
+                    continue
+                try:
+                    shutil.rmtree(path)
+                    removed += 1
+                except OSError:
+                    pass
+        # Drop in-memory sessions whose ids are no longer in the
+        # library. The on-disk loop above only catches sessions that
+        # ever transcoded a segment (and thus have a session dir); a
+        # session that opened a manifest but never had a seg request
+        # has no directory yet but still holds an asyncio.Lock per
+        # potential segment in `_segment_locks` — on a 2h video at
+        # 6s segments that's 1200 lock slots per stale entry.
+        for stale_id in [vid for vid in self.sessions if vid not in live_ids]:
+            session = self.sessions.pop(stale_id, None)
+            if session is not None:
+                session._segment_locks.clear()
+                session._prefetch_tasks.clear()
         return removed
 
     def reset(self) -> None:

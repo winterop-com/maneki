@@ -98,6 +98,14 @@ class VideoLibraryWatcher:
     def _dispatch_rescan(self) -> None:
         """Hand the async rescan coroutine to the FastAPI event loop."""
         if self._loop is None or self._loop.is_closed():
+            # Previously a silent no-op. If a file change arrives during
+            # shutdown the user got no signal that the rescan didn't
+            # happen — surface it so they can tell apart "watcher
+            # disabled" from "watcher silently broke".
+            log.warning(
+                "video watcher: event loop is closed; rescan for %s not dispatched",
+                self._root,
+            )
             return
         log.info("video watcher: debounce elapsed; dispatching rescan")
         asyncio.run_coroutine_threadsafe(self._rescan(), self._loop)

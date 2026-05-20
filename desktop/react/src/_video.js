@@ -151,6 +151,22 @@
       }
     },
 
+    // Fire-and-forget hot-reload trigger. Server returns 200 + the
+    // current ScanState snapshot right away (the actual rescan runs
+    // out-of-band on the asyncio loop); SPA polls /scan_status to
+    // observe progress. No-op if a scan is already running on the
+    // server (re-entry guarded by the scan_tracker phase). Returns
+    // null on error so the caller can fall back to "we tried" UX.
+    async triggerScan(session) {
+      try {
+        const resp = await fetch(`${videoApiBase(session)}/scan`, { method: "POST" });
+        if (!resp.ok) return null;
+        return await resp.json();
+      } catch {
+        return null;
+      }
+    },
+
     // Server-side hook: kill any in-flight HLS prefetch / transcode
     // for this video. Called from VideoPlayerPane cleanup so closing
     // the player actually stops the segment pipeline instead of

@@ -13,6 +13,7 @@ doesn't pre-probe an entire 1000-file library at startup.
 from __future__ import annotations
 
 import asyncio
+import functools
 import json
 import logging
 import shutil
@@ -62,7 +63,12 @@ VIDEO_EXTENSIONS = frozenset(
 # `.musickit` legacy location are also skipped.
 _SCAN_SKIP_DIR_NAMES = frozenset({".maneki", ".musickit", ".git", "__pycache__"})
 
-_DURATION_CACHE: dict[str, float | None] = {}
+# Cap on the in-memory duration cache. A 20k-entry LRU keeps the
+# steady-state library probe O(1) without growing unbounded on a
+# long-running server that's watched a library through many rescans /
+# renames. Eviction reverts to a fresh ffprobe (~100ms), which is
+# acceptable for a cold-miss on a library larger than the cap.
+_DURATION_CACHE_MAX = 20000
 
 
 class SubtitleSummary(TypedDict):
@@ -189,7 +195,7 @@ async def prewarm_scan(root: Path, tracker: VideoScanTracker) -> list[VideoEntry
 
     The walk runs in a single worker thread (cheap, sequential is fine).
     Probes are awaitable; gather + Semaphore caps in-flight work.
-    Populates `_DURATION_CACHE` as a side effect, so the next
+    Populates `probe_duration`'s LRU cache as a side effect, so the next
     `scan_videos(root)` is effectively a cache hit.
 
     Caller is expected to put this on a `lifespan` startup task and stash
@@ -350,19 +356,16 @@ def _count_videos(dir_path: Path) -> int:
     return count
 
 
+@functools.lru_cache(maxsize=_DURATION_CACHE_MAX)
 def probe_duration(path: Path) -> float | None:
     """Return the file's duration in seconds via ffprobe; cached per path.
 
     Returns None if ffprobe is missing, the file can't be parsed, or the
-    duration field is absent. Cache key is the absolute path string - the
-    cache is shared across the process and survives until restart.
+    duration field is absent. The cache is bounded by `_DURATION_CACHE_MAX`
+    (LRU eviction) so a long-running server watching a churning library
+    doesn't grow this dict without bound.
     """
-    key = str(path)
-    if key in _DURATION_CACHE:
-        return _DURATION_CACHE[key]
-    duration = _probe_duration_uncached(path)
-    _DURATION_CACHE[key] = duration
-    return duration
+    return _probe_duration_uncached(path)
 
 
 def _probe_duration_uncached(path: Path) -> float | None:

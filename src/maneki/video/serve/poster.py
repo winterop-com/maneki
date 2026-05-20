@@ -407,6 +407,13 @@ class PosterManager:
                     removed += 1
                 except OSError:
                     pass
+        # Drop any in-memory locks for ids that no longer exist in the
+        # library. Without this the dict grows monotonically across
+        # rescans / file moves on a long-running server (each id ever
+        # touched lingers forever, asyncio.Lock instances aren't free).
+        stale_lock_keys = [key for key in self._locks if key[0] not in live_ids]
+        for key in stale_lock_keys:
+            self._locks.pop(key, None)
         return removed
 
     async def ensure_poster(
@@ -485,6 +492,13 @@ class PosterManager:
         # task. Logging every 25 keeps a 1313-video library showing a
         # tick every few seconds without spamming a small library.
         log_every = max(1, min(_PREWARM_LOG_EVERY, total // 20 or 1))
+        # Per-phase failure counters. Each task catches its own
+        # exception (so one bad file doesn't take down the gather()
+        # call) and bumps the matching counter; the phase runner logs
+        # the total at the end so an `--prewarm-images` run with
+        # silently-failing ffmpeg jobs surfaces as a clear "N failures"
+        # line instead of an opaque "20% of thumbnails missing".
+        failures: dict[str, int] = {"subtitle-probe": 0, "thumbnails": 0, "posters": 0}
 
         async def _phase_runner(
             label: str,
@@ -497,6 +511,14 @@ class PosterManager:
                 done += 1
                 if done % log_every == 0 or done == total:
                     log.info("prewarm-images: %s %d / %d", label, done, total)
+            n_failed = failures[label]
+            if n_failed:
+                log.warning(
+                    "prewarm-images: %s phase finished with %d failure(s) out of %d",
+                    label,
+                    n_failed,
+                    total,
+                )
 
         async def _probe_subs(entry: dict[str, object]) -> None:
             # The probe itself is sync (subprocess.run blocks), so run
@@ -506,8 +528,13 @@ class PosterManager:
             async with self.budget.background_slot():
                 try:
                     await asyncio.to_thread(probe_embedded_subtitles, Path(str(entry["path"])))
-                except Exception:  # noqa: BLE001
-                    pass
+                except Exception as exc:  # noqa: BLE001 - one bad file mustn't crash the prewarm
+                    failures["subtitle-probe"] += 1
+                    log.warning(
+                        "prewarm-images: subtitle probe failed for %s: %s",
+                        entry.get("id"),
+                        exc,
+                    )
 
         async def _thumb(entry: dict[str, object]) -> None:
             async with self.budget.background_slot():
@@ -517,8 +544,13 @@ class PosterManager:
                         Path(str(entry["path"])),
                         duration_s=entry.get("duration_s"),  # type: ignore[arg-type]
                     )
-                except Exception:  # noqa: BLE001 - prewarm must not crash the server
-                    pass
+                except Exception as exc:  # noqa: BLE001
+                    failures["thumbnails"] += 1
+                    log.warning(
+                        "prewarm-images: thumbnail generation failed for %s: %s",
+                        entry.get("id"),
+                        exc,
+                    )
 
         async def _poster(entry: dict[str, object]) -> None:
             async with self.budget.background_slot():
@@ -532,8 +564,13 @@ class PosterManager:
                         title=str(entry["name"]),
                         duration_s=float(raw_dur) if isinstance(raw_dur, (int, float)) else None,
                     )
-                except Exception:  # noqa: BLE001
-                    pass
+                except Exception as exc:  # noqa: BLE001
+                    failures["posters"] += 1
+                    log.warning(
+                        "prewarm-images: poster generation failed for %s: %s",
+                        entry.get("id"),
+                        exc,
+                    )
 
         await _phase_runner("subtitle-probe", [asyncio.ensure_future(_probe_subs(e)) for e in entries])
         await _phase_runner("thumbnails", [asyncio.ensure_future(_thumb(e)) for e in entries])

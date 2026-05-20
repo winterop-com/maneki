@@ -59,6 +59,12 @@ function VideosPane({ session, selectedId, onSelect }) {
   const [path, setPath] = useSt_vv("");
   const [entries, setEntries] = useSt_vv(null);
   const [error, setError] = useSt_vv(null);
+  // Bumped by the Rescan button to re-trigger the /browse fetch + the
+  // scan-status poll loop after the user manually kicks /api/scan.
+  // The server's rescan runs out-of-band so we can't await it directly;
+  // re-rendering with `entries=null` puts us back into the progressbar
+  // state and the existing effects pick up the running scan.
+  const [refreshNonce, setRefreshNonce] = useSt_vv(0);
   // Live scan progress (`{ scanning, phase, total, scanned }`) for the
   // root-level cold start. Polled only while entries are still null
   // AND the server reports scanning=true; once the prewarm finishes
@@ -80,7 +86,7 @@ function VideosPane({ session, selectedId, onSelect }) {
       (err) => { if (!cancelled) setError(String(err.message || err)); },
     );
     return () => { cancelled = true; };
-  }, [session, path]);
+  }, [session, path, refreshNonce]);
 
   // Scan-progress poll. Runs only while the library is still loading
   // at the root (path === "" and entries === null). The server's
@@ -155,6 +161,16 @@ function VideosPane({ session, selectedId, onSelect }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [session, path, videos.length]);
 
+  const onRescan = async () => {
+    if (!window.MK_VIDEO.triggerScan) return;
+    // Clear entries so the loading state + scan-status poll resume;
+    // the /browse fetch above will re-run on the bumped nonce when
+    // the user (or the natural completion) returns them here.
+    setEntries(null);
+    setRefreshNonce((n) => n + 1);
+    await window.MK_VIDEO.triggerScan(session);
+  };
+
   return (
     <div className="mk-pane mk-albums-pane">
       <div className="mk-pane-label mk-video-crumbs">
@@ -180,6 +196,18 @@ function VideosPane({ session, selectedId, onSelect }) {
             </React.Fragment>
           );
         })}
+        <button
+          type="button"
+          className="mk-rescan-btn"
+          onClick={onRescan}
+          title="Rescan library (re-walks the root, picks up new / removed files)"
+          aria-label="Rescan library"
+        >
+          <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M21 12a9 9 0 11-3-6.7L21 8"/>
+            <path d="M21 3v5h-5"/>
+          </svg>
+        </button>
       </div>
       {error !== null && <div className="mk-empty"><div className="mk-empty-title">{error}</div></div>}
       {error === null && entries === null && (
@@ -302,6 +330,11 @@ function VideoPlayerPane({ session, video, onClose }) {
   const videoRef = useRef_vv(null);
   const playerRef = useRef_vv(null);
   const [subtitles, setSubtitles] = useSt_vv(video.subtitles || []);
+  // Latest player error message (or null when playing cleanly).
+  // Surfaced as a banner overlay so the user gets actionable feedback
+  // instead of an opaque black canvas when HLS fails (server 503,
+  // ffmpeg gone, recovery cooldown engaged, etc.).
+  const [playerError, setPlayerError] = useSt_vv(null);
 
   // Fetch subtitles list (the listing's `subtitles` field is summary;
   // the endpoint may have more detail by the time we get here). Note: we
@@ -448,6 +481,26 @@ function VideoPlayerPane({ session, video, onClose }) {
     };
     player.on("error", recoverFromBlacklist);
 
+    // Surface error to the UI. Runs alongside the auto-recovery path:
+    // recoverFromBlacklist only kicks in for a specific class of HLS
+    // playlist failures and is cooldown-gated, so for everything else
+    // (or when cooldown is engaged), the user previously saw a black
+    // canvas with no signal. Now they get a banner with the error
+    // message and a retry button.
+    const captureError = () => {
+      try {
+        const err = player.error();
+        if (!err) return;
+        setPlayerError(String(err.message || "Playback error").trim());
+      } catch (_e) { /* dead player */ }
+    };
+    player.on("error", captureError);
+    // Clear the banner once playback actually starts again (whether
+    // from auto-recovery or a user-triggered retry).
+    const clearError = () => setPlayerError(null);
+    player.on("playing", clearError);
+    player.on("loadeddata", clearError);
+
     // Recovery for MSE buffer lockups. Two failure modes:
     //   1. alt-tab away, return, player stuck (browser throttles MSE
     //      when backgrounded)
@@ -545,6 +598,26 @@ function VideoPlayerPane({ session, video, onClose }) {
     Number.isFinite(video.size_bytes) ? fmtSize(video.size_bytes) : null,
     subCount > 0 ? `${subCount} subtitle${subCount === 1 ? "" : "s"}` : null,
   ].filter(Boolean);
+  const onRetryPlayback = () => {
+    const player = playerRef.current;
+    if (!player) return;
+    try {
+      const lastTime = player.currentTime() || 0;
+      player.error(null);
+      player.src({
+        src: window.MK_VIDEO.hlsUrl(session, video.id),
+        type: "application/x-mpegURL",
+      });
+      player.one("loadedmetadata", () => {
+        try {
+          if (Number.isFinite(lastTime) && lastTime > 0) player.currentTime(lastTime);
+          player.play().catch(() => {});
+        } catch (_e) { /* dead player */ }
+      });
+      setPlayerError(null);
+    } catch (_e) { /* dead player */ }
+  };
+
   return (
     <div className="mk-pane mk-video-player-pane">
       <div className="mk-video-player-header">
@@ -557,6 +630,17 @@ function VideoPlayerPane({ session, video, onClose }) {
         <button className="mk-signout" onClick={onClose} style={{ fontSize: 11 }}>Close</button>
       </div>
       <div className="mk-video-stage">
+        {playerError && (
+          <div className="mk-player-error" role="alert">
+            <div className="mk-player-error-msg">
+              <strong>Playback error</strong>
+              <span>{playerError}</span>
+            </div>
+            <button type="button" className="mk-player-error-retry" onClick={onRetryPlayback}>
+              Retry
+            </button>
+          </div>
+        )}
         <div className="mk-video-frame">
           {/* video.js v10 latches onto the [data-vjs-player] element and
               rewrites its className on init, which is why we don't put
