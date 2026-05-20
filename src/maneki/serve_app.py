@@ -164,8 +164,11 @@ def create_combined_app(
         )
         # VideoLibraryWatcher uses a deferred import so the heavy
         # `watchdog` dependency only loads when a video mount is
-        # actually present.
+        # actually present. video_index is the persistent SQLite cache
+        # of file metadata — opened once at startup, shared across the
+        # initial scan and every watcher-triggered rescan.
         watcher: Any = None
+        video_index: Any = None
 
         async def _do_scan(*, do_prewarm_images: bool) -> None:
             """One pass of library scan + orphan sweep + optional image prewarm.
@@ -185,7 +188,11 @@ def create_combined_app(
 
             from maneki.video.serve.scan import prewarm_scan
 
-            videos = await prewarm_scan(video_sub.state.library_root, video_sub.state.scan_tracker)
+            videos = await prewarm_scan(
+                video_sub.state.library_root,
+                video_sub.state.scan_tracker,
+                index=video_index,
+            )
             video_sub.state.video_cache = videos
             live_ids = {v["id"] for v in videos}
             video_sub.state.poster_manager.clean_orphans(live_ids)
@@ -206,16 +213,29 @@ def create_combined_app(
                 return
             video_sub = video_sub_app
 
+            # Open the persistent SQLite index. From here on every
+            # call into _do_scan reuses already-probed rows; ffprobe
+            # only runs for new or changed files. Lifespan owns the
+            # connection — closed in the finally block below.
+            from maneki.video.serve.scan_cache import VideoIndex
+
+            nonlocal video_index
+            video_index = VideoIndex(video_sub.state.library_root)
+
             # --rescan: blow away the on-disk thumbnail + poster cache so
-            # the next prewarm / on-demand request regenerates everything.
-            # Subtitle + HLS caches stay (those are content-addressed and
-            # don't go stale the same way a poster does when a user
-            # re-encodes or re-edits a file).
+            # the next prewarm / on-demand request regenerates everything,
+            # AND wipe every row in the video index so the upcoming
+            # prewarm_scan re-ffprobes the whole tree. Subtitle + HLS
+            # caches stay (those are content-addressed and don't go
+            # stale the same way a poster does when a user re-encodes
+            # or re-edits a file).
             if rescan:
                 cache_dir = video_sub.state.poster_manager.cache_dir
                 if cache_dir.is_dir():
                     _log.info("rescan: wiping poster/thumbnail cache at %s", cache_dir)
                     shutil.rmtree(cache_dir, ignore_errors=True)
+                _log.info("rescan: wiping persistent video index")
+                video_index.clear()
 
             # Initial library scan. _do_scan also drives subsequent
             # watcher-triggered rescans, so any change here is shared.
@@ -245,6 +265,9 @@ def create_combined_app(
             if watcher is not None:
                 with contextlib.suppress(Exception):
                     watcher.stop()
+            if video_index is not None:
+                with contextlib.suppress(Exception):
+                    video_index.close()
 
     combined = FastAPI(title="maneki", version=__version__, lifespan=_lifespan)
 

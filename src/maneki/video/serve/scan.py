@@ -23,6 +23,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, TypedDict
 
 if TYPE_CHECKING:
+    from maneki.video.serve.scan_cache import VideoIndex
     from maneki.video.serve.scan_state import VideoScanTracker
 
 log = logging.getLogger(__name__)
@@ -178,25 +179,34 @@ _WALK_LOG_EVERY = 250
 _PROBE_LOG_EVERY = 50
 
 
-async def prewarm_scan(root: Path, tracker: VideoScanTracker) -> list[VideoEntry]:
-    """Walk the library, probe every file, and report progress on the tracker.
+async def prewarm_scan(
+    root: Path,
+    tracker: VideoScanTracker,
+    *,
+    index: VideoIndex | None = None,
+) -> list[VideoEntry]:
+    """Walk the library, probe new/changed files, return the full list.
+
+    With `index` supplied (the persistent SQLite cache), this is the
+    delta-scan path: walk the filesystem, compare each file's (mtime,
+    size_bytes) against the cached fingerprint, and only ffprobe files
+    that are new or have changed on disk. Cached rows are reused as-is.
+    Deleted files are pruned from the index. Result is the union of
+    reused cache entries + freshly probed entries.
+
+    Without `index` (tests, direct sub-app use), the legacy path runs:
+    ffprobe every file every call.
 
     Two-phase, both reported live to the SPA progressbar:
 
     1. **Walk** — directory traversal. We tick `walked` per file as it's
        discovered so the SPA shows "discovering: N files" instead of an
-       opaque pulse. On deep trees the walk itself takes a few seconds.
+       opaque pulse.
 
-    2. **Probe** — ffprobe each file for duration + sidecar discovery.
-       Parallelised at `_PREWARM_PROBE_CONCURRENCY` so a 1000-file
-       library finishes in ~25s instead of ~200s (each ffprobe is
-       ~100-200ms wall-clock, dominated by subprocess startup). Each
-       probe ticks `scanned` so the progressbar advances live.
-
-    The walk runs in a single worker thread (cheap, sequential is fine).
-    Probes are awaitable; gather + Semaphore caps in-flight work.
-    Populates `probe_duration`'s LRU cache as a side effect, so the next
-    `scan_videos(root)` is effectively a cache hit.
+    2. **Probe** — ffprobe new / changed files only. With a warm cache
+       a follow-up rescan touches ffmpeg only for files the user
+       actually added or modified, so a 10k-file library that took
+       ~20s on first start completes in milliseconds on restart.
 
     Caller is expected to put this on a `lifespan` startup task and stash
     the returned list on `app.state` for the listing endpoints to read.
@@ -221,46 +231,116 @@ async def prewarm_scan(root: Path, tracker: VideoScanTracker) -> list[VideoEntry
 
     await asyncio.to_thread(_walk_with_progress)
     tracker.set_total(len(paths))
+
+    # Pre-stat the on-disk fingerprint for every walked file so the diff
+    # against the cache runs without needing a stat per probe. Single
+    # syscall per file, cheap.
+    def _stat_all(ps: list[Path]) -> list[tuple[int, float]]:
+        out: list[tuple[int, float]] = []
+        for p in ps:
+            try:
+                st = p.stat()
+                out.append((st.st_size, st.st_mtime))
+            except OSError:
+                out.append((-1, -1.0))
+        return out
+
+    fingerprints_disk = await asyncio.to_thread(_stat_all, paths)
+
+    cached_entries: dict[str, VideoEntry] = {}
+    cached_fingerprints: dict[str, tuple[float, int]] = {}
+    if index is not None:
+        cached_entries = await asyncio.to_thread(index.load_all)
+        cached_fingerprints = await asyncio.to_thread(index.fingerprints)
+
+    # Decide per file: reuse cache (no probe needed) vs. re-probe.
+    reused: list[VideoEntry] = []
+    to_probe: list[tuple[int, Path, int, float]] = []  # (idx, path, size, mtime)
+    for i, path in enumerate(paths):
+        size_bytes, mtime = fingerprints_disk[i]
+        rel = path.relative_to(root)
+        vid = _make_id(rel)
+        prior = cached_fingerprints.get(vid)
+        if prior is not None and prior == (mtime, size_bytes) and vid in cached_entries:
+            # Same id, same fingerprint -> reuse. The cached entry's
+            # `path` and `name` were derived from the same rel_path so
+            # they're still correct even if the absolute root moved.
+            reused.append(cached_entries[vid])
+            tracker.tick()
+        else:
+            to_probe.append((i, path, size_bytes, mtime))
+
     log.info(
-        "video scan: walk done, found %d files; probing durations (concurrency=%d)",
+        "video scan: walk done, found %d files; %d cached reused, %d to probe (concurrency=%d)",
         len(paths),
+        len(reused),
+        len(to_probe),
         _PREWARM_PROBE_CONCURRENCY,
     )
 
     from maneki.video.serve.subtitles import discover_sidecars
 
     sem = asyncio.Semaphore(_PREWARM_PROBE_CONCURRENCY)
-    out: list[VideoEntry | None] = [None] * len(paths)
-    total = len(paths)
+    probed: list[VideoEntry | None] = [None] * len(to_probe)
+    total_to_probe = len(to_probe)
 
-    async def _probe_one(i: int, path: Path) -> None:
+    async def _probe_one(slot: int, path: Path, size_bytes: int, mtime: float) -> None:
         async with sem:
             duration = await asyncio.to_thread(probe_duration, path)
             sidecars = await asyncio.to_thread(discover_sidecars, path)
             rel = path.relative_to(root)
-            out[i] = VideoEntry(
+            entry = VideoEntry(
                 id=_make_id(rel),
                 name=path.stem,
                 path=str(path),
-                size_bytes=path.stat().st_size,
+                size_bytes=size_bytes,
                 rel_path=str(rel),
                 duration_s=duration,
                 subtitles=[SubtitleSummary(lang=s.language, format=s.fmt) for s in sidecars],
             )
+            probed[slot] = entry
+            if index is not None:
+                # upsert per-completion so a server kill mid-scan still
+                # leaves the cache useful — the next start picks up
+                # whatever finished.
+                await asyncio.to_thread(index.upsert, entry, mtime)
             tracker.tick()
-            # `_scanned` is incremented atomically under GIL; reading it
-            # right after the bump is fine for a "did we hit a log-worthy
-            # multiple?" check, even under high concurrency.
             done = tracker.snapshot().scanned
-            if done % _PROBE_LOG_EVERY == 0 or done == total:
-                log.info("video scan: probed %d / %d files", done, total)
+            if done % _PROBE_LOG_EVERY == 0 or done == len(paths):
+                log.info("video scan: probed %d / %d files", done, len(paths))
 
-    await asyncio.gather(*(_probe_one(i, p) for i, p in enumerate(paths)))
+    await asyncio.gather(
+        *(_probe_one(slot, path, size_bytes, mtime) for slot, (_, path, size_bytes, mtime) in enumerate(to_probe))
+    )
+
+    # Combine reused + freshly probed in walk order. Build a map keyed
+    # on path so we can emit in the same `paths`-sorted order.
+    by_id: dict[str, VideoEntry] = {e["id"]: e for e in reused}
+    for entry in probed:
+        if entry is not None:
+            by_id[entry["id"]] = entry
+    results: list[VideoEntry] = []
+    for path in paths:
+        rel = path.relative_to(root)
+        vid = _make_id(rel)
+        entry = by_id.get(vid)
+        if entry is not None:
+            results.append(entry)
+
+    # Prune cache rows whose ids no longer appear on disk.
+    if index is not None:
+        live_ids = {e["id"] for e in results}
+        removed = await asyncio.to_thread(index.delete_missing, live_ids)
+        if removed:
+            log.info("video scan: pruned %d stale row(s) from the index", removed)
+
     tracker.finish()
-    # All slots filled by the time gather() returns, but the type checker
-    # doesn't know that; the cast lets the function signature stay clean.
-    results: list[VideoEntry] = [e for e in out if e is not None]
-    log.info("video scan: complete (%d videos)", len(results))
+    log.info(
+        "video scan: complete (%d videos; %d probed, %d reused from cache)",
+        len(results),
+        total_to_probe,
+        len(reused),
+    )
     return results
 
 

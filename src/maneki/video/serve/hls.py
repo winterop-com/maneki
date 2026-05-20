@@ -431,8 +431,15 @@ class HLSManager:
         for stale_id in [vid for vid in self.sessions if vid not in live_ids]:
             session = self.sessions.pop(stale_id, None)
             if session is not None:
-                session._segment_locks.clear()
-                session._prefetch_tasks.clear()
+                # `getattr` keeps this defensive against future
+                # refactors (and against mocks in unit tests that
+                # don't carry the full session interface).
+                seg_locks = getattr(session, "_segment_locks", None)
+                if seg_locks is not None:
+                    seg_locks.clear()
+                tasks = getattr(session, "_prefetch_tasks", None)
+                if tasks is not None:
+                    tasks.clear()
         return removed
 
     def reset(self) -> None:
