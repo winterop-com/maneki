@@ -93,6 +93,7 @@ def _build_args(input_path: Path) -> list[str]:
     """
     return [
         _ffmpeg_path(),
+        "-nostdin",
         "-hide_banner",
         "-loglevel",
         "warning",
@@ -123,6 +124,7 @@ async def transcode_to_mp4(input_path: Path, chunk_size: int = 64 * 1024) -> Asy
     args = _build_args(input_path)
     proc = await asyncio.create_subprocess_exec(
         *args,
+        stdin=asyncio.subprocess.DEVNULL,
         stdout=asyncio.subprocess.PIPE,
         stderr=asyncio.subprocess.DEVNULL,
     )

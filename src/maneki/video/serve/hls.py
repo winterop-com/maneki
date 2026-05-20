@@ -212,8 +212,14 @@ class OnDemandHLS:
         # segments use ffmpeg's default thread count (auto = many) so
         # the player's segment lands as fast as possible.
         thread_args = ["-threads", "1"] if low_priority else []
+        # `-nostdin` + stdin=DEVNULL: keep ffmpeg from inheriting the
+        # parent's controlling tty. Without these a Ctrl-C against
+        # `maneki serve` mid-transcode can leave the terminal stuck
+        # in raw mode (ffmpeg's interactive keypress controls flip
+        # the tty's icanon / echo flags off).
         args = [
             _ffmpeg_path(),
+            "-nostdin",
             "-hide_banner",
             "-loglevel",
             "warning",
@@ -263,6 +269,7 @@ class OnDemandHLS:
         spawn_kwargs = low_priority_kwargs() if low_priority else {}
         proc = await asyncio.create_subprocess_exec(
             *args,
+            stdin=asyncio.subprocess.DEVNULL,
             stdout=asyncio.subprocess.DEVNULL,
             stderr=asyncio.subprocess.PIPE,
             **spawn_kwargs,

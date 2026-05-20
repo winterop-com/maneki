@@ -21,6 +21,7 @@ from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import FileResponse, HTMLResponse, Response, StreamingResponse
 
 from maneki import __version__
+from maneki.access_log import make_access_log_middleware
 from maneki.video.serve.demo import DEMO_HTML
 from maneki.video.serve.hls import HLSManager
 from maneki.video.serve.poster import PosterManager
@@ -87,6 +88,12 @@ def create_app(root: Path, *, budget: TranscodeBudget | None = None) -> FastAPI:
             a fresh one is created with the default worker count.
     """
     app = FastAPI(title="maneki-video", version=__version__)
+    # One structured access-log line per /video/* request — same shape
+    # as the audio (Subsonic) side so a single tail/grep covers all
+    # traffic. Without this the video routes were silent because
+    # configure_logging() suppresses uvicorn's default access log in
+    # favour of this richer one.
+    app.add_middleware(make_access_log_middleware("maneki.video.serve.access"))
     shared_budget = budget if budget is not None else TranscodeBudget()
     hls_manager = HLSManager(budget=shared_budget)
     # Posters live under <root>/.maneki/posters/ - library-local cache

@@ -119,6 +119,7 @@ async def _probe_stream(input_path: Path) -> _StreamInfo:
         "-of",
         "csv=p=0",
         str(input_path),
+        stdin=asyncio.subprocess.DEVNULL,
         stdout=asyncio.subprocess.PIPE,
         stderr=asyncio.subprocess.DEVNULL,
     )
@@ -141,8 +142,17 @@ async def _extract_frame(input_path: Path, timestamp_s: float, out_path: Path) -
     # foreground HLS segment transcodes (running at normal priority,
     # without the threads cap) reliably win CPU even when 9 of these
     # are running in parallel via `_gather_frames`.
+    # `-nostdin` together with `stdin=DEVNULL` keeps ffmpeg from
+    # touching the controlling terminal's tty mode. Without these,
+    # ffmpeg inherits the parent's stdin (the user's terminal),
+    # flips it into raw mode for its interactive keypress controls,
+    # and a Ctrl-C against `maneki serve` mid-transcode leaves the
+    # tty stuck — the user can't see typed input until they run
+    # `reset`. Same treatment for every other ffmpeg / ffprobe
+    # spawn in the video pipeline.
     args = [
         ffmpeg,
+        "-nostdin",
         "-hide_banner",
         "-loglevel",
         "error",
@@ -161,6 +171,7 @@ async def _extract_frame(input_path: Path, timestamp_s: float, out_path: Path) -
     ]
     proc = await asyncio.create_subprocess_exec(
         *args,
+        stdin=asyncio.subprocess.DEVNULL,
         stdout=asyncio.subprocess.DEVNULL,
         stderr=asyncio.subprocess.DEVNULL,
         **low_priority_kwargs(),
@@ -309,6 +320,7 @@ async def generate_thumbnail(
     # generations can't starve the foreground HLS segment transcoder.
     args = [
         ffmpeg,
+        "-nostdin",
         "-hide_banner",
         "-loglevel",
         "error",
@@ -329,6 +341,7 @@ async def generate_thumbnail(
     ]
     proc = await asyncio.create_subprocess_exec(
         *args,
+        stdin=asyncio.subprocess.DEVNULL,
         stdout=asyncio.subprocess.DEVNULL,
         stderr=asyncio.subprocess.DEVNULL,
         **low_priority_kwargs(),
