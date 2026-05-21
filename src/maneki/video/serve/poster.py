@@ -218,8 +218,19 @@ def _compose_sheet(
     pad = POSTER_PADDING
     header_h = POSTER_HEADER_HEIGHT
 
-    sheet_w = cols * thumb_w + (cols + 1) * pad
-    sheet_h = header_h + rows * thumb_h + (rows + 1) * pad
+    grid_w = cols * thumb_w + (cols + 1) * pad
+    grid_h = header_h + rows * thumb_h + (rows + 1) * pad
+    # Pad to 16:9 so the player's <video> and <img class="vjs-poster">
+    # share the same box and there's no visible "grow" when playback
+    # starts. Without this, the contact-sheet aspect (typically
+    # ~3:2 for a 3x3 grid of 16:9 thumbs + header) gets letterboxed
+    # by video.js's `object-fit: contain`.
+    target_w = max(grid_w, int(grid_h * 16 / 9))
+    target_h = max(grid_h, int(grid_w * 9 / 16))
+    sheet_w = target_w
+    sheet_h = target_h
+    grid_offset_x = (sheet_w - grid_w) // 2
+    grid_offset_y = (sheet_h - grid_h) // 2
     sheet = Image.new("RGB", (sheet_w, sheet_h), color=POSTER_BG)
     draw = ImageDraw.Draw(sheet, "RGBA")
 
@@ -233,10 +244,18 @@ def _compose_sheet(
         _format_duration(duration_s),
         _format_size(size_bytes),
     ]
-    draw.text((pad + 2, 10), title, fill=POSTER_HEADER_FG, font=font_title)
-    draw.text((pad + 2, 34), "  |  ".join(bits), fill=POSTER_HEADER_DIM, font=font_info)
+    draw.text((grid_offset_x + pad + 2, grid_offset_y + 10), title, fill=POSTER_HEADER_FG, font=font_title)
+    draw.text(
+        (grid_offset_x + pad + 2, grid_offset_y + 34),
+        "  |  ".join(bits),
+        fill=POSTER_HEADER_DIM,
+        font=font_info,
+    )
     draw.line(
-        [(pad, header_h - 3), (sheet_w - pad, header_h - 3)],
+        [
+            (grid_offset_x + pad, grid_offset_y + header_h - 3),
+            (grid_offset_x + grid_w - pad, grid_offset_y + header_h - 3),
+        ],
         fill=(60, 64, 80),
         width=1,
     )
@@ -246,8 +265,8 @@ def _compose_sheet(
         col = idx % cols
         with Image.open(frame_path) as img:
             thumb = img.convert("RGB").resize((thumb_w, thumb_h), Image.Resampling.LANCZOS)
-        x = col * thumb_w + (col + 1) * pad
-        y = header_h + row * thumb_h + (row + 1) * pad
+        x = grid_offset_x + col * thumb_w + (col + 1) * pad
+        y = grid_offset_y + header_h + row * thumb_h + (row + 1) * pad
         sheet.paste(thumb, (x, y))
 
         label = _format_duration(ts)
