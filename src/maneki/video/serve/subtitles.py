@@ -327,9 +327,7 @@ async def extract_embedded_streams_to_vtt(
         tail = " | ".join(msg[-3:]) if msg else "(no stderr)"
         for _, _, tmp in tmp_paths:
             tmp.unlink(missing_ok=True)
-        raise RuntimeError(
-            f"ffmpeg failed for streams {[s for s, _, _ in tmp_paths]} (rc={proc.returncode}): {tail}"
-        )
+        raise RuntimeError(f"ffmpeg failed for streams {[s for s, _, _ in tmp_paths]} (rc={proc.returncode}): {tail}")
 
     offset = _probe_video_start_time(video_path)
     for stream_index, out_path, tmp in tmp_paths:
