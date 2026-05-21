@@ -306,6 +306,18 @@ class OnDemandHLS:
                 pass
             with contextlib.suppress(Exception):
                 await proc.wait()
+            # CRITICAL: ffmpeg writes the .ts file incrementally as it
+            # encodes. When we kill it mid-segment, the partial file is
+            # left on disk. The cache check `out_path.exists()` at the
+            # top of `ensure_segment` then returns this stub on the
+            # next request — a ~100ms snippet with PTS from somewhere
+            # near the keyframe before the seek target, NOT the full
+            # 6 seconds at the correct PTS. The browser appends this
+            # garbage to MSE and the player jumps to whatever PTS the
+            # snippet declares (the user's "seek forward then back
+            # jumps 4-5 min ahead" bug). Unlink any partial output so
+            # the retry produces a clean transcode.
+            self._unlink_partial(idx)
             raise
         finally:
             if dummy_m3u8.exists():
@@ -316,7 +328,16 @@ class OnDemandHLS:
         if proc.returncode != 0:
             msg = stderr.decode("utf-8", errors="replace").strip().splitlines()
             tail = " | ".join(msg[-3:]) if msg else "(no stderr)"
+            # Same reasoning as the CancelledError path: a non-zero
+            # exit can also leave partial bytes on disk.
+            self._unlink_partial(idx)
             raise RuntimeError(f"ffmpeg failed for segment {idx} (rc={proc.returncode}): {tail}")
+
+    def _unlink_partial(self, idx: int) -> None:
+        """Best-effort cleanup of a half-written segment file."""
+        out_path = self.session_dir / f"seg-{idx:04d}.ts"
+        with contextlib.suppress(FileNotFoundError, OSError):
+            out_path.unlink()
 
     def cleanup_dir(self) -> None:
         shutil.rmtree(self.session_dir, ignore_errors=True)
@@ -348,7 +369,7 @@ class OnDemandHLS:
 # Without this, segments produced by old code linger in the cache and
 # the player loads them by URL even though their PTS is now wrong,
 # causing position jumps / subtitle drift.
-HLS_CACHE_VERSION = "3"  # output_ts_offset + hash-suffixed video ids
+HLS_CACHE_VERSION = "4"  # partial-segment cleanup on ffmpeg cancel/error
 
 
 class HLSManager:
