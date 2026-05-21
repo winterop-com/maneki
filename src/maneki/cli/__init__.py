@@ -98,14 +98,17 @@ def serve_cmd(
             ),
         ),
     ] = False,
-    prewarm_images: Annotated[
+    prewarm_cache: Annotated[
         bool,
         typer.Option(
-            "--prewarm-images",
+            "--prewarm-cache",
+            "--prewarm-images",  # legacy alias, kept for one release
             help=(
-                "Generate every video's row thumbnail and contact-sheet poster during startup. "
-                "Heavy: ~1-2s per thumbnail + ~3-5s per poster. Default off - thumbs generate "
-                "on first SPA browse. Pair with --rescan to force a full rebuild."
+                "Warm every video's caches during startup: embedded-subtitle probe, row "
+                "thumbnail, contact-sheet poster. Heavy: ~1-2s per thumbnail + ~3-5s per "
+                "poster. Default off - thumbs generate on first SPA browse, posters on "
+                "first /poster request. Pair with --rescan to force a full rebuild; pair "
+                "with --no-cover-images to skip just the contact-sheet phase."
             ),
         ),
     ] = False,
@@ -165,7 +168,7 @@ def serve_cmd(
         enable_ui=ui,
         transcode_workers=workers or None,
         rescan=rescan,
-        prewarm_images=prewarm_images,
+        prewarm_cache=prewarm_cache,
         no_cover_images=no_cover_images,
     )
     import structlog
@@ -177,8 +180,8 @@ def serve_cmd(
         flags.append("SPA at /")
     if rescan:
         flags.append("rescan")
-    if prewarm_images:
-        flags.append("prewarm-images")
+    if prewarm_cache:
+        flags.append("prewarm-cache")
     if no_cover_images:
         flags.append("no-cover-images")
     actual_workers = workers or "auto"

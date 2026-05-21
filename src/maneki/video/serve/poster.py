@@ -492,7 +492,7 @@ class PosterManager:
         duration_s. Matches VideoEntry.
 
         Emits a terminal heartbeat every _PREWARM_LOG_EVERY completions
-        in each phase so a `maneki serve --prewarm-images /huge/library`
+        in each phase so a `maneki serve --prewarm-cache /huge/library`
         shows live progress instead of one "starting" line followed by
         minutes of silence.
         """
@@ -509,7 +509,7 @@ class PosterManager:
         # Per-phase failure counters. Each task catches its own
         # exception (so one bad file doesn't take down the gather()
         # call) and bumps the matching counter; the phase runner logs
-        # the total at the end so an `--prewarm-images` run with
+        # the total at the end so an `--prewarm-cache` run with
         # silently-failing ffmpeg jobs surfaces as a clear "N failures"
         # line instead of an opaque "20% of thumbnails missing".
         failures: dict[str, int] = {"subtitle-probe": 0, "thumbnails": 0, "posters": 0}
@@ -519,16 +519,16 @@ class PosterManager:
             workers: list[asyncio.Future[None]],
         ) -> None:
             done = 0
-            log.info("prewarm-images: %s phase starting (%d videos)", label, total)
+            log.info("prewarm-cache: %s phase starting (%d videos)", label, total)
             for fut in asyncio.as_completed(workers):
                 await fut
                 done += 1
                 if done % log_every == 0 or done == total:
-                    log.info("prewarm-images: %s %d / %d", label, done, total)
+                    log.info("prewarm-cache: %s %d / %d", label, done, total)
             n_failed = failures[label]
             if n_failed:
                 log.warning(
-                    "prewarm-images: %s phase finished with %d failure(s) out of %d",
+                    "prewarm-cache: %s phase finished with %d failure(s) out of %d",
                     label,
                     n_failed,
                     total,
@@ -545,7 +545,7 @@ class PosterManager:
                 except Exception as exc:  # noqa: BLE001 - one bad file mustn't crash the prewarm
                     failures["subtitle-probe"] += 1
                     log.warning(
-                        "prewarm-images: subtitle probe failed for %s: %s",
+                        "prewarm-cache: subtitle probe failed for %s: %s",
                         entry.get("id"),
                         exc,
                     )
@@ -561,7 +561,7 @@ class PosterManager:
                 except Exception as exc:  # noqa: BLE001
                     failures["thumbnails"] += 1
                     log.warning(
-                        "prewarm-images: thumbnail generation failed for %s: %s",
+                        "prewarm-cache: thumbnail generation failed for %s: %s",
                         entry.get("id"),
                         exc,
                     )
@@ -581,7 +581,7 @@ class PosterManager:
                 except Exception as exc:  # noqa: BLE001
                     failures["posters"] += 1
                     log.warning(
-                        "prewarm-images: poster generation failed for %s: %s",
+                        "prewarm-cache: poster generation failed for %s: %s",
                         entry.get("id"),
                         exc,
                     )
