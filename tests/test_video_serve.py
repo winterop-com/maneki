@@ -65,19 +65,38 @@ def test_scan_status_reports_done_after_prewarm(library_root: Path) -> None:
 
 
 def test_thumbnails_ready_empty_when_cache_cold(client: TestClient) -> None:
-    """Fresh server has nothing cached, so /thumbnails/ready returns an empty list."""
+    """Fresh server has nothing cached, so /thumbnails/ready returns empty lists."""
     data = client.get("/api/thumbnails/ready").json()
-    assert data == {"ready": []}
+    assert data == {"ready": [], "posters_ready": []}
 
 
-def test_thumbnails_ready_lists_cached_ids(client: TestClient, library_root: Path) -> None:
-    """When a thumbnail file lives on disk under the poster cache, its id appears."""
-    cache_dir = library_root / ".maneki" / "posters"
-    cache_dir.mkdir(parents=True, exist_ok=True)
-    (cache_dir / "abc-12345678.thumb.jpg").write_bytes(b"\xff\xd8\xff")
-    (cache_dir / "abc-12345678.png").write_bytes(b"\x89PNG\r\n\x1a\n")  # poster, not a thumb
+def test_thumbnails_ready_lists_cached_ids(library_root: Path) -> None:
+    """When a thumbnail / poster file lives on disk under the cache, its id appears.
+
+    The endpoint maps live ids -> hashed cache stems and stats each one,
+    so the test seeds the cache at the manager's resolved paths and
+    primes app.state.video_cache so the endpoint has something to iterate.
+    """
+    from maneki.video.serve.scan import VideoEntry
+
+    app = create_app(library_root)
+    entry: VideoEntry = {
+        "id": "abc-12345678",
+        "name": "abc",
+        "path": str(library_root / "videos" / "ep1.mkv"),
+        "size_bytes": 1024,
+        "rel_path": "videos/ep1.mkv",
+        "duration_s": 10.0,
+        "subtitles": [],
+    }
+    app.state.video_cache = [entry]
+    poster_mgr = app.state.poster_manager
+    poster_mgr.cache_dir.mkdir(parents=True, exist_ok=True)
+    poster_mgr.thumbnail_path("abc-12345678").write_bytes(b"\xff\xd8\xff")
+    poster_mgr.poster_path("abc-12345678").write_bytes(b"\x89PNG\r\n\x1a\n")
+    client = TestClient(app)
     data = client.get("/api/thumbnails/ready").json()
-    assert data == {"ready": ["abc-12345678"]}
+    assert data == {"ready": ["abc-12345678"], "posters_ready": ["abc-12345678"]}
 
 
 def test_thumbnail_endpoint_returns_placeholder_on_cache_miss(client: TestClient) -> None:

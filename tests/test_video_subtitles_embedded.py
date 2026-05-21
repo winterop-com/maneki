@@ -141,9 +141,11 @@ def test_probe_missing_file_returns_empty(tmp_path: Path) -> None:
 
 
 def test_subtitle_cache_path_layout(tmp_path: Path) -> None:
+    from maneki.video.serve.scan import cache_stem
+
     cache = SubtitleCache(cache_dir=tmp_path)
     p = cache.path_for("show-s01e01", 2)
-    assert p == tmp_path / "show-s01e01" / "embed-2.vtt"
+    assert p == tmp_path / cache_stem("show-s01e01") / "embed-2.vtt"
 
 
 def test_shift_vtt_timestamps_subtracts_offset() -> None:

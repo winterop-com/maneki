@@ -239,25 +239,53 @@ async def extract_embedded_to_vtt(
 ) -> Path:
     """Extract one embedded subtitle stream to a .vtt file via ffmpeg.
 
-    Re-runs are skipped because the caller checks `out_path.exists()`
-    before invoking this. Image-based subtitle codecs (PGS, VobSub) will
-    fail here even if accidentally requested - probe_embedded_subtitles
-    already filters them out of the listing.
-
-    After ffmpeg runs we post-process the file to subtract the source's
-    first-frame PTS from every cue timestamp. The HLS muxer normalises
-    each segment's PTS to start near 0, so the player's currentTime is
-    playback-relative; raw extracted cues use source PTS, which means
-    a non-zero start_time (common for mp4) shows up as a constant drift
-    that gets very visible after seeking. Shifting once at extraction
-    time makes the cached .vtt match the player's timeline directly.
+    Thin wrapper around `extract_embedded_streams_to_vtt` for the
+    single-stream case. Most production callers should use the batch
+    API to avoid running ffmpeg once per stream when many tracks need
+    extracting at the same time.
     """
+    await extract_embedded_streams_to_vtt(video_path, [(stream_index, out_path)])
+    return out_path
+
+
+async def extract_embedded_streams_to_vtt(
+    video_path: Path,
+    targets: list[tuple[int, Path]],
+) -> None:
+    """Extract many embedded subtitle streams in a single ffmpeg invocation.
+
+    ffmpeg accepts one `-map 0:<idx>` + output path per stream, so this
+    reads the source file ONCE and writes every requested .vtt in one
+    pass. Replaces the older "spawn one ffmpeg per stream" pattern that
+    fell apart for .mkvs with 40+ embedded tracks - 40 concurrent
+    ffmpegs each re-reading an 800 MB file pegged disk and CPU and
+    head-of-line-blocked HLS playback.
+
+    Image-based codecs (PGS, VobSub) will fail here even if accidentally
+    requested - probe_embedded_subtitles already filters them out.
+
+    After ffmpeg completes, each .vtt is post-processed to subtract the
+    source's first-frame PTS from every cue timestamp (see
+    extract_embedded_to_vtt's previous docstring for the why).
+
+    No-op if `targets` is empty.
+    """
+    if not targets:
+        return
     if not video_path.is_file():
         raise FileNotFoundError(video_path)
     ffmpeg = shutil.which("ffmpeg")
     if ffmpeg is None:
         raise RuntimeError("ffmpeg is required to extract embedded subtitles")
-    out_path.parent.mkdir(parents=True, exist_ok=True)
+
+    # Tmp output paths so the .vtt only appears at its final location
+    # after ffmpeg + offset-shift succeed. Atomic replace avoids the
+    # cache thinking a partial extraction is a valid cached file.
+    tmp_paths: list[tuple[int, Path, Path]] = []
+    for stream_index, out_path in targets:
+        out_path.parent.mkdir(parents=True, exist_ok=True)
+        tmp_paths.append((stream_index, out_path, out_path.with_suffix(".vtt.tmp")))
+
     args = [
         ffmpeg,
         "-nostdin",
@@ -267,19 +295,26 @@ async def extract_embedded_to_vtt(
         "-y",
         "-i",
         str(video_path),
-        "-map",
-        f"0:{stream_index}",
-        # `-copyts` tells ffmpeg to keep source PTS as-is in the output
-        # instead of letting the webvtt muxer normalise / rebase. Without
-        # this the .mkv subtitle stream's stored timestamps can drift
-        # relative to the video stream (visible after seeking).
-        "-copyts",
-        "-c:s",
-        "webvtt",
-        "-f",
-        "webvtt",
-        str(out_path),
     ]
+    for stream_index, _, tmp in tmp_paths:
+        args.extend(
+            [
+                "-map",
+                f"0:{stream_index}",
+                # `-copyts` keeps source PTS in the output instead of
+                # letting the webvtt muxer rebase. Without it, .mkv
+                # subtitle PTS can drift relative to the video stream
+                # (visible after seeking). We compensate for the
+                # source's start offset in the post-process step below.
+                "-copyts",
+                "-c:s",
+                "webvtt",
+                "-f",
+                "webvtt",
+                str(tmp),
+            ]
+        )
+
     proc = await asyncio.create_subprocess_exec(
         *args,
         stdin=asyncio.subprocess.DEVNULL,
@@ -290,15 +325,19 @@ async def extract_embedded_to_vtt(
     if proc.returncode != 0:
         msg = stderr.decode("utf-8", errors="replace").strip().splitlines()
         tail = " | ".join(msg[-3:]) if msg else "(no stderr)"
-        raise RuntimeError(f"ffmpeg failed for stream {stream_index} (rc={proc.returncode}): {tail}")
-    if not out_path.exists() or out_path.stat().st_size == 0:
-        raise RuntimeError(f"ffmpeg ran but produced no output for stream {stream_index}")
+        for _, _, tmp in tmp_paths:
+            tmp.unlink(missing_ok=True)
+        raise RuntimeError(f"ffmpeg failed for streams {[s for s, _, _ in tmp_paths]} (rc={proc.returncode}): {tail}")
 
     offset = _probe_video_start_time(video_path)
-    if offset > 0.001:
-        shifted = shift_vtt_timestamps(out_path.read_text(encoding="utf-8", errors="replace"), -offset)
-        out_path.write_text(shifted, encoding="utf-8")
-    return out_path
+    for stream_index, out_path, tmp in tmp_paths:
+        if not tmp.exists() or tmp.stat().st_size == 0:
+            tmp.unlink(missing_ok=True)
+            raise RuntimeError(f"ffmpeg ran but produced no output for stream {stream_index}")
+        if offset > 0.001:
+            shifted = shift_vtt_timestamps(tmp.read_text(encoding="utf-8", errors="replace"), -offset)
+            tmp.write_text(shifted, encoding="utf-8")
+        tmp.replace(out_path)
 
 
 def _probe_video_start_time(video_path: Path) -> float:
@@ -370,36 +409,62 @@ class SubtitleCache:
     """Lazy on-disk cache for extracted embedded subtitle WebVTT files.
 
     Layout: `<cache_dir>/<video_id>/embed-<stream_index>.vtt`. One lock
-    per (video_id, stream_index) so concurrent first-requests don't
-    spawn duplicate ffmpegs for the same track.
+    per video so concurrent first-requests for any track of the same
+    file share one ffmpeg invocation that extracts every missing
+    embedded stream in a single pass.
+
+    Before the per-video lock + single-pass extract, a .mkv with 46
+    embedded subtitle tracks would spawn 46 ffmpeg subprocesses on the
+    first video open, each re-reading the 800 MB source. Now: one
+    ffmpeg, one read, all .vtts produced together.
     """
 
     def __init__(self, cache_dir: Path) -> None:
         self.cache_dir = cache_dir
-        self._locks: dict[tuple[str, int], asyncio.Lock] = {}
+        self._locks: dict[str, asyncio.Lock] = {}
 
     def path_for(self, video_id: str, stream_index: int) -> Path:
-        return self.cache_dir / video_id / f"embed-{stream_index}.vtt"
+        from maneki.video.serve.scan import cache_stem  # avoid circular at import time
+
+        return self.cache_dir / cache_stem(video_id) / f"embed-{stream_index}.vtt"
 
     async def ensure(self, video_id: str, video_path: Path, stream_index: int) -> Path:
         out = self.path_for(video_id, stream_index)
         if out.exists() and out.stat().st_size > 0:
             return out
-        lock = self._locks.setdefault((video_id, stream_index), asyncio.Lock())
+        lock = self._locks.setdefault(video_id, asyncio.Lock())
         async with lock:
+            # Recheck after acquiring the lock - a sibling request for
+            # the same video may have just extracted everything.
             if out.exists() and out.stat().st_size > 0:
                 return out
-            return await extract_embedded_to_vtt(video_path, stream_index, out)
+            # Probe is memoised, so this is free on the second call.
+            probed = probe_embedded_subtitles(video_path)
+            missing: list[tuple[int, Path]] = []
+            for entry in probed:
+                target = self.path_for(video_id, entry.stream_index)
+                if not (target.exists() and target.stat().st_size > 0):
+                    missing.append((entry.stream_index, target))
+            if not missing:
+                # Requested stream not in probed list, fall back to
+                # single-stream extract so the caller still gets a
+                # meaningful error path.
+                return await extract_embedded_to_vtt(video_path, stream_index, out)
+            await extract_embedded_streams_to_vtt(video_path, missing)
+            return out
 
     def clean_orphans(self, live_ids: set[str]) -> int:
         """Delete cached subtitle dirs whose video id isn't in `live_ids`."""
+        from maneki.video.serve.scan import cache_stem
+
         if not self.cache_dir.is_dir():
             return 0
+        live_stems = {cache_stem(vid) for vid in live_ids}
         removed = 0
         for path in self.cache_dir.iterdir():
             if not path.is_dir():
                 continue
-            if path.name in live_ids:
+            if path.name in live_stems:
                 continue
             try:
                 shutil.rmtree(path)

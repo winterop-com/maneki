@@ -80,7 +80,8 @@ def create_combined_app(
     audio_cfg: ServeConfig | None = None,
     transcode_workers: int | None = None,
     rescan: bool = False,
-    prewarm_images: bool = False,
+    prewarm_cache: bool = False,
+    no_cover_images: bool = False,
 ) -> FastAPI:
     """Build a FastAPI app that auto-mounts whichever kinds are present at root.
 
@@ -113,15 +114,20 @@ def create_combined_app(
             everything. Use after files change underneath the server
             (renames, edits) so cached cover sheets get refreshed.
             Default False keeps prior runs' work.
-        prewarm_images: when True, generate every video's row thumbnail
+        prewarm_cache: when True, generate every video's row thumbnail
             and contact-sheet poster during startup (heavy: ~1-2s per
             thumbnail + ~3-5s per poster, niced + 1-thread so it
             doesn't fight foreground playback). Default False -- thumbs
             generate on first SPA browse, posters on first /poster
             request. Pair with --rescan when you actually want every
-            asset rebuilt; without --rescan, prewarm-images skips files
+            asset rebuilt; without --rescan, prewarm-cache skips files
             whose cache already exists, so it's idempotent and cheap on
             a second run.
+        no_cover_images: when True, skip contact-sheet poster generation
+            in both on-demand and prewarm paths. /poster endpoints fall
+            back to the cheap row-thumbnail (one frame, no contact
+            sheet). Useful on slow disks or huge libraries where the
+            9-frame contact sheet isn't worth the wait.
     """
     audio_present = has_audio(root)
     video_present = has_video(root)
@@ -170,7 +176,7 @@ def create_combined_app(
         watcher: Any = None
         video_index: Any = None
 
-        async def _do_scan(*, do_prewarm_images: bool) -> None:
+        async def _do_scan(*, do_prewarm_cache: bool) -> None:
             """One pass of library scan + orphan sweep + optional image prewarm.
 
             Re-entry guard: skips when the tracker already reports
@@ -192,6 +198,7 @@ def create_combined_app(
                 video_sub.state.library_root,
                 video_sub.state.scan_tracker,
                 index=video_index,
+                on_changed=video_sub.state.poster_manager.invalidate,
             )
             video_sub.state.video_cache = videos
             live_ids = {v["id"] for v in videos}
@@ -199,14 +206,21 @@ def create_combined_app(
             video_sub.state.hls_manager.clean_orphans(live_ids)
             video_sub.state.subtitle_cache.clean_orphans(live_ids)
 
-            if do_prewarm_images:
-                _log.info("prewarm-images: starting thumbnail/poster generation for %d videos", len(videos))
-                await video_sub.state.poster_manager.prewarm([dict(v) for v in videos])
-                _log.info("prewarm-images: done")
+            if do_prewarm_cache:
+                _log.info(
+                    "prewarm-cache: starting %s generation for %d videos",
+                    "thumbnail" if no_cover_images else "thumbnail/poster",
+                    len(videos),
+                )
+                await video_sub.state.poster_manager.prewarm(
+                    [dict(v) for v in videos],
+                    skip_posters=no_cover_images,
+                )
+                _log.info("prewarm-cache: done")
 
         async def _rescan_callback() -> None:
-            """Watcher / endpoint entry point. Honours --prewarm-images for follow-ups."""
-            await _do_scan(do_prewarm_images=prewarm_images)
+            """Watcher / endpoint entry point. Honours --prewarm-cache for follow-ups."""
+            await _do_scan(do_prewarm_cache=prewarm_cache)
 
         async def _background_startup() -> None:
             if video_sub_app is None or not hasattr(video_sub_app.state, "poster_manager"):
@@ -239,7 +253,7 @@ def create_combined_app(
 
             # Initial library scan. _do_scan also drives subsequent
             # watcher-triggered rescans, so any change here is shared.
-            await _do_scan(do_prewarm_images=prewarm_images)
+            await _do_scan(do_prewarm_cache=prewarm_cache)
 
             # Expose the rescan trigger to the video sub-app so POST
             # /api/scan can fire it without reaching across the mount.
@@ -333,7 +347,7 @@ def create_combined_app(
         _mount_audio(combined, root, use_cache=audio_use_cache, cfg=cfg)
 
     if video_present:
-        _mount_video(combined, root, workers=transcode_workers)
+        _mount_video(combined, root, workers=transcode_workers, no_cover_images=no_cover_images)
 
     if enable_ui:
         # Mount the SPA at "/" LAST. FastAPI/Starlette match routes in
@@ -422,7 +436,7 @@ def _mount_audio(combined: FastAPI, library_root: Path, *, use_cache: bool, cfg:
     combined.mount("/audio", audio_app)
 
 
-def _mount_video(combined: FastAPI, library_root: Path, *, workers: int | None) -> None:
+def _mount_video(combined: FastAPI, library_root: Path, *, workers: int | None, no_cover_images: bool) -> None:
     """Mount the video app under /video.
 
     `workers` controls the shared TranscodeBudget's background worker
@@ -432,7 +446,7 @@ def _mount_video(combined: FastAPI, library_root: Path, *, workers: int | None) 
     from maneki.video.serve.transcode_budget import TranscodeBudget
 
     budget = TranscodeBudget(max_workers=workers) if workers is not None else None
-    video_app = create_video_app(library_root, budget=budget)
+    video_app = create_video_app(library_root, budget=budget, no_cover_images=no_cover_images)
     combined.mount("/video", video_app)
 
 

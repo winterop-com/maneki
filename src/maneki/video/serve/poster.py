@@ -26,7 +26,7 @@ from pathlib import Path
 from PIL import Image, ImageDraw, ImageFont
 from pydantic import BaseModel, ConfigDict
 
-from maneki.video.serve.scan import probe_duration
+from maneki.video.serve.scan import cache_stem, probe_duration
 from maneki.video.serve.transcode import low_priority_kwargs
 from maneki.video.serve.transcode_budget import TranscodeBudget
 
@@ -131,62 +131,23 @@ async def _probe_stream(input_path: Path) -> _StreamInfo:
     return _StreamInfo(width=width, height=height, codec=codec or "unknown")
 
 
-async def _extract_frame(input_path: Path, timestamp_s: float, out_path: Path) -> bool:
-    """Run ffmpeg to grab a single frame at `timestamp_s` into `out_path`."""
-    ffmpeg = _ffmpeg_bin()
-    if ffmpeg is None:
-        return False
-    out_path.parent.mkdir(parents=True, exist_ok=True)
-    # `-threads 1` keeps each poster-frame ffmpeg pegged to a single
-    # CPU thread; combined with the OS-idle priority below this lets
-    # foreground HLS segment transcodes (running at normal priority,
-    # without the threads cap) reliably win CPU even when 9 of these
-    # are running in parallel via `_gather_frames`.
-    # `-nostdin` together with `stdin=DEVNULL` keeps ffmpeg from
-    # touching the controlling terminal's tty mode. Without these,
-    # ffmpeg inherits the parent's stdin (the user's terminal),
-    # flips it into raw mode for its interactive keypress controls,
-    # and a Ctrl-C against `maneki serve` mid-transcode leaves the
-    # tty stuck — the user can't see typed input until they run
-    # `reset`. Same treatment for every other ffmpeg / ffprobe
-    # spawn in the video pipeline.
-    args = [
-        ffmpeg,
-        "-nostdin",
-        "-hide_banner",
-        "-loglevel",
-        "error",
-        "-threads",
-        "1",
-        "-ss",
-        f"{timestamp_s:.3f}",
-        "-i",
-        str(input_path),
-        "-frames:v",
-        "1",
-        "-q:v",
-        "2",
-        "-y",
-        str(out_path),
-    ]
-    proc = await asyncio.create_subprocess_exec(
-        *args,
-        stdin=asyncio.subprocess.DEVNULL,
-        stdout=asyncio.subprocess.DEVNULL,
-        stderr=asyncio.subprocess.DEVNULL,
-        **low_priority_kwargs(),
-    )
-    rc = await proc.wait()
-    return rc == 0 and out_path.exists()
-
-
 async def _gather_frames(
     input_path: Path,
     duration_s: float,
     count: int,
     tmp_dir: Path,
 ) -> list[tuple[float, Path]]:
-    """Concurrently extract `count` frames across the middle 90% of the timeline."""
+    """Extract `count` frames across the middle 90% of the timeline in one ffmpeg pass.
+
+    Previously each frame was a separate ffmpeg subprocess. On a 1313-
+    video library that meant 1313 * 9 = ~12k ffmpeg launches during a
+    cold prewarm, with each new process paying ~50-150ms of startup
+    cost (loading codecs, parsing args, allocating buffers) before
+    doing any useful work. Collapsing the per-poster fan-out to a
+    single ffmpeg with N inputs (each input fast-seeked via `-ss`
+    before its `-i`) keeps the same random-access seek behaviour but
+    drops 8x the startup overhead per poster.
+    """
     start = duration_s * 0.05
     end = duration_s * 0.95
     if count <= 1:
@@ -195,10 +156,41 @@ async def _gather_frames(
         step = (end - start) / (count - 1)
         timestamps = [start + i * step for i in range(count)]
     paths = [tmp_dir / f"f_{i:03d}.jpg" for i in range(count)]
-    results = await asyncio.gather(
-        *(_extract_frame(input_path, ts, p) for ts, p in zip(timestamps, paths, strict=True))
+    ffmpeg = _ffmpeg_bin()
+    if ffmpeg is None:
+        return []
+    tmp_dir.mkdir(parents=True, exist_ok=True)
+    args: list[str] = [
+        ffmpeg,
+        "-nostdin",
+        "-hide_banner",
+        "-loglevel",
+        "error",
+        "-threads",
+        "1",
+    ]
+    for ts in timestamps:
+        # `-ss` before each `-i` is input-seek (fast / random-access);
+        # `-i` re-opens the source so each output gets an independent
+        # decoder state. Same I/O profile as the old 9-process pattern
+        # minus the per-process startup.
+        args.extend(["-ss", f"{ts:.3f}", "-i", str(input_path)])
+    for idx, out_path in enumerate(paths):
+        args.extend(["-map", f"{idx}:v:0", "-frames:v", "1", "-q:v", "2", "-y", str(out_path)])
+    proc = await asyncio.create_subprocess_exec(
+        *args,
+        stdin=asyncio.subprocess.DEVNULL,
+        stdout=asyncio.subprocess.DEVNULL,
+        stderr=asyncio.subprocess.DEVNULL,
+        **low_priority_kwargs(),
     )
-    return [(ts, p) for ts, p, ok in zip(timestamps, paths, results, strict=True) if ok]
+    rc = await proc.wait()
+    if rc != 0:
+        # Don't fail the whole poster — pick up whichever frames did
+        # land. Empty list shows up as "no frames" downstream and the
+        # caller raises a clean RuntimeError.
+        return [(ts, p) for ts, p in zip(timestamps, paths, strict=True) if p.exists()]
+    return [(ts, p) for ts, p in zip(timestamps, paths, strict=True) if p.exists()]
 
 
 def _compose_sheet(
@@ -218,8 +210,19 @@ def _compose_sheet(
     pad = POSTER_PADDING
     header_h = POSTER_HEADER_HEIGHT
 
-    sheet_w = cols * thumb_w + (cols + 1) * pad
-    sheet_h = header_h + rows * thumb_h + (rows + 1) * pad
+    grid_w = cols * thumb_w + (cols + 1) * pad
+    grid_h = header_h + rows * thumb_h + (rows + 1) * pad
+    # Pad to 16:9 so the player's <video> and <img class="vjs-poster">
+    # share the same box and there's no visible "grow" when playback
+    # starts. Without this, the contact-sheet aspect (typically
+    # ~3:2 for a 3x3 grid of 16:9 thumbs + header) gets letterboxed
+    # by video.js's `object-fit: contain`.
+    target_w = max(grid_w, int(grid_h * 16 / 9))
+    target_h = max(grid_h, int(grid_w * 9 / 16))
+    sheet_w = target_w
+    sheet_h = target_h
+    grid_offset_x = (sheet_w - grid_w) // 2
+    grid_offset_y = (sheet_h - grid_h) // 2
     sheet = Image.new("RGB", (sheet_w, sheet_h), color=POSTER_BG)
     draw = ImageDraw.Draw(sheet, "RGBA")
 
@@ -233,10 +236,18 @@ def _compose_sheet(
         _format_duration(duration_s),
         _format_size(size_bytes),
     ]
-    draw.text((pad + 2, 10), title, fill=POSTER_HEADER_FG, font=font_title)
-    draw.text((pad + 2, 34), "  |  ".join(bits), fill=POSTER_HEADER_DIM, font=font_info)
+    draw.text((grid_offset_x + pad + 2, grid_offset_y + 10), title, fill=POSTER_HEADER_FG, font=font_title)
+    draw.text(
+        (grid_offset_x + pad + 2, grid_offset_y + 34),
+        "  |  ".join(bits),
+        fill=POSTER_HEADER_DIM,
+        font=font_info,
+    )
     draw.line(
-        [(pad, header_h - 3), (sheet_w - pad, header_h - 3)],
+        [
+            (grid_offset_x + pad, grid_offset_y + header_h - 3),
+            (grid_offset_x + grid_w - pad, grid_offset_y + header_h - 3),
+        ],
         fill=(60, 64, 80),
         width=1,
     )
@@ -246,8 +257,8 @@ def _compose_sheet(
         col = idx % cols
         with Image.open(frame_path) as img:
             thumb = img.convert("RGB").resize((thumb_w, thumb_h), Image.Resampling.LANCZOS)
-        x = col * thumb_w + (col + 1) * pad
-        y = header_h + row * thumb_h + (row + 1) * pad
+        x = grid_offset_x + col * thumb_w + (col + 1) * pad
+        y = grid_offset_y + header_h + row * thumb_h + (row + 1) * pad
         sheet.paste(thumb, (x, y))
 
         label = _format_duration(ts)
@@ -373,10 +384,31 @@ class PosterManager:
         self.budget = budget or TranscodeBudget()
 
     def poster_path(self, video_id: str) -> Path:
-        return self.cache_dir / f"{video_id}.png"
+        return self.cache_dir / f"{cache_stem(video_id)}.png"
 
     def thumbnail_path(self, video_id: str) -> Path:
-        return self.cache_dir / f"{video_id}.thumb.jpg"
+        return self.cache_dir / f"{cache_stem(video_id)}.thumb.jpg"
+
+    def invalidate(self, video_id: str) -> int:
+        """Drop the cached poster + thumbnail for one id. Returns count removed.
+
+        Use this when a file was edited in place (same path, new
+        content): the SQLite row gets refreshed via mtime/size
+        diffing, but the cached poster PNG / thumbnail JPEG are
+        keyed by the path-derived id and would otherwise show stale
+        frames forever. The next /poster or /thumbnail request
+        regenerates from the new file.
+        """
+        removed = 0
+        for path in (self.poster_path(video_id), self.thumbnail_path(video_id)):
+            try:
+                path.unlink()
+                removed += 1
+            except FileNotFoundError:
+                pass
+            except OSError:
+                pass
+        return removed
 
     def clean_orphans(self, live_ids: set[str]) -> int:
         """Delete cached posters / thumbs whose video id isn't in `live_ids`.
@@ -385,23 +417,29 @@ class PosterManager:
         from the library since the last server run - the old cache
         entries would otherwise accumulate forever. Returns the number
         of files removed.
+
+        Walks the cache dir and keeps any `.png` / `.thumb.jpg` whose
+        stem matches `cache_stem(id)` for some id in `live_ids`.
+        Files using the legacy `<full-id>.png` naming convention land
+        outside the kept set and get swept here on first run after
+        the hash-stem migration; the lost generations regenerate on
+        the next /poster or /thumbnail request.
         """
         if not self.cache_dir.is_dir():
             return 0
+        live_stems = {cache_stem(vid) for vid in live_ids}
         removed = 0
         for path in self.cache_dir.iterdir():
             if not path.is_file():
                 continue
             name = path.name
-            # Recover the video id from the cache filename.
-            # `<id>.png` and `<id>.thumb.jpg` are the two layouts.
             if name.endswith(".thumb.jpg"):
-                vid = name[: -len(".thumb.jpg")]
+                stem = name[: -len(".thumb.jpg")]
             elif name.endswith(".png"):
-                vid = name[: -len(".png")]
+                stem = name[: -len(".png")]
             else:
                 continue
-            if vid not in live_ids:
+            if stem not in live_stems:
                 try:
                     path.unlink()
                     removed += 1
@@ -460,7 +498,7 @@ class PosterManager:
                 duration_s=duration_s,
             )
 
-    async def prewarm(self, entries: list[dict[str, object]]) -> None:
+    async def prewarm(self, entries: list[dict[str, object]], *, skip_posters: bool = False) -> None:
         """Warm caches for every video: subtitle probe, thumbnail, poster.
 
         Walks the supplied video listing and ensures all three are
@@ -468,6 +506,9 @@ class PosterManager:
         listing reads them synchronously - warming them up front means
         cold browse-after-restart is instant. Thumbnails next (row
         icons); posters last (only visible after a row is clicked).
+
+        skip_posters=True drops the poster phase entirely so the
+        --no-cover-images mode doesn't pay the 9-frame-per-video cost.
 
         Concurrency is bounded by the shared TranscodeBudget - background
         slots automatically yield to any in-flight foreground player
@@ -478,7 +519,7 @@ class PosterManager:
         duration_s. Matches VideoEntry.
 
         Emits a terminal heartbeat every _PREWARM_LOG_EVERY completions
-        in each phase so a `maneki serve --prewarm-images /huge/library`
+        in each phase so a `maneki serve --prewarm-cache /huge/library`
         shows live progress instead of one "starting" line followed by
         minutes of silence.
         """
@@ -495,7 +536,7 @@ class PosterManager:
         # Per-phase failure counters. Each task catches its own
         # exception (so one bad file doesn't take down the gather()
         # call) and bumps the matching counter; the phase runner logs
-        # the total at the end so an `--prewarm-images` run with
+        # the total at the end so an `--prewarm-cache` run with
         # silently-failing ffmpeg jobs surfaces as a clear "N failures"
         # line instead of an opaque "20% of thumbnails missing".
         failures: dict[str, int] = {"subtitle-probe": 0, "thumbnails": 0, "posters": 0}
@@ -505,16 +546,16 @@ class PosterManager:
             workers: list[asyncio.Future[None]],
         ) -> None:
             done = 0
-            log.info("prewarm-images: %s phase starting (%d videos)", label, total)
+            log.info("prewarm-cache: %s phase starting (%d videos)", label, total)
             for fut in asyncio.as_completed(workers):
                 await fut
                 done += 1
                 if done % log_every == 0 or done == total:
-                    log.info("prewarm-images: %s %d / %d", label, done, total)
+                    log.info("prewarm-cache: %s %d / %d", label, done, total)
             n_failed = failures[label]
             if n_failed:
                 log.warning(
-                    "prewarm-images: %s phase finished with %d failure(s) out of %d",
+                    "prewarm-cache: %s phase finished with %d failure(s) out of %d",
                     label,
                     n_failed,
                     total,
@@ -531,7 +572,7 @@ class PosterManager:
                 except Exception as exc:  # noqa: BLE001 - one bad file mustn't crash the prewarm
                     failures["subtitle-probe"] += 1
                     log.warning(
-                        "prewarm-images: subtitle probe failed for %s: %s",
+                        "prewarm-cache: subtitle probe failed for %s: %s",
                         entry.get("id"),
                         exc,
                     )
@@ -547,7 +588,7 @@ class PosterManager:
                 except Exception as exc:  # noqa: BLE001
                     failures["thumbnails"] += 1
                     log.warning(
-                        "prewarm-images: thumbnail generation failed for %s: %s",
+                        "prewarm-cache: thumbnail generation failed for %s: %s",
                         entry.get("id"),
                         exc,
                     )
@@ -567,11 +608,12 @@ class PosterManager:
                 except Exception as exc:  # noqa: BLE001
                     failures["posters"] += 1
                     log.warning(
-                        "prewarm-images: poster generation failed for %s: %s",
+                        "prewarm-cache: poster generation failed for %s: %s",
                         entry.get("id"),
                         exc,
                     )
 
         await _phase_runner("subtitle-probe", [asyncio.ensure_future(_probe_subs(e)) for e in entries])
         await _phase_runner("thumbnails", [asyncio.ensure_future(_thumb(e)) for e in entries])
-        await _phase_runner("posters", [asyncio.ensure_future(_poster(e)) for e in entries])
+        if not skip_posters:
+            await _phase_runner("posters", [asyncio.ensure_future(_poster(e)) for e in entries])

@@ -83,7 +83,7 @@ def serve_cmd(
             min=0,
             help=(
                 "Background transcode workers (HLS prewarm + neighbour prefetch + posters). "
-                "0 (default) = cpu_count() // 2, capped at 4. Foreground player requests always "
+                "0 (default) = cpu_count() // 2, capped at 8. Foreground player requests always "
                 "preempt background work regardless of this value."
             ),
         ),
@@ -98,14 +98,28 @@ def serve_cmd(
             ),
         ),
     ] = False,
-    prewarm_images: Annotated[
+    prewarm_cache: Annotated[
         bool,
         typer.Option(
-            "--prewarm-images",
+            "--prewarm-cache",
             help=(
-                "Generate every video's row thumbnail and contact-sheet poster during startup. "
-                "Heavy: ~1-2s per thumbnail + ~3-5s per poster. Default off - thumbs generate "
-                "on first SPA browse. Pair with --rescan to force a full rebuild."
+                "Warm every video's caches during startup: embedded-subtitle probe, row "
+                "thumbnail, contact-sheet poster. Heavy: ~1-2s per thumbnail + ~3-5s per "
+                "poster. Default off - thumbs generate on first SPA browse, posters on "
+                "first /poster request. Pair with --rescan to force a full rebuild; pair "
+                "with --no-cover-images to skip just the contact-sheet phase."
+            ),
+        ),
+    ] = False,
+    no_cover_images: Annotated[
+        bool,
+        typer.Option(
+            "--no-cover-images",
+            help=(
+                "Skip contact-sheet poster generation entirely (on-demand AND prewarm). "
+                "The first frame of the row thumbnail is used as the player's poster fallback "
+                "instead. Useful on slow disks or huge libraries where the 9-frame poster "
+                "isn't worth the wait."
             ),
         ),
     ] = False,
@@ -153,7 +167,8 @@ def serve_cmd(
         enable_ui=ui,
         transcode_workers=workers or None,
         rescan=rescan,
-        prewarm_images=prewarm_images,
+        prewarm_cache=prewarm_cache,
+        no_cover_images=no_cover_images,
     )
     import structlog
 
@@ -164,8 +179,10 @@ def serve_cmd(
         flags.append("SPA at /")
     if rescan:
         flags.append("rescan")
-    if prewarm_images:
-        flags.append("prewarm-images")
+    if prewarm_cache:
+        flags.append("prewarm-cache")
+    if no_cover_images:
+        flags.append("no-cover-images")
     actual_workers = workers or "auto"
     flags.append(f"workers={actual_workers}")
     # Banner through structlog so it matches the rest of the server's

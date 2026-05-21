@@ -57,23 +57,27 @@ def update_json_version(path: Path, version: str) -> bool:
 
 
 _META_TAG_RE = re.compile(r'(<meta\s+name="mk-version"\s+content=")[^"]*(")')
-_SCRIPT_VERSION_RE = re.compile(r'(<script[^>]*\bsrc="[^"]*?\?v=)[^"]*(")')
+# Matches both `<script src="...?v=...">` and `<link href="...?v=...">`
+# so the CSS stylesheets get cache-busted alongside the JSX bundle.
+# Without the link variant the desktop wrapper would happily run a new
+# release's JS against the previous release's CSS until manual reload.
+_ASSET_VERSION_RE = re.compile(r'(<(?:script|link)[^>]*\b(?:src|href)="[^"]*?\?v=)[^"]*(")')
 
 
 def update_html_meta_version(path: Path, version: str) -> bool:
-    """Update `<meta name=mk-version>` and `<script src=...?v=X.Y.Z>` busters.
+    """Update `<meta name=mk-version>` and `?v=X.Y.Z` busters on local assets.
 
     The meta tag drives the login / topbar `vX.Y.Z` label. The `?v=` cache
-    buster on every script src forces Electron / Tauri webviews to
-    re-download the JS bundle on each release instead of running a stale
-    cached copy. Regex rather than a real HTML parser keeps this script
-    dependency-free.
+    buster on every `<script>` and `<link>` forces Electron / Tauri
+    webviews to re-download the JS / CSS bundle on each release instead
+    of running a stale cached copy. Regex rather than a real HTML parser
+    keeps this script dependency-free.
     """
     text = path.read_text(encoding="utf-8")
     new_text, meta_n = _META_TAG_RE.subn(rf"\g<1>{version}\g<2>", text)
     if meta_n == 0:
         raise SystemExit(f"meta[name=mk-version] not found in {path}")
-    new_text = _SCRIPT_VERSION_RE.sub(rf"\g<1>{version}\g<2>", new_text)
+    new_text = _ASSET_VERSION_RE.sub(rf"\g<1>{version}\g<2>", new_text)
     if new_text == text:
         return False
     path.write_text(new_text, encoding="utf-8")

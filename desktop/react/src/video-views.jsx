@@ -31,6 +31,20 @@ function fmtSize(bytes) {
   return `${(bytes / 1e6).toFixed(0)} MB`;
 }
 
+// Map (width, height) -> short label (1080p, 4K, ...). The cutoffs are
+// keyed on height because that's the conventional axis; ultra-wide
+// 1920x800 still reads as 1080p in player-strip UI. Falls back to the
+// exact pixel form when the source is below 480p or non-standard.
+function fmtResolution(w, h) {
+  if (!Number.isFinite(w) || !Number.isFinite(h) || w <= 0 || h <= 0) return null;
+  if (h >= 2160) return "4K";
+  if (h >= 1440) return "1440p";
+  if (h >= 1080) return "1080p";
+  if (h >= 720) return "720p";
+  if (h >= 480) return "480p";
+  return `${w}x${h}`;
+}
+
 // Folder-browser pane: click-in navigator over <root>/videos/. Breadcrumbs
 // at the top, folders above files in the current directory. Click a folder
 // to dive in; click a video to set selectedVideo and show the player.
@@ -335,6 +349,11 @@ function VideoPlayerPane({ session, video, onClose }) {
   // instead of an opaque black canvas when HLS fails (server 503,
   // ffmpeg gone, recovery cooldown engaged, etc.).
   const [playerError, setPlayerError] = useSt_vv(null);
+  // {w, h} once the player decodes the first frame. Pulled from
+  // video.js (`videoWidth/videoHeight`) on `loadedmetadata` so we don't
+  // need a server-side ffprobe just for this — HLS doesn't downscale,
+  // so the player-reported dims match the source file.
+  const [resolution, setResolution] = useSt_vv(null);
 
   // Fetch subtitles list (the listing's `subtitles` field is summary;
   // the endpoint may have more detail by the time we get here). Note: we
@@ -357,6 +376,9 @@ function VideoPlayerPane({ session, video, onClose }) {
   useEff_vv(() => {
     const el = videoRef.current;
     if (el === null || typeof window.videojs !== "function") return undefined;
+    // Drop stale resolution before the new player decodes metadata so
+    // the meta strip doesn't briefly show the previous video's value.
+    setResolution(null);
     // Seed a smaller-than-default caption size BEFORE video.js init
     // reads localStorage. video.js's 100% baseline scales by player
     // height; at 1080p+ fullscreen it eats a third of the screen.
@@ -501,6 +523,18 @@ function VideoPlayerPane({ session, video, onClose }) {
     player.on("playing", clearError);
     player.on("loadeddata", clearError);
 
+    // Capture source resolution for the meta strip. Re-fires on every
+    // src() swap (recovery, manual retry) so the displayed value
+    // tracks whatever's actually decoding.
+    const captureResolution = () => {
+      try {
+        const w = player.videoWidth();
+        const h = player.videoHeight();
+        if (w > 0 && h > 0) setResolution({ w, h });
+      } catch (_e) { /* dead player */ }
+    };
+    player.on("loadedmetadata", captureResolution);
+
     // Recovery for MSE buffer lockups. Two failure modes:
     //   1. alt-tab away, return, player stuck (browser throttles MSE
     //      when backgrounded)
@@ -539,6 +573,22 @@ function VideoPlayerPane({ session, video, onClose }) {
     player.on("pause", cancelStallTimer);
     player.on("ended", cancelStallTimer);
 
+    // Drop server-side neighbour-prefetch when the user pauses.
+    // Without this, the prefetch task chain kicked off by the most
+    // recent segment fetch keeps transcoding ±1 segments forever
+    // (each completion fires the next neighbour) and the user sees
+    // segment requests in the server log long after pressing pause.
+    // Safe to call from `pause`: the cancel endpoint only drops the
+    // prefetch task dict, the HLS session itself stays in memory so
+    // resume / scrub still works without a fresh /session handshake.
+    // We don't cancel on `seeking` — the seek itself will fire fresh
+    // segment fetches and the new prefetch chain springs from those.
+    const cancelPrefetchOnPause = () => {
+      try { window.MK_VIDEO.cancelSession(session, video.id); } catch { /* ignore */ }
+    };
+    player.on("pause", cancelPrefetchOnPause);
+    player.on("ended", cancelPrefetchOnPause);
+
     return () => {
       cancelStallTimer();
       document.removeEventListener("visibilitychange", onVisibility);
@@ -556,17 +606,46 @@ function VideoPlayerPane({ session, video, onClose }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [video.id]);
 
-  // Register subtitle tracks with the player. Doing this AFTER the
-  // player is initialized (instead of via JSX <track> children) avoids
-  // a race where video.js's SubsCapsButton wouldn't see tracks that
-  // React appended later. addRemoteTextTrack also lets us update the
-  // list when the /subtitles fetch resolves with embedded entries that
-  // weren't in the initial listing summary.
+  // Register subtitle tracks with the player.
+  //
+  // History note: a .mkv with 40+ embedded subtitle tracks would,
+  // with naive "register every track on mount", cause the browser to
+  // fire one /subtitles/embed-N fetch per track. Each fetch triggered
+  // a server-side ffmpeg extraction (~0.5-2s each), and the HTTP/1.1
+  // 6-connection-per-origin limit serialised them into ~10 seconds
+  // of head-of-line blocking against the HLS segment requests the
+  // player actually needs.
+  //
+  // Fix: register only the highest-priority tracks - the server's
+  // chosen default + any English / English-SDH variant. That's what
+  // the user almost certainly wants enabled on playback. The non-
+  // priority tracks (Polish, Vietnamese, ...) are intentionally NOT
+  // registered; we trade captions-menu completeness for a clean HLS
+  // critical path. A future "more languages" picker can re-register
+  // any of the dropped tracks on demand.
   useEff_vv(() => {
     const player = playerRef.current;
     if (!player || subtitles.length === 0) return undefined;
+
+    const isEnglish = (s) => {
+      const l = (s.lang || "").toLowerCase();
+      return l === "en" || l === "eng";
+    };
+    const looksSdh = (s) => /\b(sdh|cc|hoh|hearing|closed)\b/i.test(s.label || "");
+    const priority = (s) => {
+      if (s.default) return 0;
+      if (isEnglish(s) && looksSdh(s)) return 1;
+      if (isEnglish(s)) return 2;
+      return 99;
+    };
+    const ordered = [...subtitles].sort((a, b) => priority(a) - priority(b));
+    // Always register at least the top of the sorted list so the
+    // captions menu has something even if no English is available.
+    const eager = ordered.filter((s) => priority(s) < 99);
+    if (eager.length === 0) eager.push(ordered[0]);
+
     const added = [];
-    for (const sub of subtitles) {
+    for (const sub of eager) {
       const src = sub.track_id
         ? window.MK_VIDEO.subtitleTrackUrl(session, video.id, sub.track_id)
         : window.MK_VIDEO.subtitleUrl(session, video.id, sub.lang);
@@ -584,6 +663,7 @@ function VideoPlayerPane({ session, video, onClose }) {
       );
       added.push(track);
     }
+
     return () => {
       for (const t of added) {
         try { player.removeRemoteTextTrack(t); } catch { /* ignore */ }
@@ -592,9 +672,51 @@ function VideoPlayerPane({ session, video, onClose }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [subtitles, video.id]);
 
+  // When the player mounts before the poster has been generated,
+  // /poster returns the 202 SVG placeholder and video.js paints a
+  // blank canvas with just the play button. Without a refresh
+  // trigger the player keeps showing the placeholder forever even
+  // after the real PNG lands on disk. Poll /thumbnails/ready (it
+  // also reports posters_ready) and re-set `player.poster()` with
+  // a cache-busting query string as soon as our id appears.
+  useEff_vv(() => {
+    if (!window.MK_VIDEO.thumbnailsReady) return undefined;
+    let cancelled = false;
+    let timer = null;
+    let done = false;
+    const tick = async () => {
+      if (cancelled || done) return;
+      try {
+        const data = await window.MK_VIDEO.thumbnailsReady(session);
+        if (cancelled) return;
+        const ready = data && Array.isArray(data.posters_ready) ? data.posters_ready : [];
+        if (ready.includes(video.id)) {
+          const player = playerRef.current;
+          if (player) {
+            try {
+              const url = window.MK_VIDEO.posterUrl(session, video.id) + "?v=" + Date.now();
+              player.poster(url);
+            } catch (_e) { /* dead player */ }
+          }
+          done = true;
+          return;
+        }
+      } catch (_e) { /* swallow transient network errors */ }
+      timer = setTimeout(tick, 4000);
+    };
+    timer = setTimeout(tick, 1500);
+    return () => {
+      cancelled = true;
+      if (timer !== null) clearTimeout(timer);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [video.id]);
+
   const subCount = subtitles.length;
+  const resolutionLabel = resolution ? fmtResolution(resolution.w, resolution.h) : null;
   const metaBits = [
     Number.isFinite(video.duration_s) ? fmtDuration(video.duration_s) : null,
+    resolutionLabel,
     Number.isFinite(video.size_bytes) ? fmtSize(video.size_bytes) : null,
     subCount > 0 ? `${subCount} subtitle${subCount === 1 ? "" : "s"}` : null,
   ].filter(Boolean);

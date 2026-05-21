@@ -14,11 +14,12 @@ from __future__ import annotations
 
 import asyncio
 import functools
+import hashlib
 import json
 import logging
 import shutil
 import subprocess
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
 from pathlib import Path
 from typing import TYPE_CHECKING, TypedDict
 
@@ -184,6 +185,7 @@ async def prewarm_scan(
     tracker: VideoScanTracker,
     *,
     index: VideoIndex | None = None,
+    on_changed: Callable[[str], object] | None = None,
 ) -> list[VideoEntry]:
     """Walk the library, probe new/changed files, return the full list.
 
@@ -196,6 +198,13 @@ async def prewarm_scan(
 
     Without `index` (tests, direct sub-app use), the legacy path runs:
     ffprobe every file every call.
+
+    `on_changed` (optional) is invoked once per video id whose
+    fingerprint moved relative to the cached row — i.e. files that
+    existed last scan but were edited in place. Callers wire this to
+    PosterManager.invalidate so the stale poster + thumbnail get
+    dropped and regenerate from the new content. Brand-new files do
+    NOT trigger it (no cache to invalidate).
 
     Two-phase, both reported live to the SPA progressbar:
 
@@ -269,6 +278,19 @@ async def prewarm_scan(
             tracker.tick()
         else:
             to_probe.append((i, path, size_bytes, mtime))
+            # In-place edit: cached row exists but fingerprint moved.
+            # The DB row will refresh from the upcoming probe, but the
+            # cached poster PNG / thumbnail JPEG are keyed by the
+            # path-derived id and would otherwise show stale frames
+            # from the pre-edit content. Tell the caller to drop them
+            # so the next /poster or /thumbnail request regenerates.
+            # Brand-new files (prior is None) skip this — no cache to
+            # invalidate.
+            if on_changed is not None and prior is not None:
+                try:
+                    on_changed(vid)
+                except Exception as exc:  # noqa: BLE001 - one bad invalidate mustn't block the scan
+                    log.warning("video scan: on_changed callback failed for %s: %s", vid, exc)
 
     log.info(
         "video scan: walk done, found %d files; %d cached reused, %d to probe (concurrency=%d)",
@@ -283,6 +305,10 @@ async def prewarm_scan(
     sem = asyncio.Semaphore(_PREWARM_PROBE_CONCURRENCY)
     probed: list[VideoEntry | None] = [None] * len(to_probe)
     total_to_probe = len(to_probe)
+
+    # Slot-aligned mtimes so the batch upsert at the end can pair each
+    # probed entry with the on-disk mtime that triggered the probe.
+    mtimes: list[float | None] = [None] * len(to_probe)
 
     async def _probe_one(slot: int, path: Path, size_bytes: int, mtime: float) -> None:
         async with sem:
@@ -299,11 +325,7 @@ async def prewarm_scan(
                 subtitles=[SubtitleSummary(lang=s.language, format=s.fmt) for s in sidecars],
             )
             probed[slot] = entry
-            if index is not None:
-                # upsert per-completion so a server kill mid-scan still
-                # leaves the cache useful — the next start picks up
-                # whatever finished.
-                await asyncio.to_thread(index.upsert, entry, mtime)
+            mtimes[slot] = mtime
             tracker.tick()
             done = tracker.snapshot().scanned
             if done % _PROBE_LOG_EVERY == 0 or done == len(paths):
@@ -312,6 +334,26 @@ async def prewarm_scan(
     await asyncio.gather(
         *(_probe_one(slot, path, size_bytes, mtime) for slot, (_, path, size_bytes, mtime) in enumerate(to_probe))
     )
+
+    # Single-transaction batch upsert. Replaces the previous per-probe
+    # `await asyncio.to_thread(index.upsert, ...)` pattern which was
+    # observed to wedge the last ~8 tasks of a 1300+ file scan: 8
+    # concurrent probes would all enter the upsert at the gather's
+    # tail end and never return, leaving phase=probing at 1305/1313
+    # indefinitely. One BEGIN/COMMIT per scan is also dramatically
+    # cheaper — 1313 upserts inside a single transaction takes
+    # milliseconds vs hundreds of small autocommit transactions each
+    # forcing an fsync (synchronous=NORMAL still fsyncs the WAL on
+    # every commit).
+    if index is not None and to_probe:
+        pairs: list[tuple[VideoEntry, float]] = []
+        for slot in range(len(to_probe)):
+            entry = probed[slot]
+            mt = mtimes[slot]
+            if entry is not None and mt is not None:
+                pairs.append((entry, mt))
+        await asyncio.to_thread(index.upsert_many, pairs)
+        log.info("video scan: persisted %d row(s) to the index", len(pairs))
 
     # Combine reused + freshly probed in walk order. Build a map keyed
     # on path so we can emit in the same `paths`-sorted order.
@@ -501,3 +543,20 @@ def _make_id(rel_path: Path) -> str:
     digest = hashlib.sha256(full.encode("utf-8")).hexdigest()[:8]
     slug = rel_path.with_suffix("").as_posix().replace("/", "-")
     return f"{slug}-{digest}"
+
+
+def cache_stem(video_id: str) -> str:
+    """Hash the id to a bounded-length on-disk path component.
+
+    The video id (`<slug>-<8hex>`) embeds the full rel_path, which on
+    deeply nested libraries blows past APFS's / ext4's 255-byte
+    NAME_MAX when used as a filename or directory name directly. Every
+    on-disk cache (posters/<id>.png, subs/<id>/embed-N.vtt,
+    hls/<id>/seg-N.ts) routes its id through this helper so cache
+    layout stays portable across filesystems. The id itself is kept
+    in its readable form for URLs, DB rows, and log lines.
+
+    32 hex chars of sha256 = 128 bits; collisions across any
+    realistic library are astronomically unlikely.
+    """
+    return hashlib.sha256(video_id.encode("utf-8")).hexdigest()[:32]

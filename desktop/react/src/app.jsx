@@ -422,6 +422,14 @@ function App() {
         switch (e.key) {
           case "f":
             e.preventDefault();
+            // No-op until the user has actually started playback. With
+            // the poster still showing (player.hasStarted() === false)
+            // and no <video> currentSrc loaded, calling
+            // requestFullscreen on the player root falls through to the
+            // poster <img>, which Chrome handles as "open image in new
+            // tab" — exactly the broken behaviour the user reported.
+            // Same gate applies to the command-palette entry below.
+            if (typeof p.hasStarted === "function" && !p.hasStarted()) return;
             // Browser: use the HTML5 Fullscreen API on the player so the
             // browser chrome (URL bar, tab strip) actually disappears
             // and the video covers the physical screen — what YouTube
@@ -578,6 +586,10 @@ function App() {
       if (c.label === "Toggle mute") { p.muted(!p.muted()); return; }
       if (c.label === "Toggle theater mode") { setTheater((v) => !v); return; }
       if (c.label === "Toggle fullscreen") {
+        // No-op until the user has actually started playback — see the
+        // `f` shortcut handler above for why (poster <img> hijacks
+        // requestFullscreen and Chrome treats it as "open in new tab").
+        if (typeof p.hasStarted === "function" && !p.hasStarted()) return;
         // Same browser vs desktop split as the `f` shortcut: HTML5
         // Fullscreen API in the browser (covers the physical screen),
         // CSS-pin fallback in WKWebView / Electron.

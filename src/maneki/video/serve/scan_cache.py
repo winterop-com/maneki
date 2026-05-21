@@ -211,23 +211,21 @@ class VideoIndex:
 
     def upsert(self, entry: VideoEntry, mtime: float) -> None:
         """Insert or replace a single row. Caller passes the on-disk mtime."""
-        subtitles_json = json.dumps(
-            [{"lang": s["lang"], "format": s["format"]} for s in entry["subtitles"]],
-            separators=(",", ":"),
-        )
-        self._conn.execute(
-            """
-            INSERT INTO videos(id, rel_path, name, path, size_bytes, duration_s, mtime, subtitles_json)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-            ON CONFLICT(id) DO UPDATE SET
-                rel_path = excluded.rel_path,
-                name = excluded.name,
-                path = excluded.path,
-                size_bytes = excluded.size_bytes,
-                duration_s = excluded.duration_s,
-                mtime = excluded.mtime,
-                subtitles_json = excluded.subtitles_json
-            """,
+        self.upsert_many([(entry, mtime)])
+
+    def upsert_many(self, items: list[tuple[VideoEntry, float]]) -> None:
+        """Batch-upsert N rows in a single BEGIN/COMMIT.
+
+        prewarm_scan calls this once at the end of the scan with the
+        whole probed batch — far cheaper than 1313 autocommit-mode
+        executes (each forcing a WAL fsync at synchronous=NORMAL) and
+        sidesteps a deadlock observed when many concurrent
+        `asyncio.to_thread(index.upsert, ...)` calls landed at the tail
+        of a 1300+ file scan and never returned.
+        """
+        if not items:
+            return
+        rows = [
             (
                 entry["id"],
                 entry["rel_path"],
@@ -236,9 +234,34 @@ class VideoIndex:
                 entry["size_bytes"],
                 entry["duration_s"],
                 mtime,
-                subtitles_json,
-            ),
-        )
+                json.dumps(
+                    [{"lang": s["lang"], "format": s["format"]} for s in entry["subtitles"]],
+                    separators=(",", ":"),
+                ),
+            )
+            for entry, mtime in items
+        ]
+        self._conn.execute("BEGIN IMMEDIATE")
+        try:
+            self._conn.executemany(
+                """
+                INSERT INTO videos(id, rel_path, name, path, size_bytes, duration_s, mtime, subtitles_json)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(id) DO UPDATE SET
+                    rel_path = excluded.rel_path,
+                    name = excluded.name,
+                    path = excluded.path,
+                    size_bytes = excluded.size_bytes,
+                    duration_s = excluded.duration_s,
+                    mtime = excluded.mtime,
+                    subtitles_json = excluded.subtitles_json
+                """,
+                rows,
+            )
+            self._conn.execute("COMMIT")
+        except Exception:
+            self._conn.execute("ROLLBACK")
+            raise
 
     def delete_missing(self, live_ids: set[str]) -> int:
         """Drop rows whose id is no longer in `live_ids`. Returns count removed."""

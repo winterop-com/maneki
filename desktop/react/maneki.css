@@ -541,6 +541,18 @@ body {
   border-radius: 3px;
   overflow: hidden;
 }
+/* Make the contact-sheet poster fill the player box instead of being
+   letterboxed inside it. Without this, posters generated before the
+   server-side 16:9 padding change (or any future non-16:9 source)
+   render smaller than the <video> element that replaces them on
+   play - visible as a "poster grows into the video" jump on click.
+   `cover` crops a small amount instead, which matches the post-play
+   sizing exactly. */
+.mk-video-frame .vjs-poster img {
+  object-fit: cover;
+  width: 100%;
+  height: 100%;
+}
 
 /* Skeleton */
 .mk-skel {
