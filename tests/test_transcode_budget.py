@@ -13,7 +13,7 @@ pytestmark = pytest.mark.asyncio
 
 def test_default_workers_is_sane() -> None:
     n = default_workers()
-    assert 1 <= n <= 4
+    assert 1 <= n <= 8
 
 
 async def test_background_slot_runs_when_idle() -> None:

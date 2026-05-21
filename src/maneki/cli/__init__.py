@@ -102,7 +102,6 @@ def serve_cmd(
         bool,
         typer.Option(
             "--prewarm-cache",
-            "--prewarm-images",  # legacy alias, kept for one release
             help=(
                 "Warm every video's caches during startup: embedded-subtitle probe, row "
                 "thumbnail, contact-sheet poster. Heavy: ~1-2s per thumbnail + ~3-5s per "

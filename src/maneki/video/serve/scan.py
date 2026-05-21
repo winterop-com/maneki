@@ -284,6 +284,10 @@ async def prewarm_scan(
     probed: list[VideoEntry | None] = [None] * len(to_probe)
     total_to_probe = len(to_probe)
 
+    # Slot-aligned mtimes so the batch upsert at the end can pair each
+    # probed entry with the on-disk mtime that triggered the probe.
+    mtimes: list[float | None] = [None] * len(to_probe)
+
     async def _probe_one(slot: int, path: Path, size_bytes: int, mtime: float) -> None:
         async with sem:
             duration = await asyncio.to_thread(probe_duration, path)
@@ -299,11 +303,7 @@ async def prewarm_scan(
                 subtitles=[SubtitleSummary(lang=s.language, format=s.fmt) for s in sidecars],
             )
             probed[slot] = entry
-            if index is not None:
-                # upsert per-completion so a server kill mid-scan still
-                # leaves the cache useful — the next start picks up
-                # whatever finished.
-                await asyncio.to_thread(index.upsert, entry, mtime)
+            mtimes[slot] = mtime
             tracker.tick()
             done = tracker.snapshot().scanned
             if done % _PROBE_LOG_EVERY == 0 or done == len(paths):
@@ -312,6 +312,26 @@ async def prewarm_scan(
     await asyncio.gather(
         *(_probe_one(slot, path, size_bytes, mtime) for slot, (_, path, size_bytes, mtime) in enumerate(to_probe))
     )
+
+    # Single-transaction batch upsert. Replaces the previous per-probe
+    # `await asyncio.to_thread(index.upsert, ...)` pattern which was
+    # observed to wedge the last ~8 tasks of a 1300+ file scan: 8
+    # concurrent probes would all enter the upsert at the gather's
+    # tail end and never return, leaving phase=probing at 1305/1313
+    # indefinitely. One BEGIN/COMMIT per scan is also dramatically
+    # cheaper — 1313 upserts inside a single transaction takes
+    # milliseconds vs hundreds of small autocommit transactions each
+    # forcing an fsync (synchronous=NORMAL still fsyncs the WAL on
+    # every commit).
+    if index is not None and to_probe:
+        pairs: list[tuple[VideoEntry, float]] = []
+        for slot in range(len(to_probe)):
+            entry = probed[slot]
+            mt = mtimes[slot]
+            if entry is not None and mt is not None:
+                pairs.append((entry, mt))
+        await asyncio.to_thread(index.upsert_many, pairs)
+        log.info("video scan: persisted %d row(s) to the index", len(pairs))
 
     # Combine reused + freshly probed in walk order. Build a map keyed
     # on path so we can emit in the same `paths`-sorted order.
