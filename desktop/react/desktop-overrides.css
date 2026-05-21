@@ -29,6 +29,15 @@ body[data-platform="darwin"]:not([data-shell="browser"]) .mk-topbar {
    * region draggable like a real title bar so Cmd-click + drag works.
    * `-webkit-app-region` is respected by Electron's Chromium. */
   -webkit-app-region: drag;
+  /* Tauri / WKWebView shows the I-beam (text-selection) cursor on
+   * <div> elements by default, so dragging the title bar would flip
+   * the cursor from arrow to I-beam mid-drag. Force the arrow + drop
+   * text-selection so it behaves like a native title bar. Electron's
+   * Chromium picks up `-webkit-app-region: drag` and overrides the
+   * cursor itself, but these rules are harmless there. */
+  cursor: default;
+  user-select: none;
+  -webkit-user-select: none;
 }
 
 /* Always-on drag strip across the top of the window. The login /
@@ -47,6 +56,10 @@ body[data-platform="darwin"]:not([data-shell="browser"]) .mk-topbar {
   -webkit-app-region: drag;
   pointer-events: auto;
   background: transparent;
+  /* Same I-beam-on-WKWebView story as `.mk-topbar`. */
+  cursor: default;
+  user-select: none;
+  -webkit-user-select: none;
 }
 /* Once the app shell mounts, the `.mk-topbar` itself owns the drag
  * region — hide the strip so it doesn't sit over the search box and
@@ -63,6 +76,11 @@ body:has(.mk-topbar) .mk-drag-strip {
 .mk-login-shell,
 .mk-resume-shell {
   -webkit-app-region: drag;
+  /* Without this the entire login background shows the I-beam in
+   * Tauri's WKWebView when the user clicks-and-drags. */
+  cursor: default;
+  user-select: none;
+  -webkit-user-select: none;
 }
 .mk-login-card,
 .mk-resume-card,
@@ -321,6 +339,11 @@ body[data-platform="darwin"] .mk-topbar input {
 body[data-platform="darwin"] .mk-fs-head {
   padding-top: 36px;
   -webkit-app-region: drag;
+  /* Match `.mk-topbar` — Tauri's WKWebView otherwise flips to the
+   * I-beam cursor while dragging the fullscreen header. */
+  cursor: default;
+  user-select: none;
+  -webkit-user-select: none;
 }
 body[data-platform="darwin"] .mk-fs-close,
 body[data-platform="darwin"] .mk-fs-controls,
