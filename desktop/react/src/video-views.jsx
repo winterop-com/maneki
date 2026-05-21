@@ -656,6 +656,46 @@ function VideoPlayerPane({ session, video, onClose }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [subtitles, video.id]);
 
+  // When the player mounts before the poster has been generated,
+  // /poster returns the 202 SVG placeholder and video.js paints a
+  // blank canvas with just the play button. Without a refresh
+  // trigger the player keeps showing the placeholder forever even
+  // after the real PNG lands on disk. Poll /thumbnails/ready (it
+  // also reports posters_ready) and re-set `player.poster()` with
+  // a cache-busting query string as soon as our id appears.
+  useEff_vv(() => {
+    if (!window.MK_VIDEO.thumbnailsReady) return undefined;
+    let cancelled = false;
+    let timer = null;
+    let done = false;
+    const tick = async () => {
+      if (cancelled || done) return;
+      try {
+        const data = await window.MK_VIDEO.thumbnailsReady(session);
+        if (cancelled) return;
+        const ready = data && Array.isArray(data.posters_ready) ? data.posters_ready : [];
+        if (ready.includes(video.id)) {
+          const player = playerRef.current;
+          if (player) {
+            try {
+              const url = window.MK_VIDEO.posterUrl(session, video.id) + "?v=" + Date.now();
+              player.poster(url);
+            } catch (_e) { /* dead player */ }
+          }
+          done = true;
+          return;
+        }
+      } catch (_e) { /* swallow transient network errors */ }
+      timer = setTimeout(tick, 4000);
+    };
+    timer = setTimeout(tick, 1500);
+    return () => {
+      cancelled = true;
+      if (timer !== null) clearTimeout(timer);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [video.id]);
+
   const subCount = subtitles.length;
   const resolutionLabel = resolution ? fmtResolution(resolution.w, resolution.h) : null;
   const metaBits = [

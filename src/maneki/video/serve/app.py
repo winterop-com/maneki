@@ -419,23 +419,31 @@ def create_app(
 
     @app.get("/api/thumbnails/ready")
     def thumbnails_ready() -> dict[str, list[str]]:
-        """Return the set of video IDs whose row thumbnail is cached on disk.
+        """Return the set of video IDs whose row thumbnail / player poster is cached.
 
         SPA polls this every few seconds while a folder is open. When an
-        id newly appears here, the SPA bumps that row's <img> src with a
-        version-bump query string so the placeholder gets swapped for the
-        real frame without a page reload.
+        id newly appears under `ready`, the SPA bumps that row's <img>
+        src with a version-bump query string so the placeholder gets
+        swapped for the real frame without a page reload. Same trick
+        for `posters_ready` against the currently-open player so the
+        big contact-sheet poster swaps in once it finishes generating.
         """
         cache_dir = poster_manager.cache_dir
         if not cache_dir.is_dir():
-            return {"ready": []}
-        suffix = ".thumb.jpg"
+            return {"ready": [], "posters_ready": []}
+        thumb_suffix = ".thumb.jpg"
+        poster_suffix = ".png"
         ready: list[str] = []
+        posters_ready: list[str] = []
         for child in cache_dir.iterdir():
+            if not child.is_file():
+                continue
             name = child.name
-            if name.endswith(suffix) and child.is_file():
-                ready.append(name[: -len(suffix)])
-        return {"ready": ready}
+            if name.endswith(thumb_suffix):
+                ready.append(name[: -len(thumb_suffix)])
+            elif name.endswith(poster_suffix):
+                posters_ready.append(name[: -len(poster_suffix)])
+        return {"ready": ready, "posters_ready": posters_ready}
 
     @app.get("/api/videos/{video_id}/subtitles")
     def list_subtitles(video_id: str) -> list[dict[str, object]]:
