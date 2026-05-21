@@ -90,12 +90,23 @@ class TranscodeBudget:
         self,
         max_workers: int | None = None,
         *,
+        max_foreground: int = 3,
         quiet_after_fg_s: float = DEFAULT_QUIET_AFTER_FG_S,
         ondemand_quiet_s: float = DEFAULT_ONDEMAND_QUIET_S,
     ) -> None:
         workers = max_workers if max_workers is not None and max_workers > 0 else default_workers()
         self._max_workers = workers
         self._background_sem = asyncio.Semaphore(workers)
+        # Cap on concurrent foreground transcodes too. Without this, a
+        # rapid-seek storm (e.g. 18 scrubs in 9s) spawns 18 simultaneous
+        # ffmpegs all reading the same source — disk I/O contention
+        # makes each take ~15s instead of the usual ~200ms, and the
+        # browser's HLS engine doesn't cancel old segment fetches on
+        # seek so they all run to completion while the player waits
+        # for the *latest* one. With cap=3 the queue stays short and
+        # the player gets fresh segments quickly.
+        self._foreground_sem = asyncio.Semaphore(max(1, max_foreground))
+        self._max_foreground = max(1, max_foreground)
         self._foreground_count = 0
         self._background_count = 0
         # Initially the system is idle (no foreground in flight).
@@ -122,18 +133,29 @@ class TranscodeBudget:
 
     @contextlib.asynccontextmanager
     async def foreground(self) -> AsyncGenerator[None, None]:
-        """Wrap a foreground transcode. Background workers pause for the duration."""
-        self._foreground_count += 1
-        self._idle_event.clear()
-        try:
-            yield
-        finally:
-            self._foreground_count -= 1
-            if self._foreground_count == 0:
-                # Stamp the moment the foreground request finished so
-                # background_slot can honour the quiet period.
-                self._last_foreground_at = time.monotonic()
-                self._idle_event.set()
+        """Wrap a foreground transcode. Background workers pause for the duration.
+
+        Acquires the foreground semaphore — at most `max_foreground`
+        transcodes run concurrently. The (max_foreground+1)th waits in
+        queue; the browser's HLS engine doesn't cancel queued segment
+        fetches on seek, so they'll still run, but only after the
+        currently-running transcodes free a slot. Net effect on a
+        rapid-seek storm: short queue, full CPU per transcode, fast
+        completion (vs. 18 concurrent ffmpegs sharing disk I/O and
+        each taking ~15s).
+        """
+        async with self._foreground_sem:
+            self._foreground_count += 1
+            self._idle_event.clear()
+            try:
+                yield
+            finally:
+                self._foreground_count -= 1
+                if self._foreground_count == 0:
+                    # Stamp the moment the foreground request finished so
+                    # background_slot can honour the quiet period.
+                    self._last_foreground_at = time.monotonic()
+                    self._idle_event.set()
 
     async def _wait_for_quiet(self, quiet_window_s: float | None = None) -> None:
         """Sleep until both idle_event is set AND the quiet period has elapsed.
