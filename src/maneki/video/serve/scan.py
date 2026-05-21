@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import asyncio
 import functools
+import hashlib
 import json
 import logging
 import shutil
@@ -542,3 +543,20 @@ def _make_id(rel_path: Path) -> str:
     digest = hashlib.sha256(full.encode("utf-8")).hexdigest()[:8]
     slug = rel_path.with_suffix("").as_posix().replace("/", "-")
     return f"{slug}-{digest}"
+
+
+def cache_stem(video_id: str) -> str:
+    """Hash the id to a bounded-length on-disk path component.
+
+    The video id (`<slug>-<8hex>`) embeds the full rel_path, which on
+    deeply nested libraries blows past APFS's / ext4's 255-byte
+    NAME_MAX when used as a filename or directory name directly. Every
+    on-disk cache (posters/<id>.png, subs/<id>/embed-N.vtt,
+    hls/<id>/seg-N.ts) routes its id through this helper so cache
+    layout stays portable across filesystems. The id itself is kept
+    in its readable form for URLs, DB rows, and log lines.
+
+    32 hex chars of sha256 = 128 bits; collisions across any
+    realistic library are astronomically unlikely.
+    """
+    return hashlib.sha256(video_id.encode("utf-8")).hexdigest()[:32]

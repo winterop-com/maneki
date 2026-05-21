@@ -424,7 +424,9 @@ class SubtitleCache:
         self._locks: dict[str, asyncio.Lock] = {}
 
     def path_for(self, video_id: str, stream_index: int) -> Path:
-        return self.cache_dir / video_id / f"embed-{stream_index}.vtt"
+        from maneki.video.serve.scan import cache_stem  # avoid circular at import time
+
+        return self.cache_dir / cache_stem(video_id) / f"embed-{stream_index}.vtt"
 
     async def ensure(self, video_id: str, video_path: Path, stream_index: int) -> Path:
         out = self.path_for(video_id, stream_index)
@@ -453,13 +455,16 @@ class SubtitleCache:
 
     def clean_orphans(self, live_ids: set[str]) -> int:
         """Delete cached subtitle dirs whose video id isn't in `live_ids`."""
+        from maneki.video.serve.scan import cache_stem
+
         if not self.cache_dir.is_dir():
             return 0
+        live_stems = {cache_stem(vid) for vid in live_ids}
         removed = 0
         for path in self.cache_dir.iterdir():
             if not path.is_dir():
                 continue
-            if path.name in live_ids:
+            if path.name in live_stems:
                 continue
             try:
                 shutil.rmtree(path)

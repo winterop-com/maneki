@@ -427,22 +427,22 @@ def create_app(
         swapped for the real frame without a page reload. Same trick
         for `posters_ready` against the currently-open player so the
         big contact-sheet poster swaps in once it finishes generating.
+
+        Cache filenames are sha256-derived stems (so deeply nested rel
+        paths can't blow the OS's 255-byte NAME_MAX), which means we
+        can't reverse-map a filename back to its video id. Instead,
+        iterate the known live ids from the in-memory video cache and
+        stat each one's expected cache path.
         """
-        cache_dir = poster_manager.cache_dir
-        if not cache_dir.is_dir():
-            return {"ready": [], "posters_ready": []}
-        thumb_suffix = ".thumb.jpg"
-        poster_suffix = ".png"
+        videos: list[VideoEntry] = getattr(app.state, "video_cache", None) or []
         ready: list[str] = []
         posters_ready: list[str] = []
-        for child in cache_dir.iterdir():
-            if not child.is_file():
-                continue
-            name = child.name
-            if name.endswith(thumb_suffix):
-                ready.append(name[: -len(thumb_suffix)])
-            elif name.endswith(poster_suffix):
-                posters_ready.append(name[: -len(poster_suffix)])
+        for v in videos:
+            vid = v["id"]
+            if poster_manager.thumbnail_path(vid).exists():
+                ready.append(vid)
+            if poster_manager.poster_path(vid).exists():
+                posters_ready.append(vid)
         return {"ready": ready, "posters_ready": posters_ready}
 
     @app.get("/api/videos/{video_id}/subtitles")

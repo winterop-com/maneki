@@ -390,10 +390,12 @@ class HLSManager:
         marker.write_text(HLS_CACHE_VERSION, encoding="utf-8")
 
     def get_or_create(self, video_id: str, input_path: Path, duration_s: float) -> OnDemandHLS:
+        from maneki.video.serve.scan import cache_stem
+
         existing = self.sessions.get(video_id)
         if existing is not None:
             return existing
-        session_dir = self.base_dir / video_id
+        session_dir = self.base_dir / cache_stem(video_id)
         session = OnDemandHLS(video_id, input_path, duration_s, session_dir, self.budget)
         self.sessions[video_id] = session
         return session
@@ -409,12 +411,15 @@ class HLSManager:
         cache would otherwise sit on disk forever. Returns the number
         of directories removed.
         """
+        from maneki.video.serve.scan import cache_stem
+
         removed = 0
         if self.base_dir.is_dir():
+            live_stems = {cache_stem(vid) for vid in live_ids}
             for path in self.base_dir.iterdir():
                 if not path.is_dir():
                     continue
-                if path.name in live_ids:
+                if path.name in live_stems:
                     continue
                 try:
                     shutil.rmtree(path)

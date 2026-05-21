@@ -21,19 +21,23 @@ def test_poster_cleanup_keeps_live_drops_orphans(tmp_path: Path) -> None:
     """Files for live ids stay; files for orphan ids are deleted."""
     mgr = PosterManager(cache_dir=tmp_path)
     tmp_path.mkdir(exist_ok=True)
-    (tmp_path / "alive.png").write_bytes(b"x")
-    (tmp_path / "alive.thumb.jpg").write_bytes(b"x")
-    (tmp_path / "gone.png").write_bytes(b"x")
-    (tmp_path / "gone.thumb.jpg").write_bytes(b"x")
+    alive_p = mgr.poster_path("alive")
+    alive_t = mgr.thumbnail_path("alive")
+    gone_p = mgr.poster_path("gone")
+    gone_t = mgr.thumbnail_path("gone")
+    alive_p.write_bytes(b"x")
+    alive_t.write_bytes(b"x")
+    gone_p.write_bytes(b"x")
+    gone_t.write_bytes(b"x")
     (tmp_path / "noise.txt").write_text("unrelated")
 
     removed = mgr.clean_orphans({"alive"})
 
     assert removed == 2
-    assert (tmp_path / "alive.png").exists()
-    assert (tmp_path / "alive.thumb.jpg").exists()
-    assert not (tmp_path / "gone.png").exists()
-    assert not (tmp_path / "gone.thumb.jpg").exists()
+    assert alive_p.exists()
+    assert alive_t.exists()
+    assert not gone_p.exists()
+    assert not gone_t.exists()
     # Unrelated files in the cache dir are left alone.
     assert (tmp_path / "noise.txt").exists()
 
@@ -71,18 +75,22 @@ def test_hls_marker_written_on_fresh_dir_survives_restart(tmp_path: Path) -> Non
 
 
 def test_hls_cleanup_removes_orphan_session_dirs(tmp_path: Path) -> None:
+    from maneki.video.serve.scan import cache_stem
+
     _pre_seed_hls_marker(tmp_path)
     mgr = HLSManager(base_dir=tmp_path)
-    (tmp_path / "alive").mkdir()
-    (tmp_path / "alive" / "seg-0000.ts").write_bytes(b"x")
-    (tmp_path / "gone").mkdir()
-    (tmp_path / "gone" / "seg-0000.ts").write_bytes(b"x")
+    alive_dir = tmp_path / cache_stem("alive")
+    gone_dir = tmp_path / cache_stem("gone")
+    alive_dir.mkdir()
+    (alive_dir / "seg-0000.ts").write_bytes(b"x")
+    gone_dir.mkdir()
+    (gone_dir / "seg-0000.ts").write_bytes(b"x")
 
     removed = mgr.clean_orphans({"alive"})
 
     assert removed == 1
-    assert (tmp_path / "alive").exists()
-    assert not (tmp_path / "gone").exists()
+    assert alive_dir.exists()
+    assert not gone_dir.exists()
 
 
 def test_hls_cleanup_drops_stale_in_memory_session(tmp_path: Path) -> None:
@@ -99,21 +107,27 @@ def test_hls_cleanup_drops_stale_in_memory_session(tmp_path: Path) -> None:
 
 
 def test_subtitle_cleanup_removes_orphan_dirs(tmp_path: Path) -> None:
+    from maneki.video.serve.scan import cache_stem
+
     cache = SubtitleCache(cache_dir=tmp_path)
-    (tmp_path / "alive").mkdir()
-    (tmp_path / "alive" / "embed-2.vtt").write_text("WEBVTT")
-    (tmp_path / "gone").mkdir()
-    (tmp_path / "gone" / "embed-2.vtt").write_text("WEBVTT")
+    alive_dir = tmp_path / cache_stem("alive")
+    gone_dir = tmp_path / cache_stem("gone")
+    alive_dir.mkdir()
+    (alive_dir / "embed-2.vtt").write_text("WEBVTT")
+    gone_dir.mkdir()
+    (gone_dir / "embed-2.vtt").write_text("WEBVTT")
 
     removed = cache.clean_orphans({"alive"})
 
     assert removed == 1
-    assert (tmp_path / "alive").exists()
-    assert not (tmp_path / "gone").exists()
+    assert alive_dir.exists()
+    assert not gone_dir.exists()
 
 
 def test_all_three_caches_clean_orphans(tmp_path: Path) -> None:
     """Same `live_ids` set works for all three cache types."""
+    from maneki.video.serve.scan import cache_stem
+
     poster_dir = tmp_path / "posters"
     hls_dir = tmp_path / "hls"
     subs_dir = tmp_path / "subs"
@@ -121,12 +135,14 @@ def test_all_three_caches_clean_orphans(tmp_path: Path) -> None:
     hls_dir.mkdir()
     subs_dir.mkdir()
 
-    (poster_dir / "keep.png").write_bytes(b"x")
-    (poster_dir / "drop.png").write_bytes(b"x")
-    (hls_dir / "keep").mkdir()
-    (hls_dir / "drop").mkdir()
-    (subs_dir / "keep").mkdir()
-    (subs_dir / "drop").mkdir()
+    keep_stem = cache_stem("keep")
+    drop_stem = cache_stem("drop")
+    (poster_dir / f"{keep_stem}.png").write_bytes(b"x")
+    (poster_dir / f"{drop_stem}.png").write_bytes(b"x")
+    (hls_dir / keep_stem).mkdir()
+    (hls_dir / drop_stem).mkdir()
+    (subs_dir / keep_stem).mkdir()
+    (subs_dir / drop_stem).mkdir()
     # HLSManager's init wipes everything when the cache-version marker
     # is missing; pre-seed it so the orphan-cleanup logic gets to run
     # against the fixture dirs.
@@ -138,6 +154,6 @@ def test_all_three_caches_clean_orphans(tmp_path: Path) -> None:
     assert SubtitleCache(cache_dir=subs_dir).clean_orphans(live) == 1
 
     for d in (poster_dir, hls_dir, subs_dir):
-        assert (d / "keep").exists() or (d / "keep.png").exists()
-        assert not (d / "drop").exists()
-        assert not (d / "drop.png").exists()
+        assert (d / keep_stem).exists() or (d / f"{keep_stem}.png").exists()
+        assert not (d / drop_stem).exists()
+        assert not (d / f"{drop_stem}.png").exists()

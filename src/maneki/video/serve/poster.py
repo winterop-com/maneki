@@ -26,7 +26,7 @@ from pathlib import Path
 from PIL import Image, ImageDraw, ImageFont
 from pydantic import BaseModel, ConfigDict
 
-from maneki.video.serve.scan import probe_duration
+from maneki.video.serve.scan import cache_stem, probe_duration
 from maneki.video.serve.transcode import low_priority_kwargs
 from maneki.video.serve.transcode_budget import TranscodeBudget
 
@@ -384,10 +384,10 @@ class PosterManager:
         self.budget = budget or TranscodeBudget()
 
     def poster_path(self, video_id: str) -> Path:
-        return self.cache_dir / f"{video_id}.png"
+        return self.cache_dir / f"{cache_stem(video_id)}.png"
 
     def thumbnail_path(self, video_id: str) -> Path:
-        return self.cache_dir / f"{video_id}.thumb.jpg"
+        return self.cache_dir / f"{cache_stem(video_id)}.thumb.jpg"
 
     def invalidate(self, video_id: str) -> int:
         """Drop the cached poster + thumbnail for one id. Returns count removed.
@@ -417,23 +417,29 @@ class PosterManager:
         from the library since the last server run - the old cache
         entries would otherwise accumulate forever. Returns the number
         of files removed.
+
+        Walks the cache dir and keeps any `.png` / `.thumb.jpg` whose
+        stem matches `cache_stem(id)` for some id in `live_ids`.
+        Files using the legacy `<full-id>.png` naming convention land
+        outside the kept set and get swept here on first run after
+        the hash-stem migration; the lost generations regenerate on
+        the next /poster or /thumbnail request.
         """
         if not self.cache_dir.is_dir():
             return 0
+        live_stems = {cache_stem(vid) for vid in live_ids}
         removed = 0
         for path in self.cache_dir.iterdir():
             if not path.is_file():
                 continue
             name = path.name
-            # Recover the video id from the cache filename.
-            # `<id>.png` and `<id>.thumb.jpg` are the two layouts.
             if name.endswith(".thumb.jpg"):
-                vid = name[: -len(".thumb.jpg")]
+                stem = name[: -len(".thumb.jpg")]
             elif name.endswith(".png"):
-                vid = name[: -len(".png")]
+                stem = name[: -len(".png")]
             else:
                 continue
-            if vid not in live_ids:
+            if stem not in live_stems:
                 try:
                     path.unlink()
                     removed += 1
