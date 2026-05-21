@@ -77,7 +77,12 @@ _MIME_BY_EXT: dict[str, str] = {
 }
 
 
-def create_app(root: Path, *, budget: TranscodeBudget | None = None) -> FastAPI:
+def create_app(
+    root: Path,
+    *,
+    budget: TranscodeBudget | None = None,
+    no_cover_images: bool = False,
+) -> FastAPI:
     """Build the FastAPI app rooted at the given library directory.
 
     Args:
@@ -86,6 +91,10 @@ def create_app(root: Path, *, budget: TranscodeBudget | None = None) -> FastAPI:
             for v0; SQLite cache is the next layer up).
         budget: shared foreground-priority transcode scheduler. When None
             a fresh one is created with the default worker count.
+        no_cover_images: when True, the /poster endpoint serves the
+            single-frame thumbnail instead of generating a 9-frame
+            contact sheet. Same flag is honoured by the prewarm path
+            to skip the poster phase entirely.
     """
     app = FastAPI(title="maneki-video", version=__version__)
     # One structured access-log line per /video/* request — same shape
@@ -111,6 +120,7 @@ def create_app(root: Path, *, budget: TranscodeBudget | None = None) -> FastAPI:
     app.state.subtitle_cache = subtitle_cache
     app.state.library_root = root
     app.state.budget = shared_budget
+    app.state.no_cover_images = no_cover_images
     # Background-prewarm state. The parent app's lifespan walks the
     # library once at startup, populates `video_cache`, and ticks
     # `scan_tracker` per file so the SPA can render a progressbar.
@@ -335,8 +345,22 @@ def create_app(root: Path, *, budget: TranscodeBudget | None = None) -> FastAPI:
         inline-SVG placeholder (202 Accepted) and schedules background
         generation. The SPA polls /api/thumbnails/ready to discover when
         the real poster lands and bumps its img src to refetch.
+
+        With `no_cover_images=True`, the contact sheet is skipped entirely:
+        the endpoint serves (or generates) the single-frame thumbnail and
+        labels it as the poster. Cheaper, no 9-frame ffmpeg fan-out.
         """
         entry = _find(video_id, root)
+        if no_cover_images:
+            thumb = poster_manager.thumbnail_path(video_id)
+            if thumb.exists():
+                return FileResponse(thumb, media_type="image/jpeg")
+            try:
+                assert_ffmpeg_available()
+            except FFmpegNotFoundError as exc:
+                raise HTTPException(status_code=503, detail=str(exc)) from exc
+            _schedule_thumbnail(video_id, Path(entry["path"]), entry["duration_s"])
+            return _placeholder_response()
         cached = poster_manager.poster_path(video_id)
         if cached.exists():
             return FileResponse(cached, media_type="image/png")

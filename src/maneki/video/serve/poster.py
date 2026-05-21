@@ -131,62 +131,23 @@ async def _probe_stream(input_path: Path) -> _StreamInfo:
     return _StreamInfo(width=width, height=height, codec=codec or "unknown")
 
 
-async def _extract_frame(input_path: Path, timestamp_s: float, out_path: Path) -> bool:
-    """Run ffmpeg to grab a single frame at `timestamp_s` into `out_path`."""
-    ffmpeg = _ffmpeg_bin()
-    if ffmpeg is None:
-        return False
-    out_path.parent.mkdir(parents=True, exist_ok=True)
-    # `-threads 1` keeps each poster-frame ffmpeg pegged to a single
-    # CPU thread; combined with the OS-idle priority below this lets
-    # foreground HLS segment transcodes (running at normal priority,
-    # without the threads cap) reliably win CPU even when 9 of these
-    # are running in parallel via `_gather_frames`.
-    # `-nostdin` together with `stdin=DEVNULL` keeps ffmpeg from
-    # touching the controlling terminal's tty mode. Without these,
-    # ffmpeg inherits the parent's stdin (the user's terminal),
-    # flips it into raw mode for its interactive keypress controls,
-    # and a Ctrl-C against `maneki serve` mid-transcode leaves the
-    # tty stuck — the user can't see typed input until they run
-    # `reset`. Same treatment for every other ffmpeg / ffprobe
-    # spawn in the video pipeline.
-    args = [
-        ffmpeg,
-        "-nostdin",
-        "-hide_banner",
-        "-loglevel",
-        "error",
-        "-threads",
-        "1",
-        "-ss",
-        f"{timestamp_s:.3f}",
-        "-i",
-        str(input_path),
-        "-frames:v",
-        "1",
-        "-q:v",
-        "2",
-        "-y",
-        str(out_path),
-    ]
-    proc = await asyncio.create_subprocess_exec(
-        *args,
-        stdin=asyncio.subprocess.DEVNULL,
-        stdout=asyncio.subprocess.DEVNULL,
-        stderr=asyncio.subprocess.DEVNULL,
-        **low_priority_kwargs(),
-    )
-    rc = await proc.wait()
-    return rc == 0 and out_path.exists()
-
-
 async def _gather_frames(
     input_path: Path,
     duration_s: float,
     count: int,
     tmp_dir: Path,
 ) -> list[tuple[float, Path]]:
-    """Concurrently extract `count` frames across the middle 90% of the timeline."""
+    """Extract `count` frames across the middle 90% of the timeline in one ffmpeg pass.
+
+    Previously each frame was a separate ffmpeg subprocess. On a 1313-
+    video library that meant 1313 * 9 = ~12k ffmpeg launches during a
+    cold prewarm, with each new process paying ~50-150ms of startup
+    cost (loading codecs, parsing args, allocating buffers) before
+    doing any useful work. Collapsing the per-poster fan-out to a
+    single ffmpeg with N inputs (each input fast-seeked via `-ss`
+    before its `-i`) keeps the same random-access seek behaviour but
+    drops 8x the startup overhead per poster.
+    """
     start = duration_s * 0.05
     end = duration_s * 0.95
     if count <= 1:
@@ -195,10 +156,41 @@ async def _gather_frames(
         step = (end - start) / (count - 1)
         timestamps = [start + i * step for i in range(count)]
     paths = [tmp_dir / f"f_{i:03d}.jpg" for i in range(count)]
-    results = await asyncio.gather(
-        *(_extract_frame(input_path, ts, p) for ts, p in zip(timestamps, paths, strict=True))
+    ffmpeg = _ffmpeg_bin()
+    if ffmpeg is None:
+        return []
+    tmp_dir.mkdir(parents=True, exist_ok=True)
+    args: list[str] = [
+        ffmpeg,
+        "-nostdin",
+        "-hide_banner",
+        "-loglevel",
+        "error",
+        "-threads",
+        "1",
+    ]
+    for ts in timestamps:
+        # `-ss` before each `-i` is input-seek (fast / random-access);
+        # `-i` re-opens the source so each output gets an independent
+        # decoder state. Same I/O profile as the old 9-process pattern
+        # minus the per-process startup.
+        args.extend(["-ss", f"{ts:.3f}", "-i", str(input_path)])
+    for idx, out_path in enumerate(paths):
+        args.extend(["-map", f"{idx}:v:0", "-frames:v", "1", "-q:v", "2", "-y", str(out_path)])
+    proc = await asyncio.create_subprocess_exec(
+        *args,
+        stdin=asyncio.subprocess.DEVNULL,
+        stdout=asyncio.subprocess.DEVNULL,
+        stderr=asyncio.subprocess.DEVNULL,
+        **low_priority_kwargs(),
     )
-    return [(ts, p) for ts, p, ok in zip(timestamps, paths, results, strict=True) if ok]
+    rc = await proc.wait()
+    if rc != 0:
+        # Don't fail the whole poster — pick up whichever frames did
+        # land. Empty list shows up as "no frames" downstream and the
+        # caller raises a clean RuntimeError.
+        return [(ts, p) for ts, p in zip(timestamps, paths, strict=True) if p.exists()]
+    return [(ts, p) for ts, p in zip(timestamps, paths, strict=True) if p.exists()]
 
 
 def _compose_sheet(
@@ -479,7 +471,7 @@ class PosterManager:
                 duration_s=duration_s,
             )
 
-    async def prewarm(self, entries: list[dict[str, object]]) -> None:
+    async def prewarm(self, entries: list[dict[str, object]], *, skip_posters: bool = False) -> None:
         """Warm caches for every video: subtitle probe, thumbnail, poster.
 
         Walks the supplied video listing and ensures all three are
@@ -487,6 +479,9 @@ class PosterManager:
         listing reads them synchronously - warming them up front means
         cold browse-after-restart is instant. Thumbnails next (row
         icons); posters last (only visible after a row is clicked).
+
+        skip_posters=True drops the poster phase entirely so the
+        --no-cover-images mode doesn't pay the 9-frame-per-video cost.
 
         Concurrency is bounded by the shared TranscodeBudget - background
         slots automatically yield to any in-flight foreground player
@@ -593,4 +588,5 @@ class PosterManager:
 
         await _phase_runner("subtitle-probe", [asyncio.ensure_future(_probe_subs(e)) for e in entries])
         await _phase_runner("thumbnails", [asyncio.ensure_future(_thumb(e)) for e in entries])
-        await _phase_runner("posters", [asyncio.ensure_future(_poster(e)) for e in entries])
+        if not skip_posters:
+            await _phase_runner("posters", [asyncio.ensure_future(_poster(e)) for e in entries])

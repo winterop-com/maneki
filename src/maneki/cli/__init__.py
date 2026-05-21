@@ -83,7 +83,7 @@ def serve_cmd(
             min=0,
             help=(
                 "Background transcode workers (HLS prewarm + neighbour prefetch + posters). "
-                "0 (default) = cpu_count() // 2, capped at 4. Foreground player requests always "
+                "0 (default) = cpu_count() // 2, capped at 8. Foreground player requests always "
                 "preempt background work regardless of this value."
             ),
         ),
@@ -106,6 +106,18 @@ def serve_cmd(
                 "Generate every video's row thumbnail and contact-sheet poster during startup. "
                 "Heavy: ~1-2s per thumbnail + ~3-5s per poster. Default off - thumbs generate "
                 "on first SPA browse. Pair with --rescan to force a full rebuild."
+            ),
+        ),
+    ] = False,
+    no_cover_images: Annotated[
+        bool,
+        typer.Option(
+            "--no-cover-images",
+            help=(
+                "Skip contact-sheet poster generation entirely (on-demand AND prewarm). "
+                "The first frame of the row thumbnail is used as the player's poster fallback "
+                "instead. Useful on slow disks or huge libraries where the 9-frame poster "
+                "isn't worth the wait."
             ),
         ),
     ] = False,
@@ -154,6 +166,7 @@ def serve_cmd(
         transcode_workers=workers or None,
         rescan=rescan,
         prewarm_images=prewarm_images,
+        no_cover_images=no_cover_images,
     )
     import structlog
 
@@ -166,6 +179,8 @@ def serve_cmd(
         flags.append("rescan")
     if prewarm_images:
         flags.append("prewarm-images")
+    if no_cover_images:
+        flags.append("no-cover-images")
     actual_workers = workers or "auto"
     flags.append(f"workers={actual_workers}")
     # Banner through structlog so it matches the rest of the server's

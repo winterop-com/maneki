@@ -81,6 +81,7 @@ def create_combined_app(
     transcode_workers: int | None = None,
     rescan: bool = False,
     prewarm_images: bool = False,
+    no_cover_images: bool = False,
 ) -> FastAPI:
     """Build a FastAPI app that auto-mounts whichever kinds are present at root.
 
@@ -122,6 +123,11 @@ def create_combined_app(
             asset rebuilt; without --rescan, prewarm-images skips files
             whose cache already exists, so it's idempotent and cheap on
             a second run.
+        no_cover_images: when True, skip contact-sheet poster generation
+            in both on-demand and prewarm paths. /poster endpoints fall
+            back to the cheap row-thumbnail (one frame, no contact
+            sheet). Useful on slow disks or huge libraries where the
+            9-frame contact sheet isn't worth the wait.
     """
     audio_present = has_audio(root)
     video_present = has_video(root)
@@ -200,8 +206,15 @@ def create_combined_app(
             video_sub.state.subtitle_cache.clean_orphans(live_ids)
 
             if do_prewarm_images:
-                _log.info("prewarm-images: starting thumbnail/poster generation for %d videos", len(videos))
-                await video_sub.state.poster_manager.prewarm([dict(v) for v in videos])
+                _log.info(
+                    "prewarm-images: starting %s generation for %d videos",
+                    "thumbnail" if no_cover_images else "thumbnail/poster",
+                    len(videos),
+                )
+                await video_sub.state.poster_manager.prewarm(
+                    [dict(v) for v in videos],
+                    skip_posters=no_cover_images,
+                )
                 _log.info("prewarm-images: done")
 
         async def _rescan_callback() -> None:
@@ -333,7 +346,7 @@ def create_combined_app(
         _mount_audio(combined, root, use_cache=audio_use_cache, cfg=cfg)
 
     if video_present:
-        _mount_video(combined, root, workers=transcode_workers)
+        _mount_video(combined, root, workers=transcode_workers, no_cover_images=no_cover_images)
 
     if enable_ui:
         # Mount the SPA at "/" LAST. FastAPI/Starlette match routes in
@@ -422,7 +435,7 @@ def _mount_audio(combined: FastAPI, library_root: Path, *, use_cache: bool, cfg:
     combined.mount("/audio", audio_app)
 
 
-def _mount_video(combined: FastAPI, library_root: Path, *, workers: int | None) -> None:
+def _mount_video(combined: FastAPI, library_root: Path, *, workers: int | None, no_cover_images: bool) -> None:
     """Mount the video app under /video.
 
     `workers` controls the shared TranscodeBudget's background worker
@@ -432,7 +445,7 @@ def _mount_video(combined: FastAPI, library_root: Path, *, workers: int | None) 
     from maneki.video.serve.transcode_budget import TranscodeBudget
 
     budget = TranscodeBudget(max_workers=workers) if workers is not None else None
-    video_app = create_video_app(library_root, budget=budget)
+    video_app = create_video_app(library_root, budget=budget, no_cover_images=no_cover_images)
     combined.mount("/video", video_app)
 
 

@@ -55,15 +55,19 @@ DEFAULT_ONDEMAND_QUIET_S: float = 3.0
 
 
 def default_workers() -> int:
-    """Conservative default: half the CPU count, min 1, max 4.
+    """Default background worker count: half CPU count, min 1, max 8.
 
     Each ffmpeg spawns its own thread pool internally (libx264 typically
-    uses ~4 threads), so N=2 workers already saturates an 8-core laptop
-    for background work. Higher values risk thrashing during foreground
-    playback. Users with bigger boxes can bump it via `--workers N`.
+    uses ~4 threads), so on a vanilla 8-core box N=4 workers can already
+    saturate. But modern M-series Macs have 8-12 performance cores and
+    the prewarm path is bottlenecked on ffmpeg startup + disk seeks per
+    poster (9 separate frame ffmpegs), so a higher cap meaningfully
+    helps cold-cache rebuilds. Foreground player requests always
+    preempt background work, so over-provisioning here only costs
+    fan noise during prewarm. Override with `--workers N`.
     """
     cpu = os.cpu_count() or 4
-    return max(1, min(4, cpu // 2))
+    return max(1, min(8, cpu // 2))
 
 
 class BudgetState(BaseModel):
