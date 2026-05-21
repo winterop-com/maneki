@@ -57,6 +57,6 @@ desktop/electron/dist/
 desktop/electron/package-lock.json
 
 # Generated bundle so `maneki ui` can serve the SPA from an installed
-# wheel. `scripts/copy_ui_static.py` mirrors `desktop/frontend/` into
-# here; the canonical source lives in `desktop/frontend/`.
-src/maneki/audio/_ui_static/
+# wheel. `scripts/copy_ui_static.py` mirrors `desktop/react/` into
+# here; the canonical source lives in `desktop/react/`.
+src/maneki/_ui_static/
