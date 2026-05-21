@@ -389,6 +389,27 @@ class PosterManager:
     def thumbnail_path(self, video_id: str) -> Path:
         return self.cache_dir / f"{video_id}.thumb.jpg"
 
+    def invalidate(self, video_id: str) -> int:
+        """Drop the cached poster + thumbnail for one id. Returns count removed.
+
+        Use this when a file was edited in place (same path, new
+        content): the SQLite row gets refreshed via mtime/size
+        diffing, but the cached poster PNG / thumbnail JPEG are
+        keyed by the path-derived id and would otherwise show stale
+        frames forever. The next /poster or /thumbnail request
+        regenerates from the new file.
+        """
+        removed = 0
+        for path in (self.poster_path(video_id), self.thumbnail_path(video_id)):
+            try:
+                path.unlink()
+                removed += 1
+            except FileNotFoundError:
+                pass
+            except OSError:
+                pass
+        return removed
+
     def clean_orphans(self, live_ids: set[str]) -> int:
         """Delete cached posters / thumbs whose video id isn't in `live_ids`.
 

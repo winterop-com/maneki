@@ -65,9 +65,9 @@ def test_scan_status_reports_done_after_prewarm(library_root: Path) -> None:
 
 
 def test_thumbnails_ready_empty_when_cache_cold(client: TestClient) -> None:
-    """Fresh server has nothing cached, so /thumbnails/ready returns an empty list."""
+    """Fresh server has nothing cached, so /thumbnails/ready returns empty lists."""
     data = client.get("/api/thumbnails/ready").json()
-    assert data == {"ready": []}
+    assert data == {"ready": [], "posters_ready": []}
 
 
 def test_thumbnails_ready_lists_cached_ids(client: TestClient, library_root: Path) -> None:
@@ -77,7 +77,7 @@ def test_thumbnails_ready_lists_cached_ids(client: TestClient, library_root: Pat
     (cache_dir / "abc-12345678.thumb.jpg").write_bytes(b"\xff\xd8\xff")
     (cache_dir / "abc-12345678.png").write_bytes(b"\x89PNG\r\n\x1a\n")  # poster, not a thumb
     data = client.get("/api/thumbnails/ready").json()
-    assert data == {"ready": ["abc-12345678"]}
+    assert data == {"ready": ["abc-12345678"], "posters_ready": ["abc-12345678"]}
 
 
 def test_thumbnail_endpoint_returns_placeholder_on_cache_miss(client: TestClient) -> None:

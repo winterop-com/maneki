@@ -198,6 +198,7 @@ def create_combined_app(
                 video_sub.state.library_root,
                 video_sub.state.scan_tracker,
                 index=video_index,
+                on_changed=video_sub.state.poster_manager.invalidate,
             )
             video_sub.state.video_cache = videos
             live_ids = {v["id"] for v in videos}

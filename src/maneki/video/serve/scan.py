@@ -18,7 +18,7 @@ import json
 import logging
 import shutil
 import subprocess
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
 from pathlib import Path
 from typing import TYPE_CHECKING, TypedDict
 
@@ -184,6 +184,7 @@ async def prewarm_scan(
     tracker: VideoScanTracker,
     *,
     index: VideoIndex | None = None,
+    on_changed: Callable[[str], object] | None = None,
 ) -> list[VideoEntry]:
     """Walk the library, probe new/changed files, return the full list.
 
@@ -196,6 +197,13 @@ async def prewarm_scan(
 
     Without `index` (tests, direct sub-app use), the legacy path runs:
     ffprobe every file every call.
+
+    `on_changed` (optional) is invoked once per video id whose
+    fingerprint moved relative to the cached row — i.e. files that
+    existed last scan but were edited in place. Callers wire this to
+    PosterManager.invalidate so the stale poster + thumbnail get
+    dropped and regenerate from the new content. Brand-new files do
+    NOT trigger it (no cache to invalidate).
 
     Two-phase, both reported live to the SPA progressbar:
 
@@ -269,6 +277,19 @@ async def prewarm_scan(
             tracker.tick()
         else:
             to_probe.append((i, path, size_bytes, mtime))
+            # In-place edit: cached row exists but fingerprint moved.
+            # The DB row will refresh from the upcoming probe, but the
+            # cached poster PNG / thumbnail JPEG are keyed by the
+            # path-derived id and would otherwise show stale frames
+            # from the pre-edit content. Tell the caller to drop them
+            # so the next /poster or /thumbnail request regenerates.
+            # Brand-new files (prior is None) skip this — no cache to
+            # invalidate.
+            if on_changed is not None and prior is not None:
+                try:
+                    on_changed(vid)
+                except Exception as exc:  # noqa: BLE001 - one bad invalidate mustn't block the scan
+                    log.warning("video scan: on_changed callback failed for %s: %s", vid, exc)
 
     log.info(
         "video scan: walk done, found %d files; %d cached reused, %d to probe (concurrency=%d)",
