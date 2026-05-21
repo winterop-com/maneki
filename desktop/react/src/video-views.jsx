@@ -573,6 +573,22 @@ function VideoPlayerPane({ session, video, onClose }) {
     player.on("pause", cancelStallTimer);
     player.on("ended", cancelStallTimer);
 
+    // Drop server-side neighbour-prefetch when the user pauses.
+    // Without this, the prefetch task chain kicked off by the most
+    // recent segment fetch keeps transcoding ±1 segments forever
+    // (each completion fires the next neighbour) and the user sees
+    // segment requests in the server log long after pressing pause.
+    // Safe to call from `pause`: the cancel endpoint only drops the
+    // prefetch task dict, the HLS session itself stays in memory so
+    // resume / scrub still works without a fresh /session handshake.
+    // We don't cancel on `seeking` — the seek itself will fire fresh
+    // segment fetches and the new prefetch chain springs from those.
+    const cancelPrefetchOnPause = () => {
+      try { window.MK_VIDEO.cancelSession(session, video.id); } catch { /* ignore */ }
+    };
+    player.on("pause", cancelPrefetchOnPause);
+    player.on("ended", cancelPrefetchOnPause);
+
     return () => {
       cancelStallTimer();
       document.removeEventListener("visibilitychange", onVisibility);
