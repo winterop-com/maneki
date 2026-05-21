@@ -250,7 +250,7 @@ def create_app(
     @app.get("/api/videos/{video_id}/stream")
     def stream_video(video_id: str, request: Request) -> Response:
         """Serve the bytes of the requested video with HTTP Range support."""
-        entry = _find(video_id, root)
+        entry = _find(app, video_id, root)
         return _range_response(Path(entry["path"]), request)
 
     @app.get("/api/videos/{video_id}/play")
@@ -261,7 +261,7 @@ def create_app(
         for browser <video> playback when the source container or audio codec
         is not natively supported (most MKV files).
         """
-        entry = _find(video_id, root)
+        entry = _find(app, video_id, root)
         try:
             assert_ffmpeg_available()
         except FFmpegNotFoundError as exc:
@@ -350,7 +350,7 @@ def create_app(
         the endpoint serves (or generates) the single-frame thumbnail and
         labels it as the poster. Cheaper, no 9-frame ffmpeg fan-out.
         """
-        entry = _find(video_id, root)
+        entry = _find(app, video_id, root)
         if no_cover_images:
             thumb = poster_manager.thumbnail_path(video_id)
             if thumb.exists():
@@ -385,7 +385,7 @@ def create_app(
         placeholder (202) and schedules background generation; the SPA
         polls /api/thumbnails/ready to flip from placeholder to real frame.
         """
-        entry = _find(video_id, root)
+        entry = _find(app, video_id, root)
         cached = poster_manager.thumbnail_path(video_id)
         if cached.exists():
             return FileResponse(cached, media_type="image/jpeg")
@@ -461,7 +461,7 @@ def create_app(
         marked default by upload tools, which isn't what an English-
         speaking viewer expects.
         """
-        entry = _find(video_id, root)
+        entry = _find(app, video_id, root)
         video_path = Path(entry["path"])
         tracks: list[dict[str, object]] = []
         for s in discover_sidecars(video_path):
@@ -500,7 +500,7 @@ def create_app(
         streams are extracted via ffmpeg on first request and cached
         under `<root>/.maneki/subs/<id>/embed-<N>.vtt`.
         """
-        entry = _find(video_id, root)
+        entry = _find(app, video_id, root)
         video_path = Path(entry["path"])
         if key.startswith("embed-"):
             try:
@@ -537,7 +537,7 @@ def create_app(
         """
         if "/" in filename or filename.startswith("."):
             raise HTTPException(status_code=400, detail="invalid filename")
-        entry = _find(video_id, root)
+        entry = _find(app, video_id, root)
         try:
             assert_ffmpeg_available()
         except FFmpegNotFoundError as exc:
@@ -748,7 +748,39 @@ def _track_label(lang: str, title: str | None) -> str:
     return _LANG_NAMES.get(lang.lower(), lang.upper() if lang else "Subtitles")
 
 
-def _find(video_id: str, root: Path) -> VideoEntry:
+def _find(app: FastAPI, video_id: str, root: Path) -> VideoEntry:
+    """Look up a video by id, preferring the in-memory cache.
+
+    Every video endpoint (/poster, /thumbnail, /hls/*, /subtitles, ...)
+    funnels through here. The old implementation walked the entire
+    filesystem and ffprobed every file ON EVERY CALL — fine on a 10-
+    video test library, catastrophic on a 1300+ file library where a
+    single video click triggered ~6 full library re-probes that
+    blocked the FastAPI threadpool and stalled subsequent requests
+    until they all finished.
+
+    Fast path: the lifespan prewarm populates `app.state.video_cache`
+    (a list[VideoEntry]) within ~6s of startup. A dict cache built on
+    first use here makes lookups O(1). Cold-start fallback to a single
+    scan_videos walk keeps the API functional when the prewarm hasn't
+    populated the list yet (e.g. tests running create_app directly).
+    """
+    cache: list[VideoEntry] = getattr(app.state, "video_cache", None) or []
+    if cache:
+        by_id: dict[str, VideoEntry] | None = getattr(app.state, "_video_by_id", None)
+        cache_id = id(cache)
+        cache_id_marker: int | None = getattr(app.state, "_video_by_id_for", None)
+        # Rebuild the dict when the underlying list reference changes
+        # (rescan replaces it wholesale via `video_sub.state.video_cache = ...`).
+        if by_id is None or cache_id_marker != cache_id:
+            by_id = {v["id"]: v for v in cache}
+            app.state._video_by_id = by_id
+            app.state._video_by_id_for = cache_id
+        entry = by_id.get(video_id)
+        if entry is not None:
+            return entry
+        raise HTTPException(status_code=404, detail=f"video {video_id!r} not found")
+    # Cold fallback: cache hasn't been populated yet. Walk once.
     for v in scan_videos(root):
         if v["id"] == video_id:
             return v
