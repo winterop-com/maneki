@@ -215,7 +215,7 @@ Visit `/capabilities` and you should see a JSON probe response like:
 ```json
 {
   "server": "maneki",
-  "version": "0.1.0",
+  "version": "0.9.0",
   "audio": true,
   "video": true,
   "auth_required": false,

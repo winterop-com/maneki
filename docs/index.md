@@ -72,6 +72,6 @@ Years of rip-collection wrangling produces an audio library full of:
 
 ## Status
 
-Top-level commands: `maneki serve` (single-library audio + video + SPA, auto-detects what's there), `maneki library` (cross-cutting info / list / inspect), `maneki audio <...>` (convert, library, inspect, ui, playlist). mypy + pyright + ruff clean, full pytest suite green. Audio side real-world tested against Symfonium / Amperfy / play:Sub / Feishin clients with persistent favourites and synced lyrics; video side serves the SPA's folder browser + video.js player on the same origin.
+v0.9.0. Top-level commands: `maneki serve` (single-library audio + video + SPA, auto-detects what's there), `maneki library` (cross-cutting info / list / inspect), `maneki audio <...>` (convert, library, inspect, ui, playlist), `maneki video <...>` (reserved for tooling). mypy + pyright + ruff clean, 648 tests green. Audio side real-world tested against Symfonium / Amperfy / play:Sub / Feishin clients with persistent favourites and synced lyrics; video side ships HLS with on-demand segments, single-ffmpeg multi-stream subtitle extraction, 16:9 contact-sheet posters, watcher hot-reload, and a SQLite-backed scan index shared with the audio side at `<root>/.maneki/index.db`.
 
 Roadmap items still open are listed at [Roadmap](roadmap.md).

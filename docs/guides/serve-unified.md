@@ -8,11 +8,16 @@ There is no `<root>/audio/` or `<root>/videos/` subdirectory convention. You can
 
 ```bash
 maneki serve ~/Downloads/library
-# maneki serve - /Users/morteoh/Downloads/library on http://127.0.0.1:8765 (workers=auto)
-# INFO:     Uvicorn running on http://127.0.0.1:8765
+# maneki serve starting   flags='workers=auto' host=127.0.0.1 port=8765 root=/Users/morteoh/Downloads/library
+# Uvicorn running on http://127.0.0.1:8765
 
 # With the web SPA at /:
 maneki serve ~/Downloads/library --ui
+
+# Video-side: opt into / out of cache prewarm + contact-sheet posters
+maneki serve ~/library --ui --prewarm-cache         # populate thumbs / posters / subs at startup
+maneki serve ~/library --ui --no-cover-images       # skip contact sheets; fall back to row thumbnail
+maneki serve ~/library --ui --rescan                # wipe the on-disk video cache + DB rows first
 ```
 
 Then:
@@ -21,7 +26,7 @@ Then:
 curl -s http://127.0.0.1:8765/capabilities | jq
 # {
 #   "server": "maneki",
-#   "version": "0.1.0",
+#   "version": "0.9.0",
 #   "audio": true,
 #   "video": true,
 #   "endpoints": {

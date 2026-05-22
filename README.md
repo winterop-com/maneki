@@ -59,13 +59,19 @@ uvx maneki audio playlist gen ./output --seed <track> --minutes 60 # auto-genera
 
 ## Screenshots
 
-The browser SPA — bordered panels with floating titles, same palette across audio + video:
+The browser SPA — bordered panels with floating titles, same palette across audio + video. Vertical AUDIO / VIDEO rail on the left switches modes; the rail self-hides when only one kind is mounted at the library root.
 
-![Browser UI — drilled into an album](docs/screenshots/web-album-tracks.png)
+Audio — Artists → Albums → Tracks plus Now Playing top band with the FFT spectrum visualizer:
 
-Internet radio mode (Stations panel + ICY metadata in the title):
+![Browser UI — audio library, Daft Punk · Homework](docs/screenshots/web-audio.png)
 
-![Browser UI — radio mode](docs/screenshots/web-radio.png)
+Video — folder browser, instant-paint row thumbnails, sticky breadcrumb. Click into any season for the episode list:
+
+![Browser UI — video folder browse](docs/screenshots/web-video-browse.png)
+
+Video player — video.js v8 on the HLS source, contact-sheet poster (16:9, generated server-side from 9 sample frames + header strip with codec / resolution / duration / size), `t` for theater mode, `f` for browser fullscreen, captions menu auto-prefers English / English-SDH:
+
+![Browser UI — video player with contact-sheet poster](docs/screenshots/web-video-player.png)
 
 More in the [serve guide](https://winterop-com.github.io/maneki/guides/serve-unified/) and the [video guide](https://winterop-com.github.io/maneki/guides/video/).
 
@@ -95,7 +101,11 @@ Or jump straight to:
 
 ## Status
 
-v0.1.0 · audio (Subsonic-compat) + video (HLS, sidecar + embedded subtitles, contact-sheet posters, folder browser) share one `maneki serve` and the web SPA at `/`. ruff + mypy + pyright clean, full pytest suite green. The audio server is OpenSubsonic-compatible (`multipleGenres`, `transcodeOffset`, `songLyrics` extensions), backs heart / star buttons with a persistent `<root>/.maneki/stars.toml`, returns sub-ms FTS5-ranked `/search3` results, promotes LRC lyrics to `synced: true`, and is tested against Symfonium / Amperfy / play:Sub / Feishin clients on iOS / Android / desktop. A persistent SQLite library index at `<root>/.maneki/index.db` makes cold starts skip the filesystem walk + tag read; the filesystem watcher does per-album incremental rescans.
+v0.9.0 · audio (Subsonic-compat) + video (HLS, sidecar + embedded subtitles, 16:9 contact-sheet posters, folder browser, watcher hot-reload) share one `maneki serve` and the web SPA at `/`. ruff + mypy + pyright clean, full pytest suite green (648 tests).
+
+**Audio**: OpenSubsonic-compatible (`multipleGenres`, `transcodeOffset`, `songLyrics` extensions), backs heart / star buttons with a persistent `<root>/.maneki/stars.toml`, returns sub-ms FTS5-ranked `/search3` results, promotes LRC lyrics to `synced: true`, tested against Symfonium / Amperfy / play:Sub / Feishin on iOS / Android / desktop. Persistent SQLite library index at `<root>/.maneki/index.db` keeps cold starts under a second; the filesystem watcher does per-album incremental rescans.
+
+**Video**: on-demand HLS with bounded foreground concurrency (rapid seeks don't wedge the player), single-ffmpeg multi-stream subtitle extraction (a 45-track .mkv opens in ~2s instead of stalling on 45 parallel ffmpegs), instant-paint row thumbnails + 16:9 contact-sheet posters with hash-derived cache filenames (deeply-nested rel paths don't blow NAME_MAX), `--no-cover-images` to skip contact sheets entirely on slow disks, `--prewarm-cache` to fill thumbs / posters / subtitles at startup, watcher hot-reload of the SQLite-backed scan index so adds / deletes / renames appear without a restart. Same `index.db` file as the audio side, separate `videos` table.
 
 ## License
 
