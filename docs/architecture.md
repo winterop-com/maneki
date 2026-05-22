@@ -322,6 +322,72 @@ The watcher's auto-rescan covers most workflows, so an explicit
 `startScan` from the client is usually unnecessary — drop a file in,
 wait 5 seconds, pull-to-refresh the client.
 
+## The video pipeline (`src/maneki/video/serve/`)
+
+Same `maneki serve` process; the video sub-app is mounted at `/video/*`
+when `has_video(root)` finds any file with a video extension under the
+library root.
+
+Components:
+
+```
++--------------------------------------------------------+
+|  /video/* sub-app                                      |
+|    GET /api/videos          flat listing               |
+|    GET /api/browse?path=    folder navigator           |
+|    GET /api/videos/{id}/    poster|thumbnail|stream    |
+|    GET /api/videos/{id}/hls/index.m3u8                 |
+|    GET /api/videos/{id}/hls/seg-NNNN.ts                |
+|    GET /api/videos/{id}/subtitles[/{key}]              |
+|    GET /api/scan_status                                |
+|    POST /api/scan          manual rescan trigger       |
+|    GET /api/thumbnails/ready                           |
+|    DELETE /api/videos/{id}/session    cancel prefetch  |
+|                                                        |
+|    app.state.video_cache    list[VideoEntry]           |
+|    app.state.poster_manager PosterManager              |
+|    app.state.hls_manager    HLSManager                 |
+|    app.state.subtitle_cache SubtitleCache              |
+|    app.state.scan_tracker   VideoScanTracker           |
+|    app.state.trigger_rescan _rescan_callback           |
++--------------------------------------------------------+
+            ^                            |
+            | watchdog Observer          | TranscodeBudget
+            | (5s debounce)              | (max_workers, max_foreground=3)
+            v                            v
++--------------------------+    +--------------------------+
+|  VideoIndex (SQLite)     |    |  ffmpeg / ffprobe        |
+|  shared index.db         |    |  - HLS segment transcode |
+|  videos table            |    |  - Contact-sheet 9 frames|
+|  fingerprint=(mtime,size)|    |  - Subtitle extract (one |
+|  batched upsert at scan- |    |    invocation, N -map    |
+|  end (one transaction)   |    |    outputs)              |
++--------------------------+    +--------------------------+
+```
+
+The shared `TranscodeBudget` caps foreground (player) transcodes at 3
+concurrent and background (prewarm + prefetch) at `default_workers()`
+(min 8, cpu // 2). Foreground holds an idle event clear; background
+slots wait until idle returns. Without the foreground cap, rapid seeks
+fire one segment fetch per scrub (vhs doesn't abort on seek) and N
+simultaneous ffmpegs share disk I/O so each takes ~15s instead of
+~200ms; the player wedges with `readyState=1, buffered=[0,0]` and no
+error to recover from.
+
+On-disk cache layout uses `cache_stem(video_id) = sha256(id)[:32]` as
+the filename / directory stem to keep paths within the OS's 255-byte
+NAME_MAX limit. Posters live at `<root>/.maneki/posters/<stem>.png`;
+thumbnails at `<root>/.maneki/posters/<stem>.thumb.jpg`; subtitle .vtt
+files under `<root>/.maneki/subs/<stem>/embed-N.vtt`; HLS segments
+under `<tempdir>/maneki-hls/<stem>/seg-NNNN.ts` (segments are large +
+ephemeral so `/tmp` placement is fine).
+
+The watcher mirrors the audio side: 5-second debounced rescan whenever
+a video-extension file appears / disappears / moves; in-place edits
+detect via `(mtime, size_bytes)` fingerprint mismatch and invalidate
+the cached poster + thumbnail for that id so the next `/poster` /
+`/thumbnail` request regenerates from the new content.
+
 ## Where every dependency sits
 
 | Package | Used by | Purpose |
@@ -333,9 +399,10 @@ wait 5 seconds, pull-to-refresh the client.
 | `pydantic` | `library/`, `metadata/`, `video/serve/` | Data models with type-checking and round-trippable JSON. |
 | `rich` | `cli/`, `library/` | Terminal tables, trees, progress bars. |
 | `zeroconf` | `serve/discovery.py` | mDNS/Bonjour: server advertises so LAN clients can find it. |
-| `watchdog` | `serve/watcher.py` | Filesystem-event observer for auto-rescan. |
+| `watchdog` | `audio/serve/watcher.py`, `video/serve/watcher.py` | Filesystem-event observer for auto-rescan on both kinds. |
 | `FastAPI` | `serve/`, `video/serve/`, `serve_app.py` | HTTP framework; endpoint routing, JSON serialization. |
-| `uvicorn` | `cli/serve.py` | ASGI server that runs the FastAPI app. |
+| `uvicorn` | `cli/__init__.py` | ASGI server that runs the FastAPI app. |
+| `structlog` | `audio/serve/logging.py` (shared across audio + video) | Unified colored logging + access-log middleware factory. |
 
 External binaries: `ffmpeg` and `ffprobe` for the convert pipeline,
 on-the-fly Subsonic transcoding, HLS segment generation, and subtitle

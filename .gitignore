@@ -45,6 +45,10 @@ output/*
 # expect it.
 scratch/
 screenshots/
+# Exception: the README + docs reference real screenshots committed
+# under docs/screenshots/, so don't sweep that path under the
+# top-level `screenshots/` catch-all above.
+!docs/screenshots/
 
 # mkdocs build output
 site/

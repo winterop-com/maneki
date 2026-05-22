@@ -161,26 +161,41 @@ sweep):
 
 ## Pieces of state worth knowing
 
-- **`HLS_CACHE_VERSION = "3"`** in `src/maneki/video/serve/hls.py`. Bump
+- **`HLS_CACHE_VERSION = "4"`** in `src/maneki/video/serve/hls.py`. Bump
   this any time segment generation rules change in a way old segments
   can't satisfy. `HLSManager.__init__` wipes the cache when the marker
-  on disk doesn't match.
-- **Video IDs are `<slug>-<8-hex-sha256>`** in `src/maneki/video/serve/scan.py`.
-  Hash suffix is what makes the id collision-free; was a bug in earlier
-  versions where two paths flattening to the same slug shared a cache.
-- **Test library**: `~/Downloads/library/` has both audio (Pearl Jam,
-  small MusicKit-style layout) and videos (movies/, tv/, plus a few flat
-  files). Bigger reference library lives at `/Volumes/T9/Media/` but the
-  user has asked NOT to dump its contents.
-- **SPA cache-bust**: `desktop/react/index.html` has `?v=0.1.0-d56` on
-  every JS/CSS asset. Bump that token (`sed -i.bak ...`) any time you
-  change an SPA file and need to invalidate caches in browser + desktop
-  webviews. The `make desktop-*-dev` wipe handles the desktop side too.
-- **TranscodeBudget** has a 30s post-foreground quiet period
-  (`DEFAULT_QUIET_AFTER_FG_S = 30.0` in
-  `src/maneki/video/serve/transcode_budget.py`) — background ffmpeg
-  jobs wait this long after the last player request before resuming so
-  pausing playback doesn't immediately unleash queued prewarms.
+  on disk doesn't match. Last bump (0.9): partial-segment cleanup on
+  ffmpeg cancel / error.
+- **Video IDs are `<slug>-<8-hex-sha256>`** in `src/maneki/video/serve/scan.py`
+  (URLs, DB rows, log lines). On-disk cache filenames use a separate
+  `cache_stem(video_id) -> sha256(id)[:32]` because the readable id
+  blows past APFS / ext4's 255-byte NAME_MAX on deeply-nested paths.
+  PosterManager / SubtitleCache / HLSManager all route through
+  `cache_stem`.
+- **Test library**: `/Volumes/T9/Media/` is the big reference library
+  (1313 videos, mixed Movies / TV with deeply nested seasons). Smaller
+  `~/Downloads/library/` exists for quick tests.
+- **SPA cache-bust**: `desktop/react/index.html` has `?v=<version>` on
+  every JS/CSS asset. `scripts/sync_desktop_versions.py` rewrites all
+  of them (both `<script>` and `<link>` now) from `pyproject.toml`'s
+  version on every bump. The `make desktop-*-dev` wipe handles the
+  desktop side too.
+- **TranscodeBudget concurrency caps**:
+  - `default_workers() = min(8, cpu // 2)` (background prewarm + prefetch).
+  - `max_foreground = 3` — caps concurrent player-segment transcodes.
+    Without this, rapid seeks fire one segment XHR each (vhs doesn't
+    abort on seek) and N simultaneous ffmpegs share disk I/O so each
+    takes ~15s instead of ~200ms. Capping at 3 keeps each transcode
+    fast; queued ones flow through as slots free up.
+  - 30s post-foreground quiet period (`DEFAULT_QUIET_AFTER_FG_S`)
+    before background ffmpeg resumes, so pausing doesn't immediately
+    unleash queued prewarms.
+- **Shared `index.db`**: audio's `<root>/.maneki/index.db` now also
+  holds the video scan rows (`videos` table) with namespaced meta
+  keys (`video_schema_version`, `video_library_root_abs`). Both apps
+  open their own connections; `CREATE TABLE IF NOT EXISTS` keeps them
+  from stepping on each other. Video-side schema bump drops only the
+  `videos` table, audio's data is preserved.
 
 ## CLAUDE.md project rules (mirrored here for handoff)
 
