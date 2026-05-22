@@ -8,7 +8,7 @@ name = "maneki-desktop"
 # scripts/sync_desktop_versions.py header for the rationale.
 version = "0.1.0"
 edition = "2024"
-rust-version = "1.85"
+rust-version = "1.88"
 description = "Native desktop wrapper around the Maneki web UI."
 authors = ["Morten Hansen <morten@winterop.com>"]
 license = "MIT"
