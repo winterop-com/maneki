@@ -8,14 +8,13 @@ import pytest
 
 from maneki.video.serve.transcode_budget import TranscodeBudget, default_workers
 
-pytestmark = pytest.mark.asyncio
-
 
 def test_default_workers_is_sane() -> None:
     n = default_workers()
     assert 1 <= n <= 8
 
 
+@pytest.mark.asyncio
 async def test_background_slot_runs_when_idle() -> None:
     """No foreground in flight -> background tasks run immediately."""
     budget = TranscodeBudget(max_workers=2)
@@ -30,6 +29,7 @@ async def test_background_slot_runs_when_idle() -> None:
     assert counter == 3
 
 
+@pytest.mark.asyncio
 async def test_foreground_blocks_background_until_done() -> None:
     """A pending background task waits while foreground is active."""
     # quiet_after_fg_s=0 so this test exercises the priority semantics
@@ -61,6 +61,7 @@ async def test_foreground_blocks_background_until_done() -> None:
     assert timeline == ["fg-start", "fg-end", "bg-start", "bg-end"]
 
 
+@pytest.mark.asyncio
 async def test_background_yields_to_late_arriving_foreground() -> None:
     """When fg arrives WHILE bg is queued at the semaphore, bg still waits."""
     budget = TranscodeBudget(max_workers=1, quiet_after_fg_s=0)
@@ -103,6 +104,7 @@ async def test_background_yields_to_late_arriving_foreground() -> None:
     assert queued_start > fg_end
 
 
+@pytest.mark.asyncio
 async def test_quiet_period_delays_background_after_foreground() -> None:
     """After foreground finishes, background waits quiet_after_fg_s before starting.
 
@@ -138,6 +140,7 @@ async def test_quiet_period_delays_background_after_foreground() -> None:
     assert waited >= 0.45, f"bg started too soon ({waited:.3f}s after fg)"
 
 
+@pytest.mark.asyncio
 async def test_quiet_period_resets_on_unpause() -> None:
     """A second foreground request inside the quiet window restarts the clock."""
     import time
@@ -168,6 +171,7 @@ async def test_quiet_period_resets_on_unpause() -> None:
     assert waited_from_last_fg >= 0.35, f"bg started {waited_from_last_fg:.3f}s after most recent fg, expected >= 0.35"
 
 
+@pytest.mark.asyncio
 async def test_background_slot_quiet_false_uses_short_window() -> None:
     """`quiet=False` (on-demand row thumbnails / posters) yields to in-flight
     foreground AND waits the shorter on-demand quiet window before resuming.
@@ -211,6 +215,7 @@ async def test_background_slot_quiet_false_uses_short_window() -> None:
     assert gap < 1.0, f"on-demand waited {gap:.3f}s after fg; the prewarm window shouldn't have applied"
 
 
+@pytest.mark.asyncio
 async def test_state_reflects_in_flight_counts() -> None:
     budget = TranscodeBudget(max_workers=2)
     assert budget.state().foreground_in_flight == 0
