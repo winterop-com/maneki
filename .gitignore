@@ -58,7 +58,7 @@ desktop/tauri/src-tauri/target/
 desktop/tauri/src-tauri/gen/
 desktop/electron/node_modules/
 desktop/electron/dist/
-desktop/electron/package-lock.json
+desktop/electron/bun.lock
 
 # Generated bundle so `maneki ui` can serve the SPA from an installed
 # wheel. `scripts/copy_ui_static.py` mirrors `desktop/react/` into

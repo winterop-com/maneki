@@ -66,7 +66,7 @@ make desktop-tauri-dev          # cargo tauri dev
 make desktop-tauri-build        # release .app
 
 make desktop-electron           # alias for desktop-electron-dev
-make desktop-electron-dev       # electron .  (npm install on first run)
+make desktop-electron-dev       # electron .  (bun install on first run)
 make desktop-electron-build     # release .dmg
 ```
 

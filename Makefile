@@ -200,11 +200,11 @@ _wipe-electron-userdata:
 
 desktop-electron-dev: desktop-sync-frontend _wipe-electron-userdata
 	@echo ">>> Electron dev — opens window pointed at desktop/react/index.html"
-	@cd desktop/electron && (test -d node_modules || npm install) && npm start
+	@cd desktop/electron && (test -d node_modules || bun install) && bun run start
 
 desktop-electron-build: desktop-sync-frontend desktop-sync-version
 	@echo ">>> Electron release build — produces a .dmg under desktop/electron/dist/"
-	@cd desktop/electron && (test -d node_modules || npm install) && npm run build
+	@cd desktop/electron && (test -d node_modules || bun install) && bun run build
 
 clean:
 	@echo ">>> Cleaning up"
