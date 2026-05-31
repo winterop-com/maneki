@@ -35,8 +35,51 @@
   // be created ONCE per <audio> element so this is a one-shot setup.
   let audioCtx = null;
   let analyser = null;
-  let freqData = null;
-  let timeData = null;
+  let freqLine = null;
+  let waveLine = null;
+
+  // Latency-compensating delay line. The analyser taps the graph at
+  // `source -> analyser`, i.e. BEFORE the output buffer + device latency,
+  // so a freshly-read frame describes audio you won't HEAR for another
+  // baseLatency + outputLatency seconds. On wired output that's a few ms
+  // (invisible); on Bluetooth it's 150-500ms, which reads as the spectrum
+  // running ahead of the sound. We keep a ring of recent timestamped
+  // frames and hand back the one from `latency` seconds ago so the drawn
+  // frame lines up with what's actually reaching the ears. Indexed by
+  // audioCtx.currentTime (not frame count) so a variable draw rate stays
+  // correct. ~96 slots ~= 1.5s of headroom at 60fps.
+  function makeDelayLine(width) {
+    const SLOTS = 96;
+    const buf = new Array(SLOTS);
+    for (let i = 0; i < SLOTS; i++) buf[i] = { t: -1, data: new Uint8Array(width) };
+    let head = 0;
+    let count = 0;
+    return function pushAndRead(fill, nowT, delay) {
+      head = (head + 1) % SLOTS;
+      const slot = buf[head];
+      slot.t = nowT;
+      fill(slot.data);
+      if (count < SLOTS) count++;
+      // No meaningful delay (wired / unknown): return the freshest frame.
+      if (!(delay > 0.02)) return slot.data;
+      const targetT = nowT - delay;
+      // Walk back from newest; first frame old enough is the match. If the
+      // ring isn't deep enough yet, fall back to the oldest we have.
+      let best = slot;
+      for (let k = 0; k < count; k++) {
+        const s = buf[(head - k + SLOTS) % SLOTS];
+        best = s;
+        if (s.t <= targetT) break;
+      }
+      return best.data;
+    };
+  }
+
+  function outputDelay() {
+    if (!audioCtx) return 0;
+    return (audioCtx.baseLatency || 0) + (audioCtx.outputLatency || 0);
+  }
+
   function ensureAnalyser() {
     if (audioCtx) return;
     const Ctx = window.AudioContext || window.webkitAudioContext;
@@ -53,7 +96,8 @@
     // dynamic range so the upper bars stay readable.
     analyser.minDecibels = -85;
     analyser.maxDecibels = -15;
-    freqData = new Uint8Array(analyser.frequencyBinCount);
+    freqLine = makeDelayLine(analyser.frequencyBinCount);
+    waveLine = makeDelayLine(analyser.fftSize);
     // Chain: <audio> -> source -> analyser -> destination. Without
     // routing to destination, audio plays silently (browser cuts the
     // chain). The legacy frontend hit this exact bug — see
@@ -103,24 +147,19 @@
         console.warn("MK_AUDIO.play rejected:", err);
       }
     },
-    // Pull a fresh FFT frame for the visualizer. Returns null if the
+    // Pull an FFT frame for the visualizer, latency-compensated so it
+    // matches what's audible now (see makeDelayLine). Returns null if the
     // analyser hasn't been wired yet (no play() call ever happened).
     getFrequencyData() {
-      if (!analyser || !freqData) return null;
-      analyser.getByteFrequencyData(freqData);
-      return freqData;
+      if (!analyser || !freqLine) return null;
+      return freqLine((d) => analyser.getByteFrequencyData(d), audioCtx.currentTime, outputDelay());
     },
-    // Pull a fresh time-domain (waveform) frame for the oscilloscope
-    // visualizer. Same lifetime rules as getFrequencyData: null until
-    // the analyser is wired by the first play() call. Values are 0..255
-    // centered on 128 (silence).
+    // Pull a time-domain (waveform) frame for the oscilloscope, also
+    // latency-compensated. Same lifetime rules as getFrequencyData: null
+    // until the analyser is wired. Values are 0..255 centered on 128.
     getWaveform() {
-      if (!analyser) return null;
-      if (!timeData || timeData.length !== analyser.fftSize) {
-        timeData = new Uint8Array(analyser.fftSize);
-      }
-      analyser.getByteTimeDomainData(timeData);
-      return timeData;
+      if (!analyser || !waveLine) return null;
+      return waveLine((d) => analyser.getByteTimeDomainData(d), audioCtx.currentTime, outputDelay());
     },
     pause() { audio.pause(); },
     seek(seconds) {
