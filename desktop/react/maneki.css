@@ -324,6 +324,14 @@ body {
 
 /* Tracks */
 .mk-album-header { padding: 12px var(--mk-pane-pad) 8px; border-bottom: 1px solid var(--line-soft); }
+/* Up Next: derived queue under the track list (see deriveUpNext in
+   chrome.jsx). Flows inside .mk-track-scroll so it sits directly below the
+   tracklist and scrolls with it. */
+.mk-upnext { margin-top: 18px; border-top: 1px solid var(--line); padding-top: 8px; }
+.mk-upnext-label { padding: 0 var(--mk-pane-pad) 4px; border-bottom: 0; }
+.mk-upnext-row { color: var(--text-soft); }
+.mk-upnext-row .t-title { color: var(--text-soft); }
+.mk-upnext-row:hover .t-title { color: var(--text); }
 .mk-album-header-title { color: var(--highlight); font-size: 15px; font-weight: 600; }
 .mk-album-header-sub { color: var(--text-soft); font-size: 12px; margin-top: 2px; }
 

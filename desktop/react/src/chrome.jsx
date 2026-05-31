@@ -261,8 +261,32 @@ function AlbumsPane({ artist, albumId, setAlbumId, loaded }) {
   );
 }
 
-// Tracks column (right pane).
-function TracksPane({ artist, album, playTrack, now, isStarred, toggleStar, loaded }) {
+// Derive the "Up Next" list from the currently-playing album. Mirrors the
+// album-order next/prev navigation in app.jsx (index-based, so duplicate
+// track numbers on compilations stay correct) and honours repeat mode:
+//   - "track": the same track repeats, so Up Next is empty
+//   - "album": wrap past the end back to the album start
+//   - "off":   just the tail after the current track
+// Returns [] when nothing is playing, the playing album isn't the one in
+// view, or a radio station is playing (no album queue).
+function deriveUpNext(nowAlbum, now, repeat, max = 30) {
+  if (!nowAlbum || !now || now.stationId) return [];
+  const tracks = nowAlbum.tracks || [];
+  const idx = tracks.findIndex((tr) => tr.trackId === now.trackId);
+  if (idx < 0) return [];
+  if (repeat === "track") return [];
+  const tail = tracks.slice(idx + 1);
+  const rest = repeat === "album" ? tail.concat(tracks.slice(0, idx)) : tail;
+  return rest.slice(0, max);
+}
+
+// Tracks column (right pane). When a track from THIS album is playing, an
+// "Up Next" queue is rendered below the track table to fill the lower
+// area; it's derived (no queue state) and follows repeat mode.
+function TracksPane({ artist, album, playTrack, now, nowAlbum, repeat, isStarred, toggleStar, loaded }) {
+  const upNext = (album && nowAlbum && album.id === nowAlbum.id)
+    ? deriveUpNext(nowAlbum, now, repeat)
+    : [];
   if (!album) {
     return (
       <div className="mk-pane mk-tracks-pane">
@@ -314,6 +338,28 @@ function TracksPane({ artist, album, playTrack, now, isStarred, toggleStar, load
             })}
           </tbody>
         </table>
+        {upNext.length > 0 && (
+          <div className="mk-upnext">
+            <div className="mk-pane-label mk-upnext-label">Up Next</div>
+            <table className="mk-track-table">
+              <tbody>
+                {upNext.map((tr, i) => (
+                  <tr
+                    key={tr.trackId}
+                    className="mk-track-row mk-upnext-row"
+                    onClick={() => playTrack(artist.id, album.id, tr.n, tr.trackId)}
+                  >
+                    <td className="t-n mono">{i + 1}</td>
+                    <td className="t-title">{tr.title}</td>
+                    <td className="t-artist">{artist.name}</td>
+                    <td className="t-time mono">{tr.time}</td>
+                    <td className="t-star"></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -645,7 +691,7 @@ function MainArea(props) {
           playTrack, playStation, now, nowTrack, nowStation, nowArtist, nowAlbum,
           starredTracks, isStarred, toggleStar,
           playing, muted, vol, setVol, pos, setPos, dur,
-          setMuted, handlePlayPause, handleNext, handlePrev, palette, fullscreenViz, setFullscreenViz, setShowLyrics } = props;
+          setMuted, handlePlayPause, handleNext, handlePrev, palette, fullscreenViz, setFullscreenViz, setShowLyrics, repeat } = props;
 
   const nowPlaying = (
     <NowPlaying
@@ -670,7 +716,7 @@ function MainArea(props) {
     <div className={"mk-browse" + (videoMode ? " mk-browse-video" : "")}>
       <Sidebar kind={kind} section={section} setSection={setSection} ARTISTS={ARTISTS} artistId={artistId} setArtistId={(id) => { setSection("library"); setArtistId(id); }} loaded={loaded}/>
       {!videoMode && section === "library" && <AlbumsPane artist={artist} albumId={albumId} setAlbumId={setAlbumId} loaded={loaded}/>}
-      {!videoMode && section === "library" && <TracksPane artist={artist} album={album} playTrack={playTrack} now={now} isStarred={isStarred} toggleStar={toggleStar} loaded={loaded}/>}
+      {!videoMode && section === "library" && <TracksPane artist={artist} album={album} playTrack={playTrack} now={now} nowAlbum={nowAlbum} repeat={t.repeat} isStarred={isStarred} toggleStar={toggleStar} loaded={loaded}/>}
       {!videoMode && section === "stations" && <StationsPane STATIONS={STATIONS} playStation={playStation} now={now} loaded={loaded}/>}
       {!videoMode && section === "starred" && <StarredPane starredTracks={starredTracks} playTrack={playTrack} toggleStar={toggleStar}/>}
       {videoMode && session && !videoSearchActive && <MK_VideosPane session={session} selectedId={selectedVideo?.id} onSelect={setSelectedVideo}/>}
