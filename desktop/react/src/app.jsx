@@ -416,6 +416,12 @@ function App() {
       if (meta && (e.key === "p" || e.key === "P") && !e.shiftKey) {
         e.preventDefault(); setShowPalette((v) => !v); return;
       }
+      // Let the browser/OS keep every other modified chord (Cmd/Ctrl/Alt
+      // + key: find, reload, address bar, etc). Our single-key shortcuts
+      // below are bare-key only, so a held modifier must fall through --
+      // otherwise e.g. Cmd+F would trigger the "f" fullscreen-viz toggle
+      // instead of the browser's find. Cmd+P (palette) is handled above.
+      if (meta || e.altKey) return;
       if (isInput) return;
       // In video mode the focal player is the video.js instance, not the
       // audio chrome. Route every audio-aware key (transport + arrows +
