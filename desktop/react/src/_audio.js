@@ -36,6 +36,7 @@
   let audioCtx = null;
   let analyser = null;
   let freqData = null;
+  let timeData = null;
   function ensureAnalyser() {
     if (audioCtx) return;
     const Ctx = window.AudioContext || window.webkitAudioContext;
@@ -108,6 +109,18 @@
       if (!analyser || !freqData) return null;
       analyser.getByteFrequencyData(freqData);
       return freqData;
+    },
+    // Pull a fresh time-domain (waveform) frame for the oscilloscope
+    // visualizer. Same lifetime rules as getFrequencyData: null until
+    // the analyser is wired by the first play() call. Values are 0..255
+    // centered on 128 (silence).
+    getWaveform() {
+      if (!analyser) return null;
+      if (!timeData || timeData.length !== analyser.fftSize) {
+        timeData = new Uint8Array(analyser.fftSize);
+      }
+      analyser.getByteTimeDomainData(timeData);
+      return timeData;
     },
     pause() { audio.pause(); },
     seek(seconds) {

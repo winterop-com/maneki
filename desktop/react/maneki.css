@@ -254,7 +254,18 @@ body {
 .mk-spectrum-pane { padding: 8px 12px 4px; min-height: 132px; }
 .mk-spectrum-pane .mk-pane-label { padding: 0; border-bottom: 0; margin-bottom: 4px; }
 .mk-spectrum-canvas { height: calc(100% - 24px); min-height: 100px; }
-.mk-body.layout-topband .mk-spectrum-canvas { height: 132px; }
+.mk-body.layout-topband .mk-spectrum-canvas { height: var(--mk-spectrum-h, 132px); }
+/* Drag handle along the bottom edge of the now-playing band (topband
+   layout). Spans both grid columns; row-resize cursor signals vertical
+   drag. See SpectrumResizer in chrome.jsx. */
+.mk-body.layout-topband .mk-now { position: relative; }
+.mk-spectrum-resize {
+  grid-column: 1 / -1;
+  height: 7px; margin-top: -3px;
+  cursor: row-resize;
+  background: transparent;
+}
+.mk-spectrum-resize:hover { background: var(--row-hover); }
 .mk-fs-btn { background: transparent; border: 1px solid var(--line); border-radius: 3px; color: var(--text-soft); width: 20px; height: 20px; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; }
 .mk-fs-btn:hover { color: var(--text); border-color: var(--text-dim); }
 

@@ -119,6 +119,61 @@ function VideoSplitter() {
   );
 }
 
+// Drag handle that resizes the topband spectrum canvas. Height is stored
+// as a CSS variable (--mk-spectrum-h) on the document root and persisted
+// to localStorage so it survives reloads. Lives as the last grid item of
+// .mk-now (spans both columns) so the grip sits along the bottom edge of
+// the now-playing band -- drag down to grow the spectrum, up to shrink.
+const MK_SPECTRUM_H_KEY = "mk.spectrumH";
+const MK_SPECTRUM_H_MIN = 80;
+const MK_SPECTRUM_H_MAX = 600;
+const MK_SPECTRUM_H_DEFAULT = 132;
+
+function applyStoredSpectrumHeight() {
+  let h = parseInt(window.localStorage.getItem(MK_SPECTRUM_H_KEY), 10);
+  if (!Number.isFinite(h)) h = MK_SPECTRUM_H_DEFAULT;
+  h = Math.min(MK_SPECTRUM_H_MAX, Math.max(MK_SPECTRUM_H_MIN, h));
+  document.documentElement.style.setProperty("--mk-spectrum-h", h + "px");
+}
+
+function SpectrumResizer() {
+  const { useCallback, useEffect } = React;
+  // Apply the persisted height once on mount so the canvas opens at the
+  // last-used size instead of the CSS default.
+  useEffect(() => { applyStoredSpectrumHeight(); }, []);
+  const onMouseDown = useCallback((e) => {
+    e.preventDefault();
+    const root = document.documentElement;
+    const startY = e.clientY;
+    const startH = parseInt(getComputedStyle(root).getPropertyValue("--mk-spectrum-h"), 10) || MK_SPECTRUM_H_DEFAULT;
+    document.body.style.cursor = "row-resize";
+    document.body.style.userSelect = "none";
+    const onMove = (ev) => {
+      const next = Math.min(MK_SPECTRUM_H_MAX, Math.max(MK_SPECTRUM_H_MIN, startH + (ev.clientY - startY)));
+      root.style.setProperty("--mk-spectrum-h", next + "px");
+    };
+    const onUp = () => {
+      document.removeEventListener("mousemove", onMove);
+      document.removeEventListener("mouseup", onUp);
+      document.body.style.cursor = "";
+      document.body.style.userSelect = "";
+      const h = parseInt(getComputedStyle(root).getPropertyValue("--mk-spectrum-h"), 10);
+      if (Number.isFinite(h)) window.localStorage.setItem(MK_SPECTRUM_H_KEY, String(h));
+    };
+    document.addEventListener("mousemove", onMove);
+    document.addEventListener("mouseup", onUp);
+  }, []);
+  return (
+    <div
+      className="mk-spectrum-resize"
+      onMouseDown={onMouseDown}
+      role="separator"
+      aria-orientation="horizontal"
+      title="Drag to resize spectrum"
+    />
+  );
+}
+
 function Sidebar({ kind, section, setSection, ARTISTS, artistId, setArtistId, loaded }) {
   if (kind === "video") return null;
   return (
@@ -547,6 +602,7 @@ function NowPlaying({ nowTrack, nowArtist, nowAlbum, nowStation, playing, muted,
           </div>
         </div>
       )}
+      {showSpectrum && layout === "topband" && <SpectrumResizer />}
     </div>
   );
 }
@@ -704,6 +760,7 @@ function TweaksControls({ tweak, t, setShowConn }) {
           {value:"mirror",label:"Mirrored bars"},
           {value:"radial",label:"Radial"},
           {value:"ambient",label:"Ambient wash"},
+          {value:"scope",label:"Oscilloscope"},
         ]}/>
         <TweakToggle label="Show spectrum panel" value={t.showSpectrum} onChange={(v) => tweak("showSpectrum", v)}/>
       </TweakSection>

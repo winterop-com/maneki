@@ -8,6 +8,7 @@
 //   "mirror"    bars mirrored above/below a centerline
 //   "radial"    polar bars radiating outward
 //   "ambient"   low-contrast blurred wash (sits behind content)
+//   "scope"     oscilloscope trace of the live audio waveform
 
 const { useEffect: useEff_viz, useRef: useRef_viz } = React;
 
@@ -48,6 +49,10 @@ function Visualizer({ style = "bars", running = true, accent, height, ambient = 
     // old 30 fps cap did before gradients were cached.
     const FRAME_INTERVAL_MS = 1000 / 60;
     let lastDrawAt = 0;
+    // Smoothed amplitude envelope for the "scope" style. Driven by the
+    // waveform RMS while playing; decays toward 0 when paused so the
+    // trace settles to a flat line instead of snapping.
+    let scopeEnv = 0;
     // When idle (paused AND all bars decayed near zero) skip drawing
     // entirely. The bins are already at floor, so re-clearing and
     // re-painting empty bars just burns the GPU process.
@@ -59,6 +64,30 @@ function Visualizer({ style = "bars", running = true, accent, height, ambient = 
       lastDrawAt = now;
       stateRef.current.t += 1;
       const t = stateRef.current.t;
+
+      // Oscilloscope: plot the live time-domain waveform. Self-contained
+      // (own clear + draw + return) so it skips all the FFT-bin work the
+      // bar styles do. Falls back to a synthesised sine when no track has
+      // played yet or while paused.
+      if (style === "scope") {
+        const wave = running && window.MK_AUDIO?.getWaveform?.();
+        let target = 0;
+        if (wave && wave.length) {
+          let sum = 0;
+          for (let i = 0; i < wave.length; i++) {
+            const d = (wave[i] - 128) / 128;
+            sum += d * d;
+          }
+          target = Math.min(1, Math.sqrt(sum / wave.length) * 2.2);
+        }
+        // Fast attack, slow release -- transients read crisply, decay is gentle.
+        scopeEnv += (target - scopeEnv) * (target > scopeEnv ? 0.4 : 0.05);
+        // Idle: paused and the trace has settled flat -- nothing to paint.
+        if (!running && scopeEnv < 0.003) return;
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        drawScope(ctx, wave, canvas.width, canvas.height, accent, t, scopeEnv, running, gradCache);
+        return;
+      }
 
       // WIRED: prefer real FFT data from the audio element when the
       // wiring layer has wired up an AnalyserNode (see _audio.js).
@@ -269,6 +298,52 @@ function roundRect(ctx, x, y, w, h, r) {
   ctx.arcTo(x, y + h, x, y, r);
   ctx.arcTo(x, y, x + w, y, r);
   ctx.closePath();
+}
+
+// Oscilloscope trace. With a real waveform it plots the time-domain
+// samples directly (the genuine "sine" you'd see on a scope); without one
+// it synthesises a flowing sine whose amplitude follows `env` (so it
+// decays to flat when paused and holds a steady base while playing before
+// the analyser is ready). The stroke uses a horizontal lo->mid->hi
+// gradient, memoised in the shared cache (cleared on resize).
+function drawScope(ctx, wave, w, h, accent, t, env, running, cache) {
+  const mid = h / 2;
+  const amp = h / 2 - Math.max(4, h * 0.06);
+  let g = cache.get("scope");
+  if (!g) {
+    g = ctx.createLinearGradient(0, 0, w, 0);
+    g.addColorStop(0, accent.lo || "#bcd47a");
+    g.addColorStop(0.5, accent.mid || "#e6c065");
+    g.addColorStop(1, accent.hi || "#f08aa6");
+    cache.set("scope", g);
+  }
+  ctx.strokeStyle = g;
+  ctx.lineWidth = Math.max(1.5, h * 0.012);
+  ctx.lineJoin = "round";
+  ctx.lineCap = "round";
+  ctx.beginPath();
+  if (wave && wave.length) {
+    const N = wave.length;
+    for (let i = 0; i < N; i++) {
+      const x = (i / (N - 1)) * w;
+      const y = mid - ((wave[i] - 128) / 128) * amp;
+      if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+    }
+  } else {
+    // Synthesised sine. Hold a visible base amplitude while running (the
+    // analyser may not be wired on the very first frames); otherwise ride
+    // the decaying envelope.
+    const a = running ? Math.max(env, 0.32) : env;
+    const N = 96;
+    for (let i = 0; i <= N; i++) {
+      const x = (i / N) * w;
+      const phase = (i / N) * Math.PI * 4 + t * 0.08;
+      const wobble = 0.6 + 0.4 * Math.sin(t * 0.03 + i * 0.2);
+      const y = mid - Math.sin(phase) * amp * a * wobble;
+      if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+    }
+  }
+  ctx.stroke();
 }
 
 window.MK_Visualizer = Visualizer;
