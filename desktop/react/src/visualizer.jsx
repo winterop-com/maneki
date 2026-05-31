@@ -27,19 +27,26 @@ function Visualizer({ style = "bars", running = true, accent, height, ambient = 
     }
     const bins = stateRef.current.bins;
 
+    // Memoised gradients keyed by geometry; see vGrad and drawRadial.
+    // Cleared on resize because the canvas height feeds the bar gradients.
+    const gradCache = new Map();
+
     function resize() {
       const r = canvas.getBoundingClientRect();
       canvas.width = Math.max(1, Math.floor(r.width * dpr));
       canvas.height = Math.max(1, Math.floor(r.height * dpr));
+      gradCache.clear();
     }
     resize();
     const ro = new ResizeObserver(resize);
     ro.observe(canvas);
 
-    // Throttle to ~30 fps. The animation is decorative and 30 fps reads
-    // as fluid; doubling the frame budget halves canvas / paint work,
-    // which is the dominant CPU cost on Tauri/WKWebView.
-    const FRAME_INTERVAL_MS = 1000 / 30;
+    // Run at up to 60 fps for a fluid spectrum. The per-frame paint cost
+    // (the dominant CPU cost on WKWebView) is kept down by memoising the
+    // bar gradients instead of allocating one per bar per frame -- see
+    // vGrad and the radial cache below -- so 60 fps costs roughly what the
+    // old 30 fps cap did before gradients were cached.
+    const FRAME_INTERVAL_MS = 1000 / 60;
     let lastDrawAt = 0;
     // When idle (paused AND all bars decayed near zero) skip drawing
     // entirely. The bins are already at floor, so re-clearing and
@@ -118,10 +125,10 @@ function Visualizer({ style = "bars", running = true, accent, height, ambient = 
       const h = canvas.height;
       ctx.clearRect(0, 0, w, h);
 
-      if (style === "radial") drawRadial(ctx, bins, w, h, accent, running, ambient);
-      else if (style === "mirror") drawMirror(ctx, bins, w, h, accent, running, ambient);
+      if (style === "radial") drawRadial(ctx, bins, w, h, accent, running, ambient, gradCache);
+      else if (style === "mirror") drawMirror(ctx, bins, w, h, accent, running, ambient, gradCache);
       else if (style === "ambient") drawAmbient(ctx, bins, w, h, accent);
-      else drawBars(ctx, bins, w, h, accent, running, ambient);
+      else drawBars(ctx, bins, w, h, accent, running, ambient, gradCache);
     }
     stateRef.current.raf = requestAnimationFrame(step);
 
@@ -139,16 +146,25 @@ function Visualizer({ style = "bars", running = true, accent, height, ambient = 
   );
 }
 
-function gradFor(ctx, x0, y0, x1, y1, accent) {
-  const g = ctx.createLinearGradient(x0, y0, x1, y1);
-  // green -> amber -> rose top-down (matches the current MK look)
+// Vertical gradient, memoised by integer pixel span. A vertical gradient
+// is x-invariant and the canvas height is fixed between resizes, so a bar
+// gradient is a pure function of its span endpoints (y0, y1) -- which are
+// in turn driven by the bar height. Keying by rounded px height keeps the
+// cache bounded by the canvas height and avoids allocating one gradient
+// per bar per frame. Rounding to 1px is sub-perceptual. green -> amber ->
+// rose top-down (matches the current MK look). Cache is cleared on resize.
+function vGrad(cache, ctx, key, y0, y1, accent) {
+  let g = cache.get(key);
+  if (g) return g;
+  g = ctx.createLinearGradient(0, y0, 0, y1);
   g.addColorStop(0, accent.hi || "#f08aa6");
   g.addColorStop(0.55, accent.mid || "#e6c065");
   g.addColorStop(1, accent.lo || "#bcd47a");
+  cache.set(key, g);
   return g;
 }
 
-function drawBars(ctx, bins, w, h, accent, running, ambient) {
+function drawBars(ctx, bins, w, h, accent, running, ambient, cache) {
   const N = bins.length;
   const gap = Math.max(2, Math.floor(w / N * 0.18));
   const bw = (w - gap * (N - 1)) / N;
@@ -158,7 +174,8 @@ function drawBars(ctx, bins, w, h, accent, running, ambient) {
     const bh = v * (h - 8);
     const x = i * (bw + gap);
     const y = h - bh;
-    ctx.fillStyle = gradFor(ctx, x, y, x, h, accent);
+    const bhr = bh | 0;
+    ctx.fillStyle = vGrad(cache, ctx, "b" + bhr, h - bhr, h, accent);
     ctx.globalAlpha = baseAlpha * (running ? 1 : 0.7);
     roundRect(ctx, x, y, bw, bh, Math.min(bw / 3, 4));
     ctx.fill();
@@ -166,7 +183,7 @@ function drawBars(ctx, bins, w, h, accent, running, ambient) {
   ctx.globalAlpha = 1;
 }
 
-function drawMirror(ctx, bins, w, h, accent, running, ambient) {
+function drawMirror(ctx, bins, w, h, accent, running, ambient, cache) {
   const N = bins.length;
   const gap = Math.max(2, Math.floor(w / N * 0.18));
   const bw = (w - gap * (N - 1)) / N;
@@ -176,15 +193,16 @@ function drawMirror(ctx, bins, w, h, accent, running, ambient) {
     const v = Math.min(1, bins[i]);
     const bh = v * (h / 2 - 4);
     const x = i * (bw + gap);
+    const bhr = bh | 0;
     ctx.globalAlpha = baseAlpha * (running ? 1 : 0.7);
-    ctx.fillStyle = gradFor(ctx, x, cy - bh, x, cy + bh, accent);
+    ctx.fillStyle = vGrad(cache, ctx, "m" + bhr, cy - bhr, cy + bhr, accent);
     roundRect(ctx, x, cy - bh, bw, bh * 2, Math.min(bw / 3, 4));
     ctx.fill();
   }
   ctx.globalAlpha = 1;
 }
 
-function drawRadial(ctx, bins, w, h, accent, running, ambient) {
+function drawRadial(ctx, bins, w, h, accent, running, ambient, cache) {
   const N = bins.length;
   const cx = w / 2, cy = h / 2;
   const r0 = Math.min(w, h) * 0.18;
@@ -195,17 +213,23 @@ function drawRadial(ctx, bins, w, h, accent, running, ambient) {
   ctx.strokeStyle = accent.ring || "rgba(255,255,255,0.06)";
   ctx.lineWidth = 1;
   ctx.beginPath(); ctx.arc(cx, cy, r0 - 2, 0, Math.PI * 2); ctx.stroke();
+  // The radial fill geometry is bar-independent, so build it once and
+  // memoise it (cleared on resize) instead of per bar per frame.
+  let g = cache.get("r");
+  if (!g) {
+    g = ctx.createRadialGradient(cx, cy, r0, cx, cy, r1);
+    g.addColorStop(0, accent.lo || "#bcd47a");
+    g.addColorStop(0.6, accent.mid || "#e6c065");
+    g.addColorStop(1, accent.hi || "#f08aa6");
+    cache.set("r", g);
+  }
+  ctx.fillStyle = g;
   for (let i = 0; i < N; i++) {
     const v = Math.min(1, bins[i]);
     const a0 = (i / N) * Math.PI * 2;
     const a1 = ((i + 0.7) / N) * Math.PI * 2;
     const rr = r0 + v * span;
     ctx.globalAlpha = baseAlpha * (running ? 1 : 0.7);
-    const g = ctx.createRadialGradient(cx, cy, r0, cx, cy, r1);
-    g.addColorStop(0, accent.lo || "#bcd47a");
-    g.addColorStop(0.6, accent.mid || "#e6c065");
-    g.addColorStop(1, accent.hi || "#f08aa6");
-    ctx.fillStyle = g;
     ctx.beginPath();
     ctx.arc(cx, cy, r0, a0, a1);
     ctx.arc(cx, cy, rr, a1, a0, true);
