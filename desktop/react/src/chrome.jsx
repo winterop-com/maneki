@@ -235,13 +235,17 @@ function TracksPane({ artist, album, playTrack, now, isStarred, toggleStar, load
             {!loaded && [0,1,2,3,4].map((i) => <tr key={i}><td colSpan="5"><div className="mk-skel" style={{height: 16, margin: "4px 0"}}/></td></tr>)}
             {loaded && album.tracks.map((tr) => {
               const key = `${artist.id}/${album.id}/${tr.n}`;
-              const isNow = now?.artistId === artist.id && now?.albumId === album.id && now?.trackN === tr.n;
+              // Match on trackId, not trackN: compilations restart their
+              // numbering per disc (e.g. 1-16 then 1-14), so tr.n is not
+              // unique within an album. Comparing on it lights up every
+              // row that shares the number.
+              const isNow = now?.albumId === album.id && now?.trackId === tr.trackId;
               return (
                 <tr
-                  key={tr.n}
+                  key={tr.trackId}
                   className={"mk-track-row" + (isNow ? " now" : "")}
-                  onDoubleClick={() => playTrack(artist.id, album.id, tr.n)}
-                  onClick={() => playTrack(artist.id, album.id, tr.n)}
+                  onDoubleClick={() => playTrack(artist.id, album.id, tr.n, tr.trackId)}
+                  onClick={() => playTrack(artist.id, album.id, tr.n, tr.trackId)}
                 >
                   <td className="t-n mono">{tr.n}</td>
                   <td className="t-title">{tr.title}</td>
@@ -312,7 +316,7 @@ function StarredPane({ starredTracks, playTrack, toggleStar }) {
             <thead><tr><th className="t-n">#</th><th className="t-title">TITLE</th><th className="t-artist">ARTIST</th><th className="t-time">TIME</th><th className="t-star"></th></tr></thead>
             <tbody>
               {starredTracks.map((tr, i) => (
-                <tr key={tr.key} className="mk-track-row" onClick={() => playTrack(tr.artistId, tr.albumId, tr.n)}>
+                <tr key={tr.key} className="mk-track-row" onClick={() => playTrack(tr.artistId, tr.albumId, tr.n, tr.trackId)}>
                   <td className="t-n mono">{i+1}</td>
                   <td className="t-title">{tr.title}</td>
                   <td className="t-artist">{tr.artistName}</td>

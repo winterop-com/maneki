@@ -193,7 +193,7 @@ function App() {
   const [vol, setVol] = uS(0.85);
   const [pos, setPos] = uS(34);    // seconds
   const [dur, setDur] = uS(212);   // seconds
-  const [now, setNow] = uS(null);  // { artistId, albumId, trackN, station? }
+  const [now, setNow] = uS(null);  // { artistId, albumId, trackN, trackId, station? }
   const [shuffle, setShuffle] = uS(false);
   const [repeat, setRepeat] = uS("off"); // off | album | track
 
@@ -248,7 +248,7 @@ function App() {
     } else if (window.MK_SESSION) {
       const a = window.MK_DATA.ARTISTS.find((x) => x.id === now.artistId);
       const al = a?.albums.find((x) => x.id === now.albumId);
-      const tr = al?.tracks.find((x) => x.n === now.trackN);
+      const tr = al?.tracks.find((x) => x.trackId === now.trackId);
       if (tr?.trackId) {
         window.MK_AUDIO.load(window.MK_API.streamUrl(window.MK_SESSION, tr.trackId));
         loaded = true;
@@ -304,7 +304,7 @@ function App() {
   const album = uM(() => artist?.albums.find((al) => al.id === albumId) || null, [artist, albumId]);
   const nowArtist = uM(() => now?.artistId ? ARTISTS.find((a) => a.id === now.artistId) : null, [now]);
   const nowAlbum = uM(() => nowArtist?.albums.find((al) => al.id === now?.albumId) || null, [nowArtist, now]);
-  const nowTrack = uM(() => nowAlbum?.tracks.find((t2) => t2.n === now?.trackN) || null, [nowAlbum, now]);
+  const nowTrack = uM(() => nowAlbum?.tracks.find((t2) => t2.trackId === now?.trackId) || null, [nowAlbum, now]);
   const nowStation = uM(() => now?.stationId ? STATIONS.find((s) => s.id === now.stationId) : null, [now]);
 
   // Starred-tracks roll-up
@@ -334,12 +334,17 @@ function App() {
   }, [q]);
 
   // Actions
-  const playTrack = (artistId, albumId, trackN) => {
+  const playTrack = (artistId, albumId, trackN, trackId) => {
     const a = ARTISTS.find((x) => x.id === artistId);
     const al = a?.albums.find((x) => x.id === albumId);
-    const tr = al?.tracks.find((x) => x.n === trackN);
+    // Prefer trackId: trackN is not unique on compilations (per-disc
+    // numbering), so a trackN lookup can resolve to the wrong song when
+    // the same number appears twice. Fall back to trackN for callers
+    // that don't pass an id.
+    const tr = (trackId && al?.tracks.find((x) => x.trackId === trackId))
+      || al?.tracks.find((x) => x.n === trackN);
     if (!tr) return;
-    setNow({ artistId, albumId, trackN });
+    setNow({ artistId, albumId, trackN: tr.n, trackId: tr.trackId });
     setPos(0);
     setDur(parseDur(tr.time));
     setPlaying(true);
@@ -354,17 +359,17 @@ function App() {
   const handleNext = () => {
     if (now?.stationId) return;
     if (!nowAlbum) return;
-    const idx = nowAlbum.tracks.findIndex((tr) => tr.n === now.trackN);
+    const idx = nowAlbum.tracks.findIndex((tr) => tr.trackId === now.trackId);
     const next = nowAlbum.tracks[(idx + 1) % nowAlbum.tracks.length];
-    setNow({ ...now, trackN: next.n });
+    setNow({ ...now, trackN: next.n, trackId: next.trackId });
     setPos(0); setDur(parseDur(next.time));
   };
   const handlePrev = () => {
     if (now?.stationId) return;
     if (!nowAlbum) return;
-    const idx = nowAlbum.tracks.findIndex((tr) => tr.n === now.trackN);
+    const idx = nowAlbum.tracks.findIndex((tr) => tr.trackId === now.trackId);
     const prev = nowAlbum.tracks[(idx - 1 + nowAlbum.tracks.length) % nowAlbum.tracks.length];
-    setNow({ ...now, trackN: prev.n });
+    setNow({ ...now, trackN: prev.n, trackId: prev.trackId });
     setPos(0); setDur(parseDur(prev.time));
   };
 
@@ -624,7 +629,7 @@ function App() {
   const pickSearchResult = (r) => {
     if (r.kind === "artist") { setSection("library"); setArtistId(r.id); setAlbumId(null); }
     else if (r.kind === "album") { setSection("library"); setArtistId(r.artistId); setAlbumId(r.id); }
-    else if (r.kind === "track") { setSection("library"); setArtistId(r.artistId); setAlbumId(r.albumId); playTrack(r.artistId, r.albumId, r.trackN); }
+    else if (r.kind === "track") { setSection("library"); setArtistId(r.artistId); setAlbumId(r.albumId); playTrack(r.artistId, r.albumId, r.n, r.trackId); }
     setSearchOpen(false); setQ("");
   };
 
