@@ -128,6 +128,20 @@ def test_stream_unknown_id_returns_70(tmp_path: Path) -> None:
     assert body["error"]["code"] == 70
 
 
+def test_stream_missing_file_returns_error_not_crash(tmp_path: Path) -> None:
+    """A catalogued track whose file is gone (moved/deleted, or volume
+    unmounted) must return a Subsonic error, not hand the missing path to
+    FileResponse — which raises RuntimeError("File at path ... does not
+    exist.") mid-response and reads as a server crash."""
+    album = _real_album_with_one_track(tmp_path)
+    client = _client_with_index(tmp_path, [album])
+    track = album.tracks[0]
+    track.path.unlink()  # simulate the file vanishing after the scan
+    body = client.get("/rest/stream", params=_params(id=track_id(track))).json()["subsonic-response"]
+    assert body["status"] == "failed"
+    assert body["error"]["code"] == 70
+
+
 # ---------------------------------------------------------------------------
 # getCoverArt
 # ---------------------------------------------------------------------------

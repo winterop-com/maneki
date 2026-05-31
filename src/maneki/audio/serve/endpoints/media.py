@@ -53,6 +53,15 @@ def _safe_path_under_root(cache: IndexCache, path_id: str) -> JSONResponse | Non
         track.path.resolve().relative_to(cache.root.resolve())
     except ValueError:
         return JSONResponse(error_envelope(70, "track path escapes library root"))
+    # The catalog can hold a path that's no longer on disk: the file was
+    # moved/renamed/retagged since the last scan, or the library volume is
+    # unmounted. Catch it here and return a Subsonic error, rather than
+    # handing a missing path to Starlette's FileResponse, which raises
+    # RuntimeError("File at path ... does not exist.") mid-response -- an
+    # unhandled error that reads as a server crash. A rescan repairs the
+    # stale entry.
+    if not track.path.exists():
+        return JSONResponse(error_envelope(70, f"Song file not found: {path_id}"))
     return None
 
 
