@@ -13,6 +13,7 @@ const TWEAK_DEFAULTS = /*EDITMODE-BEGIN*/{
   "density": "comfortable",
   "fontScale": 1,
   "showSpectrum": true,
+  "vizDelay": 0,
   "fullbleedCover": false
 }/*EDITMODE-END*/;
 
@@ -267,6 +268,11 @@ function App() {
   // Forward volume / muted to the audio element.
   uE(() => { window.MK_AUDIO?.setVolume(vol); }, [vol]);
   uE(() => { window.MK_AUDIO?.setMuted(muted); }, [muted]);
+
+  // Forward the manual spectrum-delay offset. Added on top of the
+  // auto-detected output latency (see _audio.js); covers stacks that
+  // under-report outputLatency, where the spectrum still leads the sound.
+  uE(() => { window.MK_AUDIO?.setVizDelay?.(t.vizDelay || 0); }, [t.vizDelay]);
 
   // Real audio time/duration/end -> React state. timeupdate from <audio>
   // fires ~4 Hz on Chromium / WebKit; pushing every tick re-renders the

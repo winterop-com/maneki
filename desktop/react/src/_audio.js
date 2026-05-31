@@ -75,9 +75,16 @@
     };
   }
 
+  // Manual spectrum-delay offset (seconds), added on top of the device's
+  // reported latency. Some stacks under-report outputLatency (it reads 0
+  // on wired output even when the real buffer is larger), leaving the
+  // spectrum ahead of the sound; this lets the user dial that out. Set
+  // from the "Spectrum delay" tweak via setVizDelay.
+  let manualVizDelay = 0;
+
   function outputDelay() {
-    if (!audioCtx) return 0;
-    return (audioCtx.baseLatency || 0) + (audioCtx.outputLatency || 0);
+    const auto = audioCtx ? (audioCtx.baseLatency || 0) + (audioCtx.outputLatency || 0) : 0;
+    return auto + manualVizDelay;
   }
 
   function ensureAnalyser() {
@@ -171,6 +178,12 @@
       audio.volume = Math.max(0, Math.min(1, v));
     },
     setMuted(b) { audio.muted = !!b; },
+    // Manual spectrum-delay offset in seconds (see manualVizDelay). Clamped
+    // to a sane range; the delay line only holds ~1.5s of frames.
+    setVizDelay(seconds) {
+      const s = Number(seconds);
+      manualVizDelay = Number.isFinite(s) ? Math.max(0, Math.min(1.2, s)) : 0;
+    },
     onTimeUpdate(cb) { listeners.time.add(cb); return () => listeners.time.delete(cb); },
     onEnded(cb) { listeners.ended.add(cb); return () => listeners.ended.delete(cb); },
     onDurationChange(cb) { listeners.durationchange.add(cb); return () => listeners.durationchange.delete(cb); },

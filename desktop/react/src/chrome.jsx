@@ -809,6 +809,7 @@ function TweaksControls({ tweak, t, setShowConn }) {
           {value:"scope",label:"Oscilloscope"},
         ]}/>
         <TweakToggle label="Show spectrum panel" value={t.showSpectrum} onChange={(v) => tweak("showSpectrum", v)}/>
+        <TweakSlider label="Spectrum delay" min={0} max={1} step={0.05} value={t.vizDelay || 0} onChange={(v) => tweak("vizDelay", v)} unit="s"/>
       </TweakSection>
       <TweakSection title="Demos">
         <TweakButton onClick={() => setShowConn && setShowConn(true)}>Trigger connection error</TweakButton>
