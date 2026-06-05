@@ -735,7 +735,7 @@ function MainArea(props) {
     <div className={"mk-browse" + (videoMode ? " mk-browse-video" : "")}>
       <Sidebar kind={kind} section={section} setSection={setSection} ARTISTS={ARTISTS} artistId={artistId} setArtistId={(id) => { setSection("library"); setArtistId(id); }} loaded={loaded}/>
       {!videoMode && section === "library" && <AlbumsPane artist={artist} albumId={albumId} setAlbumId={setAlbumId} loaded={loaded}/>}
-      {!videoMode && section === "library" && <TracksPane artist={artist} album={album} playTrack={playTrack} now={now} nowAlbum={nowAlbum} repeat={t.repeat} isStarred={isStarred} toggleStar={toggleStar} loaded={loaded}/>}
+      {!videoMode && section === "library" && <TracksPane artist={artist} album={album} playTrack={playTrack} now={now} nowAlbum={nowAlbum} repeat={t.repeat} isStarred={isStarred} toggleStar={toggleStar} loaded={loaded && (!album || album.tracksLoaded)}/>}
       {!videoMode && section === "stations" && <StationsPane STATIONS={STATIONS} playStation={playStation} now={now} loaded={loaded}/>}
       {!videoMode && section === "starred" && <StarredPane starredTracks={starredTracks} playTrack={playTrack} toggleStar={toggleStar}/>}
       {videoMode && session && !videoSearchActive && <MK_VideosPane session={session} selectedId={selectedVideo?.id} onSelect={setSelectedVideo}/>}

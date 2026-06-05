@@ -160,14 +160,13 @@ function App() {
   }, [hasAudio, hasVideo]);
   const session = window.MK_API?.loadSession?.() || null;
 
-  // Star state (per-track keyed "artistId/albumId/trackN")
+  // Star state (per-track keyed "artistId/albumId/trackN"). Seeded from
+  // MK_DATA.STARRED_TRACKS (getStarred2) rather than scanning loaded
+  // tracks — albums load their tracks lazily now, so the per-album
+  // scan would miss every star until each album was opened.
   const [starred, setStarred] = uS(() => {
     const s = new Set();
-    ARTISTS.forEach((a) =>
-      a.albums.forEach((al) =>
-        al.tracks.forEach((tr) => { if (tr.starred) s.add(`${a.id}/${al.id}/${tr.n}`); })
-      )
-    );
+    (window.MK_DATA.STARRED_TRACKS || []).forEach((t) => s.add(t.key));
     return s;
   });
   const isStarred = (key) => starred.has(key);
@@ -184,7 +183,11 @@ function App() {
     const [aId, alId, trN] = key.split("/");
     const a = window.MK_DATA.ARTISTS.find((x) => x.id === aId);
     const al = a?.albums.find((x) => x.id === alId);
-    const tr = al?.tracks.find((x) => String(x.n) === trN);
+    let tr = al?.tracks.find((x) => String(x.n) === trN);
+    // When the album's tracks aren't loaded (e.g. unstarring straight
+    // from the Starred view), resolve the song id from the getStarred2
+    // seed instead, which carries the trackId directly.
+    if (!tr?.trackId) tr = (window.MK_DATA.STARRED_TRACKS || []).find((s) => s.key === key);
     if (!tr?.trackId) return;
     const wasStarred = starred.has(key);
     const fn = wasStarred ? window.MK_API.unstar : window.MK_API.star;
@@ -240,6 +243,13 @@ function App() {
     return () => clearTimeout(t);
   }, [authed]);
 
+  // Album tracks load lazily (see _wiring.jsx MK_loadAlbumTracks): the
+  // login-time library load only fetches album shells, so an album's
+  // `tracks` array is empty until it's opened or played. The wiring
+  // layer fills the array in place; bumping this counter forces the
+  // memoised views that read `.tracks` to recompute once it lands.
+  const [albumTracksTick, setAlbumTracksTick] = uS(0);
+
   // === WIRING (added on top of the designer artifact) ===
   // The original artifact ran a `setInterval` to fake a playback clock
   // because the design preview had no audio. Now `_audio.js` owns a
@@ -263,14 +273,12 @@ function App() {
     if (now.stationId) {
       const st = window.MK_DATA.STATIONS.find((s) => s.id === now.stationId);
       if (st?.streamUrl) { window.MK_AUDIO.load(st.streamUrl); loaded = true; }
-    } else if (window.MK_SESSION) {
-      const a = window.MK_DATA.ARTISTS.find((x) => x.id === now.artistId);
-      const al = a?.albums.find((x) => x.id === now.albumId);
-      const tr = al?.tracks.find((x) => x.trackId === now.trackId);
-      if (tr?.trackId) {
-        window.MK_AUDIO.load(window.MK_API.streamUrl(window.MK_SESSION, tr.trackId));
-        loaded = true;
-      }
+    } else if (window.MK_SESSION && now.trackId) {
+      // Stream straight from now.trackId — every setNow already carries
+      // it, so we don't need the album's tracks loaded to start playback
+      // (matters when playing from search / the Starred view).
+      window.MK_AUDIO.load(window.MK_API.streamUrl(window.MK_SESSION, now.trackId));
+      loaded = true;
     }
     if (loaded) window.MK_AUDIO.play();
   }, [now]);
@@ -327,8 +335,34 @@ function App() {
   const album = uM(() => artist?.albums.find((al) => al.id === albumId) || null, [artist, albumId]);
   const nowArtist = uM(() => now?.artistId ? ARTISTS.find((a) => a.id === now.artistId) : null, [now]);
   const nowAlbum = uM(() => nowArtist?.albums.find((al) => al.id === now?.albumId) || null, [nowArtist, now]);
-  const nowTrack = uM(() => nowAlbum?.tracks.find((t2) => t2.trackId === now?.trackId) || null, [nowAlbum, now]);
+  const nowTrack = uM(() => nowAlbum?.tracks.find((t2) => t2.trackId === now?.trackId) || null, [nowAlbum, now, albumTracksTick]);
   const nowStation = uM(() => now?.stationId ? STATIONS.find((s) => s.id === now.stationId) : null, [now]);
+
+  // Lazily load tracks for the album in view AND the now-playing album.
+  // The login load only fetched album shells; this fills their `tracks`
+  // arrays the moment they're needed — opening an album (tracks pane) or
+  // starting one playing (next/prev + auto-advance need the full list).
+  // MK_loadAlbumTracks mutates the album object in place; the tick bump
+  // re-renders the views that read `.tracks`.
+  uE(() => {
+    if (!authed) return;
+    if (typeof window.MK_loadAlbumTracks !== "function") return;
+    const sess = window.MK_API?.loadSession?.();
+    if (!sess) return;
+    const targets = [];
+    if (artist && album && !album.tracksLoaded) targets.push([artist.id, album.id]);
+    if (now && !now.stationId && now.artistId && now.albumId) {
+      const na = ARTISTS.find((x) => x.id === now.artistId);
+      const nal = na?.albums.find((x) => x.id === now.albumId);
+      if (nal && !nal.tracksLoaded) targets.push([now.artistId, now.albumId]);
+    }
+    if (!targets.length) return;
+    let cancelled = false;
+    Promise.all(targets.map(([aid, alid]) => window.MK_loadAlbumTracks(sess, aid, alid)))
+      .then(() => { if (!cancelled) setAlbumTracksTick((n) => n + 1); })
+      .catch((err) => console.warn("[app] lazy album-track load failed:", err));
+    return () => { cancelled = true; };
+  }, [authed, artist, album, now]);
 
   // Poll the server for the current station's ICY StreamTitle (the live
   // song / programme). The radioStream proxy parses it off the upstream
@@ -353,30 +387,70 @@ function App() {
     return () => { cancelled = true; clearInterval(id); };
   }, [nowStation]);
 
-  // Starred-tracks roll-up
+  // Starred-tracks roll-up. Two sources, deduped by key: tracks from
+  // albums whose songs have been lazily loaded (authoritative — reflects
+  // any in-session star toggles), plus the getStarred2 seed for albums
+  // not yet opened. Filtered by the live `starred` set so unstarring
+  // during the session removes the row immediately.
   const starredTracks = uM(() => {
     const out = [];
+    const seen = new Set();
     ARTISTS.forEach((a) => a.albums.forEach((al) => al.tracks.forEach((tr) => {
       const key = `${a.id}/${al.id}/${tr.n}`;
-      if (starred.has(key)) out.push({ artistId: a.id, artistName: a.name, albumId: al.id, albumName: al.name, ...tr, key });
+      if (starred.has(key)) { out.push({ artistId: a.id, artistName: a.name, albumId: al.id, albumName: al.name, ...tr, key }); seen.add(key); }
     })));
+    (window.MK_DATA.STARRED_TRACKS || []).forEach((t) => {
+      if (starred.has(t.key) && !seen.has(t.key)) out.push(t);
+    });
     return out;
-  }, [starred]);
+  }, [starred, albumTracksTick]);
 
-  // Search results
-  const results = uM(() => {
-    if (!q.trim()) return { artists: [], albums: [], tracks: [] };
-    const ql = q.trim().toLowerCase();
-    const arts = ARTISTS.filter((a) => a.name.toLowerCase().includes(ql));
-    const albs = [];
-    const trks = [];
-    ARTISTS.forEach((a) => a.albums.forEach((al) => {
-      if (al.name.toLowerCase().includes(ql)) albs.push({ ...al, artistId: a.id, artistName: a.name });
-      al.tracks.forEach((tr) => {
-        if (tr.title.toLowerCase().includes(ql)) trks.push({ ...tr, artistId: a.id, artistName: a.name, albumId: al.id, albumName: al.name });
-      });
-    }));
-    return { artists: arts, albums: albs, tracks: trks };
+  // Search results — server-side via Subsonic search3. Local matching
+  // used to scan every loaded track, but tracks now load lazily per
+  // album, so a client-side scan would only find songs in albums the
+  // user happened to have opened. search3 hits the server's FTS index
+  // (sub-millisecond on big libraries) for full-library track titles.
+  // Debounced so each keystroke doesn't fire a request.
+  const [results, setResults] = uS({ artists: [], albums: [], tracks: [] });
+  uE(() => {
+    const ql = q.trim();
+    if (!ql) { setResults({ artists: [], albums: [], tracks: [] }); return; }
+    const sess = window.MK_API?.loadSession?.();
+    if (!sess || typeof window.MK_API.search3 !== "function") {
+      setResults({ artists: [], albums: [], tracks: [] });
+      return;
+    }
+    let cancelled = false;
+    const handle = setTimeout(async () => {
+      try {
+        const r = await window.MK_API.search3(sess, ql, { artistCount: 20, albumCount: 20, songCount: 40 });
+        if (cancelled) return;
+        const artists = (r.artist || []).map((a) => ({ id: a.id, name: a.name }));
+        const albums = (r.album || []).map((al) => ({
+          id: al.id,
+          name: al.name,
+          year: al.year || "",
+          artistId: al.artistId || "",
+          artistName: al.artist || "",
+        }));
+        const tracks = (r.song || []).map((s) => ({
+          n: s.track ?? 0,
+          title: s.title || "",
+          trackId: s.id,
+          artistId: s.artistId || "",
+          artistName: s.artist || "",
+          albumId: s.albumId || "",
+          albumName: s.album || "",
+        }));
+        setResults({ artists, albums, tracks });
+      } catch (err) {
+        if (!cancelled) {
+          console.warn("[app] search3 failed:", err);
+          setResults({ artists: [], albums: [], tracks: [] });
+        }
+      }
+    }, 180);
+    return () => { cancelled = true; clearTimeout(handle); };
   }, [q]);
 
   // Actions
@@ -389,10 +463,16 @@ function App() {
     // that don't pass an id.
     const tr = (trackId && al?.tracks.find((x) => x.trackId === trackId))
       || al?.tracks.find((x) => x.n === trackN);
-    if (!tr) return;
-    setNow({ artistId, albumId, trackN: tr.n, trackId: tr.trackId });
+    // The album's tracks may not be loaded yet (playing straight from
+    // search or the Starred view). Fall back to the caller-supplied ids;
+    // the lazy-load effect pulls in the now-playing album's tracks right
+    // after, which fills in next/prev. Duration self-corrects once the
+    // <audio> element reports it (onDurationChange).
+    const id = tr?.trackId ?? trackId;
+    if (!id) return;
+    setNow({ artistId, albumId, trackN: tr?.n ?? trackN ?? 0, trackId: id });
     setPos(0);
-    setDur(parseDur(tr.time));
+    setDur(tr ? parseDur(tr.time) : 0);
     setPlaying(true);
   };
   const playStation = (stationId) => {
@@ -404,7 +484,10 @@ function App() {
   const handlePlayPause = () => { if (now) setPlaying((p) => !p); };
   const handleNext = () => {
     if (now?.stationId) return;
-    if (!nowAlbum) return;
+    // No-op until the now-playing album's tracks have loaded (the lazy
+    // effect fetches them as soon as a track starts, so this only guards
+    // the brief race right after pressing play from search / Starred).
+    if (!nowAlbum || !nowAlbum.tracks.length) return;
     const idx = nowAlbum.tracks.findIndex((tr) => tr.trackId === now.trackId);
     const next = nowAlbum.tracks[(idx + 1) % nowAlbum.tracks.length];
     setNow({ ...now, trackN: next.n, trackId: next.trackId });
@@ -412,7 +495,7 @@ function App() {
   };
   const handlePrev = () => {
     if (now?.stationId) return;
-    if (!nowAlbum) return;
+    if (!nowAlbum || !nowAlbum.tracks.length) return;
     const idx = nowAlbum.tracks.findIndex((tr) => tr.trackId === now.trackId);
     const prev = nowAlbum.tracks[(idx - 1 + nowAlbum.tracks.length) % nowAlbum.tracks.length];
     setNow({ ...now, trackN: prev.n, trackId: prev.trackId });
@@ -616,6 +699,7 @@ function App() {
     if (window.MK_DATA) {
       window.MK_DATA.ARTISTS = [];
       window.MK_DATA.STATIONS = [];
+      window.MK_DATA.STARRED_TRACKS = [];
     }
     window.MK_AUDIO?.pause?.();
   };

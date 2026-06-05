@@ -182,7 +182,7 @@ function SearchDropdown({ q, results, onPick, onClose, anchorEl }) {
       list.push({ pick: { kind: "album", artistId: al.artistId, id: al.id }, _id: `al:${al.id}` });
     }
     for (const t of (results.tracks || []).slice(0, 8)) {
-      list.push({ pick: { kind: "track", artistId: t.artistId, albumId: t.albumId, trackN: t.n }, _id: `t:${t.artistId}/${t.albumId}/${t.n}` });
+      list.push({ pick: { kind: "track", artistId: t.artistId, albumId: t.albumId, n: t.n, trackId: t.trackId }, _id: `t:${t.artistId}/${t.albumId}/${t.n}` });
     }
     return list;
   }, [results]);
@@ -251,7 +251,7 @@ function SearchDropdown({ q, results, onPick, onClose, anchorEl }) {
           <>
             <div className="mk-search-section">TRACKS</div>
             {results.tracks.slice(0, 8).map((t, i) => (
-              <div key={i} {...rowProps(`t:${i}`)} onClick={() => onPick({ kind: "track", artistId: t.artistId, albumId: t.albumId, trackN: t.n })}>
+              <div key={i} {...rowProps(`t:${i}`)} onClick={() => onPick({ kind: "track", artistId: t.artistId, albumId: t.albumId, n: t.n, trackId: t.trackId })}>
                 <div className="mk-search-row-title">{t.title}</div>
                 <div className="mk-search-row-sub">{t.artistName} · {t.albumName}</div>
               </div>

@@ -157,11 +157,23 @@
   // The artifact's chrome reads `window.MK_DATA.ARTISTS` (and friends)
   // at every render. To support partial loads we mutate the same
   // MK_DATA in place — first with `getArtists` (a flat artist list,
-  // arrives in ~1 round-trip), then with `getArtist`/`getAlbum`
-  // details fired in parallel. A consumer who renders early will see
-  // an artist list with empty `albums` arrays; once the per-artist
-  // details land the arrays fill in. Same approach for stations
-  // (also a single round-trip).
+  // arrives in ~1 round-trip), then with `getArtist` for each artist's
+  // album SHELLS (name / year / cover / track count — everything the
+  // album grid needs). A consumer who renders early sees an artist list
+  // with empty `albums` arrays; once the per-artist details land the
+  // arrays fill in. Same approach for stations (a single round-trip).
+  //
+  // What we deliberately DON'T do here: fetch per-album track listings
+  // (`getAlbum`). Those are loaded lazily by `MK_loadAlbumTracks` when
+  // the user actually opens an album. Eagerly fetching every album's
+  // songs on login meant one HTTP request per album — hundreds of them,
+  // all queued behind the browser's ~6-connection-per-origin HTTP/1.1
+  // cap — which is what made the initial load crawl. The album grid
+  // never needed the songs; only the tracks pane does.
+  //
+  // Stars: `getStarred2` (one request, phase 1) gives us the full set of
+  // starred songs up front, so the Starred view and the per-row heart
+  // state work without every album's tracks being in memory.
   //
   // Concurrency: we kick all `getArtist` calls in parallel (Promise.all)
   // rather than serialising them. The maneki serve bump-tested its
@@ -196,14 +208,19 @@
       return;
     }
 
-    // Phase 1: roots — flat artist list + radio stations in parallel.
-    // getArtists is the auth-checking call; let it surface errors so
-    // MK_RESUME / handleConnect can classify (auth vs. transient).
-    // getInternetRadioStations is allowed to soft-fail (some servers
-    // don't expose it; a missing radio list is not fatal).
-    const [artists, radio] = await Promise.all([
+    // Phase 1: roots — flat artist list + radio stations + starred
+    // songs, all in parallel. getArtists is the auth-checking call; let
+    // it surface errors so MK_RESUME / handleConnect can classify (auth
+    // vs. transient). getInternetRadioStations and getStarred2 are
+    // allowed to soft-fail (some servers don't expose radio; a missing
+    // star list is not fatal — it just means nothing shows as starred).
+    const [artists, radio, starredData] = await Promise.all([
       api.getArtists(session),
       api.getInternetRadioStations(session).catch(() => []),
+      api.getStarred2(session).catch((err) => {
+        console.warn("[wiring] getStarred2 failed:", err);
+        return { song: [] };
+      }),
     ]);
 
     // Pre-populate ARTISTS with placeholder shells (empty albums) so a
@@ -239,16 +256,46 @@
       icon: "(((",
     }));
 
+    // Starred songs (from getStarred2). Each entry is a self-contained
+    // row for the Starred view — it carries its own trackId and display
+    // fields, so the view works even for albums whose tracks haven't
+    // been lazily loaded yet. The key matches the "artistId/albumId/
+    // trackNo" scheme used everywhere else (maneki's song payload derives
+    // artistId from the album's artist dir, so it lines up with the tree).
+    const starredSongs = (starredData && starredData.song) || [];
+    const STARRED_TRACKS = starredSongs.map((s) => {
+      const n = s.track ?? 0;
+      const artistId = s.artistId || "";
+      const albumId = s.albumId || "";
+      return {
+        key: `${artistId}/${albumId}/${n}`,
+        artistId,
+        artistName: s.artist || "",
+        albumId,
+        albumName: s.album || "",
+        n,
+        title: s.title || "",
+        time: formatDuration(s.duration),
+        trackId: s.id,
+        suffix: s.suffix || "",
+        starred: true,
+      };
+    });
+
     window.MK_DATA = {
       ARTISTS: seed,
       STATIONS: stations,
+      STARRED_TRACKS,
       LYRICS_BOADICEA: [],
     };
     window.MK_SESSION = session;
 
-    // Phase 2: per-artist album + per-album track fetches, all in
-    // parallel. Each artist's slot in `seed` gets filled in place so
-    // any in-flight UI re-render picks it up.
+    // Phase 2: per-artist album SHELLS, all in parallel. Each artist's
+    // slot in `seed` gets filled in place so any in-flight UI re-render
+    // picks it up. We build album shells straight from getArtist's album
+    // metadata (name / year / cover / songCount) — no per-album getAlbum
+    // here. Tracks load lazily on album open via MK_loadAlbumTracks; the
+    // shell carries `tracks: []` and `tracksLoaded: false` until then.
     // We count failures so a partial-but-mostly-broken load (server
     // went offline mid-load) can pop a single banner instead of
     // logging silently into the void.
@@ -269,41 +316,17 @@
           return; // leave the slot's empty albums in place; UI shows skeleton
         }
         const albums = detail.album || [];
-        const wiredAlbums = await Promise.all(
-          albums.map(async (al) => {
-            let full;
-            try {
-              full = await api.getAlbum(session, al.id);
-            } catch (err) {
-              console.warn("[wiring] getAlbum failed for", al.id, err);
-              failedCount++;
-              if (!firstError) firstError = err;
-              return null;
-            }
-            const tracks = (full.song || []).map((s) => ({
-              n: s.track ?? 0,
-              title: s.title || "",
-              time: formatDuration(s.duration),
-              starred: !!s.starred,
-              trackId: s.id,
-              artistId: a.id,
-              albumId: al.id,
-              artist: s.artist || a.name,
-              suffix: s.suffix || "",
-            }));
-            return {
-              id: al.id,
-              name: al.name,
-              year: al.year || "",
-              trackCount: al.songCount || tracks.length,
-              color: "#444",
-              cover: api.coverArtUrl(session, al.coverArt || al.id, 200),
-              coverArtUrl: api.coverArtUrl(session, al.coverArt || al.id, 600),
-              tracks,
-            };
-          })
-        );
-        slot.albums = wiredAlbums.filter(Boolean);
+        slot.albums = albums.map((al) => ({
+          id: al.id,
+          name: al.name,
+          year: al.year || "",
+          trackCount: al.songCount || 0,
+          color: "#444",
+          cover: api.coverArtUrl(session, al.coverArt || al.id, 200),
+          coverArtUrl: api.coverArtUrl(session, al.coverArt || al.id, 600),
+          tracks: [],
+          tracksLoaded: false,
+        }));
         slot.trackCount = slot.albums.reduce((n, al) => n + (al.trackCount || 0), 0);
       })
     );
@@ -327,6 +350,51 @@
     const s = Math.floor(seconds % 60);
     return `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
   }
+
+  // Lazy per-album track loader. Called by the App when an album is
+  // opened (or starts playing) and its tracks aren't in memory yet.
+  // Fetches `getAlbum` once, fills the album shell's `tracks` array in
+  // place, and flips `tracksLoaded`. Idempotent and concurrency-safe:
+  // a second call while the first is in flight returns the same promise
+  // (stored on the album as `_tracksPromise`) instead of re-fetching.
+  // Returns the album object (with tracks populated) or null if the
+  // artist/album can't be found.
+  async function loadAlbumTracks(session, artistId, albumId) {
+    const data = window.MK_DATA;
+    if (!data || !window.MK_API) return null;
+    const artist = (data.ARTISTS || []).find((a) => a.id === artistId);
+    const album = artist?.albums.find((al) => al.id === albumId);
+    if (!album) return null;
+    if (album.tracksLoaded) return album;
+    if (album._tracksPromise) return album._tracksPromise;
+    const p = (async () => {
+      const full = await window.MK_API.getAlbum(session, albumId);
+      album.tracks = (full.song || []).map((s) => ({
+        n: s.track ?? 0,
+        title: s.title || "",
+        time: formatDuration(s.duration),
+        starred: !!s.starred,
+        trackId: s.id,
+        artistId,
+        albumId,
+        artist: s.artist || artist.name,
+        suffix: s.suffix || "",
+      }));
+      album.tracksLoaded = true;
+      return album;
+    })();
+    album._tracksPromise = p;
+    try {
+      return await p;
+    } catch (err) {
+      // Leave tracksLoaded false so a later open retries.
+      console.warn("[wiring] getAlbum failed for", albumId, err);
+      throw err;
+    } finally {
+      delete album._tracksPromise;
+    }
+  }
+  window.MK_loadAlbumTracks = loadAlbumTracks;
 
   // ---------------------------------------------------------------
   // 4. Auto-resume — if we have a stored session, populate MK_DATA
