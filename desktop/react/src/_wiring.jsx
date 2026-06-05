@@ -30,27 +30,36 @@
 
   // Decide whether the user's base URL is maneki (Subsonic mounted
   // under /audio) or a 3rd-party Subsonic server (REST at the root).
-  // Probes <url>/capabilities once; on maneki shape returns
-  // `<url>/audio`, otherwise returns `<url>` unchanged. Fails-open
-  // (returns the URL as-is) on any network error so the rest of the
-  // login flow can surface a useful auth/connection error instead of
-  // a probe error.
+  // Probes <url>/capabilities once and returns { base, hasAudio }:
+  //   - maneki with audio  -> { base: <url>/audio, hasAudio: true }
+  //   - maneki video-only  -> { base: <url>,       hasAudio: false }
+  //   - 3rd-party / error   -> { base: <url>,       hasAudio: true }
+  // Fails-open (treats the URL as a plain Subsonic root with audio) on
+  // any network error so the rest of the login flow can surface a
+  // useful auth/connection error instead of a probe error. The
+  // hasAudio flag tells login() whether to validate the credential via
+  // the Subsonic `ping` (audio present) or the native /auth/login
+  // endpoint (video-only library, where /audio/rest/* isn't mounted).
   async function resolveSubsonicBase(url) {
     // If the user already typed a path that ends with the maneki
     // mount (`/audio` or `/audio/`), trust them and don't double-append.
-    if (/\/audio\/?$/.test(url)) return url.replace(/\/+$/, "");
+    if (/\/audio\/?$/.test(url)) return { base: url.replace(/\/+$/, ""), hasAudio: true };
     try {
       const resp = await fetch(url + "/capabilities", { cache: "no-store" });
       if (resp.ok) {
         const caps = await resp.json();
-        if (caps && caps.server === "maneki" && caps.endpoints?.audio_subsonic) {
-          return url + "/audio";
+        if (caps && caps.server === "maneki") {
+          if (caps.endpoints?.audio_subsonic) {
+            return { base: url + "/audio", hasAudio: true };
+          }
+          // maneki server with no audio mount (video-only library).
+          return { base: url, hasAudio: false };
         }
       }
     } catch (_e) {
       // ignore - 3rd-party server or network error
     }
-    return url;
+    return { base: url, hasAudio: true };
   }
 
   // ---------------------------------------------------------------
@@ -78,12 +87,13 @@
         // talking to, then append /audio to the user's URL when it's
         // maneki. The user only ever types the base URL.
         const trimmed = url.replace(/\/+$/, "");
-        const baseUrl = await resolveSubsonicBase(trimmed);
+        const { base: baseUrl, hasAudio } = await resolveSubsonicBase(trimmed);
         setBusyLabel("Connecting…");
         const session = await window.MK_API.login({
           baseUrl,
           user,
           password: pass,
+          hasAudio,
         });
         setBusyLabel("Loading library…");
         await loadLibrary(session);

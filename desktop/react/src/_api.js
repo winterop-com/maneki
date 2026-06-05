@@ -117,7 +117,7 @@
     saveSession,
     clearSession,
 
-    async login({ baseUrl, user, password }) {
+    async login({ baseUrl, user, password, hasAudio = true }) {
       const base = baseUrl.replace(/\/+$/, "");
       // Derive the (salt, token) pair NOW and discard the password.
       // `genSalt()` returns 24 hex chars (96 bits of entropy) which is
@@ -127,8 +127,27 @@
       const salt = genSalt();
       const token = window.MK_md5(password + salt);
       const session = { baseUrl: base, user, salt, token };
-      // Ping first so an invalid credential doesn't pollute storage.
-      await call(session, "ping");
+      // Validate credentials before persisting so an invalid one
+      // doesn't pollute storage. A library with audio exposes the
+      // Subsonic mount, so `ping` is the natural credential check. A
+      // video-only library has no /audio/rest/* mount (ping would 404
+      // regardless of credentials), so validate against the native
+      // bearer-login endpoint instead — it always exists and 401s on
+      // bad credentials whether or not --auth is on. `base` here is the
+      // host root for a video-only server (resolveSubsonicBase only
+      // appends /audio when audio is present), so /auth/login resolves.
+      if (hasAudio) {
+        await call(session, "ping");
+      } else {
+        const resp = await fetch(`${base}/auth/login`, {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ username: user, password }),
+        });
+        if (!resp.ok) {
+          throw new Error(`HTTP ${resp.status} on auth/login`);
+        }
+      }
       saveSession(session);
       return session;
     },
