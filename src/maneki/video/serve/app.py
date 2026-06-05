@@ -559,6 +559,12 @@ def create_app(
                 idx = int(filename[len("seg-") : -len(".ts")])
             except ValueError as exc:
                 raise HTTPException(status_code=400, detail="invalid segment filename") from exc
+            # A seek shows up as a foreground request far from the previous
+            # one. Cancel any foreground transcode / prefetch the player has
+            # left behind BEFORE we queue on the foreground semaphore, so the
+            # abandoned ffmpegs release their slots and this segment doesn't
+            # wait behind work nobody is watching. No-op during linear play.
+            session.note_active(idx)
             # Mark this as a foreground transcode for the duration -
             # the shared budget pauses any in-flight background work
             # (prewarm + prefetch) so the player request gets full CPU.
@@ -569,6 +575,11 @@ def create_app(
             # try/finally. Without this, ffmpeg pile-up == hang.
             async with shared_budget.foreground():
                 work = asyncio.create_task(session.ensure_segment(idx))
+                # Register so a *later* seek can cancel this transcode too
+                # (a backstop for clients that don't abort the superseded
+                # XHR). If that happens, `work` is cancelled out from under
+                # us and surfaces below as a 499.
+                session.register_foreground(idx, work)
                 watcher = asyncio.create_task(_watch_disconnect(request))
                 done: set[asyncio.Future[object]] = set()
                 try:
@@ -590,6 +601,10 @@ def create_app(
                         await task
                 if watcher in done and work not in done:
                     raise HTTPException(status_code=499, detail="client disconnected")
+                if work.cancelled():
+                    # A later request's note_active superseded this segment -
+                    # the player has seeked away, so there's nothing to serve.
+                    raise HTTPException(status_code=499, detail="segment superseded by seek")
                 try:
                     path = work.result()
                 except IndexError as exc:
