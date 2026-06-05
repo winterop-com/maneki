@@ -169,6 +169,21 @@ function App() {
     (window.MK_DATA.STARRED_TRACKS || []).forEach((t) => s.add(t.key));
     return s;
   });
+  // The useState initializer above runs at App mount — which is BEFORE
+  // the library (and thus STARRED_TRACKS) has loaded, on both the login
+  // and resume paths. Re-seed once `authed` flips true, which only
+  // happens after loadLibrary has populated MK_DATA. Merge rather than
+  // replace so any star toggled in the gap survives.
+  uE(() => {
+    if (!authed) return;
+    const seed = window.MK_DATA.STARRED_TRACKS || [];
+    if (!seed.length) return;
+    setStarred((prev) => {
+      const next = new Set(prev);
+      seed.forEach((t) => next.add(t.key));
+      return next;
+    });
+  }, [authed]);
   const isStarred = (key) => starred.has(key);
   const toggleStar = (key) => {
     setStarred((prev) => {
