@@ -340,6 +340,163 @@ function VideosPane({ session, selectedId, onSelect }) {
 
 // Right pane (or main pane when no audio is playing): video.js v10 player
 // wired to the selected video's HLS source + <track> subtitles.
+// Turn the raw numbers into a plain-language verdict: is playback healthy,
+// and if not, which wall did we hit - the encoder (CPU can't transcode fast
+// enough, the 4K/HDR case) or the network (segments are ready but arrive too
+// slowly). `mine` is this video's server-side SessionStats; `client` is the
+// player-derived buffer/bandwidth snapshot.
+function diagnosePlayback(mine, client) {
+  if (!client) return { level: "idle", text: "connecting…" };
+  if (client.paused) return { level: "idle", text: "paused" };
+  const buf = client.bufferAhead;
+  const ratio = mine ? mine.avg_realtime_ratio : null;
+  // Comfortable buffer -> healthy regardless of how it got there.
+  if (buf >= 12) return { level: "ok", text: `healthy — ${buf.toFixed(0)}s buffered ahead` };
+  // Thin buffer: attribute the cause. Transcode at/over realtime = encoder.
+  if (ratio != null && ratio >= 0.9) {
+    return { level: "warn", text: `encoder-bound — transcoding at ${ratio.toFixed(1)}x realtime, can't stay ahead` };
+  }
+  // Transcode is keeping up but the buffer is still thin -> the link is it.
+  if (mine && mine.transcodes_done > 0) {
+    const bw = client.bandwidth ? `${(client.bandwidth / 1e6).toFixed(1)} Mbit/s` : "low bandwidth";
+    return { level: "warn", text: `network-bound — segments ready but arriving slowly (${bw})` };
+  }
+  return { level: "warn", text: `buffering — ${buf.toFixed(0)}s ahead` };
+}
+
+// Live diagnostics overlay. Server transcode stats arrive over SSE
+// (EventSource auto-reconnects); client buffer/bandwidth is sampled off the
+// video.js player once a second. Toggled from the player header.
+function VideoStatsOverlay({ session, videoId, playerRef }) {
+  const [server, setServer] = useSt_vv(null);
+  const [client, setClient] = useSt_vv(null);
+  // Viewport position (px). `position: fixed`, so the panel floats over the
+  // whole window - not trapped inside the video stage. Seeded to the stage's
+  // top-left on mount so it appears near the player, then draggable anywhere.
+  const rootRef = useRef_vv(null);
+  const [pos, setPos] = useSt_vv({ x: 14, y: 14 });
+
+  useEff_vv(() => {
+    const el = rootRef.current;
+    const stage = el && el.parentElement;
+    if (stage) {
+      const r = stage.getBoundingClientRect();
+      setPos({ x: Math.round(r.left + 14), y: Math.round(r.top + 14) });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Drag the panel by its header. setPointerCapture routes every subsequent
+  // pointer event to the header itself, so dragging across the video never
+  // leaks a move/click to the player underneath (which would seek/pause it);
+  // stopPropagation guards the same for the down event. `move`/`up` are
+  // captured in this closure so removeEventListener sees the same instances;
+  // the grab offset is snapshotted at grab time; position is clamped to the
+  // viewport so the panel can't be dragged off-screen and lost.
+  const startDrag = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const handle = e.currentTarget;
+    const pointerId = e.pointerId;
+    try { handle.setPointerCapture(pointerId); } catch (_x) { /* unsupported */ }
+    const box = handle.parentElement.getBoundingClientRect();
+    const offX = e.clientX - box.left;
+    const offY = e.clientY - box.top;
+    const w = box.width;
+    const h = box.height;
+    const move = (ev) => {
+      setPos({
+        x: Math.min(Math.max(0, ev.clientX - offX), Math.max(0, window.innerWidth - w)),
+        y: Math.min(Math.max(0, ev.clientY - offY), Math.max(0, window.innerHeight - h)),
+      });
+    };
+    const up = (ev) => {
+      try { handle.releasePointerCapture(ev.pointerId); } catch (_x) { /* already released */ }
+      handle.removeEventListener("pointermove", move);
+      handle.removeEventListener("pointerup", up);
+    };
+    handle.addEventListener("pointermove", move);
+    handle.addEventListener("pointerup", up);
+  };
+
+  useEff_vv(() => {
+    let es = null;
+    try {
+      es = new EventSource(window.MK_VIDEO.statsStreamUrl(session));
+      es.onmessage = (e) => {
+        try { setServer(JSON.parse(e.data)); } catch (_x) { /* ignore bad frame */ }
+      };
+      // onerror: EventSource reconnects on its own; nothing to do here.
+    } catch (_x) { /* EventSource unavailable */ }
+    return () => { try { if (es) es.close(); } catch (_x) { /* ignore */ } };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEff_vv(() => {
+    const sample = () => {
+      const p = playerRef.current;
+      if (!p) return;
+      try {
+        const ct = (p.currentTime && p.currentTime()) || 0;
+        const be = (p.bufferedEnd && p.bufferedEnd()) || 0;
+        let bandwidth = null;
+        try {
+          const tech = p.tech(true);
+          const vhs = tech && (tech.vhs || tech.hls);
+          if (vhs) bandwidth = vhs.bandwidth;
+        } catch (_x) { /* tech not ready */ }
+        let dropped = null;
+        let total = null;
+        try {
+          const q = p.getVideoPlaybackQuality ? p.getVideoPlaybackQuality() : null;
+          if (q) { dropped = q.droppedVideoFrames; total = q.totalVideoFrames; }
+        } catch (_x) { /* not supported */ }
+        setClient({
+          bufferAhead: Math.max(0, be - ct),
+          bandwidth,
+          dropped,
+          total,
+          paused: p.paused ? p.paused() : true,
+        });
+      } catch (_x) { /* player disposed */ }
+    };
+    sample();
+    const id = setInterval(sample, 1000);
+    return () => clearInterval(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const sessions = server && Array.isArray(server.sessions) ? server.sessions : [];
+  const mine = sessions.find((s) => s.video_id === videoId) || null;
+  const others = sessions.filter((s) => s.video_id !== videoId).length;
+  const diag = diagnosePlayback(mine, client);
+  const ratio = mine && mine.avg_realtime_ratio != null ? mine.avg_realtime_ratio : null;
+  const fmtMbit = (bps) => (bps == null ? "—" : `${(bps / 1e6).toFixed(1)} Mbit/s`);
+  const budget = server ? server.budget : null;
+
+  const Row = ({ k, v }) => (<><span>{k}</span><span>{v}</span></>);
+  return (
+    <div ref={rootRef} className="mk-stats-overlay mono" style={{ left: pos.x + "px", top: pos.y + "px" }}>
+      <div
+        className={"mk-stats-verdict mk-stats-" + diag.level}
+        onPointerDown={startDrag}
+        title="Drag to move"
+      >
+        {diag.text}
+      </div>
+      <div className="mk-stats-grid">
+        <Row k="buffer ahead" v={client ? `${client.bufferAhead.toFixed(1)}s` : "—"} />
+        <Row k="transcode" v={ratio == null ? "—" : `${ratio.toFixed(2)}x realtime`} />
+        <Row k="bandwidth" v={client ? fmtMbit(client.bandwidth) : "—"} />
+        <Row k="encoder load" v={budget ? `${budget.foreground_in_flight}fg / ${budget.background_in_flight}bg / ${budget.max_workers}` : "—"} />
+        <Row k="segments" v={mine ? `${mine.transcodes_done} done / ${mine.segments_total}` : "—"} />
+        <Row k="dropped frames" v={client && client.dropped != null ? `${client.dropped} / ${client.total}` : "—"} />
+        <Row k="other streams" v={others} />
+      </div>
+    </div>
+  );
+}
+
 function VideoPlayerPane({ session, video, onClose }) {
   const videoRef = useRef_vv(null);
   const playerRef = useRef_vv(null);
@@ -354,6 +511,8 @@ function VideoPlayerPane({ session, video, onClose }) {
   // need a server-side ffprobe just for this — HLS doesn't downscale,
   // so the player-reported dims match the source file.
   const [resolution, setResolution] = useSt_vv(null);
+  // Diagnostics overlay toggle (off by default - it's a debugging panel).
+  const [showStats, setShowStats] = useSt_vv(false);
 
   // Fetch subtitles list (the listing's `subtitles` field is summary;
   // the endpoint may have more detail by the time we get here). Note: we
@@ -749,9 +908,22 @@ function VideoPlayerPane({ session, video, onClose }) {
             <div className="mk-video-player-meta">{metaBits.join(" · ")}</div>
           )}
         </div>
-        <button className="mk-signout" onClick={onClose} style={{ fontSize: 11 }}>Close</button>
+        <div style={{ display: "flex", gap: 6 }}>
+          <button
+            className={"mk-signout" + (showStats ? " mk-stats-toggle-on" : "")}
+            onClick={() => setShowStats((s) => !s)}
+            style={{ fontSize: 11 }}
+            title="Live transcode + buffer diagnostics"
+          >
+            Stats
+          </button>
+          <button className="mk-signout" onClick={onClose} style={{ fontSize: 11 }}>Close</button>
+        </div>
       </div>
       <div className="mk-video-stage">
+        {showStats && (
+          <VideoStatsOverlay session={session} videoId={video.id} playerRef={playerRef} />
+        )}
         {playerError && (
           <div className="mk-player-error" role="alert">
             <div className="mk-player-error-msg">
