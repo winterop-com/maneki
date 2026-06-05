@@ -172,6 +172,15 @@
       return r.album;
     },
 
+    // Bulk album listing (one call returns up to 500 albums across ALL
+    // artists, each carrying artistId). Used to populate the whole library
+    // in a couple of round-trips instead of a getArtist-per-artist storm.
+    // Caller paginates via `offset` until a short page comes back.
+    async getAlbumList2(session, { type = "alphabeticalByName", size = 500, offset = 0 } = {}) {
+      const r = await call(session, "getAlbumList2", { type, size, offset });
+      return r.albumList2?.album ?? [];
+    },
+
     async getInternetRadioStations(session) {
       const r = await call(session, "getInternetRadioStations");
       return r.internetRadioStations?.internetRadioStation ?? [];
