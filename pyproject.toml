@@ -1,6 +1,6 @@
 [project]
 name = "maneki"
-version = "0.9.5"
+version = "0.10.0"
 description = "Self-hosted media toolkit: audio today (convert / audit / retag rips, Textual TUI, Subsonic-compatible HTTP server), video next (folder-first metadata, HLS streaming)."
 readme = "README.md"
 requires-python = ">=3.13"
