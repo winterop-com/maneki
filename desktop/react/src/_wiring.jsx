@@ -290,55 +290,55 @@
     };
     window.MK_SESSION = session;
 
-    // Phase 2: per-artist album SHELLS, all in parallel. Each artist's
-    // slot in `seed` gets filled in place so any in-flight UI re-render
-    // picks it up. We build album shells straight from getArtist's album
-    // metadata (name / year / cover / songCount) — no per-album getAlbum
-    // here. Tracks load lazily on album open via MK_loadAlbumTracks; the
-    // shell carries `tracks: []` and `tracksLoaded: false` until then.
-    // We count failures so a partial-but-mostly-broken load (server
-    // went offline mid-load) can pop a single banner instead of
-    // logging silently into the void.
-    let failedCount = 0;
+    // Phase 2: album SHELLS via bulk getAlbumList2 pagination instead of a
+    // getArtist-per-artist storm. One page (size 500) returns albums across
+    // ALL artists, each carrying artistId, so a ~70-artist library loads in a
+    // couple of round-trips rather than ~70 individual calls. Albums drop into
+    // their artist's slot in place (alphabetical order, contiguous per artist)
+    // so an in-flight render picks them up. Tracks still load lazily on album
+    // open via MK_loadAlbumTracks; each shell carries `tracks: []` until then.
     let firstError = null;
     const slots = new Map(seed.map((s) => [s.id, s]));
-    await Promise.all(
-      artists.map(async (a) => {
-        const slot = slots.get(a.id);
-        if (!slot) return;
-        let detail;
-        try {
-          detail = await api.getArtist(session, a.id);
-        } catch (err) {
-          console.warn("[wiring] getArtist failed for", a.id, err);
-          failedCount++;
-          if (!firstError) firstError = err;
-          return; // leave the slot's empty albums in place; UI shows skeleton
+    const PAGE = 500; // getAlbumList2's max `size`
+    try {
+      for (let offset = 0; ; offset += PAGE) {
+        const page = await api.getAlbumList2(session, {
+          type: "alphabeticalByName",
+          size: PAGE,
+          offset,
+        });
+        for (const al of page) {
+          const slot = slots.get(al.artistId);
+          if (!slot) continue; // album whose artist isn't in the index
+          slot.albums.push({
+            id: al.id,
+            name: al.name,
+            year: al.year || "",
+            trackCount: al.songCount || 0,
+            color: "#444",
+            cover: api.coverArtUrl(session, al.coverArt || al.id, 200),
+            coverArtUrl: api.coverArtUrl(session, al.coverArt || al.id, 600),
+            tracks: [],
+            tracksLoaded: false,
+          });
         }
-        const albums = detail.album || [];
-        slot.albums = albums.map((al) => ({
-          id: al.id,
-          name: al.name,
-          year: al.year || "",
-          trackCount: al.songCount || 0,
-          color: "#444",
-          cover: api.coverArtUrl(session, al.coverArt || al.id, 200),
-          coverArtUrl: api.coverArtUrl(session, al.coverArt || al.id, 600),
-          tracks: [],
-          tracksLoaded: false,
-        }));
+        if (page.length < PAGE) break; // short page == last page
+      }
+      // Roll up each artist's track count from its now-loaded albums.
+      for (const slot of seed) {
         slot.trackCount = slot.albums.reduce((n, al) => n + (al.trackCount || 0), 0);
-      })
-    );
+      }
+    } catch (err) {
+      console.warn("[wiring] getAlbumList2 bulk load failed:", err);
+      firstError = err;
+    }
 
-    // If a non-trivial chunk of phase 2 failed, surface a banner so
-    // the user knows the library is incomplete rather than wondering
-    // why some artists have no albums. One fetch occasionally failing
-    // (e.g. a single corrupt album entry) is fine; we only complain
-    // when it's likely network / server trouble.
-    if (failedCount >= 3) {
+    // Surface a banner if the bulk load failed, so the user knows the library
+    // is incomplete rather than wondering why artists have no albums. Bulk =
+    // far fewer calls than the old per-artist storm, so fewer failure points.
+    if (firstError) {
       window.MK_setConnError?.({
-        message: `Library partially loaded — ${failedCount} fetches failed. Server may be flaky.`,
+        message: "Library partially loaded — album fetch failed. Server may be flaky.",
         retry: () => loadLibrary(session),
       });
     }
