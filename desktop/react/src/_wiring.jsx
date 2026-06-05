@@ -221,10 +221,16 @@
     }));
     seed.sort((x, y) => x.name.localeCompare(y.name));
 
+    // Play through maneki's same-origin radio proxy rather than the raw
+    // upstream URL: the player's crossOrigin="anonymous" (needed for the
+    // visualiser) makes the browser enforce CORS on the audio source and
+    // every redirect hop, which most Icecast stations / their CDN
+    // redirects fail. The proxy follows upstream server-side and adds the
+    // server's CORS headers. See MK_API.radioStreamUrl.
     const stations = (radio || []).map((s) => ({
       id: s.id,
       name: s.name,
-      streamUrl: s.streamUrl,
+      streamUrl: api.radioStreamUrl(session, s.streamUrl),
       homepageUrl: s.homepageUrl || "",
       icon: "(((",
     }));

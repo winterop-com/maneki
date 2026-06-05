@@ -208,6 +208,21 @@
     streamUrl(session, trackId) {
       return makeAssetUrl(session, "stream", trackId);
     },
+
+    // Same-origin proxy URL for an internet-radio station's upstream
+    // stream. The player keeps `crossOrigin = "anonymous"` so the
+    // spectrum visualiser can read FFT samples, which makes the browser
+    // enforce CORS on the audio source AND on every redirect hop. Public
+    // Icecast/SHOUTcast stations (and their CDN redirects) routinely omit
+    // CORS headers, so a raw cross-origin `audio.src` is blocked and
+    // playback never starts. maneki's /rest/radioStream follows the
+    // upstream server-side and re-emits with the server's open CORS
+    // headers, so route stations through it instead of the raw URL.
+    radioStreamUrl(session, upstreamUrl) {
+      const qs = buildAuthQuery(session);
+      qs.set("url", upstreamUrl);
+      return `${session.baseUrl}/rest/radioStream?${qs.toString()}`;
+    },
   };
 
   window.MK_API = MK_API;
