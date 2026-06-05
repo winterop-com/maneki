@@ -1,14 +1,12 @@
 [project]
 name = "maneki"
-version = "0.9.3"
+version = "0.10.0"
 description = "Self-hosted media toolkit: audio today (convert / audit / retag rips, Textual TUI, Subsonic-compatible HTTP server), video next (folder-first metadata, HLS streaming)."
 readme = "README.md"
 requires-python = ">=3.13"
 license = "MIT"
 license-files = ["LICENSE"]
-authors = [
-  { name = "Morten Hansen", email = "morten@winterop.com" },
-]
+authors = [{ name = "Morten Hansen", email = "morten@winterop.com" }]
 keywords = [
   "audio",
   "music",
@@ -116,13 +114,15 @@ docstring-code-line-length = "dynamic"
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["tests"]
-norecursedirs = [".git", ".venv", "__pycache__", "desktop", "src/maneki/audio/_ui_static"]
-filterwarnings = [
-  "ignore:Pydantic serializer warnings:UserWarning",
+norecursedirs = [
+  ".git",
+  ".venv",
+  "__pycache__",
+  "desktop",
+  "src/maneki/audio/_ui_static",
 ]
-markers = [
-  "slow: marks tests as slow (deselect with '-m \"not slow\"')",
-]
+filterwarnings = ["ignore:Pydantic serializer warnings:UserWarning"]
+markers = ["slow: marks tests as slow (deselect with '-m \"not slow\"')"]
 
 [tool.coverage.run]
 branch = true
