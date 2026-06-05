@@ -38,6 +38,18 @@ brew install ffmpeg            # macOS
 sudo apt install ffmpeg        # Debian / Ubuntu
 ```
 
+### Desktop apps
+
+Beyond the CLI and the browser SPA, Maneki has native desktop clients — a **Tauri** (~15 MB, native WebKit) and an **Electron** (~120 MB, bundled Chromium) wrapper around the same Subsonic web UI. There are no prebuilt binaries yet (shipping unsigned `.dmg` / `.exe` past Gatekeeper / SmartScreen is a worse experience than building locally; code-signing is on the [roadmap](docs/roadmap.md)), so you build from source:
+
+```bash
+git clone https://github.com/winterop-com/maneki.git && cd maneki
+make desktop-tauri-build      # -> .app + .dmg
+make desktop-electron-build   # -> .dmg
+```
+
+See the [desktop guide](docs/guides/desktop.md) for the full walkthrough.
+
 ## Quickstart
 
 ```bash
