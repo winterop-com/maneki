@@ -136,6 +136,12 @@ class _Handler(FileSystemEventHandler):
         if dest_path:
             candidates.append(Path(str(dest_path)))
         for path in candidates:
-            if path.suffix.lower() in VIDEO_EXTENSIONS:
+            # Skip dot-prefixed files. macOS AppleDouble `._<name>` sidecars
+            # carry the real file's extension (`._Movie.mkv`) but hold no
+            # media, and the OS rewrites them constantly on FAT/exFAT/SMB
+            # volumes — without this guard every `._*` churn event passes the
+            # extension filter and fires a spurious debounced rescan. Matches
+            # the dot-prefix guard the scanner / browse walks already apply.
+            if not path.name.startswith(".") and path.suffix.lower() in VIDEO_EXTENSIONS:
                 self._cb(path)
                 return
