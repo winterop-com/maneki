@@ -61,6 +61,26 @@ def test_has_video_false_when_no_video(tmp_path: Path) -> None:
     assert not has_video(tmp_path)
 
 
+def test_appledouble_sidecars_ignored(tmp_path: Path) -> None:
+    """macOS `._*` sidecars share the real file's extension; they must not count."""
+    (tmp_path / "song.flac").write_bytes(b"a" * 50)
+    (tmp_path / "._song.flac").write_bytes(b"\x00" * 82)  # AppleDouble stub
+    (tmp_path / "clip.mkv").write_bytes(b"v" * 50)
+    (tmp_path / "._clip.mkv").write_bytes(b"\x00" * 82)
+    (tmp_path / ".DS_Store").write_bytes(b"\x00" * 82)
+
+    summary = summarize(tmp_path)
+    assert summary.audio_count == 1
+    assert summary.video_count == 1
+    # A library of nothing but AppleDouble stubs reads as empty.
+    only_stubs = tmp_path / "stubs"
+    only_stubs.mkdir()
+    (only_stubs / "._a.flac").write_bytes(b"\x00" * 82)
+    (only_stubs / "._b.mkv").write_bytes(b"\x00" * 82)
+    assert not has_audio(only_stubs)
+    assert not has_video(only_stubs)
+
+
 def test_summarize_counts_both_kinds(library_root: Path) -> None:
     s = summarize(library_root)
     assert s.audio_count == 2

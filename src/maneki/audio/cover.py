@@ -240,8 +240,8 @@ def _find_folder_images(album_dir: Path) -> list[Path]:
     by_stem: dict[str, list[Path]] = {stem: [] for stem in _COVER_STEMS}
     keyword_matches: list[Path] = []
     for entry in album_dir.iterdir():
-        if not entry.is_file():
-            continue
+        if not entry.is_file() or entry.name.startswith("."):
+            continue  # skip dotfiles incl. macOS AppleDouble sidecars (._cover.jpg)
         suffix = entry.suffix.lower()
         if suffix not in _COVER_EXTS:
             continue

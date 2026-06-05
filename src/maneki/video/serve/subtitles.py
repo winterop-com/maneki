@@ -86,8 +86,8 @@ def discover_sidecars(video_path: Path) -> list[SubtitleSidecar]:
     parent = video_path.parent
     out: list[SubtitleSidecar] = []
     for sibling in sorted(parent.iterdir()):
-        if not sibling.is_file():
-            continue
+        if not sibling.is_file() or sibling.name.startswith("."):
+            continue  # skip dotfiles incl. macOS AppleDouble sidecars (._foo.srt)
         ext = sibling.suffix.lower()
         if ext not in SUBTITLE_EXTENSIONS:
             continue

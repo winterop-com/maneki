@@ -125,7 +125,7 @@ def _iter_video_files(root: Path) -> Iterator[Path]:
                 if child.name in _SCAN_SKIP_DIR_NAMES:
                     continue
                 stack.append(child)
-            elif child.is_file() and child.suffix.lower() in VIDEO_EXTENSIONS:
+            elif child.is_file() and not child.name.startswith(".") and child.suffix.lower() in VIDEO_EXTENSIONS:
                 yield child
 
 
@@ -439,7 +439,7 @@ def browse_dir(root: Path, rel_path: str = "") -> BrowseResponse | None:
                     video_count=count,
                 )
             )
-        elif child.is_file() and child.suffix.lower() in VIDEO_EXTENSIONS:
+        elif child.is_file() and not child.name.startswith(".") and child.suffix.lower() in VIDEO_EXTENSIONS:
             from maneki.video.serve.subtitles import probe_embedded_subtitles
 
             # Embedded subtitle probe is ~50-100ms via ffprobe but the

@@ -33,6 +33,18 @@ AUDIO_EXTENSIONS = SUPPORTED_AUDIO_EXTS
 _SCAN_SKIP_DIR_NAMES = frozenset({".maneki", ".musickit", ".git", "__pycache__"})
 
 
+def _is_hidden(name: str) -> bool:
+    """True for dotfiles, which includes macOS AppleDouble sidecars (`._foo.mp3`).
+
+    AppleDouble files share the real file's extension, so a plain suffix
+    check treats `._track.mkv` as a real video and the indexer / ffprobe
+    chokes on the 4 KB resource-fork stub. Skipping every dot-prefixed name
+    drops those plus `.DS_Store` and friends; real media is never named
+    with a leading dot. Mirrors the audio discover walk's convention.
+    """
+    return name.startswith(".")
+
+
 class LibrarySummary(BaseModel):
     """A counted summary of one library root."""
 
@@ -88,7 +100,7 @@ def _iter_files(root: Path, extensions: frozenset[str]) -> Iterator[Path]:
                 if child.name in _SCAN_SKIP_DIR_NAMES:
                     continue
                 stack.append(child)
-            elif child.is_file() and child.suffix.lower() in extensions:
+            elif child.is_file() and not _is_hidden(child.name) and child.suffix.lower() in extensions:
                 yield child
 
 
