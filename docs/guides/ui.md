@@ -17,7 +17,7 @@ The SPA is the same code Tauri / Electron bundle, served over a tiny local HTTP 
 | Want a | Use |
 |---|---|
 | Quick browser-based player against any Subsonic server | `maneki audio ui` |
-| Standalone macOS app with native window chrome, dock icon, media keys | `maneki-tauri.dmg` / `maneki-electron.dmg` |
+| Standalone macOS app with native window chrome, dock icon, media keys | desktop wrapper — `make desktop-tauri-build` / `make desktop-electron-build` (built from source) |
 | Browser tab against a server you don't admin | `maneki audio ui --url http://...` |
 | Dedicated client for daily driving | desktop wrapper (sticks around in the dock) |
 

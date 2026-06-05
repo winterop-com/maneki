@@ -40,7 +40,7 @@ Then on top of that:
 - **`maneki library`** — cross-cutting tools for any library root. `info` counts files per kind, `list` walks the tree, `inspect` dumps tags / cover for an audio file or ffprobe streams / container info for a video file.
 - **`maneki audio playlist`** — auto-generate `.m3u8` playlists anchored to a seed track using tag-based similarity (artist / genre / year). `gen` writes a mix; `list` / `show` browse what's saved. Output is plain extended M3U so VLC and Subsonic clients can play it.
 - **`maneki audio inspect`** — quick tag dump for a single file (also reachable via the cross-cutting `maneki library inspect`).
-- **Desktop apps** — Tauri (~15 MB, native WebKit on macOS) and Electron (~120 MB, bundled Chromium) wrappers around a generic Subsonic client UI. URL + Username + Password login; salted-token auth; refresh-restores via URL hash. `.dmg` / `.exe` / `.AppImage` / `.deb` attach to every release. See [Desktop apps](guides/desktop.md).
+- **Desktop apps** — Tauri (~15 MB, native WebKit on macOS) and Electron (~120 MB, bundled Chromium) wrappers around a generic Subsonic client UI. URL + Username + Password login; salted-token auth; refresh-restores via URL hash. Built from source with `make build` (we don't publish prebuilt binaries yet — code-signing is on the [roadmap](roadmap.md)). See [Desktop apps](guides/desktop.md).
 - **Mobile** — no Maneki app of its own; `serve` exposes the standard Subsonic API so play:Sub / Amperfy (iOS) and Symfonium / DSub / Tempo (Android) all work against it. See [Mobile](guides/mobile.md).
 
 ## Quickstart
