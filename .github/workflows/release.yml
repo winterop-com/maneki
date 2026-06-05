@@ -67,7 +67,7 @@ jobs:
       - name: Build sdist + wheel
         # Goes via `make build-python`, NOT `uv build` directly, because
         # the Makefile target depends on `ui-static-sync` which copies
-        # `desktop/react/` -> `src/maneki/audio/_ui_static/` so the wheel
+        # `desktop/react/` -> `src/maneki/_ui_static/` so the wheel
         # ships the SPA that `maneki ui` serves. A raw `uv build`
         # would publish a wheel where `maneki ui` raises
         # FileNotFoundError on the installed user's machine.
@@ -75,13 +75,14 @@ jobs:
 
       - name: Verify wheel bundles the SPA static files
         # Belt-and-braces: open the built wheel and confirm
-        # `maneki/audio/_ui_static/index.html` is inside. If a future
-        # refactor breaks the copy step, fail the release before
-        # PyPI gets a broken wheel.
+        # `maneki/_ui_static/index.html` is inside (this is where
+        # `maneki ui` loads it from -- see files("maneki") / "_ui_static"
+        # in src/maneki/audio/cli/ui.py). If a future refactor breaks the
+        # copy step, fail the release before PyPI gets a broken wheel.
         run: |
           WHEEL=$(ls dist/maneki-*.whl | head -1)
-          if ! unzip -l "$WHEEL" | grep -q "maneki/audio/_ui_static/index.html"; then
-            echo "::error::Built wheel $WHEEL is missing maneki/audio/_ui_static/index.html"
+          if ! unzip -l "$WHEEL" | grep -q "maneki/_ui_static/index.html"; then
+            echo "::error::Built wheel $WHEEL is missing maneki/_ui_static/index.html"
             unzip -l "$WHEEL" | head -40
             exit 1
           fi
