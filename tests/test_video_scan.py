@@ -134,3 +134,22 @@ def test_scan_videos_picks_up_new_extensions(tmp_path: Path) -> None:
     entries = scan_videos(tmp_path)
     names = sorted(e["name"] for e in entries)
     assert names == ["broadcast", "dvd", "old"]
+
+
+def test_scan_videos_skips_appledouble_sidecars(tmp_path: Path) -> None:
+    """macOS AppleDouble `._<name>` stubs must never be indexed as videos.
+
+    They appear next to the real file on FAT/exFAT/SMB volumes (USB
+    sticks, NAS shares), carry the same `.mkv` suffix but hold no media,
+    so indexing them yields phantom entries and breaks duration probing.
+    """
+    (tmp_path / "Wonder.Man.S01E03.mkv").write_bytes(b"\x1a\x45\xdf\xa3real")
+    (tmp_path / "._Wonder.Man.S01E03.mkv").write_bytes(b"\x00\x05\x16\x07appledouble")
+    names = [e["name"] for e in scan_videos(tmp_path)]
+    assert names == ["Wonder.Man.S01E03"]
+
+
+def test_has_videos_false_when_only_appledouble(tmp_path: Path) -> None:
+    """A directory holding only AppleDouble stubs has no real videos."""
+    (tmp_path / "._Wonder.Man.S01E03.mkv").write_bytes(b"\x00\x05\x16\x07")
+    assert not has_videos(tmp_path)

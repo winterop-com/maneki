@@ -136,6 +136,6 @@ class _Handler(FileSystemEventHandler):
         if dest_path:
             candidates.append(Path(str(dest_path)))
         for path in candidates:
-            if path.suffix.lower() in VIDEO_EXTENSIONS:
+            if not path.name.startswith(".") and path.suffix.lower() in VIDEO_EXTENSIONS:
                 self._cb(path)
                 return

@@ -97,3 +97,13 @@ def test_browse_dir_empty_root_lists_nothing(tmp_path: Path) -> None:
 def test_browse_dir_returns_none_when_root_missing(tmp_path: Path) -> None:
     """Pointing at a non-existent directory is None, not an error."""
     assert browse_dir(tmp_path / "nope", "") is None
+
+
+def test_browse_dir_skips_appledouble_sidecars(tmp_path: Path) -> None:
+    """`browse_dir` must hide macOS AppleDouble `._<name>` stubs."""
+    (tmp_path / "real.mkv").write_bytes(b"\x1a\x45\xdf\xa3real")
+    (tmp_path / "._real.mkv").write_bytes(b"\x00\x05\x16\x07")
+    body = browse_dir(tmp_path, "")
+    assert body is not None
+    names = [v["name"] for v in body["videos"]]
+    assert names == ["real"]

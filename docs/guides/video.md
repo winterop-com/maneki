@@ -233,6 +233,8 @@ For files that won't play even via HLS (rare — anything ffmpeg can decode, lib
 
 After the initial scan, a watchdog Observer rooted at the library directory drives a 5-second debounced rescan whenever a video extension appears / disappears / moves. Adds, deletes, and renames flow through the same `prewarm_scan` path the cold start uses. In-place edits (re-encode, retag, remux) detect via the `(mtime, size_bytes)` fingerprint mismatch and invalidate the cached poster + thumbnail for that id so the next browse / open regenerates from the new content. Subtitle + HLS caches stay (extracted .vtts are still valid for a re-mux; HLS regenerates on play anyway).
 
+Both the cold-start walk and the watcher skip any file whose name starts with a dot. That includes macOS AppleDouble `._<name>` sidecars: the zero-media metadata stubs the OS writes next to real files on FAT/exFAT/SMB volumes (USB sticks, NAS shares). They carry the real file's extension (`._Movie.mkv`) but hold no media, so indexing them would surface phantom entries and make ffprobe fail with `cannot determine duration`. The audio scanner applies the same dotfile guard.
+
 ## Cache layout
 
 Everything under `<root>/.maneki/`:
