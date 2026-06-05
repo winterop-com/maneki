@@ -1,0 +1,37 @@
+# Dependabot update PRs. Alerts are already on; this opens grouped update
+# PRs on a weekly cadence so deps don't drift. Keep ecosystems aligned with
+# the four manifests in the repo: Python (pyproject), the GitHub Actions
+# workflows, and the two desktop wrappers (Electron / Tauri).
+version: 2
+updates:
+  - package-ecosystem: "pip"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    groups:
+      python:
+        patterns: ["*"]
+
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    groups:
+      actions:
+        patterns: ["*"]
+
+  - package-ecosystem: "npm"
+    directory: "/desktop/electron"
+    schedule:
+      interval: "weekly"
+    groups:
+      electron:
+        patterns: ["*"]
+
+  - package-ecosystem: "cargo"
+    directory: "/desktop/tauri/src-tauri"
+    schedule:
+      interval: "weekly"
+    groups:
+      tauri:
+        patterns: ["*"]
