@@ -763,7 +763,16 @@ function VideoPlayerPane({ session, video, onClose }) {
             </button>
           </div>
         )}
-        <div className="mk-video-frame">
+        {/* --mk-va feeds the real source aspect into the CSS height-cap
+            (.mk-video-frame max-width). video.js sizes the fluid player to
+            the source aspect, so a 4:3 title (TNG, early South Park) renders
+            taller than a 16:9 cap assumes and pushes the control bar below
+            the fold. Falls back to 16/9 until loadedmetadata lands; the
+            poster is server-padded 16:9 so there's no overflow flash. */}
+        <div
+          className="mk-video-frame"
+          style={resolution ? { "--mk-va": resolution.w / resolution.h } : undefined}
+        >
           {/* video.js v10 latches onto the [data-vjs-player] element and
               rewrites its className on init, which is why we don't put
               mk-video-frame on it directly - we'd lose the class the

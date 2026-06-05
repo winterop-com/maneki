@@ -530,10 +530,16 @@ body {
 /* === Video player pane =================================================
  * Theater layout: fixed header + a dark "stage" that fills the rest of
  * the pane. The stage centers the player horizontally AND caps its
- * width by (stage height x 16/9) so a wide-but-short pane doesn't
+ * width by (stage height x aspect) so a wide-but-short pane doesn't
  * leave a giant empty strip below the player. With `fluid: true` on
  * video.js, capping the width also caps the height -- the player
- * grows to fill whichever dimension is the binding one. */
+ * grows to fill whichever dimension is the binding one.
+ *
+ * The aspect comes from --mk-va (source width/height), set in
+ * video-views.jsx once the player decodes metadata. video.js sizes the
+ * fluid player to the source aspect, so a 4:3 title needs a tighter
+ * width cap than 16:9 or its height overflows the stage and the control
+ * bar falls below the fold. Falls back to 16/9 before metadata. */
 .mk-video-player-pane { padding: 0; }
 .mk-video-player-header {
   display: flex;
@@ -576,8 +582,9 @@ body {
 .mk-video-frame {
   width: 100%;
   /* The 28px subtracted from 100cqh accounts for the stage's 14px
-     top+bottom padding (cqh measures the container's padding box). */
-  max-width: calc((100cqh - 28px) * 16 / 9);
+     top+bottom padding (cqh measures the container's padding box).
+     --mk-va is the source aspect (w/h); 16/9 until metadata loads. */
+  max-width: calc((100cqh - 28px) * var(--mk-va, 16 / 9));
 }
 .mk-video-frame > div[data-vjs-player] { width: 100%; }
 /* Subtle YouTube-style rounded corners. overflow: hidden on the
