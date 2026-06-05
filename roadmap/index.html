@@ -1146,15 +1146,15 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#stage-2-video-in-progress" class="md-nav__link">
+  <a href="#stage-2-video-mostly-landed" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Stage 2 — video (in progress)
+        Stage 2 — video (mostly landed)
       
     </span>
   </a>
   
-    <nav class="md-nav" aria-label="Stage 2 — video (in progress)">
+    <nav class="md-nav" aria-label="Stage 2 — video (mostly landed)">
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
@@ -1260,15 +1260,15 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#stage-2-video-in-progress" class="md-nav__link">
+  <a href="#stage-2-video-mostly-landed" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Stage 2 — video (in progress)
+        Stage 2 — video (mostly landed)
       
     </span>
   </a>
   
-    <nav class="md-nav" aria-label="Stage 2 — video (in progress)">
+    <nav class="md-nav" aria-label="Stage 2 — video (mostly landed)">
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
@@ -1353,37 +1353,41 @@
 
 <h1 id="roadmap">Roadmap<a class="headerlink" href="#roadmap" title="Permanent link">&para;</a></h1>
 <p>What's landed, what's open, what's speculative. Keep this in sync with code changes - if a feature lands, move it from Open to a release-note entry; if a new gap surfaces, add it under Open.</p>
-<h2 id="stage-2-video-in-progress">Stage 2 — video (in progress)<a class="headerlink" href="#stage-2-video-in-progress" title="Permanent link">&para;</a></h2>
+<h2 id="stage-2-video-mostly-landed">Stage 2 — video (mostly landed)<a class="headerlink" href="#stage-2-video-mostly-landed" title="Permanent link">&para;</a></h2>
 <h3 id="landed">Landed<a class="headerlink" href="#landed" title="Permanent link">&para;</a></h3>
 <ul>
-<li><strong>Single library root</strong>: <code>maneki serve &lt;root&gt;</code> walks one directory recursively and auto-mounts whichever kinds it finds — no <code>&lt;root&gt;/audio/</code> or <code>&lt;root&gt;/videos/</code> subdir convention. Empty roots mount neither kind; mixed roots mount both. The <code>--audio-only</code> / <code>--video-only</code> flags are gone; the standalone <code>maneki audio serve</code> and <code>maneki video serve</code> commands are gone too.</li>
+<li><strong>Single library root</strong>: <code>maneki serve &lt;root&gt;</code> walks one directory recursively and auto-mounts whichever kinds it finds — no <code>&lt;root&gt;/audio/</code> or <code>&lt;root&gt;/videos/</code> subdir convention. Empty roots mount neither kind; mixed roots mount both.</li>
 <li><strong><code>maneki library</code></strong>: cross-cutting tools that take any library root - <code>info</code> for file counts per kind, <code>list</code> (alias <code>ls</code>) for a full inventory walk, <code>inspect</code> for a file's tags / cover (audio) or ffprobe streams + container info (video). Output is rich-formatted.</li>
 <li><strong>Base scan + raw stream</strong>: every video file under the library root is discovered recursively; flat list endpoint; HTTP Range stream (with RFC 7233 suffix-range support).</li>
 <li><strong>Subtitle sidecars</strong>: <code>.srt</code> discovery + on-the-fly conversion to WebVTT.</li>
-<li><strong>HLS pipeline (on-demand segments)</strong>: synthesised VOD manifest with <code>#EXT-X-ENDLIST</code> upfront from ffprobe duration; per-segment MPEG-TS transcode on first request, cached on disk. Seek-anywhere works without waiting for a linear transcode to catch up. See <a href="../guides/video/#get-videoapivideosidhlsfilename">video guide</a>. HLS cache survives server restarts and is wiped automatically when the segment-generation rules change (versioned marker file).</li>
-<li><strong>Posters + thumbnails</strong>: <code>/poster</code> returns a contact-sheet PNG (3x3 timestamped frame grid + header strip); <code>/thumbnail</code> returns a single mid-video JPEG. Both cached under <code>&lt;root&gt;/.maneki/posters/</code>. Used as the video.js <code>poster</code> and the video-list row icon respectively. <strong>Prewarm</strong> on server startup walks the library and fills the cache in the background through a bounded worker pool, so opening any video for the first time is instant.</li>
-<li><strong>HLS seg-0 prewarm + neighbour prefetch</strong>: at startup the same prewarm pass produces <code>seg-0.ts</code> for every video, so cold first-play drops from 1-3s to ~30ms. While playing, fetching segment N kicks off background transcodes for N+1 and N-1, so small forward / backward scrubs land on a warm cache. Background work yields to foreground player requests via a shared <code>TranscodeBudget</code>, with a 30s quiet period after the last foreground request so pausing playback doesn't immediately unleash queued prewarms.</li>
+<li><strong>HLS pipeline (on-demand segments)</strong>: synthesised VOD manifest with <code>#EXT-X-ENDLIST</code> upfront from ffprobe duration; per-segment MPEG-TS transcode on first request, cached on disk. Seek-anywhere works without waiting for a linear transcode to catch up. Foreground concurrency capped at 3 so rapid seeks don't wedge the player; partial .ts files are unlinked on ffmpeg cancel so a cancelled seek can't poison the next request. HLS cache survives server restarts and is wiped automatically when <code>HLS_CACHE_VERSION</code> changes (versioned marker file).</li>
+<li><strong>Posters + thumbnails</strong>: <code>/poster</code> returns a 16:9-padded contact-sheet PNG (3×3 timestamped frame grid + header strip with codec / resolution / duration / size); <code>/thumbnail</code> returns a single mid-video JPEG. Both cached under <code>&lt;root&gt;/.maneki/posters/</code> using sha256-derived stems so deeply-nested paths can't blow <code>NAME_MAX</code>. Cache misses return <code>202 Accepted</code> with a tiny inline-SVG placeholder so the SPA paints instantly; the SPA polls <code>/api/thumbnails/ready</code> and swaps the placeholder once the real PNG / JPEG lands. Contact-sheet generation collapses 9 frame extracts into one ffmpeg invocation.</li>
+<li><strong>Embedded subtitle streams</strong>: <code>.mkv</code> / <code>.mp4</code> text subtitle tracks (subrip, ass, mov_text) are surfaced through <code>/subtitles</code> alongside any sidecar <code>.srt</code>. Extraction runs in a <strong>single ffmpeg invocation per video</strong> (one <code>-map</code> output per stream) so a 45-track .mkv opens in ~2 s instead of stalling on 45 parallel ffmpegs that each re-read the source. Cached under <code>&lt;root&gt;/.maneki/subs/&lt;sha256(id)[:32]&gt;/embed-&lt;N&gt;.vtt</code>. The SPA registers only the default + English / English-SDH variants on player mount to keep the HLS critical path clean; the rest of the captions menu still lists them. Image-based codecs (PGS, DVD VobSub, DVB) are filtered out since they'd need OCR.</li>
+<li><strong><code>--no-cover-images</code></strong> opt-out: skip the 9-frame contact-sheet phase entirely. <code>/poster</code> falls back to the row thumbnail. Useful on slow disks or huge libraries.</li>
+<li><strong><code>--prewarm-cache</code></strong> (renamed from <code>--prewarm-images</code>): runs subtitle probe + thumbnail + contact-sheet generation at startup through a bounded worker pool; background work yields to foreground player requests via a shared <code>TranscodeBudget</code>.</li>
+<li><strong>SQLite-backed scan index</strong>: video scan rows persist in <code>&lt;root&gt;/.maneki/index.db</code> (same file as audio, separate <code>videos</code> table, namespaced meta keys, <code>CREATE TABLE IF NOT EXISTS</code> so the two apps coexist). Warm rescans only ffprobe files whose <code>(mtime, size_bytes)</code> changed. Single-transaction batch upsert at end of scan keeps a 1300-file rescan under ~6 s.</li>
+<li><strong>Watcher hot-reload</strong>: watchdog <code>Observer</code> rooted at the library directory drives a 5-second debounced rescan whenever a video file appears / disappears / moves. In-place edits (re-encode, retag) detect via fingerprint mismatch and invalidate the cached poster + thumbnail for that id so the next browse / open regenerates.</li>
+<li><strong>O(1) video lookup</strong>: every per-video endpoint reads from the in-memory <code>video_cache</code> dict instead of re-walking the filesystem.</li>
 <li><strong>Stable, collision-free video ids</strong>: <code>&lt;readable-slug&gt;-&lt;8-hex-sha256&gt;</code> so paths that flatten to the same slug (<code>tv/ch01.mkv</code> vs <code>tv-ch01.mkv</code> at the root) still get distinct ids.</li>
-<li><strong>Orphan cache cleanup</strong>: on every startup we sweep the poster, HLS, and subtitle caches and remove entries whose source video id is no longer in the library. Catches rename / move / delete patterns ("files often get rotated out") without manual intervention.</li>
-<li><strong>SPA video tab</strong>: vertical AUDIO / VIDEO rail on the left edge switches between modes; the rail self-hides when only one kind is mounted. Video mode collapses the audio sidebar, video.js v8 player with HLS source + WebVTT subtitle tracks, OS-level fullscreen via <code>f</code> key with <code>navigationUI: "hide"</code> so Chrome strips its own URL/tab bar.</li>
+<li><strong>Orphan cache cleanup</strong>: on every startup we sweep the poster, HLS, and subtitle caches and remove entries whose source video id is no longer in the library. Catches rename / move / delete patterns without manual intervention.</li>
+<li><strong>SPA video tab</strong>: vertical AUDIO / VIDEO rail on the left edge switches between modes; the rail self-hides when only one kind is mounted. Video mode collapses the audio sidebar, video.js v8 player with HLS source + WebVTT subtitle tracks. Browser fullscreen via the HTML5 Fullscreen API in plain Chrome / Safari (URL bar + tab strip stripped via <code>navigationUI: "hide"</code>); CSS-pin fallback in Tauri / Electron WKWebView; <code>f</code> is gated on <code>player.hasStarted()</code> so pre-playback presses don't fall through to the poster <code>&lt;img&gt;</code> and open it as a new tab.</li>
+<li><strong>Theater mode</strong>: <code>t</code> shortcut (also in the command palette) hides the videos list + splitter so the player pane spans the full video area. Topbar + mode rail stay visible.</li>
+<li><strong>Player meta strip</strong>: shows duration, source resolution (<code>1080p</code> / <code>4K</code> / <code>WxH</code> pulled from <code>videoWidth</code> × <code>videoHeight</code> on <code>loadedmetadata</code>), file size, subtitle count.</li>
 <li><strong>Folder browser</strong>: SPA drives off <code>GET /video/api/browse?path=...</code> - click-in directory navigator with sticky breadcrumbs at the top of the pane, folder rows above file rows, descendant video counts per folder. Empty subdirs are hidden. Path traversal guarded server-side.</li>
-<li><strong>Resizable video / player splitter</strong>: 6px draggable divider between the video list pane and the player. Clamped (<code>min 280px</code>, max <code>min(gridWidth - 360, 0.7 * gridWidth)</code>) so the player always keeps room. Per-session only (resets to 480px on reload).</li>
-<li><strong>Kind-aware search</strong>: in video mode the topbar search swaps the folder browser for a flat results pane of filename-substring matches across the whole library; debounced 200ms; capped at 200 results. Subsonic search dropdown is suppressed in video mode so it can't paint stale audio matches.</li>
-<li><strong>Embedded subtitle streams</strong>: <code>.mkv</code> / <code>.mp4</code> text subtitle tracks (subrip, ass, mov_text) are surfaced through <code>/subtitles</code> alongside any sidecar <code>.srt</code> files. Extraction to WebVTT runs on demand via <code>ffmpeg -c:s webvtt</code> and is cached under <code>&lt;root&gt;/.maneki/subs/&lt;id&gt;/embed-&lt;N&gt;.vtt</code>. Multiple languages per file are picked through video.js's native subtitle menu. Image-based codecs (PGS, DVD VobSub, DVB) are filtered out since they'd need OCR.</li>
+<li><strong>Resizable video / player splitter</strong>: 6 px draggable divider between the video list pane and the player. Clamped so the player always keeps room. Per-session only.</li>
+<li><strong>Kind-aware search</strong>: in video mode the topbar search swaps the folder browser for a flat results pane of filename-substring matches across the whole library; debounced 200 ms; capped at 200 results.</li>
 <li><strong>House auth</strong>: <code>POST /auth/login</code> returns bearer; SPA same-origin login form (URL field hidden when SPA is co-hosted with the server).</li>
 <li><strong>SPA served at <code>/</code></strong>: no <code>/ui/</code> prefix; API routes registered first so the StaticFiles mount at root doesn't shadow them.</li>
 </ul>
 <h3 id="open">Open<a class="headerlink" href="#open" title="Permanent link">&para;</a></h3>
 <ul>
-<li><strong>Smaller-default caption size that doesn't break the menu</strong>: video.js's auto-scaled 100% baseline is shouty in fullscreen, but every attempt to ship a smaller default (CSS override, <code>setValues({fontPercent})</code>, localStorage seed pre-init) either blocks the menu's user-picks or doesn't actually apply. Needs a MutationObserver on cue renders or a CSS-variable wired to the menu's change event. Today users have to pick a size once via the menu (persisted across reloads).</li>
-<li><strong>Long filename handling</strong>: real release / encode filenames are very long (e.g. <code>Some.Movie.2019.1080p.BluRay.x264-GROUP.mkv</code>). Row layout currently overflows / truncates. Need a parsing pass to extract a clean display title (year, source, codec stripped off, available via hover for the full thing), tooltip with full filename, and wrap / ellipsis rules per density.</li>
-<li><strong>2160p (4K) / heavy-codec streaming</strong>: libx264 software re-encode at veryfast/crf 23 is too slow for 4K HEVC sources - segments arrive slower than playback. Add a hardware-accelerated transcode path (VideoToolbox on macOS, NVENC on NVIDIA, QSV on Intel) and a quality-tier ladder so the client can opt down to 1080p when the network or CPU can't keep up.</li>
-<li><strong>HLS cache size cap + LRU eviction</strong>: orphan cleanup (renamed / removed source files) runs at every startup, but there's no cap on the cache for currently-live videos. A normal viewing pattern is 20-50 GB; a full library cache is hundreds. Add <code>--hls-cache-gb N</code> with LRU eviction once the cap is hit (never touch prewarmed seg-0).</li>
-<li><strong>Audio-track picker</strong>: same shape as subtitles - ffprobe streams, surface a chooser in the player.</li>
-<li><strong>Resume position</strong>: track playhead per <code>(user, video_id)</code> so closing and re-opening a video resumes where you left off. Wire to either localStorage (single device) or a server-side <code>.maneki/resume.toml</code>.</li>
+<li><strong>Smaller-default caption size that doesn't break the menu</strong>: video.js's auto-scaled 100% baseline is shouty in fullscreen, but every attempt to ship a smaller default (CSS override, <code>setValues({fontPercent})</code>, localStorage seed pre-init) either blocks the menu's user-picks or doesn't actually apply. Today users have to pick a size once via the menu (persisted across reloads).</li>
+<li><strong>Long filename handling</strong>: real release / encode filenames are very long (e.g. <code>Some.Movie.2019.1080p.BluRay.x264-GROUP.mkv</code>). Row layout currently overflows / truncates. Need a parsing pass to extract a clean display title (year, source, codec stripped off, available via hover), tooltip with full filename, and wrap / ellipsis rules per density.</li>
+<li><strong>2160p (4K) / heavy-codec hardware transcode</strong>: libx264 software re-encode at veryfast / crf 23 is too slow for 4K HEVC sources — segments arrive slower than playback. Add a hardware-accelerated transcode path (VideoToolbox on macOS, NVENC on NVIDIA, QSV on Intel) and a quality-tier ladder so the client can opt down to 1080p when the network or CPU can't keep up.</li>
+<li><strong>HLS cache size cap + LRU eviction</strong>: orphan cleanup (renamed / removed source files) runs at every startup, but there's no cap on the cache for currently-live videos. Add <code>--hls-cache-gb N</code> with LRU eviction once the cap is hit.</li>
+<li><strong>Audio-track picker</strong>: same shape as subtitles — ffprobe streams, surface a chooser in the player chrome.</li>
 <li><strong>Scrub-bar hover previews</strong>: extend the contact-sheet logic into denser per-segment thumbnails for hover-on-scrub previews. Cheap re-use of existing ffmpeg infra.</li>
-<li><strong>SQLite index for videos</strong>: today every request rescans the library root. The audio side has <code>&lt;root&gt;/.maneki/index.db</code>; mirror it for video so a 1000-file library doesn't pay the walk cost on every list / search call.</li>
-<li><strong>Watchdog rescan</strong>: file added / removed / renamed - update the index without a full walk. Audio side already does this; lift the pattern.</li>
+<li><strong>Theater-mode overlap with topbar</strong> (cosmetic): some viewport sizes show the player title strip rendering tighter than expected next to the topbar. Investigation pending.</li>
 </ul>
 <h2 id="stage-3-maneki-native-protocol-compat-facades">Stage 3 — Maneki-native protocol &amp; compat facades<a class="headerlink" href="#stage-3-maneki-native-protocol-compat-facades" title="Permanent link">&para;</a></h2>
 <p>The Subsonic API is the only audio protocol today; the video API is Maneki-native but unstable. Stage 3 is to design Maneki's own clean protocol for both kinds, then offer Subsonic / Jellyfin compat layers on top for existing clients.</p>

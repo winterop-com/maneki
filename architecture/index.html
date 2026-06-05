@@ -1108,6 +1108,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#the-video-pipeline-srcmanekivideoserve" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The video pipeline (src/maneki/video/serve/)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#where-every-dependency-sits" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1490,6 +1501,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#the-video-pipeline-srcmanekivideoserve" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The video pipeline (src/maneki/video/serve/)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#where-every-dependency-sits" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1831,6 +1853,64 @@ doesn't skip during a server-side rescan.</strong></p>
 <p>The watcher's auto-rescan covers most workflows, so an explicit
 <code>startScan</code> from the client is usually unnecessary — drop a file in,
 wait 5 seconds, pull-to-refresh the client.</p>
+<h2 id="the-video-pipeline-srcmanekivideoserve">The video pipeline (<code>src/maneki/video/serve/</code>)<a class="headerlink" href="#the-video-pipeline-srcmanekivideoserve" title="Permanent link">&para;</a></h2>
+<p>Same <code>maneki serve</code> process; the video sub-app is mounted at <code>/video/*</code>
+when <code>has_video(root)</code> finds any file with a video extension under the
+library root.</p>
+<p>Components:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>+--------------------------------------------------------+
+<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>|  /video/* sub-app                                      |
+<a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a>|    GET /api/videos          flat listing               |
+<a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a>|    GET /api/browse?path=    folder navigator           |
+<a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a>|    GET /api/videos/{id}/    poster|thumbnail|stream    |
+<a id="__codelineno-5-6" name="__codelineno-5-6" href="#__codelineno-5-6"></a>|    GET /api/videos/{id}/hls/index.m3u8                 |
+<a id="__codelineno-5-7" name="__codelineno-5-7" href="#__codelineno-5-7"></a>|    GET /api/videos/{id}/hls/seg-NNNN.ts                |
+<a id="__codelineno-5-8" name="__codelineno-5-8" href="#__codelineno-5-8"></a>|    GET /api/videos/{id}/subtitles[/{key}]              |
+<a id="__codelineno-5-9" name="__codelineno-5-9" href="#__codelineno-5-9"></a>|    GET /api/scan_status                                |
+<a id="__codelineno-5-10" name="__codelineno-5-10" href="#__codelineno-5-10"></a>|    POST /api/scan          manual rescan trigger       |
+<a id="__codelineno-5-11" name="__codelineno-5-11" href="#__codelineno-5-11"></a>|    GET /api/thumbnails/ready                           |
+<a id="__codelineno-5-12" name="__codelineno-5-12" href="#__codelineno-5-12"></a>|    DELETE /api/videos/{id}/session    cancel prefetch  |
+<a id="__codelineno-5-13" name="__codelineno-5-13" href="#__codelineno-5-13"></a>|                                                        |
+<a id="__codelineno-5-14" name="__codelineno-5-14" href="#__codelineno-5-14"></a>|    app.state.video_cache    list[VideoEntry]           |
+<a id="__codelineno-5-15" name="__codelineno-5-15" href="#__codelineno-5-15"></a>|    app.state.poster_manager PosterManager              |
+<a id="__codelineno-5-16" name="__codelineno-5-16" href="#__codelineno-5-16"></a>|    app.state.hls_manager    HLSManager                 |
+<a id="__codelineno-5-17" name="__codelineno-5-17" href="#__codelineno-5-17"></a>|    app.state.subtitle_cache SubtitleCache              |
+<a id="__codelineno-5-18" name="__codelineno-5-18" href="#__codelineno-5-18"></a>|    app.state.scan_tracker   VideoScanTracker           |
+<a id="__codelineno-5-19" name="__codelineno-5-19" href="#__codelineno-5-19"></a>|    app.state.trigger_rescan _rescan_callback           |
+<a id="__codelineno-5-20" name="__codelineno-5-20" href="#__codelineno-5-20"></a>+--------------------------------------------------------+
+<a id="__codelineno-5-21" name="__codelineno-5-21" href="#__codelineno-5-21"></a>            ^                            |
+<a id="__codelineno-5-22" name="__codelineno-5-22" href="#__codelineno-5-22"></a>            | watchdog Observer          | TranscodeBudget
+<a id="__codelineno-5-23" name="__codelineno-5-23" href="#__codelineno-5-23"></a>            | (5s debounce)              | (max_workers, max_foreground=3)
+<a id="__codelineno-5-24" name="__codelineno-5-24" href="#__codelineno-5-24"></a>            v                            v
+<a id="__codelineno-5-25" name="__codelineno-5-25" href="#__codelineno-5-25"></a>+--------------------------+    +--------------------------+
+<a id="__codelineno-5-26" name="__codelineno-5-26" href="#__codelineno-5-26"></a>|  VideoIndex (SQLite)     |    |  ffmpeg / ffprobe        |
+<a id="__codelineno-5-27" name="__codelineno-5-27" href="#__codelineno-5-27"></a>|  shared index.db         |    |  - HLS segment transcode |
+<a id="__codelineno-5-28" name="__codelineno-5-28" href="#__codelineno-5-28"></a>|  videos table            |    |  - Contact-sheet 9 frames|
+<a id="__codelineno-5-29" name="__codelineno-5-29" href="#__codelineno-5-29"></a>|  fingerprint=(mtime,size)|    |  - Subtitle extract (one |
+<a id="__codelineno-5-30" name="__codelineno-5-30" href="#__codelineno-5-30"></a>|  batched upsert at scan- |    |    invocation, N -map    |
+<a id="__codelineno-5-31" name="__codelineno-5-31" href="#__codelineno-5-31"></a>|  end (one transaction)   |    |    outputs)              |
+<a id="__codelineno-5-32" name="__codelineno-5-32" href="#__codelineno-5-32"></a>+--------------------------+    +--------------------------+
+</code></pre></div>
+<p>The shared <code>TranscodeBudget</code> caps foreground (player) transcodes at 3
+concurrent and background (prewarm + prefetch) at <code>default_workers()</code>
+(min 8, cpu // 2). Foreground holds an idle event clear; background
+slots wait until idle returns. Without the foreground cap, rapid seeks
+fire one segment fetch per scrub (vhs doesn't abort on seek) and N
+simultaneous ffmpegs share disk I/O so each takes ~15s instead of
+~200ms; the player wedges with <code>readyState=1, buffered=[0,0]</code> and no
+error to recover from.</p>
+<p>On-disk cache layout uses <code>cache_stem(video_id) = sha256(id)[:32]</code> as
+the filename / directory stem to keep paths within the OS's 255-byte
+NAME_MAX limit. Posters live at <code>&lt;root&gt;/.maneki/posters/&lt;stem&gt;.png</code>;
+thumbnails at <code>&lt;root&gt;/.maneki/posters/&lt;stem&gt;.thumb.jpg</code>; subtitle .vtt
+files under <code>&lt;root&gt;/.maneki/subs/&lt;stem&gt;/embed-N.vtt</code>; HLS segments
+under <code>&lt;tempdir&gt;/maneki-hls/&lt;stem&gt;/seg-NNNN.ts</code> (segments are large +
+ephemeral so <code>/tmp</code> placement is fine).</p>
+<p>The watcher mirrors the audio side: 5-second debounced rescan whenever
+a video-extension file appears / disappears / moves; in-place edits
+detect via <code>(mtime, size_bytes)</code> fingerprint mismatch and invalidate
+the cached poster + thumbnail for that id so the next <code>/poster</code> /
+<code>/thumbnail</code> request regenerates from the new content.</p>
 <h2 id="where-every-dependency-sits">Where every dependency sits<a class="headerlink" href="#where-every-dependency-sits" title="Permanent link">&para;</a></h2>
 <table>
 <thead>
@@ -1878,8 +1958,8 @@ wait 5 seconds, pull-to-refresh the client.</p>
 </tr>
 <tr>
 <td><code>watchdog</code></td>
-<td><code>serve/watcher.py</code></td>
-<td>Filesystem-event observer for auto-rescan.</td>
+<td><code>audio/serve/watcher.py</code>, <code>video/serve/watcher.py</code></td>
+<td>Filesystem-event observer for auto-rescan on both kinds.</td>
 </tr>
 <tr>
 <td><code>FastAPI</code></td>
@@ -1888,8 +1968,13 @@ wait 5 seconds, pull-to-refresh the client.</p>
 </tr>
 <tr>
 <td><code>uvicorn</code></td>
-<td><code>cli/serve.py</code></td>
+<td><code>cli/__init__.py</code></td>
 <td>ASGI server that runs the FastAPI app.</td>
+</tr>
+<tr>
+<td><code>structlog</code></td>
+<td><code>audio/serve/logging.py</code> (shared across audio + video)</td>
+<td>Unified colored logging + access-log middleware factory.</td>
 </tr>
 </tbody>
 </table>

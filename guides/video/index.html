@@ -757,6 +757,23 @@
     </span>
   </a>
   
+    <nav class="md-nav" aria-label="Quick start">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#optional-startup-flags" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Optional startup flags
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
       
         <li class="md-nav__item">
@@ -849,10 +866,21 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#prewarm" class="md-nav__link">
+  <a href="#get-apithumbnailsready" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Prewarm
+        GET /api/thumbnails/ready
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#prewarm-cache" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Prewarm cache
       
     </span>
   </a>
@@ -920,10 +948,21 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#why-the-base-layer" class="md-nav__link">
+  <a href="#library-scan-watcher" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Why the base layer
+        Library scan + watcher
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#cache-layout" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Cache layout
       
     </span>
   </a>
@@ -1402,6 +1441,23 @@
     </span>
   </a>
   
+    <nav class="md-nav" aria-label="Quick start">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#optional-startup-flags" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Optional startup flags
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
       
         <li class="md-nav__item">
@@ -1494,10 +1550,21 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#prewarm" class="md-nav__link">
+  <a href="#get-apithumbnailsready" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Prewarm
+        GET /api/thumbnails/ready
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#prewarm-cache" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Prewarm cache
       
     </span>
   </a>
@@ -1565,10 +1632,21 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#why-the-base-layer" class="md-nav__link">
+  <a href="#library-scan-watcher" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Why the base layer
+        Library scan + watcher
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#cache-layout" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Cache layout
       
     </span>
   </a>
@@ -1628,36 +1706,55 @@
 <p>The SPA at <code>/</code> (mount with <code>--ui</code>) is the primary client; the demo page is kept for quick debugging.</p>
 <h2 id="quick-start">Quick start<a class="headerlink" href="#quick-start" title="Permanent link">&para;</a></h2>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>maneki<span class="w"> </span>serve<span class="w"> </span>~/Downloads/library<span class="w"> </span>--ui
-<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="c1"># maneki serve - /Users/morteoh/Downloads/library on http://127.0.0.1:8765 (SPA at /, workers=auto)</span>
-<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="c1"># INFO:     Uvicorn running on http://127.0.0.1:8765</span>
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="c1"># maneki serve starting   flags=&#39;SPA at /, workers=auto&#39; host=127.0.0.1 port=8765 root=/Users/morteoh/Downloads/library</span>
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="c1"># Uvicorn running on http://127.0.0.1:8765</span>
 </code></pre></div>
 <p>Then in another terminal:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>curl<span class="w"> </span>-s<span class="w"> </span>http://127.0.0.1:8765/capabilities<span class="w"> </span><span class="p">|</span><span class="w"> </span>jq
 <a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="c1"># {</span>
 <a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a><span class="c1">#   &quot;server&quot;: &quot;maneki&quot;,</span>
-<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a><span class="c1">#   &quot;version&quot;: &quot;0.1.0&quot;,</span>
+<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a><span class="c1">#   &quot;version&quot;: &quot;0.9.0&quot;,</span>
 <a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a><span class="c1">#   &quot;audio&quot;: true,</span>
 <a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a><span class="c1">#   &quot;video&quot;: true,</span>
-<a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a><span class="c1">#   &quot;endpoints&quot;: {</span>
-<a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a><span class="c1">#     &quot;audio_subsonic&quot;: &quot;/audio/rest&quot;,</span>
-<a id="__codelineno-1-9" name="__codelineno-1-9" href="#__codelineno-1-9"></a><span class="c1">#     &quot;video_api&quot;: &quot;/video/api&quot;,</span>
-<a id="__codelineno-1-10" name="__codelineno-1-10" href="#__codelineno-1-10"></a><span class="c1">#     &quot;auth_login&quot;: &quot;/auth/login&quot;</span>
-<a id="__codelineno-1-11" name="__codelineno-1-11" href="#__codelineno-1-11"></a><span class="c1">#   }</span>
-<a id="__codelineno-1-12" name="__codelineno-1-12" href="#__codelineno-1-12"></a><span class="c1"># }</span>
-<a id="__codelineno-1-13" name="__codelineno-1-13" href="#__codelineno-1-13"></a>
-<a id="__codelineno-1-14" name="__codelineno-1-14" href="#__codelineno-1-14"></a>curl<span class="w"> </span>-s<span class="w"> </span>http://127.0.0.1:8765/video/api/videos<span class="w"> </span><span class="p">|</span><span class="w"> </span>jq
-<a id="__codelineno-1-15" name="__codelineno-1-15" href="#__codelineno-1-15"></a><span class="c1"># [</span>
-<a id="__codelineno-1-16" name="__codelineno-1-16" href="#__codelineno-1-16"></a><span class="c1">#   {</span>
-<a id="__codelineno-1-17" name="__codelineno-1-17" href="#__codelineno-1-17"></a><span class="c1">#     &quot;id&quot;: &quot;movies-Some-Movie-2019-1080p&quot;,</span>
-<a id="__codelineno-1-18" name="__codelineno-1-18" href="#__codelineno-1-18"></a><span class="c1">#     &quot;name&quot;: &quot;Some.Movie.2019.1080p.BluRay.x264&quot;,</span>
-<a id="__codelineno-1-19" name="__codelineno-1-19" href="#__codelineno-1-19"></a><span class="c1">#     &quot;path&quot;: &quot;/Users/morteoh/Downloads/library/movies/Some.Movie.2019.1080p.BluRay.x264.mkv&quot;,</span>
-<a id="__codelineno-1-20" name="__codelineno-1-20" href="#__codelineno-1-20"></a><span class="c1">#     &quot;size_bytes&quot;: 2442979091,</span>
-<a id="__codelineno-1-21" name="__codelineno-1-21" href="#__codelineno-1-21"></a><span class="c1">#     &quot;rel_path&quot;: &quot;movies/Some.Movie.2019.1080p.BluRay.x264.mkv&quot;</span>
-<a id="__codelineno-1-22" name="__codelineno-1-22" href="#__codelineno-1-22"></a><span class="c1">#   },</span>
-<a id="__codelineno-1-23" name="__codelineno-1-23" href="#__codelineno-1-23"></a><span class="c1">#   ...</span>
-<a id="__codelineno-1-24" name="__codelineno-1-24" href="#__codelineno-1-24"></a><span class="c1"># ]</span>
+<a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a><span class="c1">#   &quot;video_count&quot;: 1313,</span>
+<a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a><span class="c1">#   &quot;endpoints&quot;: {</span>
+<a id="__codelineno-1-9" name="__codelineno-1-9" href="#__codelineno-1-9"></a><span class="c1">#     &quot;audio_subsonic&quot;: &quot;/audio/rest&quot;,</span>
+<a id="__codelineno-1-10" name="__codelineno-1-10" href="#__codelineno-1-10"></a><span class="c1">#     &quot;video_api&quot;: &quot;/video/api&quot;,</span>
+<a id="__codelineno-1-11" name="__codelineno-1-11" href="#__codelineno-1-11"></a><span class="c1">#     &quot;auth_login&quot;: &quot;/auth/login&quot;</span>
+<a id="__codelineno-1-12" name="__codelineno-1-12" href="#__codelineno-1-12"></a><span class="c1">#   }</span>
+<a id="__codelineno-1-13" name="__codelineno-1-13" href="#__codelineno-1-13"></a><span class="c1"># }</span>
+<a id="__codelineno-1-14" name="__codelineno-1-14" href="#__codelineno-1-14"></a>
+<a id="__codelineno-1-15" name="__codelineno-1-15" href="#__codelineno-1-15"></a>curl<span class="w"> </span>-s<span class="w"> </span>http://127.0.0.1:8765/video/api/videos<span class="w"> </span><span class="p">|</span><span class="w"> </span>jq<span class="w"> </span><span class="s1">&#39;.[0]&#39;</span>
+<a id="__codelineno-1-16" name="__codelineno-1-16" href="#__codelineno-1-16"></a><span class="c1"># {</span>
+<a id="__codelineno-1-17" name="__codelineno-1-17" href="#__codelineno-1-17"></a><span class="c1">#   &quot;id&quot;: &quot;movies-Some-Movie-2019-1080p-a3f1c2d4&quot;,</span>
+<a id="__codelineno-1-18" name="__codelineno-1-18" href="#__codelineno-1-18"></a><span class="c1">#   &quot;name&quot;: &quot;Some.Movie.2019.1080p.BluRay.x264&quot;,</span>
+<a id="__codelineno-1-19" name="__codelineno-1-19" href="#__codelineno-1-19"></a><span class="c1">#   &quot;path&quot;: &quot;/Users/morteoh/Downloads/library/movies/Some.Movie.2019.1080p.BluRay.x264.mkv&quot;,</span>
+<a id="__codelineno-1-20" name="__codelineno-1-20" href="#__codelineno-1-20"></a><span class="c1">#   &quot;size_bytes&quot;: 2442979091,</span>
+<a id="__codelineno-1-21" name="__codelineno-1-21" href="#__codelineno-1-21"></a><span class="c1">#   &quot;rel_path&quot;: &quot;movies/Some.Movie.2019.1080p.BluRay.x264.mkv&quot;,</span>
+<a id="__codelineno-1-22" name="__codelineno-1-22" href="#__codelineno-1-22"></a><span class="c1">#   &quot;duration_s&quot;: 7892.4,</span>
+<a id="__codelineno-1-23" name="__codelineno-1-23" href="#__codelineno-1-23"></a><span class="c1">#   &quot;subtitles&quot;: [{&quot;lang&quot;: &quot;eng&quot;, &quot;format&quot;: &quot;srt&quot;}]</span>
+<a id="__codelineno-1-24" name="__codelineno-1-24" href="#__codelineno-1-24"></a><span class="c1"># }</span>
 </code></pre></div>
 <p>Note <code>rel_path</code> is relative to the library root, not a subdirectory — there's no <code>videos/</code> convention.</p>
+<h3 id="optional-startup-flags">Optional startup flags<a class="headerlink" href="#optional-startup-flags" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="c1"># Wipe the on-disk poster / thumbnail cache and the SQLite videos table</span>
+<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="c1"># before scanning. Use after renames / edits if the cached frames are</span>
+<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="c1"># stale and you want a clean rebuild.</span>
+<a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a>maneki<span class="w"> </span>serve<span class="w"> </span>~/library<span class="w"> </span>--ui<span class="w"> </span>--rescan
+<a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a>
+<a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a><span class="c1"># Generate every video&#39;s thumbnail, contact-sheet poster, and embedded-</span>
+<a id="__codelineno-2-7" name="__codelineno-2-7" href="#__codelineno-2-7"></a><span class="c1"># subtitle probe during startup. Otherwise these populate lazily on</span>
+<a id="__codelineno-2-8" name="__codelineno-2-8" href="#__codelineno-2-8"></a><span class="c1"># first browse / open. Heavy on cold libraries; idempotent on warm ones.</span>
+<a id="__codelineno-2-9" name="__codelineno-2-9" href="#__codelineno-2-9"></a>maneki<span class="w"> </span>serve<span class="w"> </span>~/library<span class="w"> </span>--ui<span class="w"> </span>--prewarm-cache
+<a id="__codelineno-2-10" name="__codelineno-2-10" href="#__codelineno-2-10"></a>
+<a id="__codelineno-2-11" name="__codelineno-2-11" href="#__codelineno-2-11"></a><span class="c1"># Skip contact-sheet poster generation entirely. /poster falls back to</span>
+<a id="__codelineno-2-12" name="__codelineno-2-12" href="#__codelineno-2-12"></a><span class="c1"># the single-frame row thumbnail. Useful on slow disks or huge</span>
+<a id="__codelineno-2-13" name="__codelineno-2-13" href="#__codelineno-2-13"></a><span class="c1"># libraries where the 9-frame contact sheet isn&#39;t worth the wait.</span>
+<a id="__codelineno-2-14" name="__codelineno-2-14" href="#__codelineno-2-14"></a>maneki<span class="w"> </span>serve<span class="w"> </span>~/library<span class="w"> </span>--ui<span class="w"> </span>--no-cover-images
+<a id="__codelineno-2-15" name="__codelineno-2-15" href="#__codelineno-2-15"></a>
+<a id="__codelineno-2-16" name="__codelineno-2-16" href="#__codelineno-2-16"></a><span class="c1"># Increase background-transcode worker cap. Default is min(8, cpu // 2).</span>
+<a id="__codelineno-2-17" name="__codelineno-2-17" href="#__codelineno-2-17"></a>maneki<span class="w"> </span>serve<span class="w"> </span>~/library<span class="w"> </span>--ui<span class="w"> </span>--workers<span class="w"> </span><span class="m">8</span>
+</code></pre></div>
 <h2 id="endpoints">Endpoints<a class="headerlink" href="#endpoints" title="Permanent link">&para;</a></h2>
 <p>The server ships five endpoints — one HTML page, three JSON, one media stream.</p>
 <h3 id="get-video"><code>GET /video/</code><a class="headerlink" href="#get-video" title="Permanent link">&para;</a></h3>
@@ -1665,23 +1762,23 @@
 <p>The page exists to demonstrate the pipeline end-to-end without the React SPA wiring. It will be retired now that the SPA has a Video tab.</p>
 <h3 id="get-capabilities"><code>GET /capabilities</code><a class="headerlink" href="#get-capabilities" title="Permanent link">&para;</a></h3>
 <p>Server identity + which kinds are present at the root.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="p">{</span>
-<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="w">  </span><span class="nt">&quot;server&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;maneki&quot;</span><span class="p">,</span>
-<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="w">  </span><span class="nt">&quot;version&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;0.1.0&quot;</span><span class="p">,</span>
-<a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a><span class="w">  </span><span class="nt">&quot;audio&quot;</span><span class="p">:</span><span class="w"> </span><span class="kc">false</span><span class="p">,</span>
-<a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a><span class="w">  </span><span class="nt">&quot;video&quot;</span><span class="p">:</span><span class="w"> </span><span class="kc">true</span><span class="p">,</span>
-<a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a><span class="w">  </span><span class="nt">&quot;video_count&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">2</span>
-<a id="__codelineno-2-7" name="__codelineno-2-7" href="#__codelineno-2-7"></a><span class="p">}</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="p">{</span>
+<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a><span class="w">  </span><span class="nt">&quot;server&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;maneki&quot;</span><span class="p">,</span>
+<a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a><span class="w">  </span><span class="nt">&quot;version&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;0.9.0&quot;</span><span class="p">,</span>
+<a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a><span class="w">  </span><span class="nt">&quot;audio&quot;</span><span class="p">:</span><span class="w"> </span><span class="kc">false</span><span class="p">,</span>
+<a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a><span class="w">  </span><span class="nt">&quot;video&quot;</span><span class="p">:</span><span class="w"> </span><span class="kc">true</span><span class="p">,</span>
+<a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a><span class="w">  </span><span class="nt">&quot;video_count&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">2</span>
+<a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a><span class="p">}</span>
 </code></pre></div>
 <h3 id="get-videoapivideos"><code>GET /video/api/videos</code><a class="headerlink" href="#get-videoapivideos" title="Permanent link">&para;</a></h3>
 <p>Flat list of every video file anywhere under the library root. One entry per file:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="p">{</span>
-<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a><span class="w">  </span><span class="nt">&quot;id&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;movies-Some-Movie-2019-1080p-a3f1c2d4&quot;</span><span class="p">,</span>
-<a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a><span class="w">  </span><span class="nt">&quot;name&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;Some.Movie.2019.1080p.BluRay.x264&quot;</span><span class="p">,</span>
-<a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a><span class="w">  </span><span class="nt">&quot;path&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;/absolute/path/to/file.mkv&quot;</span><span class="p">,</span>
-<a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a><span class="w">  </span><span class="nt">&quot;size_bytes&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">2442979091</span><span class="p">,</span>
-<a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a><span class="w">  </span><span class="nt">&quot;rel_path&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;movies/Some.Movie.2019.1080p.BluRay.x264.mkv&quot;</span>
-<a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a><span class="p">}</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="p">{</span>
+<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a><span class="w">  </span><span class="nt">&quot;id&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;movies-Some-Movie-2019-1080p-a3f1c2d4&quot;</span><span class="p">,</span>
+<a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a><span class="w">  </span><span class="nt">&quot;name&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;Some.Movie.2019.1080p.BluRay.x264&quot;</span><span class="p">,</span>
+<a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a><span class="w">  </span><span class="nt">&quot;path&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;/absolute/path/to/file.mkv&quot;</span><span class="p">,</span>
+<a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a><span class="w">  </span><span class="nt">&quot;size_bytes&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">2442979091</span><span class="p">,</span>
+<a id="__codelineno-4-6" name="__codelineno-4-6" href="#__codelineno-4-6"></a><span class="w">  </span><span class="nt">&quot;rel_path&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;movies/Some.Movie.2019.1080p.BluRay.x264.mkv&quot;</span>
+<a id="__codelineno-4-7" name="__codelineno-4-7" href="#__codelineno-4-7"></a><span class="p">}</span>
 </code></pre></div>
 <p>The <code>id</code> is <code>&lt;readable-slug&gt;-&lt;8-hex-sha256&gt;</code> derived from the relative path under the library root. The hash suffix is what makes the id collision-free: two paths that flatten to the same slug (<code>tv/ch01.mkv</code> and <code>tv-ch01.mkv</code> at the root, say) still get distinct ids. Ids stay stable across rescans until the file is renamed or moved.</p>
 <h3 id="get-videoapivideosidstream"><code>GET /video/api/videos/{id}/stream</code><a class="headerlink" href="#get-videoapivideosidstream" title="Permanent link">&para;</a></h3>
@@ -1696,26 +1793,30 @@
 <h3 id="get-videoapibrowsepathrel"><code>GET /video/api/browse?path=&lt;rel&gt;</code><a class="headerlink" href="#get-videoapibrowsepathrel" title="Permanent link">&para;</a></h3>
 <p>Folder navigator. Lists the immediate children of <code>&lt;root&gt;/&lt;rel&gt;/</code>: subdirectories that contain at least one video somewhere below them (with a descendant <code>video_count</code>), then video files in the current directory. Path is POSIX-style and relative to the library root; an empty path browses the root itself. The server's own <code>.maneki/</code> cache is always skipped.</p>
 <p>Response shape:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="p">{</span>
-<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a><span class="w">  </span><span class="nt">&quot;rel_path&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;tv/Show A&quot;</span><span class="p">,</span>
-<a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a><span class="w">  </span><span class="nt">&quot;crumbs&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">&quot;tv&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;Show A&quot;</span><span class="p">],</span>
-<a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a><span class="w">  </span><span class="nt">&quot;folders&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[{</span><span class="nt">&quot;name&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;Season 1&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;rel_path&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;tv/Show A/Season 1&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;video_count&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">13</span><span class="p">}],</span>
-<a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a><span class="w">  </span><span class="nt">&quot;videos&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[]</span>
-<a id="__codelineno-4-6" name="__codelineno-4-6" href="#__codelineno-4-6"></a><span class="p">}</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="p">{</span>
+<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a><span class="w">  </span><span class="nt">&quot;rel_path&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;tv/Show A&quot;</span><span class="p">,</span>
+<a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a><span class="w">  </span><span class="nt">&quot;crumbs&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">&quot;tv&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;Show A&quot;</span><span class="p">],</span>
+<a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a><span class="w">  </span><span class="nt">&quot;folders&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[{</span><span class="nt">&quot;name&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;Season 1&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;rel_path&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;tv/Show A/Season 1&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;video_count&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">13</span><span class="p">}],</span>
+<a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a><span class="w">  </span><span class="nt">&quot;videos&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[]</span>
+<a id="__codelineno-5-6" name="__codelineno-5-6" href="#__codelineno-5-6"></a><span class="p">}</span>
 </code></pre></div>
 <p>The SPA folder browser drives off this. Returns 404 when the path escapes the videos directory (path-traversal guard) or doesn't exist.</p>
 <h3 id="get-videoapivideosidposter"><code>GET /video/api/videos/{id}/poster</code><a class="headerlink" href="#get-videoapivideosidposter" title="Permanent link">&para;</a></h3>
-<p>Contact-sheet PNG: header strip with filename + codec/resolution/duration/size, then a 3×3 grid of timestamped frame thumbnails sampled across the middle 90% of the timeline. Used as the video.js player's <code>poster</code> so the paused player shows the video at a glance instead of a blank canvas.</p>
-<p>Lazy: first request transcodes ~9 frames via ffmpeg (~1–2s on a modern CPU); cached to <code>&lt;root&gt;/.maneki/posters/&lt;id&gt;.png</code> so re-requests are file-serve cheap. Returns 503 if ffmpeg or ffprobe is missing.</p>
+<p>Contact-sheet PNG: header strip with filename + codec / resolution / duration / size, then a 3×3 grid of timestamped frame thumbnails sampled across the middle 90% of the timeline. Padded to a 16:9 canvas so the player frame and the poster have identical aspect — no grow-on-play jump when the user clicks play. Used as the video.js <code>poster</code>.</p>
+<p>Lazy: first request returns <code>202 Accepted</code> with a tiny inline-SVG placeholder and schedules a background ffmpeg job that grabs all 9 frames in a single subprocess (one source file open instead of nine). The SPA polls <code>/api/thumbnails/ready</code> and bumps the player's poster src once the real PNG lands on disk. Cached at <code>&lt;root&gt;/.maneki/posters/&lt;sha256(id)[:32]&gt;.png</code> (hash-derived filename so deeply-nested rel paths don't blow the OS's 255-byte <code>NAME_MAX</code>). Subsequent requests are a file-serve. Returns 503 if ffmpeg / ffprobe is missing.</p>
+<p>With <code>--no-cover-images</code>, <code>/poster</code> falls back to the single-frame thumbnail described below — same code path, no contact sheet.</p>
 <h3 id="get-videoapivideosidthumbnail"><code>GET /video/api/videos/{id}/thumbnail</code><a class="headerlink" href="#get-videoapivideosidthumbnail" title="Permanent link">&para;</a></h3>
-<p>Single-frame JPEG sampled at ~30% into the timeline, scaled to 320px wide. Used for the row icon in the SPA video list. Much smaller payload than the full poster (~10 KB vs ~800 KB) so the list paints fast even with hundreds of videos. Cached to <code>&lt;root&gt;/.maneki/posters/&lt;id&gt;.thumb.jpg</code>.</p>
-<h3 id="prewarm">Prewarm<a class="headerlink" href="#prewarm" title="Permanent link">&para;</a></h3>
-<p>On startup the combined <code>maneki serve</code> walks the library once and, in the background, generates:</p>
+<p>Single-frame JPEG sampled at ~30% into the timeline, scaled to 320px wide. Used for the row icon in the SPA video list — small payload (~10 KB vs ~800 KB for the contact sheet) so a 1000-video folder paints fast. Same 202+SVG placeholder pattern as <code>/poster</code>; bumps in the SPA via the same <code>/api/thumbnails/ready</code> poll. Cached at <code>&lt;root&gt;/.maneki/posters/&lt;sha256(id)[:32]&gt;.thumb.jpg</code>.</p>
+<h3 id="get-apithumbnailsready"><code>GET /api/thumbnails/ready</code><a class="headerlink" href="#get-apithumbnailsready" title="Permanent link">&para;</a></h3>
+<p>Returns <code>{"ready": [video_id, ...], "posters_ready": [video_id, ...]}</code>. The SPA polls every few seconds while a folder is open (for <code>ready</code>) or while the player is mounted (for <code>posters_ready</code>). When an id newly appears, the SPA bumps the matching <code>&lt;img&gt;</code> src with a version query string so the placeholder swaps for the real frame without a page reload.</p>
+<h3 id="prewarm-cache">Prewarm cache<a class="headerlink" href="#prewarm-cache" title="Permanent link">&para;</a></h3>
+<p>Pass <code>--prewarm-cache</code> to <code>maneki serve</code> and the startup walk fills three caches in the background through a bounded worker pool:</p>
 <ol>
-<li>Every missing thumbnail then poster (concurrency 2).</li>
-<li>Every missing HLS <code>seg-0.ts</code> (concurrency 1) so first-play of any video drops from 1-3s of cold ffmpeg to ~30ms of cache hit.</li>
+<li><strong>Subtitle probes</strong> — runs <code>ffprobe</code> for embedded subtitle streams. The browse listing reads this synchronously, so warming it up front keeps cold-browse-after-restart instant.</li>
+<li><strong>Row thumbnails</strong> — one ffmpeg per video, ~200 ms each.</li>
+<li><strong>Contact-sheet posters</strong> — one ffmpeg per video, ~500 ms-2 s (extracts all 9 frames in a single invocation; skip the phase entirely with <code>--no-cover-images</code>).</li>
 </ol>
-<p>Both tasks race to fill the cache while the server stays responsive. With a ~100-video library the thumbnail pass finishes in seconds, posters in a couple of minutes, and HLS seg-0 in a few minutes more (variable - depends on source resolution and codec). Re-runs are cheap because cached files are skipped.</p>
+<p>Background work yields to foreground player requests through the shared <code>TranscodeBudget</code> so prewarm pauses when someone hits play. Re-runs are idempotent: any file already on disk is skipped. Pair with <code>--rescan</code> if you want everything rebuilt from scratch (e.g. after a major upgrade).</p>
 <h3 id="get-videoapivideosidplay"><code>GET /video/api/videos/{id}/play</code><a class="headerlink" href="#get-videoapivideosidplay" title="Permanent link">&para;</a></h3>
 <p>ffmpeg-piped, fragmented-MP4 stream designed for browser <code>&lt;video&gt;</code> elements:</p>
 <ul>
@@ -1729,20 +1830,25 @@
 <p>On-demand HLS. The manifest is synthesised upfront from ffprobe's duration (every segment URL + EXTINF + <code>#EXT-X-ENDLIST</code>), so the player gets a true VOD timeline immediately. Each segment is transcoded lazily on first request:</p>
 <ul>
 <li><code>index.m3u8</code>: built from the video's duration. Returned instantly. Marked <code>#EXT-X-PLAYLIST-TYPE:VOD</code> with <code>#EXT-X-ENDLIST</code> so video.js / Safari / hls.js show the scrub bar and allow seeking anywhere.</li>
-<li><code>seg-NNNN.ts</code>: spawns a short ffmpeg that seeks to <code>N * 6s</code>, encodes that 6s slice, and writes the segment to disk. Cached for the server lifetime. Typical transcode time: 0.5–1.5s per 6s segment on a modern CPU.</li>
+<li><code>seg-NNNN.ts</code>: spawns a short ffmpeg that seeks to <code>N * 6s</code>, encodes that 6s slice, and writes the segment to disk. Cached on disk under <code>&lt;tempdir&gt;/maneki-hls/&lt;sha256(id)[:32]&gt;/</code> so re-watches are file-serve cheap. Typical transcode time: 0.2-1.5 s per 6 s segment on a modern CPU.</li>
 </ul>
-<p>Why MPEG-TS (.ts) and not fragmented MP4 (.m4s): per-segment ffmpeg runs each produce their own init segment, and the codec headers (<code>SPS/PPS</code>) differ subtly between invocations. fMP4 needs one shared init across every segment, so cross-segment playback breaks with MEDIA_ERR_DECODE. MPEG-TS segments carry their own headers and stitch cleanly.</p>
-<p>Encoding choices:
-- <strong>Video</strong>: always re-encoded with libx264 (<code>-preset veryfast -crf 23</code>) so each segment starts on a forced keyframe (<code>-force_key_frames expr:gte(t,0)</code>). Re-encoding costs a bit of CPU but lets segments be independently seekable - the price for any-position scrub on any source codec.
-- <strong>Audio</strong>: stereo AAC at 192 kbps.
-- <strong>Timestamps</strong>: <code>-copyts</code> + <code>-to</code> preserve absolute source-timeline PTS so each segment's playback position matches the manifest's EXTINF cumulative time. (Note: <code>-t duration</code> would mis-fire here - with <code>-copyts</code> the output PTS already starts at <code>start_s</code>, so <code>-t</code> is interpreted as "stop when output PTS hits duration" which is in the past for any segment past 0.)</p>
-<p>Returns <code>503</code> if ffmpeg is missing, <code>400</code> if the requested filename looks like a path-traversal attempt or has an unparseable segment index, <code>404</code> for unknown video ids or out-of-range segments, <code>500</code> if the ffmpeg subprocess fails (stderr tail is included in the detail).</p>
-<p><strong>v0 lifecycle limitation</strong>: segments are cached per video for the lifetime of the server process - no automatic cleanup. Restart the server to free the per-video temp directories under <code>/tmp/maneki-hls/&lt;id&gt;/</code>. A TTL + eviction layer is a follow-up.</p>
+<p>Why MPEG-TS (.ts) and not fragmented MP4 (.m4s): per-segment ffmpeg runs each produce their own init segment, and the codec headers (<code>SPS/PPS</code>) differ subtly between invocations. fMP4 needs one shared init across every segment, so cross-segment playback breaks with <code>MEDIA_ERR_DECODE</code>. MPEG-TS segments carry their own headers and stitch cleanly.</p>
+<p>Encoding choices:</p>
+<ul>
+<li><strong>Video</strong>: always re-encoded with libx264 (<code>-preset veryfast -crf 23</code>) so each segment starts on a forced keyframe (<code>-force_key_frames expr:gte(t,0)</code>). Re-encoding costs CPU but lets segments be independently seekable — the price for any-position scrub on any source codec.</li>
+<li><strong>Audio</strong>: stereo AAC at 192 kbps.</li>
+<li><strong>Timestamps</strong>: <code>-output_ts_offset N*SEG_LEN</code> + <code>-avoid_negative_ts disabled</code> shifts each segment's output PTS to its nominal manifest position. Adjacent segments don't overlap and the player's <code>currentTime</code> matches the manifest timeline. (A pre-v0.9 bug here would emit a partial .ts on ffmpeg cancel during a rapid scrub, the cache check would short-circuit on the partial file, and the player would jump 4-5 min on the next seek; fixed by unlinking partial files on cancel and bumping <code>HLS_CACHE_VERSION</code> to wipe any leftover stubs from older runs.)</li>
+</ul>
+<p>Foreground transcodes are capped at 3 concurrent (rapid seeks fire one fetch per scrub and the browser's HLS engine doesn't cancel old XHRs; without the cap, 18 simultaneous ffmpegs sharing disk I/O each took 15s instead of 200ms and the player wedged). Queued requests release as slots free up; normal playback fits inside the cap. Background prefetch (neighbour ±1) is cancelled on pause / player-close via a <code>DELETE /api/videos/{id}/session</code> call from the SPA.</p>
+<p>Returns <code>503</code> if ffmpeg is missing, <code>400</code> if the requested filename looks like a path-traversal attempt or has an unparseable segment index, <code>404</code> for unknown video ids or out-of-range segments, <code>499</code> if the client disconnected mid-transcode (and the running ffmpeg is killed), <code>500</code> if the ffmpeg subprocess fails (stderr tail in detail).</p>
+<p>Cache lifecycle: on every startup the cache is swept for orphaned video-id directories (renamed / deleted source files) and the cache-version marker is verified — if it doesn't match the running build's <code>HLS_CACHE_VERSION</code>, the whole cache is wiped so segments produced under different rules don't poison the player.</p>
 <h3 id="get-videoapivideosidsubtitles"><code>GET /video/api/videos/{id}/subtitles</code><a class="headerlink" href="#get-videoapivideosidsubtitles" title="Permanent link">&para;</a></h3>
 <p>Returns the unified list of subtitle tracks for the video - both <code>.srt</code>/<code>.vtt</code> sidecars discovered next to the file AND text-based subtitle streams embedded in the container (subrip, ass, mov_text). Image-based codecs (PGS, DVD VobSub, DVB) are filtered out because they'd need OCR to become WebVTT.</p>
 <p>Each entry has a <code>track_id</code> like <code>sidecar:en</code> or <code>embed:2</code>, a human <code>label</code> for the picker ("English", "Japanese (SDH)"), a <code>lang</code> tag, and a <code>default</code> flag derived from the stream's disposition. The SPA renders one <code>&lt;track&gt;</code> element per entry; video.js exposes the language picker on the player chrome.</p>
 <h3 id="get-videoapivideosidsubtitleskey"><code>GET /video/api/videos/{id}/subtitles/{key}</code><a class="headerlink" href="#get-videoapivideosidsubtitleskey" title="Permanent link">&para;</a></h3>
-<p>Serves one subtitle track as WebVTT. <code>key</code> is either a sidecar language tag (<code>en</code>, <code>und</code>, ...) or <code>embed-&lt;stream_index&gt;</code> for embedded streams. Sidecars are converted on the fly (.srt → .vtt timestamps + header). Embedded streams are extracted via <code>ffmpeg -map 0:&lt;index&gt; -c:s webvtt</code> and the result is cached at <code>&lt;root&gt;/.maneki/subs/&lt;id&gt;/embed-&lt;N&gt;.vtt</code> so re-requests are file-serve cheap.</p>
+<p>Serves one subtitle track as WebVTT. <code>key</code> is either a sidecar language tag (<code>en</code>, <code>und</code>, ...) or <code>embed-&lt;stream_index&gt;</code> for embedded streams. Sidecars are converted on the fly (.srt → .vtt timestamps + header). Embedded streams are extracted via a <strong>single ffmpeg invocation with one <code>-map 0:&lt;idx&gt;</code> output per stream</strong> — the source file is opened once and every missing .vtt is written in one pass, then cached at <code>&lt;root&gt;/.maneki/subs/&lt;sha256(id)[:32]&gt;/embed-&lt;N&gt;.vtt</code> so re-requests are file-serve cheap.</p>
+<p>This pattern matters on .mkv files with many embedded tracks (Stranger Things S5 ships 45 of them): the older one-ffmpeg-per-stream approach spawned 45 simultaneous ffmpegs that each re-read the 800 MB source and saturated disk I/O. The single-pass version completes the same work in roughly the time of one stream extract. Per-video lock so concurrent requests for different tracks of the same file share the extraction.</p>
+<p>The SPA only registers the <strong>default + English / English-SDH</strong> tracks with video.js on player mount; the rest stay listed in the captions menu but aren't fetched. Trade-off: less captions-menu completeness, but no head-of-line block on the HLS critical path from 45 parallel <code>.vtt</code> fetches at video-open time.</p>
 <h2 id="browser-compatibility">Browser compatibility<a class="headerlink" href="#browser-compatibility" title="Permanent link">&para;</a></h2>
 <p>What plays in a browser depends on the file's codecs:</p>
 <table>
@@ -1789,19 +1895,81 @@
 </table>
 <p>The <code>/play</code> endpoint covers the audio-codec problem (E-AC3, AC-3, DTS, TrueHD → AAC) and the MKV container problem (remuxes to MP4). Video stream is copied through, so files whose <strong>video</strong> codec is incompatible (H.265 in non-Safari browsers, MPEG-2) still won't play via <code>/play</code> — for those, use the HLS endpoint which transcodes the video stream to H.264 when needed. The demo page at <code>/</code> uses HLS for this reason.</p>
 <p>For files that won't play even via HLS (rare — anything ffmpeg can decode, libx264 can re-encode), point an external player (VLC, mpv, Infuse) at the <code>/stream</code> URL.</p>
-<h2 id="why-the-base-layer">Why the base layer<a class="headerlink" href="#why-the-base-layer" title="Permanent link">&para;</a></h2>
-<p>Stage 2's video work is built in layers:</p>
-<ol>
-<li><strong>Base</strong> — scan, list, raw stream. Done.</li>
-<li><strong>Transcode + demo page</strong> — ffmpeg-piped fMP4 at <code>/play</code>, browser-friendly. Done.</li>
-<li><strong>HLS</strong> — on-demand MPEG-TS segments behind a synthesised VOD manifest. Seek anywhere, full duration, scrub bar works. Done.</li>
-<li><strong>SPA video views</strong> — the desktop web UI gets a real Video tab (vertical AUDIO/VIDEO rail) playing through video.js v8. Done.</li>
-<li><strong>Subtitle and audio-track pickers</strong> — sidecar <code>.srt</code> discovery + WebVTT conversion. Done. Embedded tracks and picker UI deferred.</li>
-<li><strong>House auth</strong> — bearer tokens at <code>/auth/login</code> protecting <code>/video/*</code> and future Maneki-native endpoints. Done.</li>
-</ol>
-<p>Each layer is independently demonstrable.</p>
+<h2 id="library-scan-watcher">Library scan + watcher<a class="headerlink" href="#library-scan-watcher" title="Permanent link">&para;</a></h2>
+<p><code>maneki serve</code> keeps the video index in <code>&lt;root&gt;/.maneki/index.db</code> (same SQLite file as the audio side, separate <code>videos</code> table, namespaced meta keys). Cold start hits a stat-only filesystem walk plus an ffprobe for any new / modified file; fingerprints are <code>(mtime, size_bytes)</code>, so a warm rescan touches ffmpeg only for what actually changed. The persisted batch upsert at end-of-scan keeps the SQLite write footprint to one transaction even on 1300+ file libraries.</p>
+<p>After the initial scan, a watchdog Observer rooted at the library directory drives a 5-second debounced rescan whenever a video extension appears / disappears / moves. Adds, deletes, and renames flow through the same <code>prewarm_scan</code> path the cold start uses. In-place edits (re-encode, retag, remux) detect via the <code>(mtime, size_bytes)</code> fingerprint mismatch and invalidate the cached poster + thumbnail for that id so the next browse / open regenerates from the new content. Subtitle + HLS caches stay (extracted .vtts are still valid for a re-mux; HLS regenerates on play anyway).</p>
+<h2 id="cache-layout">Cache layout<a class="headerlink" href="#cache-layout" title="Permanent link">&para;</a></h2>
+<p>Everything under <code>&lt;root&gt;/.maneki/</code>:</p>
+<table>
+<thead>
+<tr>
+<th>Path</th>
+<th>What's in it</th>
+<th>Lifecycle</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>index.db</code>, <code>index.db-wal</code>, <code>index.db-shm</code></td>
+<td>SQLite, shared with audio. Audio owns <code>albums</code> / <code>tracks</code> / <code>track_genres</code> / <code>album_warnings</code>; video owns <code>videos</code> (plus namespaced <code>meta</code> keys).</td>
+<td>Survives restarts. Wiped only on schema-version mismatch (audio rebuilds its tables, video rebuilds its <code>videos</code> table).</td>
+</tr>
+<tr>
+<td><code>posters/&lt;sha256(id)[:32]&gt;.png</code></td>
+<td>16:9 contact-sheet posters.</td>
+<td>Survives restarts. Swept on startup for orphaned ids. Invalidated on in-place file edit. Wiped wholesale by <code>--rescan</code>.</td>
+</tr>
+<tr>
+<td><code>posters/&lt;sha256(id)[:32]&gt;.thumb.jpg</code></td>
+<td>Row thumbnails (single frame, 320 px wide).</td>
+<td>Same lifecycle as posters.</td>
+</tr>
+<tr>
+<td><code>subs/&lt;sha256(id)[:32]&gt;/embed-&lt;N&gt;.vtt</code></td>
+<td>Extracted embedded subtitle tracks.</td>
+<td>Survives restarts. Swept on startup for orphaned ids.</td>
+</tr>
+<tr>
+<td>(HLS lives at <code>&lt;tempdir&gt;/maneki-hls/&lt;sha256(id)[:32]&gt;/seg-NNNN.ts</code>, not under the library root — segments are large and explicit RAM-disk / <code>/tmp</code> placement is the right tradeoff.)</td>
+<td></td>
+<td>Wiped on <code>HLS_CACHE_VERSION</code> mismatch. Per-id directories swept on startup for orphaned ids.</td>
+</tr>
+</tbody>
+</table>
+<p>Filenames use a <strong>sha256-derived stem</strong> because the readable <code>&lt;rel-path-with-slashes-as-dashes&gt;-&lt;8hex&gt;</code> id can blow past APFS / ext4's 255-byte <code>NAME_MAX</code> on deeply-nested releases. URLs and log lines still carry the readable id; only the on-disk path is hashed.</p>
 <h2 id="cli">CLI<a class="headerlink" href="#cli" title="Permanent link">&para;</a></h2>
-<p>The video pipeline rides on <code>maneki serve</code>; see <a href="../serve-unified/">the serve guide</a> for flags. The <code>maneki video</code> subgroup carries placeholders for tooling that doesn't belong on the serve command:</p>
+<p>The video pipeline rides on <code>maneki serve</code>. Relevant flags:</p>
+<table>
+<thead>
+<tr>
+<th>Flag</th>
+<th>Effect</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>--ui</code></td>
+<td>Mount the React SPA at <code>/</code>.</td>
+</tr>
+<tr>
+<td><code>--rescan</code></td>
+<td>Wipe <code>&lt;root&gt;/.maneki/posters/</code> and <code>DELETE FROM videos</code> before scanning. The next browse / open regenerates from scratch. Audio's tables are untouched.</td>
+</tr>
+<tr>
+<td><code>--prewarm-cache</code></td>
+<td>Run the subtitle probe + thumbnail + contact-sheet poster generation passes at startup (background workers, yields to foreground player requests). Idempotent on a warm cache. Aliased as <code>--prewarm-images</code> was renamed in 0.9.</td>
+</tr>
+<tr>
+<td><code>--no-cover-images</code></td>
+<td>Skip the contact-sheet poster phase entirely. <code>/poster</code> falls back to the row thumbnail.</td>
+</tr>
+<tr>
+<td><code>--workers N</code></td>
+<td>Background-transcode worker cap. Default <code>min(8, cpu // 2)</code>. Affects prewarm + neighbour prefetch; foreground transcodes are capped at 3 concurrent regardless.</td>
+</tr>
+</tbody>
+</table>
+<p>The <code>maneki video</code> subgroup carries placeholders for tooling that doesn't belong on the serve command:</p>
 <ul>
 <li><code>maneki video convert</code> — no-op placeholder (reserved for organize / transcode semantics)</li>
 <li><code>maneki video library</code> — no-op placeholder (reserves the symmetric namespace with <code>maneki audio library</code>)</li>
