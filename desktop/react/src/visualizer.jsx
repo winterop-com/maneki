@@ -21,7 +21,10 @@ function Visualizer({ style = "bars", running = true, accent, height, ambient = 
     const ctx = canvas.getContext("2d");
     const dpr = window.devicePixelRatio || 1;
 
-    const N_BINS = dense ? 48 : 32;
+    // Denser bin counts -> slimmer columns at the same tight spacing. Doubled
+    // from the original 48/32 so the bars read thin while still nearly
+    // touching and spanning the full panel width.
+    const N_BINS = dense ? 96 : 64;
     if (!stateRef.current.bins || stateRef.current.bins.length !== N_BINS) {
       stateRef.current.bins = new Float32Array(N_BINS);
     }
@@ -193,16 +196,15 @@ function vGrad(cache, ctx, key, y0, y1, accent) {
 
 function drawBars(ctx, bins, w, h, accent, running, ambient, cache) {
   const N = bins.length;
+  // Tight spacing: gap is ~18% of a slot, so bars nearly touch. Slimness
+  // comes from the bar *count* (see N_BINS), not from widening the gap.
   const gap = Math.max(2, Math.floor(w / N * 0.18));
-  // Slot still owns 1/N of the width; the bar fills half its slot and sits
-  // centered, so bars read as slim columns with airy spacing between them.
-  const slot = (w - gap * (N - 1)) / N + gap;
-  const bw = slot * 0.5;
+  const bw = (w - gap * (N - 1)) / N;
   const baseAlpha = ambient ? 0.45 : 1;
   for (let i = 0; i < N; i++) {
     const v = Math.min(1, bins[i]);
     const bh = v * (h - 8);
-    const x = i * slot + (slot - bw) / 2;
+    const x = i * (bw + gap);
     const y = h - bh;
     const bhr = bh | 0;
     ctx.fillStyle = vGrad(cache, ctx, "b" + bhr, h - bhr, h, accent);
