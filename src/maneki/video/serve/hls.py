@@ -48,6 +48,18 @@ _log = logging.getLogger(__name__)
 # latency is bounded (~1 segment to transcode).
 SEG_LEN = 6.0
 
+# "Active window" around the latest foreground segment request. The player
+# fills its buffer a few segments ahead (and may have 2-3 sequential
+# requests in flight at once), so segments within this forward / backward
+# band of the newest request are normal playback, not a seek. Anything
+# outside it belongs to a position the user has seeked away from and is
+# cancelled on the next request - see `OnDemandHLS.note_active`. The band is
+# deliberately generous: a real seek jumps tens to hundreds of segments, so
+# wide margins never cancel legitimate buffer-fill while still catching
+# every genuine jump.
+_ACTIVE_AHEAD = 8
+_ACTIVE_BEHIND = 2
+
 
 def _ffmpeg_path() -> str:
     path = shutil.which("ffmpeg")
@@ -128,10 +140,57 @@ class OnDemandHLS:
         # Concurrency is managed by the shared TranscodeBudget so
         # prefetch yields to foreground play requests automatically.
         self._prefetch_tasks: dict[int, asyncio.Task[None]] = {}
+        # In-flight foreground (player-driven) transcodes keyed by segment
+        # index. Tracked so a later seek can cancel the ones the player has
+        # abandoned - the browser's HLS engine doesn't reliably abort the
+        # superseded segment's XHR on seek (native Safari in particular), so
+        # without this the abandoned ffmpeg keeps holding one of the three
+        # foreground slots while the segment the user actually wants queues
+        # behind it. Self-pruning via a done-callback.
+        self._inflight_fg: dict[int, asyncio.Task[Path]] = {}
         self._budget = budget
 
     def manifest(self) -> str:
         return build_manifest(self.segments)
+
+    def register_foreground(self, idx: int, task: asyncio.Task[Path]) -> None:
+        """Track an in-flight foreground transcode for seek cancellation.
+
+        The endpoint owns the task (it races it against a disconnect
+        watcher); we only keep a reference so `note_active` can cancel it
+        when a later request shows the player has moved elsewhere. The
+        done-callback removes the entry, guarding on task identity so a
+        re-request of the same index that replaced this entry isn't clobbered.
+        """
+        self._inflight_fg[idx] = task
+
+        def _drop(done: asyncio.Task[Path], i: int = idx) -> None:
+            if self._inflight_fg.get(i) is done:
+                del self._inflight_fg[i]
+
+        task.add_done_callback(_drop)
+
+    def note_active(self, idx: int) -> None:
+        """Cancel foreground + prefetch work the player has seeked away from.
+
+        Called at the top of every foreground segment request. Any in-flight
+        foreground transcode or queued prefetch for a segment outside the
+        active window around `idx` (`[idx - _ACTIVE_BEHIND, idx +
+        _ACTIVE_AHEAD]`) belongs to a position the user has left. Cancelling
+        it immediately kills the ffmpeg subprocess (via the CancelledError
+        handler in `_transcode_segment`) and frees its slot, so the segment
+        the user actually wants doesn't queue behind abandoned work - the
+        dominant added latency on a seek over a high-latency link.
+
+        Linear playback never trips this: the requested index advances by one
+        and stays well inside the window, so the sliding prefetch tasks and
+        the previous in-flight segment are all "active".
+        """
+        lo, hi = idx - _ACTIVE_BEHIND, idx + _ACTIVE_AHEAD
+        for registry in (self._inflight_fg, self._prefetch_tasks):
+            for j, task in list(registry.items()):
+                if not (lo <= j <= hi) and not task.done():
+                    task.cancel()
 
     async def ensure_segment(self, idx: int, *, low_priority: bool = False) -> Path:
         """Return the path to segment `idx`, transcoding it if not cached.
