@@ -211,6 +211,7 @@ function App() {
   const [pos, setPos] = uS(34);    // seconds
   const [dur, setDur] = uS(212);   // seconds
   const [now, setNow] = uS(null);  // { artistId, albumId, trackN, trackId, station? }
+  const [radioTitle, setRadioTitle] = uS(""); // ICY StreamTitle of the current station
   const [shuffle, setShuffle] = uS(false);
   const [repeat, setRepeat] = uS("off"); // off | album | track
 
@@ -328,6 +329,29 @@ function App() {
   const nowAlbum = uM(() => nowArtist?.albums.find((al) => al.id === now?.albumId) || null, [nowArtist, now]);
   const nowTrack = uM(() => nowAlbum?.tracks.find((t2) => t2.trackId === now?.trackId) || null, [nowAlbum, now]);
   const nowStation = uM(() => now?.stationId ? STATIONS.find((s) => s.id === now.stationId) : null, [now]);
+
+  // Poll the server for the current station's ICY StreamTitle (the live
+  // song / programme). The radioStream proxy parses it off the upstream
+  // as the audio flows through, and radioMeta hands back the latest one.
+  // Reset on every station change so a stale title never bleeds across,
+  // fetch once immediately, then refresh on an interval while a station
+  // is selected. Failures are swallowed — metadata is best-effort and a
+  // missing title just falls back to the "Radio" label.
+  uE(() => {
+    setRadioTitle("");
+    const metaUrl = nowStation?.metaUrl;
+    if (!metaUrl || !window.MK_API || !window.MK_SESSION) return;
+    let cancelled = false;
+    const poll = async () => {
+      try {
+        const title = await window.MK_API.radioMeta(window.MK_SESSION, metaUrl);
+        if (!cancelled) setRadioTitle(title || "");
+      } catch (_e) { /* best-effort */ }
+    };
+    poll();
+    const id = setInterval(poll, 10000);
+    return () => { cancelled = true; clearInterval(id); };
+  }, [nowStation]);
 
   // Starred-tracks roll-up
   const starredTracks = uM(() => {
@@ -741,7 +765,7 @@ function App() {
         album={album} albumId={albumId} setAlbumId={setAlbumId}
         playTrack={playTrack}
         playStation={playStation}
-        now={now} nowTrack={nowTrack} nowStation={nowStation}
+        now={now} nowTrack={nowTrack} nowStation={nowStation} radioTitle={radioTitle}
         starredTracks={starredTracks}
         isStarred={isStarred} toggleStar={toggleStar}
         playing={playing} setPlaying={setPlaying}
@@ -782,7 +806,7 @@ function App() {
           running={playing}
           palette={palette}
           nowTrack={nowTrack} nowArtist={nowArtist} nowAlbum={nowAlbum}
-          nowStation={nowStation}
+          nowStation={nowStation} radioTitle={radioTitle}
           pos={pos} dur={dur}
           playing={playing} onPlayPause={handlePlayPause} onPrev={handlePrev} onNext={handleNext}
         />

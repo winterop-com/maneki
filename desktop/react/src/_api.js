@@ -223,6 +223,20 @@
       qs.set("url", upstreamUrl);
       return `${session.baseUrl}/rest/radioStream?${qs.toString()}`;
     },
+
+    // Last-seen ICY StreamTitle (the now-playing song/programme) for a
+    // station, parsed by the radioStream proxy as the audio flows through
+    // it. `upstreamUrl` is the raw station URL (the proxy's allowlist
+    // key), not the proxied stream URL. Returns "" until the station has
+    // emitted metadata. Plain JSON ({title}), not a Subsonic envelope.
+    async radioMeta(session, upstreamUrl) {
+      const qs = buildAuthQuery(session);
+      qs.set("url", upstreamUrl);
+      const resp = await fetch(`${session.baseUrl}/rest/radioMeta?${qs.toString()}`);
+      if (!resp.ok) throw new Error(`HTTP ${resp.status} on radioMeta`);
+      const json = await resp.json();
+      return (json && json.title) || "";
+    },
   };
 
   window.MK_API = MK_API;

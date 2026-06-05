@@ -561,14 +561,16 @@ function LCDDisplay({ has, title, sub1, sub2, year, format, pos, dur, playing, m
 // in TweaksControls so clicking the panel walks the same list.
 const VIZ_ORDER = ["bars", "mirror", "ridge", "scope"];
 
-function NowPlaying({ nowTrack, nowArtist, nowAlbum, nowStation, playing, muted, vol, setVol, pos, setPos, dur, handlePlayPause, handleNext, handlePrev, setMuted, palette, vizStyle, tweak, fullscreenViz, setFullscreenViz, showSpectrum, layout, lcd, lcdColor }) {
+function NowPlaying({ nowTrack, nowArtist, nowAlbum, nowStation, radioTitle, playing, muted, vol, setVol, pos, setPos, dur, handlePlayPause, handleNext, handlePrev, setMuted, palette, vizStyle, tweak, fullscreenViz, setFullscreenViz, showSpectrum, layout, lcd, lcdColor }) {
   const cycleViz = () => {
     const i = VIZ_ORDER.indexOf(vizStyle);
     tweak("viz", VIZ_ORDER[(i + 1) % VIZ_ORDER.length]);
   };
   const has = !!(nowTrack || nowStation);
   const title = nowStation?.name || nowTrack?.title || "Nothing playing";
-  const sub1 = nowStation ? "Radio" : nowArtist?.name;
+  // For a station the subtitle carries the live ICY StreamTitle (current
+  // song / programme) when the server has parsed one, else the "Radio" label.
+  const sub1 = nowStation ? (radioTitle || "Radio") : nowArtist?.name;
   const sub2 = nowStation ? null : nowAlbum?.name;
   const year = nowStation ? "—" : nowAlbum?.year;
   const format = nowStation ? "Stream" : "M4A";
@@ -666,13 +668,13 @@ function NowPlaying({ nowTrack, nowArtist, nowAlbum, nowStation, playing, muted,
   );
 }
 
-function FullscreenViz({ onClose, vizStyle, tweak, running, palette, nowTrack, nowArtist, nowAlbum, nowStation, pos, dur, playing, onPlayPause, onPrev, onNext }) {
+function FullscreenViz({ onClose, vizStyle, tweak, running, palette, nowTrack, nowArtist, nowAlbum, nowStation, radioTitle, pos, dur, playing, onPlayPause, onPrev, onNext }) {
   const cycleViz = () => {
     const i = VIZ_ORDER.indexOf(vizStyle);
     tweak("viz", VIZ_ORDER[(i + 1) % VIZ_ORDER.length]);
   };
   const title = nowStation?.name || nowTrack?.title || "—";
-  const sub = nowStation ? "Radio" : (nowArtist ? `${nowArtist.name} · ${nowAlbum?.name || ""}` : "");
+  const sub = nowStation ? (radioTitle || "Radio") : (nowArtist ? `${nowArtist.name} · ${nowAlbum?.name || ""}` : "");
   const cover = nowAlbum ? makeCover(nowAlbum.cover, nowAlbum.color) : null;
   return (
     <div className="mk-fullscreen-viz">
@@ -705,14 +707,14 @@ function FullscreenViz({ onClose, vizStyle, tweak, running, palette, nowTrack, n
 // Main area router: renders the right panes per section + the now-playing.
 function MainArea(props) {
   const { t, tweak, section, setSection, loaded, ARTISTS, STATIONS, artist, artistId, setArtistId, album, albumId, setAlbumId,
-          playTrack, playStation, now, nowTrack, nowStation, nowArtist, nowAlbum,
+          playTrack, playStation, now, nowTrack, nowStation, nowArtist, nowAlbum, radioTitle,
           starredTracks, isStarred, toggleStar,
           playing, muted, vol, setVol, pos, setPos, dur,
           setMuted, handlePlayPause, handleNext, handlePrev, palette, fullscreenViz, setFullscreenViz, setShowLyrics, repeat } = props;
 
   const nowPlaying = (
     <NowPlaying
-      nowTrack={nowTrack} nowArtist={nowArtist} nowAlbum={nowAlbum} nowStation={nowStation}
+      nowTrack={nowTrack} nowArtist={nowArtist} nowAlbum={nowAlbum} nowStation={nowStation} radioTitle={radioTitle}
       playing={playing} muted={muted} vol={vol} setVol={setVol}
       pos={pos} setPos={setPos} dur={dur}
       handlePlayPause={handlePlayPause} handleNext={handleNext} handlePrev={handlePrev}

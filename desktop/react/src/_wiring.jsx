@@ -231,6 +231,10 @@
       id: s.id,
       name: s.name,
       streamUrl: api.radioStreamUrl(session, s.streamUrl),
+      // Raw upstream URL kept alongside the proxied stream URL so the
+      // now-playing poller can ask the server for this station's latest
+      // ICY title (radioMeta is keyed by the upstream URL, not the proxy).
+      metaUrl: s.streamUrl,
       homepageUrl: s.homepageUrl || "",
       icon: "(((",
     }));
