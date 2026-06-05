@@ -14,16 +14,19 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import logging
+import time
+from collections.abc import AsyncGenerator
 from pathlib import Path
 from typing import Iterator
 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import FileResponse, HTMLResponse, Response, StreamingResponse
+from pydantic import BaseModel
 
 from maneki import __version__
 from maneki.access_log import make_access_log_middleware
 from maneki.video.serve.demo import DEMO_HTML
-from maneki.video.serve.hls import HLSManager
+from maneki.video.serve.hls import SEG_LEN, HLSManager, SessionStats
 from maneki.video.serve.poster import PosterManager
 from maneki.video.serve.scan import BrowseResponse, VideoEntry, browse_dir, scan_videos
 from maneki.video.serve.scan_state import ScanState, VideoScanTracker
@@ -39,7 +42,7 @@ from maneki.video.serve.transcode import (
     assert_ffmpeg_available,
     transcode_to_mp4,
 )
-from maneki.video.serve.transcode_budget import TranscodeBudget
+from maneki.video.serve.transcode_budget import BudgetState, TranscodeBudget
 
 log = logging.getLogger(__name__)
 
@@ -75,6 +78,40 @@ _MIME_BY_EXT: dict[str, str] = {
     ".m2ts": "video/mp2t",
     ".wmv": "video/x-ms-wmv",
 }
+
+# Stats SSE: one frame per second; a session is "active" (and so included
+# in a frame) if it transcoded within this window. The window outlives a
+# brief pause/buffer so a paused stream doesn't blink out of the panel.
+_STATS_INTERVAL_S = 1.0
+_STATS_ACTIVE_WINDOW_S = 30.0
+
+
+class VideoStatsResponse(BaseModel):
+    """One stats frame: the shared transcode budget plus every active session.
+
+    With multiple viewers `sessions` holds several entries against the one
+    shared `budget`, which is how the panel surfaces cross-client
+    contention for the transcode pool.
+    """
+
+    seg_len: float
+    budget: BudgetState
+    sessions: list[SessionStats]
+
+
+def build_video_stats(hls_manager: HLSManager, budget: TranscodeBudget, *, now: float) -> VideoStatsResponse:
+    """Assemble a stats frame from the live sessions + shared budget.
+
+    Module-level (not a closure) so it is unit-testable without standing up
+    the SSE endpoint. Filters to sessions that transcoded within
+    `_STATS_ACTIVE_WINDOW_S` so the panel shows who's actually streaming.
+    """
+    sessions = [
+        session.stats(now=now)
+        for session in hls_manager.sessions.values()
+        if session.last_activity > 0.0 and now - session.last_activity < _STATS_ACTIVE_WINDOW_S
+    ]
+    return VideoStatsResponse(seg_len=SEG_LEN, budget=budget.state(), sessions=sessions)
 
 
 def create_app(
@@ -416,6 +453,37 @@ def create_app(
         if session is None:
             return {"cancelled": 0}
         return {"cancelled": session.cancel_prefetch()}
+
+    @app.get("/api/stats/stream")
+    async def stats_stream(request: Request) -> StreamingResponse:
+        """Server-Sent Events stream of live transcode stats (~1 Hz).
+
+        One `data:` frame per second carrying the shared budget plus every
+        actively-streaming session, so the SPA's stats panel can show
+        encoder load, per-segment realtime ratios, and cross-client
+        contention - without polling. The generator stops when the client
+        disconnects; EventSource handles reconnection on the browser side.
+        """
+
+        async def event_stream() -> AsyncGenerator[str, None]:
+            while True:
+                if await request.is_disconnected():
+                    break
+                frame = build_video_stats(hls_manager, shared_budget, now=time.monotonic())
+                yield f"data: {frame.model_dump_json()}\n\n"
+                await asyncio.sleep(_STATS_INTERVAL_S)
+
+        return StreamingResponse(
+            event_stream(),
+            media_type="text/event-stream",
+            headers={
+                "Cache-Control": "no-cache",
+                "Connection": "keep-alive",
+                # Defeat proxy/Tailscale buffering so frames arrive promptly
+                # instead of being held until the response "completes".
+                "X-Accel-Buffering": "no",
+            },
+        )
 
     @app.get("/api/thumbnails/ready")
     def thumbnails_ready() -> dict[str, list[str]]:

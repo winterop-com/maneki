@@ -34,6 +34,8 @@ import logging
 import math
 import shutil
 import tempfile
+import time
+from collections import deque
 from pathlib import Path
 
 from pydantic import BaseModel, ConfigDict
@@ -59,6 +61,46 @@ SEG_LEN = 6.0
 # every genuine jump.
 _ACTIVE_AHEAD = 8
 _ACTIVE_BEHIND = 2
+
+# Per-session ring-buffer depth for transcode timings. Enough to show a
+# trend in the stats panel without unbounded growth on a long watch.
+_RECENT_TRANSCODES = 20
+
+
+class SegmentTiming(BaseModel):
+    """Wall-clock cost of one completed segment transcode.
+
+    `realtime_ratio` is the headline number for the stats panel:
+    `seconds / SEG_LEN`. Below 1.0 the encoder is keeping ahead of
+    playback; at or above 1.0 it is falling behind (the 4K-HDR case) and
+    the player will eventually starve.
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    idx: int
+    seconds: float
+    realtime_ratio: float
+    low_priority: bool
+
+
+class SessionStats(BaseModel):
+    """Live transcode stats for one OnDemandHLS session.
+
+    One per actively-streaming video. With multiple viewers the stats
+    endpoint returns several of these alongside the single shared budget,
+    so the panel can show cross-client contention for the transcode pool.
+    """
+
+    video_id: str
+    name: str
+    segments_total: int
+    transcodes_done: int
+    inflight_foreground: list[int]
+    inflight_prefetch: list[int]
+    recent: list[SegmentTiming]
+    avg_realtime_ratio: float | None
+    idle_seconds: float
 
 
 def _ffmpeg_path() -> str:
@@ -149,9 +191,49 @@ class OnDemandHLS:
         # behind it. Self-pruning via a done-callback.
         self._inflight_fg: dict[int, asyncio.Task[Path]] = {}
         self._budget = budget
+        # Observability: a ring buffer of recent transcode timings + an
+        # activity stamp, surfaced by `stats()` for the UI stats panel so
+        # slowdowns (encoder falling behind realtime) are visible instead
+        # of guessed at. `_last_activity` is monotonic; 0.0 = never ran.
+        self._recent_transcodes: deque[SegmentTiming] = deque(maxlen=_RECENT_TRANSCODES)
+        self._transcodes_done = 0
+        self._last_activity = 0.0
 
     def manifest(self) -> str:
         return build_manifest(self.segments)
+
+    @property
+    def last_activity(self) -> float:
+        """Monotonic timestamp of the most recent transcode start (0.0 = never)."""
+        return self._last_activity
+
+    def stats(self, *, now: float) -> SessionStats:
+        """Snapshot this session's transcode load for the stats endpoint."""
+        recent = list(self._recent_transcodes)
+        avg = sum(r.realtime_ratio for r in recent) / len(recent) if recent else None
+        return SessionStats(
+            video_id=self.video_id,
+            name=self.input_path.name,
+            segments_total=len(self.segments),
+            transcodes_done=self._transcodes_done,
+            inflight_foreground=sorted(self._inflight_fg),
+            inflight_prefetch=sorted(self._prefetch_tasks),
+            recent=recent,
+            avg_realtime_ratio=round(avg, 3) if avg is not None else None,
+            idle_seconds=round(now - self._last_activity, 1) if self._last_activity else -1.0,
+        )
+
+    def _record_transcode(self, idx: int, seconds: float, *, low_priority: bool) -> None:
+        """Log a completed transcode's wall time into the stats ring buffer."""
+        self._transcodes_done += 1
+        self._recent_transcodes.append(
+            SegmentTiming(
+                idx=idx,
+                seconds=round(seconds, 3),
+                realtime_ratio=round(seconds / SEG_LEN, 3),
+                low_priority=low_priority,
+            )
+        )
 
     def register_foreground(self, idx: int, task: asyncio.Task[Path]) -> None:
         """Track an in-flight foreground transcode for seek cancellation.
@@ -342,6 +424,11 @@ class OnDemandHLS:
             str(dummy_m3u8),
         ]
         spawn_kwargs = low_priority_kwargs() if low_priority else {}
+        # Stamp activity at spawn (so an in-flight session counts as active
+        # even before its first segment lands) and time the ffmpeg run for
+        # the stats panel's realtime-ratio.
+        self._last_activity = time.monotonic()
+        start = self._last_activity
         proc = await asyncio.create_subprocess_exec(
             *args,
             stdin=asyncio.subprocess.DEVNULL,
@@ -391,6 +478,10 @@ class OnDemandHLS:
             # exit can also leave partial bytes on disk.
             self._unlink_partial(idx)
             raise RuntimeError(f"ffmpeg failed for segment {idx} (rc={proc.returncode}): {tail}")
+        # Success: log the wall time for the stats panel. Cancels and
+        # failures (which `raise` above) are deliberately not recorded -
+        # the panel measures completed-segment throughput.
+        self._record_transcode(idx, time.monotonic() - start, low_priority=low_priority)
 
     def _unlink_partial(self, idx: int) -> None:
         """Best-effort cleanup of a half-written segment file."""

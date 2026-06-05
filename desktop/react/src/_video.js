@@ -111,6 +111,15 @@
       return `${videoApiBase(session)}/videos/${encodeURIComponent(videoId)}/stream`;
     },
 
+    // Server-Sent Events stream of live transcode stats (~1/s). Consumed by
+    // the player's stats overlay via EventSource. Server-wide (not per
+    // video): one frame carries the shared transcode budget plus every
+    // active session, so the overlay can show cross-client contention.
+    // Bare URL like hlsUrl - picks up query-param auth when --auth lands.
+    statsStreamUrl(session) {
+      return `${videoApiBase(session)}/stats/stream`;
+    },
+
     subtitleUrl(session, videoId, lang) {
       return `${videoApiBase(session)}/videos/${encodeURIComponent(videoId)}/subtitles/${encodeURIComponent(lang)}`;
     },

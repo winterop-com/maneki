@@ -607,6 +607,51 @@ body {
   height: 100%;
 }
 
+/* === Stats overlay (diagnostics) ======================================
+ * Toggled "stats for nerds" panel over the player stage. Shows the
+ * playback verdict (healthy / encoder-bound / network-bound) plus the
+ * numbers behind it. pointer-events: none so it never blocks the player
+ * controls underneath. */
+.mk-stats-overlay {
+  /* fixed (not absolute): floats over the whole window so it can be dragged
+     anywhere, not just within the video stage. top/left come from React. */
+  position: fixed;
+  z-index: 50;
+  min-width: 290px;
+  padding: 10px 12px;
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--text);
+  background: rgba(8, 10, 16, 0.82);
+  border: 1px solid var(--line-soft);
+  border-radius: 6px;
+  backdrop-filter: blur(4px);
+  /* Interactive so it can be dragged; move it off the picture as needed. */
+  pointer-events: auto;
+}
+.mk-stats-verdict {
+  font-weight: 600;
+  margin-bottom: 8px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--line-soft);
+  cursor: move;
+  user-select: none;
+}
+.mk-stats-ok { color: #4ec9a0; }
+.mk-stats-warn { color: #e6b450; }
+.mk-stats-idle { color: var(--text-dim); }
+.mk-stats-grid {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 2px 16px;
+}
+.mk-stats-grid > span:nth-child(odd) { color: var(--text-dim); }
+.mk-stats-grid > span:nth-child(even) { text-align: right; }
+.mk-stats-toggle-on {
+  color: var(--accent, #6ea8fe);
+  border-color: var(--accent, #6ea8fe);
+}
+
 /* Skeleton */
 .mk-skel {
   display: block;
