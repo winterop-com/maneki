@@ -21,10 +21,10 @@ function Visualizer({ style = "bars", running = true, accent, height, ambient = 
     const ctx = canvas.getContext("2d");
     const dpr = window.devicePixelRatio || 1;
 
-    // Denser bin counts -> slimmer columns at the same tight spacing. Doubled
-    // from the original 48/32 so the bars read thin while still nearly
-    // touching and spanning the full panel width.
-    const N_BINS = dense ? 96 : 64;
+    // Bar count drives column slimness. Bars and ridge use a dense count so
+    // the columns read thin at tight spacing while still spanning the full
+    // width; mirror keeps the original, chunkier count it was tuned at.
+    const N_BINS = style === "mirror" ? (dense ? 48 : 32) : (dense ? 96 : 64);
     if (!stateRef.current.bins || stateRef.current.bins.length !== N_BINS) {
       stateRef.current.bins = new Float32Array(N_BINS);
     }
