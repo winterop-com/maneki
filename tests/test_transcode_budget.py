@@ -236,3 +236,47 @@ async def test_state_reflects_in_flight_counts() -> None:
     release.set()
     await task
     assert budget.state().foreground_in_flight == 0
+
+
+@pytest.mark.asyncio
+async def test_background_slot_quiet_window_zero_runs_in_gaps() -> None:
+    """`quiet_window_s=0.0` (the HLS playhead-following prefetch lane) yields
+    to an in-flight foreground transcode but resumes as soon as it finishes,
+    without waiting out any quiet window.
+
+    This is what keeps the forward-prefetch window warm during continuous
+    playback: the `quiet=True`/`quiet=False` windows hold background work off
+    for seconds after each foreground segment, which starves prefetch
+    mid-play; window=0 fills the gaps between segments instead.
+    """
+    import time
+
+    budget = TranscodeBudget(
+        max_workers=2,
+        quiet_after_fg_s=2.0,
+        ondemand_quiet_s=1.0,
+    )
+    bg_started_at: list[float] = []
+    fg_ended_at: list[float] = []
+
+    async def foreground() -> None:
+        async with budget.foreground():
+            await asyncio.sleep(0.05)
+        fg_ended_at.append(time.monotonic())
+
+    async def prefetch() -> None:
+        async with budget.background_slot(quiet_window_s=0.0):
+            bg_started_at.append(time.monotonic())
+
+    fg_task = asyncio.create_task(foreground())
+    await asyncio.sleep(0)
+    bg_task = asyncio.create_task(prefetch())
+    await asyncio.gather(fg_task, bg_task)
+
+    # Yielded to the in-flight foreground (started no earlier than fg end,
+    # allowing for event-loop scheduling slop)...
+    assert bg_started_at[0] >= fg_ended_at[0] - 0.02
+    gap = bg_started_at[0] - fg_ended_at[0]
+    # ...but did NOT wait any quiet window (neither the 1.0s on-demand nor
+    # the 2.0s prewarm window applied).
+    assert gap < 0.5, f"prefetch waited {gap:.3f}s after fg; window=0 should run in the gap"

@@ -9,10 +9,14 @@ from fastapi.testclient import TestClient
 
 from maneki.video.serve import create_app
 from maneki.video.serve.hls import (
+    HLS_PREFETCH_AHEAD,
     SEG_LEN,
+    OnDemandHLS,
+    _video_codec_args,
     build_manifest,
     plan_segments,
 )
+from maneki.video.serve.transcode_budget import TranscodeBudget
 
 
 @pytest.fixture
@@ -82,3 +86,39 @@ def test_build_manifest_is_vod_with_endlist() -> None:
 def test_build_manifest_target_duration_rounds_up() -> None:
     text = build_manifest(plan_segments(10.0, seg_len=SEG_LEN), seg_len=SEG_LEN)
     assert "#EXT-X-TARGETDURATION:6" in text
+
+
+def test_video_codec_args_hardware_uses_videotoolbox() -> None:
+    decode, encode = _video_codec_args(hw=True)
+    assert decode == ["-hwaccel", "videotoolbox"]
+    assert "h264_videotoolbox" in encode
+    assert "libx264" not in encode
+
+
+def test_video_codec_args_software_uses_libx264() -> None:
+    decode, encode = _video_codec_args(hw=False)
+    assert decode == []
+    assert "libx264" in encode
+    assert "h264_videotoolbox" not in encode
+
+
+def test_prefetch_neighbors_warms_forward_window(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """prefetch_neighbors warms HLS_PREFETCH_AHEAD segments ahead + one behind.
+
+    The forward window is what keeps the player's ~30s buffer landing on a
+    warm cache over a high-latency link instead of cold on-demand transcodes.
+    """
+    session = OnDemandHLS(
+        "vid",
+        tmp_path / "in.mkv",
+        duration_s=600.0,
+        session_dir=tmp_path / "sess",
+        budget=TranscodeBudget(),
+    )
+    warmed: list[int] = []
+    monkeypatch.setattr(session, "_prefetch_one", warmed.append)
+
+    session.prefetch_neighbors(10)
+
+    forward = list(range(11, 11 + HLS_PREFETCH_AHEAD))
+    assert warmed == [*forward, 9]

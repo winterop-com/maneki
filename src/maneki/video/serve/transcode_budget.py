@@ -195,7 +195,9 @@ class TranscodeBudget:
             await asyncio.sleep(0.25)
 
     @contextlib.asynccontextmanager
-    async def background_slot(self, *, quiet: bool = True) -> AsyncGenerator[None, None]:
+    async def background_slot(
+        self, *, quiet: bool = True, quiet_window_s: float | None = None
+    ) -> AsyncGenerator[None, None]:
         """Acquire a background worker slot, yielding to foreground first.
 
         Order: wait for idle (+ quiet window) -> acquire semaphore ->
@@ -219,8 +221,18 @@ class TranscodeBudget:
           system out of the 3s quiet window so background work still
           holds off during continuous playback - the row icons just
           fill in once the user pauses.
+
+        Pass `quiet_window_s` to override the window explicitly. A value of
+        0.0 is the "playhead-following" lane used by HLS forward-prefetch:
+        it still yields to any in-flight foreground transcode (the idle
+        re-check below), but runs in the gaps between foreground segments
+        instead of waiting out the quiet period, so the buffer stays warm
+        ahead of the playhead during continuous playback.
         """
-        quiet_window = self._quiet_after_fg_s if quiet else self._ondemand_quiet_s
+        if quiet_window_s is not None:
+            quiet_window = max(0.0, quiet_window_s)
+        else:
+            quiet_window = self._quiet_after_fg_s if quiet else self._ondemand_quiet_s
         await self._wait_for_quiet(quiet_window)
         async with self._background_sem:
             # Foreground may have arrived while we were waiting on the

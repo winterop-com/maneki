@@ -30,9 +30,11 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import functools
 import logging
 import math
 import shutil
+import subprocess
 import tempfile
 from pathlib import Path
 
@@ -54,6 +56,91 @@ def _ffmpeg_path() -> str:
     if path is None:
         raise FFmpegNotFoundError("ffmpeg is required for HLS but was not found on PATH")
     return path
+
+
+# Forward look-ahead depth for HLS prefetch. The browser keeps ~30s
+# (about 5 segments at SEG_LEN) buffered ahead; warming this many
+# segments past the one just served keeps those buffer-fill requests
+# landing on a warm cache instead of paying a cold on-demand transcode
+# mid-play, the dominant cause of rebuffering over a high-latency link.
+# Bounded: as the playhead advances the window slides, so steady state
+# only schedules one new transcode per segment consumed.
+HLS_PREFETCH_AHEAD = 6
+
+# VideoToolbox H.264 target bitrate when hardware encoding is available.
+# The hardware encoder is bitrate-driven (no x264-style CRF), so a VBV
+# (maxrate/bufsize) caps bright scenes from spiking past what a remote
+# link can pull while staying visually clean at 1080p.
+_VT_VIDEO_BITRATE = "6M"
+_VT_VIDEO_MAXRATE = "8M"
+_VT_VIDEO_BUFSIZE = "12M"
+
+
+@functools.lru_cache(maxsize=1)
+def _hw_h264_available() -> bool:
+    """Probe once whether ffmpeg can encode H.264 via VideoToolbox.
+
+    macOS ships VideoToolbox on every Apple-silicon (and most Intel) Mac,
+    but the local ffmpeg build may lack the encoder, so we don't assume:
+    run a tiny synthetic encode and check it exits cleanly. Cached for the
+    process lifetime. Software libx264 is the fallback.
+    """
+    try:
+        ffmpeg = _ffmpeg_path()
+    except FFmpegNotFoundError:
+        return False
+    try:
+        proc = subprocess.run(
+            [
+                ffmpeg,
+                "-hide_banner",
+                "-loglevel",
+                "error",
+                "-f",
+                "lavfi",
+                "-i",
+                "color=c=black:s=160x90:d=0.5",
+                "-c:v",
+                "h264_videotoolbox",
+                "-f",
+                "null",
+                "-",
+            ],
+            capture_output=True,
+            timeout=15,
+            check=False,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return False
+    return proc.returncode == 0
+
+
+def _video_codec_args(hw: bool) -> tuple[list[str], list[str]]:
+    """Return (decode_args, encode_args) for a segment transcode.
+
+    `hw=True` selects VideoToolbox hardware decode + encode, fast enough
+    to stay well ahead of the playhead even on 10-bit HEVC sources;
+    `hw=False` is the portable software path (libx264, CRF-based). Split
+    into decode vs encode because the decode flag (`-hwaccel`) is an input
+    option and must precede `-i`, while the encoder flags follow it.
+    """
+    if hw:
+        return (
+            ["-hwaccel", "videotoolbox"],
+            [
+                "-c:v",
+                "h264_videotoolbox",
+                "-b:v",
+                _VT_VIDEO_BITRATE,
+                "-maxrate",
+                _VT_VIDEO_MAXRATE,
+                "-bufsize",
+                _VT_VIDEO_BUFSIZE,
+                "-profile:v",
+                "high",
+            ],
+        )
+    return ([], ["-c:v", "libx264", "-preset", "veryfast", "-crf", "23"])
 
 
 class SegmentSpec(BaseModel):
@@ -129,6 +216,12 @@ class OnDemandHLS:
         # prefetch yields to foreground play requests automatically.
         self._prefetch_tasks: dict[int, asyncio.Task[None]] = {}
         self._budget = budget
+        # Lazily-probed hardware-transcode flag. None = not yet probed
+        # (set on the first segment); True = use VideoToolbox; False =
+        # software-only. Flipped to False permanently for this session if
+        # a hardware run fails, so we don't re-attempt the hardware path
+        # on every subsequent segment of a file it can't handle.
+        self._hw_ok: bool | None = None
 
     def manifest(self) -> str:
         return build_manifest(self.segments)
@@ -153,16 +246,20 @@ class OnDemandHLS:
         return out_path
 
     def prefetch_neighbors(self, idx: int) -> None:
-        """Kick off background transcodes for `idx+1` and `idx-1` if uncached.
+        """Warm a forward window ahead of the playhead, plus one segment back.
 
-        Helps small forward / backward scrubs land on a warm cache.
-        Forward is the common case (skipping ads / intros, peeking
-        ahead); we still warm idx-1 because back-buttons happen.
-        Fire-and-forget - the call returns immediately; failures are
-        swallowed since prefetch is best-effort.
+        The player keeps ~30s (about 5 segments) buffered ahead, so warming
+        only idx+1 (the old behaviour) left every further buffer-fill
+        request to a cold on-demand transcode, the dominant cause of
+        mid-playback rebuffering over a high-latency link. We now warm
+        HLS_PREFETCH_AHEAD segments forward so those requests hit a warm
+        cache; idx-1 still covers small back-scrubs. Fire-and-forget and
+        deduped per index, so the sliding window only schedules its new
+        leading edge as the playhead advances.
         """
-        for candidate in (idx + 1, idx - 1):
-            self._prefetch_one(candidate)
+        for ahead in range(1, HLS_PREFETCH_AHEAD + 1):
+            self._prefetch_one(idx + ahead)
+        self._prefetch_one(idx - 1)
 
     def _prefetch_one(self, idx: int) -> None:
         if idx < 0 or idx >= len(self.segments):
@@ -177,7 +274,11 @@ class OnDemandHLS:
 
     async def _safe_prefetch(self, idx: int) -> None:
         try:
-            async with self._budget.background_slot():
+            # quiet_window_s=0.0: the playhead-following lane. Yields to an
+            # in-flight foreground segment but runs in the gaps between them
+            # so the forward window stays warm during continuous playback,
+            # rather than waiting out the multi-second quiet period.
+            async with self._budget.background_slot(quiet_window_s=0.0):
                 await self.ensure_segment(idx, low_priority=True)
         except asyncio.CancelledError:
             # Cancellation is the expected path when the player closes
@@ -198,6 +299,35 @@ class OnDemandHLS:
             self._prefetch_tasks.pop(idx, None)
 
     async def _transcode_segment(self, idx: int, *, low_priority: bool = False) -> None:
+        """Transcode one segment, preferring hardware with a software fallback.
+
+        Probes the VideoToolbox encoder once per session (lazily, off the
+        event loop). If a hardware run fails (the encoder is present but
+        can't handle this particular source, say) hardware is disabled for
+        the rest of this session and the segment is retried in software, so
+        a single quirky file degrades to slower-but-working instead of
+        stalling the player with repeated hardware failures.
+        """
+        if self._hw_ok is None:
+            self._hw_ok = await asyncio.to_thread(_hw_h264_available)
+        if self._hw_ok:
+            try:
+                await self._run_ffmpeg_segment(idx, low_priority=low_priority, hw=True)
+                return
+            except asyncio.CancelledError:
+                raise
+            except RuntimeError as exc:
+                _log.warning(
+                    "hls: hardware transcode failed for %s seg-%04d (%s); falling back to software for this session",
+                    self.video_id,
+                    idx,
+                    exc,
+                )
+                self._hw_ok = False
+                self._unlink_partial(idx)
+        await self._run_ffmpeg_segment(idx, low_priority=low_priority, hw=False)
+
+    async def _run_ffmpeg_segment(self, idx: int, *, low_priority: bool = False, hw: bool) -> None:
         spec = self.segments[idx]
         self.session_dir.mkdir(parents=True, exist_ok=True)
         # Each segment is encoded as an independent slice, but its output
@@ -228,6 +358,7 @@ class OnDemandHLS:
         # segments use ffmpeg's default thread count (auto = many) so
         # the player's segment lands as fast as possible.
         thread_args = ["-threads", "1"] if low_priority else []
+        decode_args, encode_args = _video_codec_args(hw)
         # `-nostdin` + stdin=DEVNULL: keep ffmpeg from inheriting the
         # parent's controlling tty. Without these a Ctrl-C against
         # `maneki serve` mid-transcode can leave the terminal stuck
@@ -240,6 +371,7 @@ class OnDemandHLS:
             "-loglevel",
             "warning",
             *thread_args,
+            *decode_args,
             "-ss",
             f"{spec.start_s:.6f}",
             "-i",
@@ -254,12 +386,7 @@ class OnDemandHLS:
             "0",
             "-avoid_negative_ts",
             "disabled",
-            "-c:v",
-            "libx264",
-            "-preset",
-            "veryfast",
-            "-crf",
-            "23",
+            *encode_args,
             "-force_key_frames",
             "expr:gte(t,0)",
             "-c:a",
@@ -369,7 +496,7 @@ class OnDemandHLS:
 # Without this, segments produced by old code linger in the cache and
 # the player loads them by URL even though their PTS is now wrong,
 # causing position jumps / subtitle drift.
-HLS_CACHE_VERSION = "4"  # partial-segment cleanup on ffmpeg cancel/error
+HLS_CACHE_VERSION = "5"  # videotoolbox H.264 encode + deeper forward prefetch
 
 
 class HLSManager:

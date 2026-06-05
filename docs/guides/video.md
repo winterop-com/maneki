@@ -181,17 +181,17 @@ Trade-offs: this endpoint streams one big fMP4 over one HTTP response. No `<vide
 On-demand HLS. The manifest is synthesised upfront from ffprobe's duration (every segment URL + EXTINF + `#EXT-X-ENDLIST`), so the player gets a true VOD timeline immediately. Each segment is transcoded lazily on first request:
 
 - `index.m3u8`: built from the video's duration. Returned instantly. Marked `#EXT-X-PLAYLIST-TYPE:VOD` with `#EXT-X-ENDLIST` so video.js / Safari / hls.js show the scrub bar and allow seeking anywhere.
-- `seg-NNNN.ts`: spawns a short ffmpeg that seeks to `N * 6s`, encodes that 6s slice, and writes the segment to disk. Cached on disk under `<tempdir>/maneki-hls/<sha256(id)[:32]>/` so re-watches are file-serve cheap. Typical transcode time: 0.2-1.5 s per 6 s segment on a modern CPU.
+- `seg-NNNN.ts`: spawns a short ffmpeg that seeks to `N * 6s`, encodes that 6s slice, and writes the segment to disk. Cached on disk under `<tempdir>/maneki-hls/<sha256(id)[:32]>/` so re-watches are file-serve cheap. With hardware encode (see below) this is well under realtime; software libx264 is typically 0.2-1.5 s per 6 s segment on a modern CPU.
 
 Why MPEG-TS (.ts) and not fragmented MP4 (.m4s): per-segment ffmpeg runs each produce their own init segment, and the codec headers (`SPS/PPS`) differ subtly between invocations. fMP4 needs one shared init across every segment, so cross-segment playback breaks with `MEDIA_ERR_DECODE`. MPEG-TS segments carry their own headers and stitch cleanly.
 
 Encoding choices:
 
-- **Video**: always re-encoded with libx264 (`-preset veryfast -crf 23`) so each segment starts on a forced keyframe (`-force_key_frames expr:gte(t,0)`). Re-encoding costs CPU but lets segments be independently seekable — the price for any-position scrub on any source codec.
+- **Video**: re-encoded to H.264 so each segment starts on a forced keyframe (`-force_key_frames expr:gte(t,0)`) and stays independently seekable on any source codec. On macOS the encoder is hardware VideoToolbox (`h264_videotoolbox`, ~6 Mbit/s VBV) paired with VideoToolbox decode, probed once per process; it falls back to software libx264 (`-preset veryfast -crf 23`) when the hardware encoder is unavailable, or per-session if a hardware run fails on a given file. Hardware encode runs far faster than realtime, which is what lets the forward prefetch (below) stay ahead of the playhead on a high-latency link. Bitrate is tunable via the `_VT_VIDEO_*` constants in `hls.py`.
 - **Audio**: stereo AAC at 192 kbps.
 - **Timestamps**: `-output_ts_offset N*SEG_LEN` + `-avoid_negative_ts disabled` shifts each segment's output PTS to its nominal manifest position. Adjacent segments don't overlap and the player's `currentTime` matches the manifest timeline. (A pre-v0.9 bug here would emit a partial .ts on ffmpeg cancel during a rapid scrub, the cache check would short-circuit on the partial file, and the player would jump 4-5 min on the next seek; fixed by unlinking partial files on cancel and bumping `HLS_CACHE_VERSION` to wipe any leftover stubs from older runs.)
 
-Foreground transcodes are capped at 3 concurrent (rapid seeks fire one fetch per scrub and the browser's HLS engine doesn't cancel old XHRs; without the cap, 18 simultaneous ffmpegs sharing disk I/O each took 15s instead of 200ms and the player wedged). Queued requests release as slots free up; normal playback fits inside the cap. Background prefetch (neighbour ±1) is cancelled on pause / player-close via a `DELETE /api/videos/{id}/session` call from the SPA.
+Foreground transcodes are capped at 3 concurrent (rapid seeks fire one fetch per scrub and the browser's HLS engine doesn't cancel old XHRs; without the cap, 18 simultaneous ffmpegs sharing disk I/O each took 15s instead of 200ms and the player wedged). Queued requests release as slots free up; normal playback fits inside the cap. After each served segment the server warms a forward window of the next `HLS_PREFETCH_AHEAD` segments (plus one behind for back-scrubs) on a playhead-following background lane, so the player's buffer-fill requests land on a warm cache rather than cold transcodes; this is the main defence against mid-playback rebuffering over a high-latency link. Those prefetches are cancelled on pause / player-close via a `DELETE /api/videos/{id}/session` call from the SPA.
 
 Returns `503` if ffmpeg is missing, `400` if the requested filename looks like a path-traversal attempt or has an unparseable segment index, `404` for unknown video ids or out-of-range segments, `499` if the client disconnected mid-transcode (and the running ffmpeg is killed), `500` if the ffmpeg subprocess fails (stderr tail in detail).
 
@@ -259,7 +259,7 @@ The video pipeline rides on `maneki serve`. Relevant flags:
 | `--rescan` | Wipe `<root>/.maneki/posters/` and `DELETE FROM videos` before scanning. The next browse / open regenerates from scratch. Audio's tables are untouched. |
 | `--prewarm-cache` | Run the subtitle probe + thumbnail + contact-sheet poster generation passes at startup (background workers, yields to foreground player requests). Idempotent on a warm cache. Aliased as `--prewarm-images` was renamed in 0.9. |
 | `--no-cover-images` | Skip the contact-sheet poster phase entirely. `/poster` falls back to the row thumbnail. |
-| `--workers N` | Background-transcode worker cap. Default `min(8, cpu // 2)`. Affects prewarm + neighbour prefetch; foreground transcodes are capped at 3 concurrent regardless. |
+| `--workers N` | Background-transcode worker cap. Default `min(8, cpu // 2)`. Affects prewarm + forward prefetch; foreground transcodes are capped at 3 concurrent regardless. |
 
 The `maneki video` subgroup carries placeholders for tooling that doesn't belong on the serve command:
 
