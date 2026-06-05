@@ -708,7 +708,7 @@ function App() {
       )}
 
       <window.MK_MainArea
-        t={t}
+        t={t} tweak={tweak}
         section={section} setSection={(s) => { setSection(s); setArtistId(null); setAlbumId(null); }}
         loaded={loaded}
         ARTISTS={ARTISTS}
@@ -754,7 +754,7 @@ function App() {
       {fullscreenViz && (
         <window.MK_FullscreenViz
           onClose={() => setFullscreenViz(false)}
-          vizStyle={t.viz}
+          vizStyle={t.viz} tweak={tweak}
           running={playing}
           palette={palette}
           nowTrack={nowTrack} nowArtist={nowArtist} nowAlbum={nowAlbum}
