@@ -113,6 +113,12 @@
     analyser.connect(audioCtx.destination);
   }
 
+  // Monotonic source-load counter. Bumped on every load(); play() reads
+  // it to tell whether a newer source superseded the one it started, so
+  // a rapid run of station switches doesn't leave a stale play() fighting
+  // the latest one. See load()/play() below.
+  let loadSeq = 0;
+
   const listeners = {
     time: new Set(),
     ended: new Set(),
@@ -131,27 +137,73 @@
       for (const cb of listeners.durationchange) cb(audio.duration);
     }
   });
+  // Error handling has to tolerate the user clicking through stations
+  // fast. Each source we skip past can fire a transient error as its
+  // load is aborted or its proxy connection is torn down — surfacing
+  // those as the "Stream failed" banner made aggressive clicking pop a
+  // spurious "not available". So: ignore MEDIA_ERR_ABORTED (an
+  // intentional switch), and debounce the rest — only report an error
+  // that survives a short settle while still being the latest source and
+  // still not playing. A genuinely-dead station thus still surfaces
+  // (~700ms later); the ones you clicked past don't.
+  let errCheck = null;
   audio.addEventListener("error", () => {
-    for (const cb of listeners.error) cb(audio.error);
+    const err = audio.error;
+    if (err && err.code === 1 /* MEDIA_ERR_ABORTED */) return;
+    const seq = loadSeq;
+    clearTimeout(errCheck);
+    errCheck = setTimeout(() => {
+      if (seq === loadSeq && audio.error && audio.paused) {
+        for (const cb of listeners.error) cb(audio.error);
+      }
+    }, 700);
   });
 
   window.MK_AUDIO = {
     load(url) {
-      audio.src = url;
-      audio.load();
+      // Setting `audio.src` alone (re)starts resource selection. We
+      // deliberately do NOT call `audio.load()`: an explicit load()
+      // aborts any in-flight play() with "interrupted by a new load
+      // request", and on WebKit (Tauri / Safari) and Electron that
+      // leaves the element paused instead of recovering the way
+      // Chromium does. That surfaced as radio channels not switching
+      // when clicked while playing — you had to pause first. Bumping
+      // loadSeq lets play() detect when a newer source supersedes it.
+      loadSeq++;
+      if (audio.src === url) {
+        // Same source re-selected (e.g. replay the current track):
+        // assigning an identical src is a no-op and wouldn't restart, so
+        // rewind instead. Harmless on live radio (currentTime is pinned
+        // to the live edge and just throws, which we swallow).
+        try { audio.currentTime = 0; } catch { /* not seekable */ }
+      } else {
+        audio.src = url;
+      }
     },
     async play() {
       ensureAnalyser();
       if (audioCtx && audioCtx.state === "suspended") {
         try { await audioCtx.resume(); } catch { /* ignore */ }
       }
+      const seq = loadSeq;
       try {
         await audio.play();
       } catch (err) {
-        // Auto-play with sound is gated by user-gesture policy on first
-        // load. The artifact only ever calls play() after a click, so
-        // this should not fire in practice.
-        console.warn("MK_AUDIO.play rejected:", err);
+        // A rapid source switch (clicking through stations) can interrupt
+        // this play() with AbortError. If a newer load() has since run, a
+        // newer play() owns playback and this one is stale — drop it. If
+        // we're still the latest request but the element ended up paused
+        // (WebKit doesn't auto-recover like Chromium), nudge it once on
+        // the next frame. Other errors (autoplay-gesture policy, decode)
+        // still warn.
+        if (err && err.name === "AbortError") {
+          if (seq === loadSeq && audio.paused) {
+            await new Promise((r) => requestAnimationFrame(r));
+            try { await audio.play(); } catch (e2) { console.warn("MK_AUDIO.play retry rejected:", e2); }
+          }
+        } else {
+          console.warn("MK_AUDIO.play rejected:", err);
+        }
       }
     },
     // Pull an FFT frame for the visualizer, latency-compensated so it
