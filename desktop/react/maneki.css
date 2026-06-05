@@ -145,6 +145,33 @@ body {
 .mk-body.layout-topband { display: flex; flex-direction: column; }
 .mk-body.layout-topband .mk-now { display: grid; grid-template-columns: minmax(420px, 1fr) 1.4fr; gap: 0; border-bottom: 1px solid var(--line); }
 
+/* Topband: scale the Now Playing block with the spectrum height so the left
+   column fills the band as you drag it taller, instead of floating as a small
+   widget. Everything keys off --mk-spectrum-h (the resizer updates it live),
+   so this is pure CSS -- no JS. clamp() keeps the default look at the default
+   height and caps growth on very tall bands. */
+.mk-body.layout-topband .mk-now-pane { display: flex; flex-direction: column; }
+.mk-body.layout-topband .mk-now-body { flex: 1 1 auto; align-items: center; }
+.mk-body.layout-topband .mk-now-cover {
+  width: clamp(80px, calc(var(--mk-spectrum-h, 132px) * 0.58), 260px);
+  height: clamp(80px, calc(var(--mk-spectrum-h, 132px) * 0.58), 260px);
+}
+.mk-body.layout-topband .mk-now-title {
+  font-size: clamp(15px, calc(var(--mk-spectrum-h, 132px) * 0.085), 30px);
+}
+.mk-body.layout-topband .mk-tbtn {
+  width: clamp(32px, calc(var(--mk-spectrum-h, 132px) * 0.16), 52px);
+  height: clamp(32px, calc(var(--mk-spectrum-h, 132px) * 0.16), 52px);
+}
+.mk-body.layout-topband .mk-tbtn-play {
+  width: clamp(36px, calc(var(--mk-spectrum-h, 132px) * 0.22), 80px);
+  height: clamp(36px, calc(var(--mk-spectrum-h, 132px) * 0.22), 80px);
+}
+/* Scale the glyphs with their buttons (the inline SVGs have fixed width/height
+   attributes; CSS sizing overrides them). */
+.mk-body.layout-topband .mk-tbtn svg { width: 44%; height: 44%; }
+.mk-body.layout-topband .mk-tbtn-play svg { width: 46%; height: 46%; }
+
 .mk-body.layout-rightrail { display: grid; grid-template-columns: 1fr 380px; }
 .mk-body.layout-rightrail .mk-body-rail { border-left: 1px solid var(--line); display: flex; flex-direction: column; background: var(--panel); }
 .mk-body.layout-rightrail .mk-now { display: flex; flex-direction: column; height: 100%; }

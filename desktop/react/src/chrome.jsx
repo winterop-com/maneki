@@ -557,7 +557,15 @@ function LCDDisplay({ has, title, sub1, sub2, year, format, pos, dur, playing, m
   );
 }
 
-function NowPlaying({ nowTrack, nowArtist, nowAlbum, nowStation, playing, muted, vol, setVol, pos, setPos, dur, handlePlayPause, handleNext, handlePrev, setMuted, palette, vizStyle, fullscreenViz, setFullscreenViz, showSpectrum, layout, lcd, lcdColor }) {
+// Click-through order for the spectrum panel. Matches the Style dropdown
+// in TweaksControls so clicking the panel walks the same list.
+const VIZ_ORDER = ["bars", "mirror", "ridge", "scope"];
+
+function NowPlaying({ nowTrack, nowArtist, nowAlbum, nowStation, playing, muted, vol, setVol, pos, setPos, dur, handlePlayPause, handleNext, handlePrev, setMuted, palette, vizStyle, tweak, fullscreenViz, setFullscreenViz, showSpectrum, layout, lcd, lcdColor }) {
+  const cycleViz = () => {
+    const i = VIZ_ORDER.indexOf(vizStyle);
+    tweak("viz", VIZ_ORDER[(i + 1) % VIZ_ORDER.length]);
+  };
   const has = !!(nowTrack || nowStation);
   const title = nowStation?.name || nowTrack?.title || "Nothing playing";
   const sub1 = nowStation ? "Radio" : nowArtist?.name;
@@ -643,7 +651,12 @@ function NowPlaying({ nowTrack, nowArtist, nowAlbum, nowStation, playing, muted,
               <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 9V3h6M21 9V3h-6M3 15v6h6M21 15v6h-6"/></svg>
             </button>
           </div>
-          <div className="mk-spectrum-canvas">
+          <div
+            className="mk-spectrum-canvas"
+            style={{ cursor: "pointer" }}
+            onClick={cycleViz}
+            title={`Style: ${vizStyle} -- click to change`}
+          >
             <window.MK_Visualizer style={vizStyle} running={playing && !muted} accent={palette.viz} />
           </div>
         </div>
@@ -653,7 +666,11 @@ function NowPlaying({ nowTrack, nowArtist, nowAlbum, nowStation, playing, muted,
   );
 }
 
-function FullscreenViz({ onClose, vizStyle, running, palette, nowTrack, nowArtist, nowAlbum, nowStation, pos, dur, playing, onPlayPause, onPrev, onNext }) {
+function FullscreenViz({ onClose, vizStyle, tweak, running, palette, nowTrack, nowArtist, nowAlbum, nowStation, pos, dur, playing, onPlayPause, onPrev, onNext }) {
+  const cycleViz = () => {
+    const i = VIZ_ORDER.indexOf(vizStyle);
+    tweak("viz", VIZ_ORDER[(i + 1) % VIZ_ORDER.length]);
+  };
   const title = nowStation?.name || nowTrack?.title || "—";
   const sub = nowStation ? "Radio" : (nowArtist ? `${nowArtist.name} · ${nowAlbum?.name || ""}` : "");
   const cover = nowAlbum ? makeCover(nowAlbum.cover, nowAlbum.color) : null;
@@ -667,8 +684,8 @@ function FullscreenViz({ onClose, vizStyle, running, palette, nowTrack, nowArtis
           <div className="mk-fs-sub">{sub}</div>
         </div>
       </div>
-      <div className="mk-fs-canvas">
-        <window.MK_Visualizer style={vizStyle === "ambient" ? "bars" : vizStyle} running={running} accent={palette.viz} dense />
+      <div className="mk-fs-canvas" style={{ cursor: "pointer" }} onClick={cycleViz} title={`Style: ${vizStyle} -- click to change`}>
+        <window.MK_Visualizer style={vizStyle} running={running} accent={palette.viz} dense />
       </div>
       <div className="mk-fs-controls">
         <button className="mk-tbtn" onClick={onPrev} aria-label="Previous" data-tooltip="Previous (p)"><svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><path d="M6 6h2v12H6zM20 6v12L9 12z"/></svg></button>
@@ -687,7 +704,7 @@ function FullscreenViz({ onClose, vizStyle, running, palette, nowTrack, nowArtis
 
 // Main area router: renders the right panes per section + the now-playing.
 function MainArea(props) {
-  const { t, section, setSection, loaded, ARTISTS, STATIONS, artist, artistId, setArtistId, album, albumId, setAlbumId,
+  const { t, tweak, section, setSection, loaded, ARTISTS, STATIONS, artist, artistId, setArtistId, album, albumId, setAlbumId,
           playTrack, playStation, now, nowTrack, nowStation, nowArtist, nowAlbum,
           starredTracks, isStarred, toggleStar,
           playing, muted, vol, setVol, pos, setPos, dur,
@@ -700,7 +717,7 @@ function MainArea(props) {
       pos={pos} setPos={setPos} dur={dur}
       handlePlayPause={handlePlayPause} handleNext={handleNext} handlePrev={handlePrev}
       setMuted={setMuted}
-      palette={palette} vizStyle={t.viz}
+      palette={palette} vizStyle={t.viz} tweak={tweak}
       fullscreenViz={fullscreenViz} setFullscreenViz={setFullscreenViz}
       showSpectrum={t.showSpectrum}
       layout={t.layout}
@@ -804,8 +821,7 @@ function TweaksControls({ tweak, t, setShowConn }) {
         <TweakSelect label="Style" value={t.viz} onChange={(v) => tweak("viz", v)} options={[
           {value:"bars",label:"Bars (FFT)"},
           {value:"mirror",label:"Mirrored bars"},
-          {value:"radial",label:"Radial"},
-          {value:"ambient",label:"Ambient wash"},
+          {value:"ridge",label:"Ridge"},
           {value:"scope",label:"Oscilloscope"},
         ]}/>
         <TweakToggle label="Show spectrum panel" value={t.showSpectrum} onChange={(v) => tweak("showSpectrum", v)}/>

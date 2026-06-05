@@ -6,8 +6,7 @@
 // Styles supported:
 //   "bars"      classic vertical bars (current Maneki look)
 //   "mirror"    bars mirrored above/below a centerline
-//   "radial"    polar bars radiating outward
-//   "ambient"   low-contrast blurred wash (sits behind content)
+//   "ridge"     smooth gradient-filled spectrum curve (flowing bars)
 //   "scope"     oscilloscope trace of the live audio waveform
 
 const { useEffect: useEff_viz, useRef: useRef_viz } = React;
@@ -22,13 +21,15 @@ function Visualizer({ style = "bars", running = true, accent, height, ambient = 
     const ctx = canvas.getContext("2d");
     const dpr = window.devicePixelRatio || 1;
 
-    const N_BINS = dense ? 48 : 32;
+    // Dense bin count so every column style (bars, mirror, ridge) reads as
+    // many thin bars at tight spacing while still spanning the full width.
+    const N_BINS = dense ? 96 : 64;
     if (!stateRef.current.bins || stateRef.current.bins.length !== N_BINS) {
       stateRef.current.bins = new Float32Array(N_BINS);
     }
     const bins = stateRef.current.bins;
 
-    // Memoised gradients keyed by geometry; see vGrad and drawRadial.
+    // Memoised gradients keyed by geometry; see vGrad and drawRidge.
     // Cleared on resize because the canvas height feeds the bar gradients.
     const gradCache = new Map();
 
@@ -45,8 +46,8 @@ function Visualizer({ style = "bars", running = true, accent, height, ambient = 
     // Run at up to 60 fps for a fluid spectrum. The per-frame paint cost
     // (the dominant CPU cost on WKWebView) is kept down by memoising the
     // bar gradients instead of allocating one per bar per frame -- see
-    // vGrad and the radial cache below -- so 60 fps costs roughly what the
-    // old 30 fps cap did before gradients were cached.
+    // vGrad -- so 60 fps costs roughly what the old 30 fps cap did before
+    // gradients were cached.
     const FRAME_INTERVAL_MS = 1000 / 60;
     let lastDrawAt = 0;
     // Smoothed amplitude envelope for the "scope" style. Driven by the
@@ -154,9 +155,8 @@ function Visualizer({ style = "bars", running = true, accent, height, ambient = 
       const h = canvas.height;
       ctx.clearRect(0, 0, w, h);
 
-      if (style === "radial") drawRadial(ctx, bins, w, h, accent, running, ambient, gradCache);
-      else if (style === "mirror") drawMirror(ctx, bins, w, h, accent, running, ambient, gradCache);
-      else if (style === "ambient") drawAmbient(ctx, bins, w, h, accent);
+      if (style === "mirror") drawMirror(ctx, bins, w, h, accent, running, ambient, gradCache);
+      else if (style === "ridge") drawRidge(ctx, bins, w, h, accent, running, ambient, gradCache);
       else drawBars(ctx, bins, w, h, accent, running, ambient, gradCache);
     }
     stateRef.current.raf = requestAnimationFrame(step);
@@ -195,6 +195,8 @@ function vGrad(cache, ctx, key, y0, y1, accent) {
 
 function drawBars(ctx, bins, w, h, accent, running, ambient, cache) {
   const N = bins.length;
+  // Tight spacing: gap is ~18% of a slot, so bars nearly touch. Slimness
+  // comes from the bar *count* (see N_BINS), not from widening the gap.
   const gap = Math.max(2, Math.floor(w / N * 0.18));
   const bw = (w - gap * (N - 1)) / N;
   const baseAlpha = ambient ? 0.45 : 1;
@@ -231,60 +233,44 @@ function drawMirror(ctx, bins, w, h, accent, running, ambient, cache) {
   ctx.globalAlpha = 1;
 }
 
-function drawRadial(ctx, bins, w, h, accent, running, ambient, cache) {
+// Smooth gradient-filled spectrum curve. Same bins as drawBars, but the
+// tops are joined into a flowing ridge with the area beneath filled by the
+// shared vertical gradient (memoised once, cleared on resize). Reads as the
+// bars melted into a single continuous line.
+function drawRidge(ctx, bins, w, h, accent, running, ambient, cache) {
   const N = bins.length;
-  const cx = w / 2, cy = h / 2;
-  const r0 = Math.min(w, h) * 0.18;
-  const r1 = Math.min(w, h) * 0.48;
-  const span = r1 - r0;
-  const baseAlpha = ambient ? 0.4 : 1;
-  // inner ring outline
-  ctx.strokeStyle = accent.ring || "rgba(255,255,255,0.06)";
-  ctx.lineWidth = 1;
-  ctx.beginPath(); ctx.arc(cx, cy, r0 - 2, 0, Math.PI * 2); ctx.stroke();
-  // The radial fill geometry is bar-independent, so build it once and
-  // memoise it (cleared on resize) instead of per bar per frame.
-  let g = cache.get("r");
+  const base = h - 2;
+  // Sample tops first so the smoothing pass can read neighbours.
+  const xs = new Float32Array(N);
+  const ys = new Float32Array(N);
+  for (let i = 0; i < N; i++) {
+    xs[i] = (i / (N - 1)) * w;
+    ys[i] = base - Math.min(1, bins[i]) * (h - 8);
+  }
+  let g = cache.get("ridge");
   if (!g) {
-    g = ctx.createRadialGradient(cx, cy, r0, cx, cy, r1);
-    g.addColorStop(0, accent.lo || "#bcd47a");
-    g.addColorStop(0.6, accent.mid || "#e6c065");
-    g.addColorStop(1, accent.hi || "#f08aa6");
-    cache.set("r", g);
+    g = ctx.createLinearGradient(0, 0, 0, h);
+    g.addColorStop(0, accent.hi || "#f08aa6");
+    g.addColorStop(0.55, accent.mid || "#e6c065");
+    g.addColorStop(1, accent.lo || "#bcd47a");
+    cache.set("ridge", g);
   }
+  ctx.globalAlpha = (ambient ? 0.5 : 1) * (running ? 1 : 0.7);
+  ctx.beginPath();
+  ctx.moveTo(0, base);
+  ctx.lineTo(xs[0], ys[0]);
+  // Quadratic segments through the midpoints give a smooth curve without
+  // overshoot (Catmull-Rom would ring on sharp spectral spikes).
+  for (let i = 0; i < N - 1; i++) {
+    const mx = (xs[i] + xs[i + 1]) / 2;
+    const my = (ys[i] + ys[i + 1]) / 2;
+    ctx.quadraticCurveTo(xs[i], ys[i], mx, my);
+  }
+  ctx.lineTo(xs[N - 1], ys[N - 1]);
+  ctx.lineTo(w, base);
+  ctx.closePath();
   ctx.fillStyle = g;
-  for (let i = 0; i < N; i++) {
-    const v = Math.min(1, bins[i]);
-    const a0 = (i / N) * Math.PI * 2;
-    const a1 = ((i + 0.7) / N) * Math.PI * 2;
-    const rr = r0 + v * span;
-    ctx.globalAlpha = baseAlpha * (running ? 1 : 0.7);
-    ctx.beginPath();
-    ctx.arc(cx, cy, r0, a0, a1);
-    ctx.arc(cx, cy, rr, a1, a0, true);
-    ctx.closePath();
-    ctx.fill();
-  }
-  ctx.globalAlpha = 1;
-}
-
-function drawAmbient(ctx, bins, w, h, accent) {
-  // Big blurred peaks behind content. Used as background fill.
-  const N = bins.length;
-  const cy = h * 0.55;
-  ctx.globalAlpha = 0.45;
-  for (let i = 0; i < N; i++) {
-    const v = Math.min(1, bins[i]);
-    const x = (i / (N - 1)) * w;
-    const r = 30 + v * Math.min(w, h) * 0.35;
-    const g = ctx.createRadialGradient(x, cy, 0, x, cy, r);
-    const hue = i / N;
-    const c = hue < 0.5 ? (accent.lo || "#bcd47a") : (accent.hi || "#f08aa6");
-    g.addColorStop(0, c);
-    g.addColorStop(1, "rgba(0,0,0,0)");
-    ctx.fillStyle = g;
-    ctx.fillRect(x - r, cy - r, r * 2, r * 2);
-  }
+  ctx.fill();
   ctx.globalAlpha = 1;
 }
 

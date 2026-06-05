@@ -110,11 +110,22 @@ function CommandPalette({ open, onClose, onRun, kind, hasAudio = true, hasVideo 
   // mounted on the server - otherwise switching takes the SPA to an
   // empty pane and looks broken.
   const base = kind === "video" ? PALETTE_CMDS_VIDEO_BASE : PALETTE_CMDS_AUDIO_BASE;
+  // Spectrum colour themes (audio only). Built from the shared theme map so
+  // the list stays in sync with app.jsx; each row carries a `vizTheme` key
+  // that runCmd applies. "Follow accent" restores the accent-driven default.
+  const vizCmds = [];
+  if (kind !== "video") {
+    const themes = window.MK_VIZ_THEMES || {};
+    vizCmds.push({ label: "Spectrum colors: Follow accent", k: "", vizTheme: "accent" });
+    for (const [key, v] of Object.entries(themes)) {
+      vizCmds.push({ label: `Spectrum colors: ${v.name}`, k: "", vizTheme: key });
+    }
+  }
   const tail = [];
   if (kind === "video" && hasAudio) tail.push({ label: "Switch to audio", k: "" });
   if (kind === "audio" && hasVideo) tail.push({ label: "Switch to video", k: "" });
   tail.push({ label: "Sign out", k: "" });
-  const cmds = [...base, ...tail];
+  const cmds = [...base, ...vizCmds, ...tail];
   const list = useMemo(() => {
     if (!q.trim()) return cmds;
     const ql = q.toLowerCase();

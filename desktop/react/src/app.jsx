@@ -10,6 +10,7 @@ const TWEAK_DEFAULTS = /*EDITMODE-BEGIN*/{
   "theme": "dark",
   "accent": "tokyo",
   "viz": "bars",
+  "vizTheme": "accent",
   "density": "comfortable",
   "fontScale": 1,
   "showSpectrum": true,
@@ -50,6 +51,21 @@ const PALETTES = {
     viz: { lo: "#9aa0a8", mid: "#c4c8ce", hi: "#c4ff5e" },
   },
 };
+
+// Dedicated spectrum colour themes, independent of the chrome accent.
+// Selected via the command palette ("Spectrum colors: …") and stored in
+// the `vizTheme` tweak; the special value "accent" (the default) follows
+// the active accent palette's viz gradient. Each gradient runs lo (bar
+// base) -> mid -> hi (bar tip); see vGrad in visualizer.jsx.
+const VIZ_THEMES = {
+  maneki: { name: "Maneki", viz: { lo: "#bcd47a", mid: "#e6c065", hi: "#f08aa6" } },
+  fire:   { name: "Fire",   viz: { lo: "#ffd24a", mid: "#ff7a1a", hi: "#e02020" } },
+  ice:    { name: "Ice",    viz: { lo: "#7fe8ff", mid: "#4aa8f0", hi: "#9a7af0" } },
+  aurora: { name: "Aurora", viz: { lo: "#7cffb2", mid: "#3cc6d8", hi: "#c86cf0" } },
+  sunset: { name: "Sunset", viz: { lo: "#ffe08a", mid: "#ff9e64", hi: "#ff5a8a" } },
+  mono:   { name: "Mono",   viz: { lo: "#6b7280", mid: "#c4c8ce", hi: "#ffffff" } },
+};
+window.MK_VIZ_THEMES = VIZ_THEMES;
 
 function App() {
   const { ARTISTS, STATIONS, LYRICS_BOADICEA } = window.MK_DATA;
@@ -585,6 +601,8 @@ function App() {
   // Cross-mode commands (Show shortcuts, Sign out) work either way.
   const runCmd = (c) => {
     const p = window.MK_VIDEO_PLAYER;
+    // Spectrum colour themes carry their key on the command itself.
+    if (c.vizTheme) { tweak("vizTheme", c.vizTheme); return; }
     // Cross-mode commands (work without a player loaded).
     if (c.label === "Show keyboard shortcuts") { setShowShortcuts(true); return; }
     if (c.label === "Sign out") { signOut(); return; }
@@ -669,7 +687,13 @@ function App() {
     );
   }
 
-  const palette = PALETTES[t.accent] || PALETTES.tokyo;
+  const basePalette = PALETTES[t.accent] || PALETTES.tokyo;
+  // A dedicated spectrum theme (vizTheme) overrides the accent's viz
+  // gradient; the default "accent" follows the accent palette as before.
+  const vizColors = (t.vizTheme && t.vizTheme !== "accent" && VIZ_THEMES[t.vizTheme])
+    ? VIZ_THEMES[t.vizTheme].viz
+    : basePalette.viz;
+  const palette = { ...basePalette, viz: vizColors };
 
   // Alias the namespaced component to a local PascalCase identifier - Babel-
   // standalone's JSX has trouble with <window.MK_X /> directly (renders to
@@ -708,7 +732,7 @@ function App() {
       )}
 
       <window.MK_MainArea
-        t={t}
+        t={t} tweak={tweak}
         section={section} setSection={(s) => { setSection(s); setArtistId(null); setAlbumId(null); }}
         loaded={loaded}
         ARTISTS={ARTISTS}
@@ -754,7 +778,7 @@ function App() {
       {fullscreenViz && (
         <window.MK_FullscreenViz
           onClose={() => setFullscreenViz(false)}
-          vizStyle={t.viz}
+          vizStyle={t.viz} tweak={tweak}
           running={playing}
           palette={palette}
           nowTrack={nowTrack} nowArtist={nowArtist} nowAlbum={nowAlbum}
