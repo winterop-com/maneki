@@ -11,7 +11,7 @@ edition = "2024"
 rust-version = "1.88"
 description = "Native desktop wrapper around the Maneki web UI."
 authors = ["Morten Hansen <morten@winterop.com>"]
-license = "MIT"
+license = "AGPL-3.0-or-later"
 
 [lib]
 name = "maneki_desktop_lib"

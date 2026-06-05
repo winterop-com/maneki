@@ -3,7 +3,7 @@
 [![CI](https://github.com/winterop-com/maneki/actions/workflows/ci.yml/badge.svg)](https://github.com/winterop-com/maneki/actions/workflows/ci.yml)
 [![PyPI version](https://img.shields.io/pypi/v/maneki)](https://pypi.org/project/maneki/)
 [![Python 3.13+](https://img.shields.io/badge/python-3.13+-blue.svg)](https://www.python.org/downloads/)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![License: AGPL v3](https://img.shields.io/badge/License-AGPL%20v3-blue.svg)](LICENSE)
 [![Documentation](https://img.shields.io/badge/docs-mkdocs-blue.svg)](https://winterop-com.github.io/maneki/)
 
 Python 3.13 CLI for a self-hosted media library — audio (convert rips + serve via Subsonic) and video (HLS streaming with on-demand segments, sidecar + embedded subtitles, contact-sheet posters, click-in folder browser). Point `maneki serve` at one directory; it scans recursively, auto-detects what's audio and what's video, and serves both kinds plus the web SPA on one port. The Subsonic mount appears only when audio is present, the video mount only when video is present.
