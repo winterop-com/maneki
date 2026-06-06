@@ -121,7 +121,12 @@ to find updates. (Plumbing the updater plugin + endpoint is a follow-up task.)
 
 - **Rotation:** to roll a key, repeat the relevant section and overwrite the
   secrets. The Developer ID cert is valid for 5 years.
-- **Local signed builds:** export the same values as environment variables and
-  run `make desktop-tauri-build`.
+- **Local builds:** `make build` (and `make desktop-tauri-build`) auto-discover
+  the Developer ID from your login keychain, so the local `.app` / `.dmg` come
+  out **signed** with no setup. To also **notarize** locally, copy `.env.example`
+  to `.env` (gitignored) and fill in `APPLE_ID`, `APPLE_PASSWORD` (app-specific),
+  `APPLE_TEAM_ID` — the Makefile sources it. Without those the build still
+  succeeds, just signed-but-not-notarized (you'll see a "skipping notarization"
+  warning).
 - Keep the `.p12` and the updater private key out of git (they're not, and the
   repo has push-protection + secret scanning on).
