@@ -103,6 +103,7 @@ def main() -> None:
     json_paths = [
         REPO_ROOT / "desktop" / "tauri" / "src-tauri" / "tauri.conf.json",
         REPO_ROOT / "desktop" / "electron" / "package.json",
+        REPO_ROOT / "desktop" / "react" / "package.json",
     ]
     for path in json_paths:
         if update_json_version(path, version):
