@@ -7,10 +7,16 @@
 // -------------------------
 // `electron-window-state` v5 saved sub-min sizes during macOS minimize /
 // fullscreen-exit, leaving every subsequent launch at a tiny window.
-// We persist bounds ourselves to a separate electron-store file with
+// We persist bounds ourselves to a small JSON file in userData with
 // explicit guards: never save while minimized or fullscreen, never save
 // a size below the configured min (720x480), and on restore re-validate
 // the size before applying. Fallback is the 1440x900 default below.
+//
+// We read/write the file directly (no electron-store) — the only thing
+// persisted is the window rectangle, so a 15-line `fs` helper needs no
+// dependency and lets the preload stay sandboxed. The { "bounds": {...} }
+// shape matches the previous electron-store file, so saved bounds carry
+// over for existing installs.
 //
 // What we deliberately do NOT do:
 //   - Auto-open DevTools. Press Cmd+Option+I when needed; auto-opening
@@ -19,14 +25,7 @@
 
 const { app, BrowserWindow, ipcMain, screen } = require("electron");
 const path = require("path");
-// electron-store v8 needs `Store.initRenderer()` called once in the main
-// process to register the IPC handler the renderer-side preload uses.
-// Without it, the renderer's first `store.get(...)` call logs:
-//   WebContents #1 called ipcRenderer.sendSync() with
-//   'electron-store-get-data' channel without listeners
-// and the call returns undefined.
-const Store = require("electron-store");
-Store.initRenderer();
+const fs = require("fs");
 
 const MIN_WIDTH = 720;
 const MIN_HEIGHT = 480;
@@ -34,14 +33,32 @@ const DEFAULT_WIDTH = 1440;
 const DEFAULT_HEIGHT = 900;
 const SAVE_DEBOUNCE_MS = 250;
 
-// Separate store from the servers / session files so a corrupt window
-// state can never wedge the login flow.
-const windowStore = new Store({ name: "maneki-window" });
+// Separate file from the servers / session state so a corrupt window
+// rectangle can never wedge the login flow. `app.getPath("userData")` is
+// only valid after the app is ready, so resolve it lazily on each call.
+const boundsFile = () => path.join(app.getPath("userData"), "maneki-window.json");
+
+function readBoundsFile() {
+  try {
+    return JSON.parse(fs.readFileSync(boundsFile(), "utf8"));
+  } catch {
+    return {};
+  }
+}
+
+function writeBoundsFile(data) {
+  try {
+    fs.writeFileSync(boundsFile(), JSON.stringify(data));
+  } catch {
+    // Non-fatal: a failed save just means the next launch falls back to
+    // the default size/position.
+  }
+}
 
 let mainWindow;
 
 function loadBounds() {
-  const b = windowStore.get("bounds");
+  const b = readBoundsFile().bounds;
   if (!b || typeof b !== "object") return null;
   if (typeof b.width !== "number" || typeof b.height !== "number") return null;
   if (b.width < MIN_WIDTH || b.height < MIN_HEIGHT) return null;
@@ -69,7 +86,7 @@ function saveBounds() {
   if (mainWindow.isMinimized() || mainWindow.isFullScreen()) return;
   const b = mainWindow.getBounds();
   if (b.width < MIN_WIDTH || b.height < MIN_HEIGHT) return;
-  windowStore.set("bounds", b);
+  writeBoundsFile({ bounds: b });
 }
 
 let saveTimer;
@@ -112,7 +129,7 @@ function createWindow() {
       preload: path.join(__dirname, "preload.js"),
       contextIsolation: true,
       nodeIntegration: false,
-      sandbox: false, // preload uses electron-store which needs require()
+      sandbox: true, // preload only touches `electron` built-ins now
     },
   });
 
