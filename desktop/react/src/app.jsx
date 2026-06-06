@@ -232,6 +232,9 @@ function App() {
   const [radioTitle, setRadioTitle] = uS(""); // ICY StreamTitle of the current station
   const [shuffle, setShuffle] = uS(false);
   const [repeat, setRepeat] = uS("off"); // off | album | track
+  // One stats toggle drives both overlays — the audio one (Now Playing)
+  // and the video one (player) — from a single button in the topbar.
+  const [showStats, setShowStats] = uS(false);
 
   // Overlays
   const [showShortcuts, setShowShortcuts] = uS(false);
@@ -841,6 +844,7 @@ function App() {
         onFocusSearch={() => setSearchOpen(true)}
         onSignOut={signOut}
         searchInputRef={searchInputRef}
+        showStats={showStats} onToggleStats={() => setShowStats((s) => !s)}
       />
 
       {showConn && (
@@ -889,6 +893,7 @@ function App() {
         hasAudio={hasAudio} hasVideo={hasVideo} kind={kind} setKind={setKind} session={session}
         selectedVideo={selectedVideo} setSelectedVideo={setSelectedVideo}
         q={q}
+        showStats={showStats} onCloseStats={() => setShowStats(false)}
       />
 
       <window.MK_SearchDropdown

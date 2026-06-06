@@ -4,7 +4,7 @@
 const fmtDur_ch = (s) => window.MK_fmtDur(s);
 // makeCover is declared globally by covers.jsx (function declaration)
 
-function TopBar({ user, q, setQ, onFocusSearch, onSignOut, searchInputRef }) {
+function TopBar({ user, q, setQ, onFocusSearch, onSignOut, searchInputRef, showStats, onToggleStats }) {
   return (
     <div className="mk-topbar">
       <div className="mk-topbar-left">
@@ -28,6 +28,16 @@ function TopBar({ user, q, setQ, onFocusSearch, onSignOut, searchInputRef }) {
         <span className="mk-version">v{document.querySelector('meta[name="mk-version"]')?.content || "?"}</span>
       </div>
       <div className="mk-topbar-right">
+        <button
+          className={"mk-signout mk-stats-btn" + (showStats ? " mk-stats-toggle-on" : "")}
+          onClick={onToggleStats}
+          aria-label="Stream stats"
+          data-tooltip="Stream stats"
+          data-tooltip-placement="bottom"
+          data-tooltip-align="right"
+        >
+          <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
+        </button>
         <span className="mk-user">{user}</span>
         <button className="mk-signout" onClick={onSignOut} data-tooltip="Clear session and sign out" data-tooltip-placement="bottom" data-tooltip-align="right">Sign out</button>
       </div>
@@ -561,7 +571,99 @@ function LCDDisplay({ has, title, sub1, sub2, year, format, pos, dur, playing, m
 // in TweaksControls so clicking the panel walks the same list.
 const VIZ_ORDER = ["bars", "mirror", "ridge", "scope"];
 
-function NowPlaying({ nowTrack, nowArtist, nowAlbum, nowStation, radioTitle, playing, muted, vol, setVol, pos, setPos, dur, handlePlayPause, handleNext, handlePrev, setMuted, palette, vizStyle, tweak, fullscreenViz, setFullscreenViz, showSpectrum, layout, lcd, lcdColor }) {
+// Verdict for the audio stats overlay. The <audio> element is the single
+// source of truth: a deep buffer (or readyState HAVE_ENOUGH_DATA) is
+// healthy; a thin buffer while still loading is buffering; no usable data
+// is a stall. This is the audio analogue of diagnosePlayback() for video,
+// minus the encoder dimension (audio is served as a plain ranged file, so
+// there's no transcode wall to hit).
+function audioVerdict(s) {
+  if (!s) return { level: "idle", text: "connecting…" };
+  if (s.paused) return { level: "idle", text: "paused" };
+  const buf = s.bufferAhead;
+  if (s.readyState >= 4 || buf >= 10) return { level: "ok", text: `healthy — ${buf.toFixed(0)}s buffered ahead` };
+  if (s.readyState <= 1) return { level: "warn", text: "stalled — waiting for data" };
+  if (s.networkState === 2) return { level: "warn", text: `buffering — ${buf.toFixed(0)}s ahead` };
+  return { level: "warn", text: `thin buffer — ${buf.toFixed(0)}s ahead` };
+}
+
+// Live audio diagnostics overlay. Unlike the video panel there's no SSE:
+// audio has no per-segment transcode pipeline to report on, so everything
+// is sampled off MK_AUDIO's <audio> element once a second. Draggable by its
+// header (pointer capture keeps a drag from leaking to the UI underneath),
+// reusing the same .mk-stats-* chrome as the video overlay.
+function AudioStatsOverlay({ format, onClose }) {
+  const { useState, useEffect, useRef } = React;
+  const rootRef = useRef(null);
+  const [pos, setPos] = useState({ x: 14, y: 14 });
+  const [s, setS] = useState(null);
+
+  useEffect(() => {
+    const parent = rootRef.current && rootRef.current.parentElement;
+    if (parent) {
+      const r = parent.getBoundingClientRect();
+      setPos({ x: Math.round(r.left + 14), y: Math.round(r.top + 14) });
+    }
+  }, []);
+
+  useEffect(() => {
+    const sample = () => { if (window.MK_AUDIO?.getStats) setS(window.MK_AUDIO.getStats()); };
+    sample();
+    const id = setInterval(sample, 1000);
+    return () => clearInterval(id);
+  }, []);
+
+  const startDrag = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const handle = e.currentTarget;
+    try { handle.setPointerCapture(e.pointerId); } catch (_x) { /* unsupported */ }
+    const box = handle.parentElement.getBoundingClientRect();
+    const offX = e.clientX - box.left, offY = e.clientY - box.top, w = box.width, h = box.height;
+    const move = (ev) => setPos({
+      x: Math.min(Math.max(0, ev.clientX - offX), Math.max(0, window.innerWidth - w)),
+      y: Math.min(Math.max(0, ev.clientY - offY), Math.max(0, window.innerHeight - h)),
+    });
+    const up = (ev) => {
+      try { handle.releasePointerCapture(ev.pointerId); } catch (_x) { /* already released */ }
+      handle.removeEventListener("pointermove", move);
+      handle.removeEventListener("pointerup", up);
+    };
+    handle.addEventListener("pointermove", move);
+    handle.addEventListener("pointerup", up);
+  };
+
+  const READY = ["nothing", "metadata", "current", "future", "enough"];
+  const NET = ["empty", "idle", "loading", "no-source"];
+  const diag = audioVerdict(s);
+  const Row = ({ k, v }) => (<><span>{k}</span><span>{v}</span></>);
+  return (
+    <div ref={rootRef} className="mk-stats-overlay mono" style={{ left: pos.x + "px", top: pos.y + "px" }}>
+      <div className={"mk-stats-verdict mk-stats-" + diag.level} onPointerDown={startDrag} title="Drag to move">
+        <span className="mk-stats-verdict-text">{diag.text}</span>
+        {onClose && (
+          <button
+            className="mk-stats-close"
+            onPointerDown={(e) => e.stopPropagation()}
+            onClick={onClose}
+            aria-label="Close stats"
+            title="Close"
+          >×</button>
+        )}
+      </div>
+      <div className="mk-stats-grid">
+        <Row k="buffer ahead" v={s ? `${s.bufferAhead.toFixed(1)}s` : "—"} />
+        <Row k="ready" v={s ? (READY[s.readyState] ?? s.readyState) : "—"} />
+        <Row k="network" v={s ? (NET[s.networkState] ?? s.networkState) : "—"} />
+        <Row k="stalls" v={s ? s.stalls : "—"} />
+        <Row k="format" v={format || "—"} />
+        <Row k="position" v={s && s.duration ? `${s.currentTime.toFixed(0)} / ${s.duration.toFixed(0)}s` : "—"} />
+      </div>
+    </div>
+  );
+}
+
+function NowPlaying({ nowTrack, nowArtist, nowAlbum, nowStation, radioTitle, playing, muted, vol, setVol, pos, setPos, dur, handlePlayPause, handleNext, handlePrev, setMuted, palette, vizStyle, tweak, fullscreenViz, setFullscreenViz, showSpectrum, layout, lcd, lcdColor, showStats, onCloseStats }) {
   const cycleViz = () => {
     const i = VIZ_ORDER.indexOf(vizStyle);
     tweak("viz", VIZ_ORDER[(i + 1) % VIZ_ORDER.length]);
@@ -580,6 +682,7 @@ function NowPlaying({ nowTrack, nowArtist, nowAlbum, nowStation, radioTitle, pla
     <div className={"mk-now" + (has ? " has-track" : " no-track") + " layout-" + layout + (lcd ? " mk-now-lcd" : "")} data-lcd-color={lcdColor || "green"}>
       <div className="mk-now-pane">
         <div className="mk-pane-label">Now Playing</div>
+        {showStats && has && <AudioStatsOverlay format={format} onClose={onCloseStats} />}
         <div className="mk-now-body">
           {lcd ? (
             <LCDDisplay has={has} title={title} sub1={sub1} sub2={sub2} year={year} format={format} pos={pos} dur={dur} playing={playing} muted={muted} vol={vol} nowStation={nowStation} cover={cover}/>
@@ -657,7 +760,6 @@ function NowPlaying({ nowTrack, nowArtist, nowAlbum, nowStation, radioTitle, pla
             className="mk-spectrum-canvas"
             style={{ cursor: "pointer" }}
             onClick={cycleViz}
-            title={`Style: ${vizStyle} -- click to change`}
           >
             <window.MK_Visualizer style={vizStyle} running={playing && !muted} accent={palette.viz} />
           </div>
@@ -686,7 +788,7 @@ function FullscreenViz({ onClose, vizStyle, tweak, running, palette, nowTrack, n
           <div className="mk-fs-sub">{sub}</div>
         </div>
       </div>
-      <div className="mk-fs-canvas" style={{ cursor: "pointer" }} onClick={cycleViz} title={`Style: ${vizStyle} -- click to change`}>
+      <div className="mk-fs-canvas" style={{ cursor: "pointer" }} onClick={cycleViz}>
         <window.MK_Visualizer style={vizStyle} running={running} accent={palette.viz} dense />
       </div>
       <div className="mk-fs-controls">
@@ -710,7 +812,8 @@ function MainArea(props) {
           playTrack, playStation, now, nowTrack, nowStation, nowArtist, nowAlbum, radioTitle,
           starredTracks, isStarred, toggleStar,
           playing, muted, vol, setVol, pos, setPos, dur,
-          setMuted, handlePlayPause, handleNext, handlePrev, palette, fullscreenViz, setFullscreenViz, setShowLyrics, repeat } = props;
+          setMuted, handlePlayPause, handleNext, handlePrev, palette, fullscreenViz, setFullscreenViz, setShowLyrics, repeat,
+          showStats, onCloseStats } = props;
 
   const nowPlaying = (
     <NowPlaying
@@ -725,6 +828,8 @@ function MainArea(props) {
       layout={t.layout}
       lcd={t.lcd}
       lcdColor={t.lcdColor}
+      showStats={showStats}
+      onCloseStats={onCloseStats}
     />
   );
 
@@ -748,7 +853,7 @@ function MainArea(props) {
         // <video> ref leaves the player in an error state (full-black
         // overlay) because video.js has already mangled the DOM around
         // the element by the time the second init runs.
-        <MK_VideoPlayerPane key={selectedVideo.id} session={session} video={selectedVideo} onClose={() => setSelectedVideo(null)}/>
+        <MK_VideoPlayerPane key={selectedVideo.id} session={session} video={selectedVideo} onClose={() => setSelectedVideo(null)} showStats={showStats} onCloseStats={onCloseStats}/>
       )}
     </div>
   );

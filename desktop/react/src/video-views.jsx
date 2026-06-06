@@ -367,7 +367,7 @@ function diagnosePlayback(mine, client) {
 // Live diagnostics overlay. Server transcode stats arrive over SSE
 // (EventSource auto-reconnects); client buffer/bandwidth is sampled off the
 // video.js player once a second. Toggled from the player header.
-function VideoStatsOverlay({ session, videoId, playerRef }) {
+function VideoStatsOverlay({ session, videoId, playerRef, onClose }) {
   const [server, setServer] = useSt_vv(null);
   const [client, setClient] = useSt_vv(null);
   // Viewport position (px). `position: fixed`, so the panel floats over the
@@ -482,7 +482,16 @@ function VideoStatsOverlay({ session, videoId, playerRef }) {
         onPointerDown={startDrag}
         title="Drag to move"
       >
-        {diag.text}
+        <span className="mk-stats-verdict-text">{diag.text}</span>
+        {onClose && (
+          <button
+            className="mk-stats-close"
+            onPointerDown={(e) => e.stopPropagation()}
+            onClick={onClose}
+            aria-label="Close stats"
+            title="Close"
+          >×</button>
+        )}
       </div>
       <div className="mk-stats-grid">
         <Row k="buffer ahead" v={client ? `${client.bufferAhead.toFixed(1)}s` : "—"} />
@@ -497,7 +506,7 @@ function VideoStatsOverlay({ session, videoId, playerRef }) {
   );
 }
 
-function VideoPlayerPane({ session, video, onClose }) {
+function VideoPlayerPane({ session, video, onClose, showStats, onCloseStats }) {
   const videoRef = useRef_vv(null);
   const playerRef = useRef_vv(null);
   const [subtitles, setSubtitles] = useSt_vv(video.subtitles || []);
@@ -511,8 +520,6 @@ function VideoPlayerPane({ session, video, onClose }) {
   // need a server-side ffprobe just for this — HLS doesn't downscale,
   // so the player-reported dims match the source file.
   const [resolution, setResolution] = useSt_vv(null);
-  // Diagnostics overlay toggle (off by default - it's a debugging panel).
-  const [showStats, setShowStats] = useSt_vv(false);
 
   // Fetch subtitles list (the listing's `subtitles` field is summary;
   // the endpoint may have more detail by the time we get here). Note: we
@@ -917,20 +924,12 @@ function VideoPlayerPane({ session, video, onClose }) {
           )}
         </div>
         <div style={{ display: "flex", gap: 6 }}>
-          <button
-            className={"mk-signout" + (showStats ? " mk-stats-toggle-on" : "")}
-            onClick={() => setShowStats((s) => !s)}
-            style={{ fontSize: 11 }}
-            title="Live transcode + buffer diagnostics"
-          >
-            Stats
-          </button>
           <button className="mk-signout" onClick={onClose} style={{ fontSize: 11 }}>Close</button>
         </div>
       </div>
       <div className="mk-video-stage">
         {showStats && (
-          <VideoStatsOverlay session={session} videoId={video.id} playerRef={playerRef} />
+          <VideoStatsOverlay session={session} videoId={video.id} playerRef={playerRef} onClose={onCloseStats} />
         )}
         {playerError && (
           <div className="mk-player-error" role="alert">
