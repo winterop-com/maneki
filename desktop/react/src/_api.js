@@ -16,10 +16,11 @@
 //
 // Lives outside the Claude Designer artifact (note the leading
 // underscore) so future zip drops only replace src/*.jsx + maneki.css
-// without touching the wiring layer. The artifact reaches us through
-// `window.MK_API`.
+// without touching the wiring layer.
 
-(function () {
+import { md5 } from "./_md5.js";
+
+export const MK_API = (function () {
   "use strict";
 
   const STORAGE_KEY = "maneki.design.session";
@@ -125,7 +126,7 @@
       // given the md5 weakness — Subsonic's wire format constrains us
       // to md5 regardless.
       const salt = genSalt();
-      const token = window.MK_md5(password + salt);
+      const token = md5(password + salt);
       const session = { baseUrl: base, user, salt, token };
       // Validate credentials before persisting so an invalid one
       // doesn't pollute storage. A library with audio exposes the
@@ -248,5 +249,5 @@
     },
   };
 
-  window.MK_API = MK_API;
+  return MK_API;
 })();

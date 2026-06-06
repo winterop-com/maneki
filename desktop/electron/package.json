@@ -31,12 +31,11 @@
       "output": "dist"
     },
     "files": [
-      "src/**/*",
-      "../react/**/*"
+      "src/**/*"
     ],
     "extraResources": [
       {
-        "from": "../react",
+        "from": "../react/dist",
         "to": "react"
       }
     ],

@@ -1,5 +1,20 @@
 // Maneki main app — three-pane browse, now-playing, transport, overlays.
 
+import React from "react";
+
+import { MK_API } from "./_api.js";
+import { MK_AUDIO } from "./_audio.js";
+import { MK_DESKTOP } from "./_desktop.js";
+import { MK_VIDEO } from "./_video.js";
+import { TopBar, MainArea, KindRail, FullscreenViz, TweaksControls } from "./chrome.jsx";
+import { fmtDur, parseDur } from "./format.js";
+import { CommandPalette, LyricsOverlay, SearchDropdown, ShortcutsOverlay } from "./overlays.jsx";
+import { store } from "./store.js";
+import { VIZ_THEMES } from "./themes.js";
+import { useTweaks } from "./tweaks-panel.jsx";
+import { ConnectionBanner } from "./views.jsx";
+import { WiredLoginView, loadAlbumTracks, resume } from "./_wiring.jsx";
+
 const { useState: uS, useEffect: uE, useMemo: uM, useRef: uR, useCallback: uC } = React;
 
 const TWEAK_DEFAULTS = /*EDITMODE-BEGIN*/{
@@ -57,19 +72,11 @@ const PALETTES = {
 // the `vizTheme` tweak; the special value "accent" (the default) follows
 // the active accent palette's viz gradient. Each gradient runs lo (bar
 // base) -> mid -> hi (bar tip); see vGrad in visualizer.jsx.
-const VIZ_THEMES = {
-  maneki: { name: "Maneki", viz: { lo: "#bcd47a", mid: "#e6c065", hi: "#f08aa6" } },
-  fire:   { name: "Fire",   viz: { lo: "#ffd24a", mid: "#ff7a1a", hi: "#e02020" } },
-  ice:    { name: "Ice",    viz: { lo: "#7fe8ff", mid: "#4aa8f0", hi: "#9a7af0" } },
-  aurora: { name: "Aurora", viz: { lo: "#7cffb2", mid: "#3cc6d8", hi: "#c86cf0" } },
-  sunset: { name: "Sunset", viz: { lo: "#ffe08a", mid: "#ff9e64", hi: "#ff5a8a" } },
-  mono:   { name: "Mono",   viz: { lo: "#6b7280", mid: "#c4c8ce", hi: "#ffffff" } },
-};
-window.MK_VIZ_THEMES = VIZ_THEMES;
+// VIZ_THEMES moved to themes.js (imported above).
 
 function App() {
-  const { ARTISTS, STATIONS, LYRICS_BOADICEA } = window.MK_DATA;
-  const [t, setT] = window.useTweaks(TWEAK_DEFAULTS);
+  const { ARTISTS, STATIONS, LYRICS_BOADICEA } = store.DATA;
+  const [t, setT] = useTweaks(TWEAK_DEFAULTS);
   const tweak = (k, v) => setT(typeof k === "object" ? k : { [k]: v });
 
   // Session state
@@ -78,7 +85,7 @@ function App() {
   // WIRING: lazy-initialise so the splash shows on first render if a
   // saved session exists. Without this we'd flash the login form for
   // 3-4 seconds while MK_RESUME does the library load on every launch.
-  const [resuming, setResuming] = uS(() => !!window.MK_API?.loadSession?.());
+  const [resuming, setResuming] = uS(() => !!MK_API?.loadSession?.());
 
   // Browse selection
   const [section, setSection] = uS("library"); // "library" | "stations" | "starred" | "videos"
@@ -128,7 +135,7 @@ function App() {
   // null and the OS call no-ops, so the CSS pin is the whole story.
   React.useEffect(() => {
     document.body.dataset.playerFullscreen = playerFs ? "true" : "false";
-    if (window.MK_DESKTOP?.kind) window.MK_DESKTOP.setFullscreen(playerFs);
+    if (MK_DESKTOP?.kind) MK_DESKTOP.setFullscreen(playerFs);
     return () => { document.body.dataset.playerFullscreen = "false"; };
   }, [playerFs]);
   // When the selection clears (Close button), exit fullscreen too -
@@ -143,10 +150,10 @@ function App() {
   // they refreshed the page.
   React.useEffect(() => {
     if (!authed) return;
-    const session = window.MK_API?.loadSession?.();
-    if (!session || typeof window.MK_VIDEO?.capabilities !== "function") return;
+    const session = MK_API?.loadSession?.();
+    if (!session || typeof MK_VIDEO?.capabilities !== "function") return;
     let cancelled = false;
-    window.MK_VIDEO.capabilities(session).then((caps) => {
+    MK_VIDEO.capabilities(session).then((caps) => {
       if (cancelled) return;
       setHasVideo(caps?.video === true);
       if (caps && typeof caps.audio === "boolean") setHasAudio(caps.audio);
@@ -158,7 +165,7 @@ function App() {
   React.useEffect(() => {
     if (!hasAudio && hasVideo) setKind("video");
   }, [hasAudio, hasVideo]);
-  const session = window.MK_API?.loadSession?.() || null;
+  const session = MK_API?.loadSession?.() || null;
 
   // Star state (per-track keyed "artistId/albumId/trackN"). Seeded from
   // MK_DATA.STARRED_TRACKS (getStarred2) rather than scanning loaded
@@ -166,7 +173,7 @@ function App() {
   // scan would miss every star until each album was opened.
   const [starred, setStarred] = uS(() => {
     const s = new Set();
-    (window.MK_DATA.STARRED_TRACKS || []).forEach((t) => s.add(t.key));
+    (store.DATA.STARRED_TRACKS || []).forEach((t) => s.add(t.key));
     return s;
   });
   // The useState initializer above runs at App mount — which is BEFORE
@@ -176,7 +183,7 @@ function App() {
   // replace so any star toggled in the gap survives.
   uE(() => {
     if (!authed) return;
-    const seed = window.MK_DATA.STARRED_TRACKS || [];
+    const seed = store.DATA.STARRED_TRACKS || [];
     if (!seed.length) return;
     setStarred((prev) => {
       const next = new Set(prev);
@@ -194,19 +201,19 @@ function App() {
     // WIRING: forward to /rest/star or /rest/unstar so the server
     // sees the change too. `key` is "artistId/albumId/trackN" — we
     // resolve back to the real song id via the cached library tree.
-    if (!window.MK_API || !window.MK_SESSION) return;
+    if (!MK_API || !store.SESSION) return;
     const [aId, alId, trN] = key.split("/");
-    const a = window.MK_DATA.ARTISTS.find((x) => x.id === aId);
+    const a = store.DATA.ARTISTS.find((x) => x.id === aId);
     const al = a?.albums.find((x) => x.id === alId);
     let tr = al?.tracks.find((x) => String(x.n) === trN);
     // When the album's tracks aren't loaded (e.g. unstarring straight
     // from the Starred view), resolve the song id from the getStarred2
     // seed instead, which carries the trackId directly.
-    if (!tr?.trackId) tr = (window.MK_DATA.STARRED_TRACKS || []).find((s) => s.key === key);
+    if (!tr?.trackId) tr = (store.DATA.STARRED_TRACKS || []).find((s) => s.key === key);
     if (!tr?.trackId) return;
     const wasStarred = starred.has(key);
-    const fn = wasStarred ? window.MK_API.unstar : window.MK_API.star;
-    fn(window.MK_SESSION, { id: tr.trackId }).catch((err) => {
+    const fn = wasStarred ? MK_API.unstar : MK_API.star;
+    fn(store.SESSION, { id: tr.trackId }).catch((err) => {
       console.warn("[wiring] star/unstar failed:", err);
       // Roll back the optimistic local toggle so the heart matches
       // what the server actually thinks.
@@ -215,7 +222,7 @@ function App() {
         if (wasStarred) next.add(key); else next.delete(key);
         return next;
       });
-      window.MK_setConnError?.({
+      store.setConnError?.({
         message: `Couldn't update star on the server: ${err?.message || err}`,
         retry: () => toggleStar(key),
       });
@@ -286,36 +293,36 @@ function App() {
   // unchanged) and the separate [playing] effect doesn't re-fire. Without
   // an explicit play() here the new track loads but stays paused.
   uE(() => {
-    if (!now || !window.MK_AUDIO) return;
+    if (!now || !MK_AUDIO) return;
     let loaded = false;
     if (now.stationId) {
-      const st = window.MK_DATA.STATIONS.find((s) => s.id === now.stationId);
-      if (st?.streamUrl) { window.MK_AUDIO.load(st.streamUrl); loaded = true; }
-    } else if (window.MK_SESSION && now.trackId) {
+      const st = store.DATA.STATIONS.find((s) => s.id === now.stationId);
+      if (st?.streamUrl) { MK_AUDIO.load(st.streamUrl); loaded = true; }
+    } else if (store.SESSION && now.trackId) {
       // Stream straight from now.trackId — every setNow already carries
       // it, so we don't need the album's tracks loaded to start playback
       // (matters when playing from search / the Starred view).
-      window.MK_AUDIO.load(window.MK_API.streamUrl(window.MK_SESSION, now.trackId));
+      MK_AUDIO.load(MK_API.streamUrl(store.SESSION, now.trackId));
       loaded = true;
     }
-    if (loaded) window.MK_AUDIO.play();
+    if (loaded) MK_AUDIO.play();
   }, [now]);
 
   // Forward play/pause state to the audio element.
   uE(() => {
-    if (!window.MK_AUDIO) return;
-    if (playing) window.MK_AUDIO.play();
-    else window.MK_AUDIO.pause();
+    if (!MK_AUDIO) return;
+    if (playing) MK_AUDIO.play();
+    else MK_AUDIO.pause();
   }, [playing]);
 
   // Forward volume / muted to the audio element.
-  uE(() => { window.MK_AUDIO?.setVolume(vol); }, [vol]);
-  uE(() => { window.MK_AUDIO?.setMuted(muted); }, [muted]);
+  uE(() => { MK_AUDIO?.setVolume(vol); }, [vol]);
+  uE(() => { MK_AUDIO?.setMuted(muted); }, [muted]);
 
   // Forward the manual spectrum-delay offset. Added on top of the
   // auto-detected output latency (see _audio.js); covers stacks that
   // under-report outputLatency, where the spectrum still leads the sound.
-  uE(() => { window.MK_AUDIO?.setVizDelay?.(t.vizDelay || 0); }, [t.vizDelay]);
+  uE(() => { MK_AUDIO?.setVizDelay?.(t.vizDelay || 0); }, [t.vizDelay]);
 
   // Real audio time/duration/end -> React state. timeupdate from <audio>
   // fires ~4 Hz on Chromium / WebKit; pushing every tick re-renders the
@@ -325,21 +332,21 @@ function App() {
   // to integer seconds — every consumer of `pos` (LCDTime, fmtDur,
   // scrub-bar slider) renders at second resolution anyway.
   uE(() => {
-    if (!window.MK_AUDIO) return;
-    const offT = window.MK_AUDIO.onTimeUpdate((t) => {
+    if (!MK_AUDIO) return;
+    const offT = MK_AUDIO.onTimeUpdate((t) => {
       setPos((prev) => Math.floor(t) === Math.floor(prev) ? prev : Math.floor(t));
     });
-    const offD = window.MK_AUDIO.onDurationChange((d) => { if (d > 0) setDur(d); });
-    const offE = window.MK_AUDIO.onEnded(() => handleNextRef.current?.());
+    const offD = MK_AUDIO.onDurationChange((d) => { if (d > 0) setDur(d); });
+    const offE = MK_AUDIO.onEnded(() => handleNextRef.current?.());
     // Treat the <audio> element as the source of truth for `playing`, so a
     // pause triggered from outside the transport button (e.g. a video
     // starting) keeps the UI honest. And when music actually starts, stop
     // any mounted video player — the two must never play at once.
-    const offPl = window.MK_AUDIO.onPlay(() => {
+    const offPl = MK_AUDIO.onPlay(() => {
       setPlaying(true);
-      try { window.MK_VIDEO_PLAYER?.pause?.(); } catch { /* player disposed */ }
+      try { store.videoPlayer?.pause?.(); } catch { /* player disposed */ }
     });
-    const offPa = window.MK_AUDIO.onPause(() => setPlaying(false));
+    const offPa = MK_AUDIO.onPause(() => setPlaying(false));
     return () => { offT(); offD(); offE(); offPl(); offPa(); };
   }, []);
 
@@ -373,8 +380,8 @@ function App() {
   // re-renders the views that read `.tracks`.
   uE(() => {
     if (!authed) return;
-    if (typeof window.MK_loadAlbumTracks !== "function") return;
-    const sess = window.MK_API?.loadSession?.();
+    if (typeof loadAlbumTracks !== "function") return;
+    const sess = MK_API?.loadSession?.();
     if (!sess) return;
     const targets = [];
     if (artist && album && !album.tracksLoaded) targets.push([artist.id, album.id]);
@@ -385,7 +392,7 @@ function App() {
     }
     if (!targets.length) return;
     let cancelled = false;
-    Promise.all(targets.map(([aid, alid]) => window.MK_loadAlbumTracks(sess, aid, alid)))
+    Promise.all(targets.map(([aid, alid]) => loadAlbumTracks(sess, aid, alid)))
       .then(() => { if (!cancelled) setAlbumTracksTick((n) => n + 1); })
       .catch((err) => console.warn("[app] lazy album-track load failed:", err));
     return () => { cancelled = true; };
@@ -401,11 +408,11 @@ function App() {
   uE(() => {
     setRadioTitle("");
     const metaUrl = nowStation?.metaUrl;
-    if (!metaUrl || !window.MK_API || !window.MK_SESSION) return;
+    if (!metaUrl || !MK_API || !store.SESSION) return;
     let cancelled = false;
     const poll = async () => {
       try {
-        const title = await window.MK_API.radioMeta(window.MK_SESSION, metaUrl);
+        const title = await MK_API.radioMeta(store.SESSION, metaUrl);
         if (!cancelled) setRadioTitle(title || "");
       } catch (_e) { /* best-effort */ }
     };
@@ -426,7 +433,7 @@ function App() {
       const key = `${a.id}/${al.id}/${tr.n}`;
       if (starred.has(key)) { out.push({ artistId: a.id, artistName: a.name, albumId: al.id, albumName: al.name, ...tr, key }); seen.add(key); }
     })));
-    (window.MK_DATA.STARRED_TRACKS || []).forEach((t) => {
+    (store.DATA.STARRED_TRACKS || []).forEach((t) => {
       if (starred.has(t.key) && !seen.has(t.key)) out.push(t);
     });
     return out;
@@ -442,15 +449,15 @@ function App() {
   uE(() => {
     const ql = q.trim();
     if (!ql) { setResults({ artists: [], albums: [], tracks: [] }); return; }
-    const sess = window.MK_API?.loadSession?.();
-    if (!sess || typeof window.MK_API.search3 !== "function") {
+    const sess = MK_API?.loadSession?.();
+    if (!sess || typeof MK_API.search3 !== "function") {
       setResults({ artists: [], albums: [], tracks: [] });
       return;
     }
     let cancelled = false;
     const handle = setTimeout(async () => {
       try {
-        const r = await window.MK_API.search3(sess, ql, { artistCount: 20, albumCount: 20, songCount: 40 });
+        const r = await MK_API.search3(sess, ql, { artistCount: 20, albumCount: 20, songCount: 40 });
         if (cancelled) return;
         const artists = (r.artist || []).map((a) => ({ id: a.id, name: a.name }));
         const albums = (r.album || []).map((al) => ({
@@ -538,8 +545,8 @@ function App() {
   // banner when a network call fails. The setter is wiped on unmount
   // so stale references don't fire into a dead React tree.
   uE(() => {
-    window.MK_setConnError = setConnError;
-    return () => { window.MK_setConnError = null; };
+    store.setConnError = setConnError;
+    return () => { store.setConnError = null; };
   }, []);
 
   // WIRING: on first mount, see if there's a saved session and skip
@@ -547,10 +554,10 @@ function App() {
   // render a splash (see the early-return below); without it the login
   // form would briefly flash on every launch.
   uE(() => {
-    if (authed || !window.MK_RESUME) { setResuming(false); return; }
-    if (!window.MK_API?.loadSession?.()) { setResuming(false); return; }
+    if (authed || !resume) { setResuming(false); return; }
+    if (!MK_API?.loadSession?.()) { setResuming(false); return; }
     let cancelled = false;
-    window.MK_RESUME()
+    resume()
       .then((session) => {
         if (cancelled) return;
         if (session) {
@@ -584,8 +591,8 @@ function App() {
       // mute) to the video player and `return` so the audio switch below
       // can't fire and clobber state. Help/palette shortcuts (?, Cmd+P)
       // are global, handled above this block.
-      if (kind === "video" && selectedVideo && window.MK_VIDEO_PLAYER) {
-        const p = window.MK_VIDEO_PLAYER;
+      if (kind === "video" && selectedVideo && store.videoPlayer) {
+        const p = store.videoPlayer;
         switch (e.key) {
           case "f":
             e.preventDefault();
@@ -699,8 +706,8 @@ function App() {
           else if (showLyrics) setShowLyrics(false);
           else if (searchOpen) { setSearchOpen(false); setQ(""); }
           break;
-        case "ArrowLeft": setPos((p) => { const np = Math.max(0, p - 5); window.MK_AUDIO?.seek?.(np); return np; }); break;
-        case "ArrowRight": setPos((p) => { const np = Math.min(dur, p + 5); window.MK_AUDIO?.seek?.(np); return np; }); break;
+        case "ArrowLeft": setPos((p) => { const np = Math.max(0, p - 5); MK_AUDIO?.seek?.(np); return np; }); break;
+        case "ArrowRight": setPos((p) => { const np = Math.min(dur, p + 5); MK_AUDIO?.seek?.(np); return np; }); break;
         case "ArrowUp": setVol((v) => Math.min(1, v + 0.05)); setMuted(false); e.preventDefault(); break;
         case "ArrowDown": setVol((v) => Math.max(0, v - 0.05)); e.preventDefault(); break;
         case "s": setShuffle((s) => !s); break;
@@ -721,21 +728,21 @@ function App() {
     // launch doesn't auto-resume into the same account. Without this,
     // MK_RESUME() rehydrates from localStorage and bypasses the login
     // form — contradicting the "Clear session and sign out" tooltip.
-    window.MK_API?.clearSession?.();
-    window.MK_SESSION = null;
-    if (window.MK_DATA) {
-      window.MK_DATA.ARTISTS = [];
-      window.MK_DATA.STATIONS = [];
-      window.MK_DATA.STARRED_TRACKS = [];
+    MK_API?.clearSession?.();
+    store.SESSION = null;
+    if (store.DATA) {
+      store.DATA.ARTISTS = [];
+      store.DATA.STATIONS = [];
+      store.DATA.STARRED_TRACKS = [];
     }
-    window.MK_AUDIO?.pause?.();
+    MK_AUDIO?.pause?.();
   };
 
   // Palette command runner. In video mode, commands route to the
   // video.js player (when one is mounted) instead of the audio chrome.
   // Cross-mode commands (Show shortcuts, Sign out) work either way.
   const runCmd = (c) => {
-    const p = window.MK_VIDEO_PLAYER;
+    const p = store.videoPlayer;
     // Spectrum colour themes carry their key on the command itself.
     if (c.vizTheme) { tweak("vizTheme", c.vizTheme); return; }
     // Cross-mode commands (work without a player loaded).
@@ -816,8 +823,8 @@ function App() {
     }
     return (
       <>
-        <window.MK_LoginView themeMode={t.theme} onConnect={({ url, user }) => { setAuthed(true); setUser(user); }} />
-        <window.MK_TweaksControls tweak={tweak} t={t} />
+        <WiredLoginView themeMode={t.theme} onConnect={({ url, user }) => { setAuthed(true); setUser(user); }} />
+        <TweaksControls tweak={tweak} t={t} />
       </>
     );
   }
@@ -830,15 +837,11 @@ function App() {
     : basePalette.viz;
   const palette = { ...basePalette, viz: vizColors };
 
-  // Alias the namespaced component to a local PascalCase identifier - Babel-
-  // standalone's JSX has trouble with <window.MK_X /> directly (renders to
-  // null silently), so the workaround is `const X = window.MK_X` first.
-  const KindRail = window.MK_KindRail;
   return (
     <div className="mk-root" data-kind={kind}>
       <KindRail kind={kind} setKind={setKind} hasAudio={hasAudio} hasVideo={hasVideo}/>
       <div className="mk-shell" data-layout={t.layout}>
-      <window.MK_TopBar
+      <TopBar
         user={user}
         q={q} setQ={(v) => { setQ(v); setSearchOpen(true); }}
         onFocusSearch={() => setSearchOpen(true)}
@@ -848,7 +851,7 @@ function App() {
       />
 
       {showConn && (
-        <window.MK_ConnectionBanner
+        <ConnectionBanner
           message="GET /rest/getArtists timed out after 8s. Will retry automatically."
           onRetry={() => setShowConn(false)}
           onDismiss={() => setShowConn(false)}
@@ -856,7 +859,7 @@ function App() {
       )}
 
       {connError && (
-        <window.MK_ConnectionBanner
+        <ConnectionBanner
           message={connError.message}
           onRetry={() => {
             const r = connError.retry;
@@ -867,7 +870,7 @@ function App() {
         />
       )}
 
-      <window.MK_MainArea
+      <MainArea
         t={t} tweak={tweak}
         section={section} setSection={(s) => { setSection(s); setArtistId(null); setAlbumId(null); }}
         loaded={loaded}
@@ -896,16 +899,16 @@ function App() {
         showStats={showStats} onCloseStats={() => setShowStats(false)}
       />
 
-      <window.MK_SearchDropdown
+      <SearchDropdown
         q={searchOpen && kind !== "video" ? q : ""}
         results={results}
         anchorEl={searchInputRef.current}
         onPick={pickSearchResult}
         onClose={() => setSearchOpen(false)}
       />
-      <window.MK_ShortcutsOverlay open={showShortcuts} onClose={() => setShowShortcuts(false)} kind={kind} />
-      <window.MK_CommandPalette open={showPalette} onClose={() => setShowPalette(false)} onRun={runCmd} kind={kind} hasAudio={hasAudio} hasVideo={hasVideo} />
-      <window.MK_LyricsOverlay
+      <ShortcutsOverlay open={showShortcuts} onClose={() => setShowShortcuts(false)} kind={kind} />
+      <CommandPalette open={showPalette} onClose={() => setShowPalette(false)} onRun={runCmd} kind={kind} hasAudio={hasAudio} hasVideo={hasVideo} />
+      <LyricsOverlay
         open={showLyrics && !!nowTrack}
         onClose={() => setShowLyrics(false)}
         title={nowTrack?.title || ""}
@@ -913,7 +916,7 @@ function App() {
         lines={LYRICS_BOADICEA}
       />
       {fullscreenViz && (
-        <window.MK_FullscreenViz
+        <FullscreenViz
           onClose={() => setFullscreenViz(false)}
           vizStyle={t.viz} tweak={tweak}
           running={playing}
@@ -925,26 +928,12 @@ function App() {
         />
       )}
 
-      <window.MK_TweaksControls tweak={tweak} t={t} setShowConn={setShowConn} />
+      <TweaksControls tweak={tweak} t={t} setShowConn={setShowConn} />
       </div>
     </div>
   );
 }
 
-function parseDur(s) {
-  if (!s) return 0;
-  const [m, sec] = s.split(":").map(Number);
-  return m * 60 + sec;
-}
+// fmtDur / parseDur moved to format.js (imported above).
 
-function fmtDur(s) {
-  if (!s || !isFinite(s)) return "00:00";
-  const m = Math.floor(s / 60);
-  const sec = Math.floor(s % 60);
-  return `${String(m).padStart(2, "0")}:${String(sec).padStart(2, "0")}`;
-}
-
-window.MK_App = App;
-window.MK_fmtDur = fmtDur;
-window.MK_parseDur = parseDur;
-window.MK_PALETTES = PALETTES;
+export { App, PALETTES };

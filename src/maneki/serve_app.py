@@ -474,5 +474,5 @@ def _mount_ui(combined: FastAPI, ui_dir: Path | None) -> None:
 def _discover_react_dir() -> Path | None:
     """Find desktop/react/ relative to this file's repo location."""
     repo_root = Path(__file__).resolve().parents[2]
-    candidate = repo_root / "desktop" / "react"
+    candidate = repo_root / "desktop" / "react" / "dist"
     return candidate if candidate.exists() else None

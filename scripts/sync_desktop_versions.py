@@ -55,32 +55,11 @@ def update_json_version(path: Path, version: str) -> bool:
     return True
 
 
-_META_TAG_RE = re.compile(r'(<meta\s+name="mk-version"\s+content=")[^"]*(")')
-# Matches both `<script src="...?v=...">` and `<link href="...?v=...">`
-# so the CSS stylesheets get cache-busted alongside the JSX bundle.
-# Without the link variant the desktop wrapper would happily run a new
-# release's JS against the previous release's CSS until manual reload.
-_ASSET_VERSION_RE = re.compile(r'(<(?:script|link)[^>]*\b(?:src|href)="[^"]*?\?v=)[^"]*(")')
-
-
-def update_html_meta_version(path: Path, version: str) -> bool:
-    """Update `<meta name=mk-version>` and `?v=X.Y.Z` busters on local assets.
-
-    The meta tag drives the login / topbar `vX.Y.Z` label. The `?v=` cache
-    buster on every `<script>` and `<link>` forces Electron / Tauri
-    webviews to re-download the JS / CSS bundle on each release instead
-    of running a stale cached copy. Regex rather than a real HTML parser
-    keeps this script dependency-free.
-    """
-    text = path.read_text(encoding="utf-8")
-    new_text, meta_n = _META_TAG_RE.subn(rf"\g<1>{version}\g<2>", text)
-    if meta_n == 0:
-        raise SystemExit(f"meta[name=mk-version] not found in {path}")
-    new_text = _ASSET_VERSION_RE.sub(rf"\g<1>{version}\g<2>", new_text)
-    if new_text == text:
-        return False
-    path.write_text(new_text, encoding="utf-8")
-    return True
+# NOTE: index.html no longer carries a `<meta name=mk-version>` or `?v=`
+# cache-busters — the SPA is a Vite build (content-hashed filenames) and the
+# version label compiles in from a Vite define that reads pyproject.toml
+# directly (see desktop/react/vite.config.js). So this script no longer
+# touches index.html.
 
 
 # The `[package].version` line is the first `version = "..."` in Cargo.toml
@@ -130,11 +109,6 @@ def main() -> None:
             targets.append((path, "updated"))
         else:
             targets.append((path, "already in sync"))
-    html_path = REPO_ROOT / "desktop" / "react" / "index.html"
-    if update_html_meta_version(html_path, version):
-        targets.append((html_path, "updated"))
-    else:
-        targets.append((html_path, "already in sync"))
     src_tauri = REPO_ROOT / "desktop" / "tauri" / "src-tauri"
     cargo_toml = src_tauri / "Cargo.toml"
     targets.append((cargo_toml, "updated" if update_cargo_version(cargo_toml, version) else "already in sync"))

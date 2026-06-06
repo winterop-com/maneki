@@ -13,14 +13,9 @@
 // Subsonic client does. For at-rest, the OS keychain via the host
 // store plugin is the real protection.
 
-// Registered on `window.MK_md5` instead of ES-module-exported so it can
-// be loaded via a plain `<script>` tag alongside the design artifact's
-// Babel-compiled JSX. The design-zip workflow doesn't use a bundler;
-// see desktop/react/README.md for the wiring story.
-function md5(input) {
+export function md5(input) {
   return rhex(md51(input));
 }
-window.MK_md5 = md5;
 
 function safeAdd(a, b) {
   const lsw = (a & 0xffff) + (b & 0xffff);

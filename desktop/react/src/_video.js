@@ -11,7 +11,7 @@
 // Lives outside the design artifact (underscored filename) so design-zip
 // drops don't touch it.
 
-(function () {
+export const MK_VIDEO = (function () {
   "use strict";
 
   // Derive the API root from the session's baseUrl. The login flow
@@ -194,5 +194,5 @@
     },
   };
 
-  window.MK_VIDEO = MK_VIDEO;
+  return MK_VIDEO;
 })();

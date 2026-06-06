@@ -1,3 +1,7 @@
+import React from "react";
+
+import { VIZ_THEMES } from "./themes.js";
+
 // Overlays: keyboard-shortcuts panel, command palette, search dropdown, lyrics.
 
 const { useState, useEffect, useRef, useMemo } = React;
@@ -115,7 +119,7 @@ function CommandPalette({ open, onClose, onRun, kind, hasAudio = true, hasVideo 
   // that runCmd applies. "Follow accent" restores the accent-driven default.
   const vizCmds = [];
   if (kind !== "video") {
-    const themes = window.MK_VIZ_THEMES || {};
+    const themes = VIZ_THEMES || {};
     vizCmds.push({ label: "Spectrum colors: Follow accent", k: "", vizTheme: "accent" });
     for (const [key, v] of Object.entries(themes)) {
       vizCmds.push({ label: `Spectrum colors: ${v.name}`, k: "", vizTheme: key });
@@ -283,4 +287,4 @@ function LyricsOverlay({ open, onClose, lines, title, artist }) {
   );
 }
 
-Object.assign(window, { MK_ShortcutsOverlay: ShortcutsOverlay, MK_CommandPalette: CommandPalette, MK_SearchDropdown: SearchDropdown, MK_LyricsOverlay: LyricsOverlay });
+export { ShortcutsOverlay, CommandPalette, SearchDropdown, LyricsOverlay };

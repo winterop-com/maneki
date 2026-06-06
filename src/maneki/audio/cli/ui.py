@@ -52,7 +52,7 @@ def _resolve_static_dir() -> Path:
     here = Path(__file__).resolve()
     # ui.py -> cli/ -> maneki/audio/ -> src/ -> repo root
     repo_root = here.parents[3]
-    dev_dir = repo_root / "desktop" / "react"
+    dev_dir = repo_root / "desktop" / "react" / "dist"
     if dev_dir.is_dir() and (dev_dir / "index.html").exists():
         return dev_dir
     raise FileNotFoundError(

@@ -1,4 +1,4 @@
-.PHONY: help install lint check test coverage docs docs-serve docs-build docs-screenshots build build-python dist-collect desktop-sync-frontend desktop-sync-version desktop-tauri desktop-tauri-dev desktop-tauri-build _wipe-tauri-userdata desktop-electron desktop-electron-dev desktop-electron-build _wipe-electron-userdata ui-static-sync clean
+.PHONY: help install lint check test coverage docs docs-serve docs-build docs-screenshots build build-python dist-collect desktop-build-frontend desktop-sync-frontend desktop-sync-version desktop-tauri desktop-tauri-dev desktop-tauri-build _wipe-tauri-userdata desktop-electron desktop-electron-dev desktop-electron-build _wipe-electron-userdata ui-static-sync clean
 
 UV := $(shell command -v uv 2> /dev/null)
 
@@ -124,7 +124,11 @@ build-python: ui-static-sync
 	@echo ">>> Building Python wheel + sdist into ./dist"
 	@$(UV) build
 
-ui-static-sync:
+desktop-build-frontend:
+	@echo ">>> Building the React SPA with Vite -> desktop/react/dist/"
+	@cd desktop/react && (test -d node_modules || bun install --frozen-lockfile) && bun run build
+
+ui-static-sync: desktop-build-frontend
 	@$(UV) run python scripts/copy_ui_static.py
 
 # Copy desktop artifacts into ./dist alongside the Python wheel + sdist
@@ -226,7 +230,7 @@ desktop-electron-dev: desktop-sync-frontend _wipe-electron-userdata
 	@echo ">>> Electron dev — opens window pointed at desktop/react/index.html"
 	@cd desktop/electron && (test -d node_modules || bun install) && bun run start
 
-desktop-electron-build: desktop-sync-frontend desktop-sync-version
+desktop-electron-build: desktop-sync-frontend desktop-sync-version desktop-build-frontend
 	@echo ">>> Electron release build — produces a .dmg under desktop/electron/dist/"
 	@cd desktop/electron && (test -d node_modules || bun install) && bun run build
 
