@@ -1,6 +1,6 @@
 [project]
 name = "maneki"
-version = "0.11.0"
+version = "0.11.1"
 description = "Self-hosted media toolkit: audio today (convert / audit / retag rips, Textual TUI, Subsonic-compatible HTTP server), video next (folder-first metadata, HLS streaming)."
 readme = "README.md"
 requires-python = ">=3.13"
@@ -44,8 +44,9 @@ dependencies = [
   "pydantic>=2.10.0",
   "pydantic-settings>=2.6.0",
   "fastapi>=0.136.1",
+  "starlette>=1.0.1",  # transitive via fastapi; pinned explicitly
   "uvicorn[standard]>=0.46.0",
-  "zeroconf>=0.148.0",
+  "zeroconf>=0.149.7",
   "watchdog>=6.0.0",
   "paho-mqtt>=2.1.0",
   "jinja2>=3.1.6",
