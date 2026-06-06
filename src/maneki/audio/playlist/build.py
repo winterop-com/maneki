@@ -20,15 +20,17 @@ from __future__ import annotations
 
 import random
 from collections import defaultdict
-from dataclasses import dataclass
+
+from pydantic import BaseModel, ConfigDict
 
 from maneki.audio.library.models import LibraryIndex, LibraryTrack
 from maneki.audio.playlist.similarity import score
 
 
-@dataclass(frozen=True)
-class PlaylistResult:
+class PlaylistResult(BaseModel):
     """Result of `generate()` — tracks plus the resolved name."""
+
+    model_config = ConfigDict(frozen=True)
 
     tracks: list[LibraryTrack]
     name: str

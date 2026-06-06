@@ -227,15 +227,15 @@ class VideoIndex:
             return
         rows = [
             (
-                entry["id"],
-                entry["rel_path"],
-                entry["name"],
-                entry["path"],
-                entry["size_bytes"],
-                entry["duration_s"],
+                entry.id,
+                entry.rel_path,
+                entry.name,
+                entry.path,
+                entry.size_bytes,
+                entry.duration_s,
                 mtime,
                 json.dumps(
-                    [{"lang": s["lang"], "format": s["format"]} for s in entry["subtitles"]],
+                    [{"lang": s.lang, "format": s.format} for s in entry.subtitles],
                     separators=(",", ":"),
                 ),
             )

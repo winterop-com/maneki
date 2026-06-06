@@ -21,7 +21,9 @@ import shutil
 import subprocess
 from collections.abc import Callable, Iterator
 from pathlib import Path
-from typing import TYPE_CHECKING, TypedDict
+from typing import TYPE_CHECKING
+
+from pydantic import BaseModel
 
 if TYPE_CHECKING:
     from maneki.video.serve.scan_cache import VideoIndex
@@ -73,14 +75,14 @@ _SCAN_SKIP_DIR_NAMES = frozenset({".maneki", ".musickit", ".git", "__pycache__"}
 _DURATION_CACHE_MAX = 20000
 
 
-class SubtitleSummary(TypedDict):
+class SubtitleSummary(BaseModel):
     """One subtitle sidecar surfaced in the video list response."""
 
     lang: str
     format: str  # "srt" or "vtt"
 
 
-class VideoEntry(TypedDict):
+class VideoEntry(BaseModel):
     """Metadata for one indexed video file."""
 
     id: str
@@ -92,7 +94,7 @@ class VideoEntry(TypedDict):
     subtitles: list[SubtitleSummary]
 
 
-class FolderEntry(TypedDict):
+class FolderEntry(BaseModel):
     """One subdirectory in a browse response."""
 
     name: str
@@ -100,7 +102,7 @@ class FolderEntry(TypedDict):
     video_count: int  # videos in this folder and all descendants
 
 
-class BrowseResponse(TypedDict):
+class BrowseResponse(BaseModel):
     """Result of browsing one directory under the library root."""
 
     rel_path: str  # "" means the library root, "movies" / "tv/The Americans" etc.
@@ -357,10 +359,10 @@ async def prewarm_scan(
 
     # Combine reused + freshly probed in walk order. Build a map keyed
     # on path so we can emit in the same `paths`-sorted order.
-    by_id: dict[str, VideoEntry] = {e["id"]: e for e in reused}
+    by_id: dict[str, VideoEntry] = {e.id: e for e in reused}
     for entry in probed:
         if entry is not None:
-            by_id[entry["id"]] = entry
+            by_id[entry.id] = entry
     results: list[VideoEntry] = []
     for path in paths:
         rel = path.relative_to(root)
@@ -371,7 +373,7 @@ async def prewarm_scan(
 
     # Prune cache rows whose ids no longer appear on disk.
     if index is not None:
-        live_ids = {e["id"] for e in results}
+        live_ids = {e.id for e in results}
         removed = await asyncio.to_thread(index.delete_missing, live_ids)
         if removed:
             log.info("video scan: pruned %d stale row(s) from the index", removed)

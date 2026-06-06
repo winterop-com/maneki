@@ -201,7 +201,7 @@ def create_combined_app(
                 on_changed=video_sub.state.poster_manager.invalidate,
             )
             video_sub.state.video_cache = videos
-            live_ids = {v["id"] for v in videos}
+            live_ids = {v.id for v in videos}
             video_sub.state.poster_manager.clean_orphans(live_ids)
             video_sub.state.hls_manager.clean_orphans(live_ids)
             video_sub.state.subtitle_cache.clean_orphans(live_ids)
@@ -213,7 +213,7 @@ def create_combined_app(
                     len(videos),
                 )
                 await video_sub.state.poster_manager.prewarm(
-                    [dict(v) for v in videos],
+                    [v.model_dump() for v in videos],
                     skip_posters=no_cover_images,
                 )
                 _log.info("prewarm-cache: done")
