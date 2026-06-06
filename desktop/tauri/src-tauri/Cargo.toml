@@ -4,7 +4,7 @@ name = "maneki-desktop"
 # scripts/sync_desktop_versions.py, which bumps this line and the matching
 # Cargo.lock entry together (so the lock never drifts and the build log
 # reads the real `Compiling maneki-desktop vX.Y.Z`).
-version = "0.12.2"
+version = "0.13.0"
 edition = "2024"
 rust-version = "1.88"
 description = "Native desktop wrapper around the Maneki web UI."
