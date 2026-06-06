@@ -328,7 +328,16 @@ function App() {
     });
     const offD = window.MK_AUDIO.onDurationChange((d) => { if (d > 0) setDur(d); });
     const offE = window.MK_AUDIO.onEnded(() => handleNextRef.current?.());
-    return () => { offT(); offD(); offE(); };
+    // Treat the <audio> element as the source of truth for `playing`, so a
+    // pause triggered from outside the transport button (e.g. a video
+    // starting) keeps the UI honest. And when music actually starts, stop
+    // any mounted video player — the two must never play at once.
+    const offPl = window.MK_AUDIO.onPlay(() => {
+      setPlaying(true);
+      try { window.MK_VIDEO_PLAYER?.pause?.(); } catch { /* player disposed */ }
+    });
+    const offPa = window.MK_AUDIO.onPause(() => setPlaying(false));
+    return () => { offT(); offD(); offE(); offPl(); offPa(); };
   }, []);
 
   // Theme toggle on root.
