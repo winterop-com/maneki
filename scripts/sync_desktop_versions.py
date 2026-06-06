@@ -8,15 +8,14 @@ Info.plist's `CFBundleShortVersionString`, the DMG filename
 (`Maneki-Tauri-X.Y.Z-…dmg` / `Maneki-Electron-X.Y.Z-…dmg`), and
 the macOS About window.
 
-We deliberately do NOT sync `desktop/tauri/src-tauri/Cargo.toml`'s
-`[package].version`. That field is internal Cargo metadata; nothing
-user-facing reads it. Bumping it on every release caused
-`Cargo.lock`'s `maneki-desktop` entry to drift by one version
-because CI never runs `cargo build` to refresh the lock — every
-Python release left a stale lock entry that needed a follow-up
-chore PR. Pinning the crate at a stable internal version (currently
-0.1.0) decouples the lock from the project version and removes the
-drift entirely.
+We also bump `desktop/tauri/src-tauri/Cargo.toml`'s `[package].version`
+so the build log reads the real version (`Compiling maneki-desktop
+vX.Y.Z`) instead of a frozen placeholder. The original reason for *not*
+doing this was lock drift — bumping Cargo.toml without refreshing
+`Cargo.lock` left a stale `maneki-desktop` entry, and CI never runs
+`cargo` to fix it. We sidestep that by updating the matching entry in
+`Cargo.lock` in the same pass, so the manifest and lock stay in lockstep
+with no follow-up chore PR.
 
 Run via `make desktop-sync-version` (auto-invoked by the
 desktop-{tauri,electron}-build targets). Idempotent — safe to run
@@ -84,6 +83,39 @@ def update_html_meta_version(path: Path, version: str) -> bool:
     return True
 
 
+# The `[package].version` line is the first `version = "..."` in Cargo.toml
+# (the `[package]` table is at the top), so a single first-match replace
+# targets it without touching dependency pins.
+_CARGO_PKG_VERSION_RE = re.compile(r'(?m)^version = "[^"]*"')
+# The workspace crate's own entry in Cargo.lock: `name` then `version` on
+# consecutive lines (cargo's deterministic ordering).
+_CARGO_LOCK_DESKTOP_RE = re.compile(r'(name = "maneki-desktop"\nversion = ")[^"]*(")')
+
+
+def update_cargo_version(path: Path, version: str) -> bool:
+    """Update `[package].version` in the Tauri crate's Cargo.toml. Returns True if changed."""
+    text = path.read_text(encoding="utf-8")
+    new_text, n = _CARGO_PKG_VERSION_RE.subn(f'version = "{version}"', text, count=1)
+    if n == 0:
+        raise SystemExit(f"[package].version not found in {path}")
+    if new_text == text:
+        return False
+    path.write_text(new_text, encoding="utf-8")
+    return True
+
+
+def update_cargo_lock_version(path: Path, version: str) -> bool:
+    """Keep the `maneki-desktop` entry in Cargo.lock in lockstep. Returns True if changed."""
+    text = path.read_text(encoding="utf-8")
+    new_text, n = _CARGO_LOCK_DESKTOP_RE.subn(rf"\g<1>{version}\g<2>", text)
+    if n == 0:
+        raise SystemExit(f"maneki-desktop entry not found in {path}")
+    if new_text == text:
+        return False
+    path.write_text(new_text, encoding="utf-8")
+    return True
+
+
 def main() -> None:
     """CLI entrypoint: sync user-visible desktop versions to pyproject.toml."""
     version = read_pyproject_version()
@@ -103,6 +135,11 @@ def main() -> None:
         targets.append((html_path, "updated"))
     else:
         targets.append((html_path, "already in sync"))
+    src_tauri = REPO_ROOT / "desktop" / "tauri" / "src-tauri"
+    cargo_toml = src_tauri / "Cargo.toml"
+    targets.append((cargo_toml, "updated" if update_cargo_version(cargo_toml, version) else "already in sync"))
+    cargo_lock = src_tauri / "Cargo.lock"
+    targets.append((cargo_lock, "updated" if update_cargo_lock_version(cargo_lock, version) else "already in sync"))
     for path, status in targets:
         print(f"    {status:18} {path.relative_to(REPO_ROOT)}")
     sys.exit(0)

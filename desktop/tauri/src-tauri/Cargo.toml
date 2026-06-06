@@ -1,12 +1,10 @@
 [package]
 name = "maneki-desktop"
-# Internal Cargo crate version — intentionally NOT bumped on releases.
-# User-visible version metadata lives in tauri.conf.json (sync'd to
-# pyproject.toml on every build via scripts/sync_desktop_versions.py).
-# Bumping this would force Cargo.lock to update too, and CI doesn't
-# run cargo so it'd drift by one version every release. See
-# scripts/sync_desktop_versions.py header for the rationale.
-version = "0.1.0"
+# Kept in sync with pyproject.toml on every build by
+# scripts/sync_desktop_versions.py, which bumps this line and the matching
+# Cargo.lock entry together (so the lock never drifts and the build log
+# reads the real `Compiling maneki-desktop vX.Y.Z`).
+version = "0.11.4"
 edition = "2024"
 rust-version = "1.88"
 description = "Native desktop wrapper around the Maneki web UI."
