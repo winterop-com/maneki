@@ -173,7 +173,7 @@ async def test_quiet_period_resets_on_unpause() -> None:
 
 @pytest.mark.asyncio
 async def test_background_slot_quiet_false_uses_short_window() -> None:
-    """`quiet=False` (on-demand row thumbnails / posters) yields to in-flight
+    """`lane="ondemand"` (on-demand row thumbnails / posters) yields to in-flight
     foreground AND waits the shorter on-demand quiet window before resuming.
 
     Steady-state HLS playback fires foreground segments every ~6s; with a
@@ -198,7 +198,7 @@ async def test_background_slot_quiet_false_uses_short_window() -> None:
         fg_ended_at.append(time.monotonic())
 
     async def on_demand() -> None:
-        async with budget.background_slot(quiet=False):
+        async with budget.background_slot(lane="ondemand"):
             bg_started_at.append(time.monotonic())
 
     fg_task = asyncio.create_task(foreground())
@@ -236,3 +236,47 @@ async def test_state_reflects_in_flight_counts() -> None:
     release.set()
     await task
     assert budget.state().foreground_in_flight == 0
+
+
+@pytest.mark.asyncio
+async def test_prefetch_lane_runs_in_gaps_where_ondemand_holds_off() -> None:
+    """The prefetch lane's near-zero quiet window lets it run between
+    foreground segments during playback, where the longer on-demand window
+    keeps holding background work off.
+    """
+    budget = TranscodeBudget(
+        max_workers=2,
+        quiet_after_fg_s=30.0,
+        ondemand_quiet_s=5.0,
+        prefetch_quiet_s=0.05,
+    )
+
+    # A foreground segment just finished (steady-state playback).
+    async with budget.foreground():
+        pass
+
+    # Prefetch acquires almost immediately (within its 0.05s window).
+    prefetch_in = asyncio.Event()
+
+    async def prefetch() -> None:
+        async with budget.background_slot(lane="prefetch"):
+            prefetch_in.set()
+
+    pt = asyncio.create_task(prefetch())
+    await asyncio.wait_for(prefetch_in.wait(), timeout=1.0)
+    await pt
+
+    # Right after another foreground segment, an on-demand slot is still
+    # waiting out its much longer quiet window.
+    async with budget.foreground():
+        pass
+    ondemand_in = asyncio.Event()
+
+    async def ondemand() -> None:
+        async with budget.background_slot(lane="ondemand"):
+            ondemand_in.set()
+
+    ot = asyncio.create_task(ondemand())
+    await asyncio.sleep(0.5)
+    assert not ondemand_in.is_set()
+    ot.cancel()

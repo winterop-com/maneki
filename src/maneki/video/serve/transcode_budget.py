@@ -33,8 +33,13 @@ import contextlib
 import os
 import time
 from collections.abc import AsyncGenerator
+from typing import Literal
 
 from pydantic import BaseModel, ConfigDict
+
+# Background work lanes, each with a different quiet-window before it yields
+# the CPU back to itself after foreground activity. See `background_slot`.
+Lane = Literal["prewarm", "ondemand", "prefetch"]
 
 # After the last foreground request finishes, background workers wait
 # this long before resuming. Without it, pausing playback would cause
@@ -45,13 +50,24 @@ from pydantic import BaseModel, ConfigDict
 # the clock over.
 DEFAULT_QUIET_AFTER_FG_S: float = 30.0
 
-# Shorter quiet period for on-demand `quiet=False` background work
-# (row thumbnails / posters / HLS prefetch). Steady-state playback
-# fires a new foreground HLS segment every ~6s; with a 3s threshold,
-# the system rarely stays quiet long enough between segments for
-# background work to acquire a slot mid-playback. When the user pauses
-# for 3+ seconds, the budget releases and queued thumbnails fill in.
+# Shorter quiet period for on-demand "ondemand"-lane background work
+# (row thumbnails / posters). Steady-state playback fires a new
+# foreground HLS segment every ~6s; with a 3s threshold, the system
+# rarely stays quiet long enough between segments for this work to
+# acquire a slot mid-playback. When the user pauses for 3+ seconds, the
+# budget releases and queued thumbnails fill in.
 DEFAULT_ONDEMAND_QUIET_S: float = 3.0
+
+# Near-zero quiet period for the HLS forward-prefetch lane. Unlike
+# prewarm/on-demand work, prefetch MUST run *during* continuous playback:
+# it transcodes segments ahead of the playhead so a high-latency client
+# doesn't outrun the encoder. A foreground HLS segment lands every ~6s and
+# each takes well under a second, so a ~0.5s threshold lets prefetch fill
+# the gaps between segments while still yielding instantly to a new
+# foreground request (the foreground semaphore + OS-idle priority on the
+# prefetch ffmpeg keep playback first). Not literally 0 so a micro-pause
+# between back-to-back segment fetches doesn't thrash the encoder.
+DEFAULT_PREFETCH_QUIET_S: float = 0.5
 
 
 def default_workers() -> int:
@@ -93,6 +109,7 @@ class TranscodeBudget:
         max_foreground: int = 3,
         quiet_after_fg_s: float = DEFAULT_QUIET_AFTER_FG_S,
         ondemand_quiet_s: float = DEFAULT_ONDEMAND_QUIET_S,
+        prefetch_quiet_s: float = DEFAULT_PREFETCH_QUIET_S,
     ) -> None:
         workers = max_workers if max_workers is not None and max_workers > 0 else default_workers()
         self._max_workers = workers
@@ -114,6 +131,7 @@ class TranscodeBudget:
         self._idle_event.set()
         self._quiet_after_fg_s = quiet_after_fg_s
         self._ondemand_quiet_s = ondemand_quiet_s
+        self._prefetch_quiet_s = prefetch_quiet_s
         # Monotonic timestamp of the last foreground request that
         # finished. -inf means "no foreground has ever happened" -
         # background work can start immediately on a fresh server
@@ -164,7 +182,7 @@ class TranscodeBudget:
         forward while we're sleeping (e.g. user unpauses).
 
         `quiet_window_s` overrides the default per-budget quiet window;
-        used by `background_slot(quiet=False)` to wait the shorter
+        used by `background_slot(lane="ondemand")` to wait the shorter
         on-demand window (a few seconds) instead of the full prewarm
         window (~30s) so row icons fill in faster after a pause.
         """
@@ -195,7 +213,7 @@ class TranscodeBudget:
             await asyncio.sleep(0.25)
 
     @contextlib.asynccontextmanager
-    async def background_slot(self, *, quiet: bool = True) -> AsyncGenerator[None, None]:
+    async def background_slot(self, *, lane: Lane = "prewarm") -> AsyncGenerator[None, None]:
         """Acquire a background worker slot, yielding to foreground first.
 
         Order: wait for idle (+ quiet window) -> acquire semaphore ->
@@ -204,23 +222,32 @@ class TranscodeBudget:
         background transcode would start anyway and compete for ffmpeg
         CPU.
 
-        Two flavours of quiet window:
+        Three lanes, each with its own quiet window:
 
-        - `quiet=True` (default) waits the full `quiet_after_fg_s` (~30s)
-          after the last foreground request before resuming. Right for
-          speculative prewarm and prefetch: a paused user who scrubs
-          again shouldn't trigger a flurry of ffmpegs.
+        - `"prewarm"` (default) waits the full `quiet_after_fg_s` (~30s)
+          after the last foreground request. Right for speculative prewarm
+          (seg-0 fill, posters): a paused user who scrubs again shouldn't
+          trigger a flurry of ffmpegs.
 
-        - `quiet=False` waits the shorter `ondemand_quiet_s` (~3s).
-          Right for user-driven on-demand work (row thumbnails, clicked
-          posters): the user is actively waiting on the result, so we
-          want to resume as soon as playback genuinely pauses. Steady-
-          state HLS playback (a foreground segment every ~6s) keeps the
-          system out of the 3s quiet window so background work still
-          holds off during continuous playback - the row icons just
-          fill in once the user pauses.
+        - `"ondemand"` waits the shorter `ondemand_quiet_s` (~3s). Right for
+          user-driven work (row thumbnails, clicked posters): the user is
+          waiting on the result, so resume as soon as playback genuinely
+          pauses. Steady-state HLS playback (a foreground segment every ~6s)
+          keeps the system out of the 3s window, so this still holds off
+          during continuous playback - icons fill in once the user pauses.
+
+        - `"prefetch"` waits only `prefetch_quiet_s` (~0.5s). The forward-
+          prefetch lane MUST run *during* playback to stay ahead of the
+          playhead, so it fills the sub-second gaps between foreground
+          segments while still yielding instantly to a new foreground
+          request (foreground semaphore + OS-idle priority keep playback
+          first).
         """
-        quiet_window = self._quiet_after_fg_s if quiet else self._ondemand_quiet_s
+        quiet_window = {
+            "prewarm": self._quiet_after_fg_s,
+            "ondemand": self._ondemand_quiet_s,
+            "prefetch": self._prefetch_quiet_s,
+        }[lane]
         await self._wait_for_quiet(quiet_window)
         async with self._background_sem:
             # Foreground may have arrived while we were waiting on the
