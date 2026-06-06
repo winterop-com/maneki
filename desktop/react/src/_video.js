@@ -11,7 +11,7 @@
 // Lives outside the design artifact (underscored filename) so design-zip
 // drops don't touch it.
 
-(function () {
+export const MK_VIDEO = (function () {
   "use strict";
 
   // Derive the API root from the session's baseUrl. The login flow
@@ -60,6 +60,13 @@
 
     async list(session) {
       return call(`${videoApiBase(session)}/videos`);
+    },
+
+    // Fetch one video's full metadata by id — for deep-linking straight to
+    // a player (#/video/v/<id>) without browsing to its folder first.
+    // Rejects on 404 (unknown/stale id) so the route can show "not found".
+    async getVideo(session, videoId) {
+      return call(`${videoApiBase(session)}/videos/${encodeURIComponent(videoId)}`);
     },
 
     // Poll target: returns { scanning, phase, total, scanned } where
@@ -194,5 +201,5 @@
     },
   };
 
-  window.MK_VIDEO = MK_VIDEO;
+  return MK_VIDEO;
 })();

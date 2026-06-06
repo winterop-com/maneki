@@ -1,3 +1,7 @@
+import React from "react";
+
+import { MK_AUDIO } from "./_audio.js";
+
 // Canvas-driven FFT visualizer. We don't have a real audio source in the
 // prototype, but the brief requires this to be Canvas-driven; this synthesises
 // a band-shaped spectrum that *moves* like a real FFT (low-freq dominant,
@@ -71,7 +75,7 @@ function Visualizer({ style = "bars", running = true, accent, height, ambient = 
       // bar styles do. Falls back to a synthesised sine when no track has
       // played yet or while paused.
       if (style === "scope") {
-        const wave = running && window.MK_AUDIO?.getWaveform?.();
+        const wave = running && MK_AUDIO?.getWaveform?.();
         let target = 0;
         if (wave && wave.length) {
           let sum = 0;
@@ -95,7 +99,7 @@ function Visualizer({ style = "bars", running = true, accent, height, ambient = 
       // Falls through to the synthesised spectrum below if the
       // analyser isn't ready (no track played yet) or the source isn't
       // running.
-      const real = running && window.MK_AUDIO?.getFrequencyData?.();
+      const real = running && MK_AUDIO?.getFrequencyData?.();
       if (real && real.length) {
         // Downsample the analyser's bins to N_BINS. The analyser
         // produces frequencyBinCount values across 0..nyquist; we map
@@ -332,4 +336,4 @@ function drawScope(ctx, wave, w, h, accent, t, env, running, cache) {
   ctx.stroke();
 }
 
-window.MK_Visualizer = Visualizer;
+export { Visualizer };

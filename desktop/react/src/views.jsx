@@ -1,3 +1,5 @@
+import React from "react";
+
 // Login view + miscellaneous small components used across the app.
 
 const { useEffect: useEff_v, useState: useSt_v, useRef: useRef_v } = React;
@@ -104,7 +106,7 @@ function LoginView({ onConnect, themeMode, busyLabel }) {
     <div className="mk-login-shell">
       <div className="mk-login-brand">
         <div className="mk-login-logo">Maneki</div>
-        <div className="mk-login-tag">{isDesktop ? "desktop" : "web"} · v{document.querySelector('meta[name="mk-version"]')?.content || "?"}</div>
+        <div className="mk-login-tag">{isDesktop ? "desktop" : "web"} · v{__MK_VERSION__}</div>
       </div>
       {/* noValidate: our custom check above ("Username and password
           are required") is the source of truth. Tauri's WKWebView
@@ -189,4 +191,4 @@ function ConnectionBanner({ message, onRetry, onDismiss }) {
   );
 }
 
-Object.assign(window, { MK_LoginView: LoginView, MK_SkeletonRow: SkeletonRow, MK_StarBtn: StarBtn, MK_ConnectionBanner: ConnectionBanner });
+export { LoginView, SkeletonRow, StarBtn, ConnectionBanner };

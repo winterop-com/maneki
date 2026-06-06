@@ -52,13 +52,14 @@ def _resolve_static_dir() -> Path:
     here = Path(__file__).resolve()
     # ui.py -> cli/ -> maneki/audio/ -> src/ -> repo root
     repo_root = here.parents[3]
-    dev_dir = repo_root / "desktop" / "react"
+    dev_dir = repo_root / "desktop" / "react" / "dist"
     if dev_dir.is_dir() and (dev_dir / "index.html").exists():
         return dev_dir
     raise FileNotFoundError(
-        "Couldn't find the SPA static files. Either install maneki via pip "
-        "(the wheel bundles them) or run from a source checkout where "
-        "`desktop/react/` is present."
+        "Couldn't find the SPA static files. Install maneki via pip (the wheel "
+        "bundles them), or from a source checkout build the SPA first: "
+        "`make desktop-build-frontend` (or `cd desktop/react && bun install && "
+        "bun run build`) to produce desktop/react/dist/."
     )
 
 

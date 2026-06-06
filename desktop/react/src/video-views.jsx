@@ -9,8 +9,14 @@
 // native chrome shows the language picker.
 //
 // Globals consumed:
-//   window.MK_VIDEO   - video API client (_video.js)
-//   window.videojs    - video.js v10 (CDN script in index.html)
+//   MK_VIDEO   - video API client (_video.js)
+//   videojs    - video.js v10 (CDN script in index.html)
+
+import React from "react";
+import videojs from "video.js";
+import { MK_VIDEO } from "./_video.js";
+import { MK_AUDIO } from "./_audio.js";
+import { store } from "./store.js";
 
 const { useEffect: useEff_vv, useState: useSt_vv, useRef: useRef_vv } = React;
 
@@ -95,7 +101,7 @@ function VideosPane({ session, selectedId, onSelect }) {
   useEff_vv(() => {
     let cancelled = false;
     setError(null);
-    window.MK_VIDEO.browse(session, path).then(
+    MK_VIDEO.browse(session, path).then(
       (data) => { if (!cancelled) setEntries(data); },
       (err) => { if (!cancelled) setError(String(err.message || err)); },
     );
@@ -109,11 +115,11 @@ function VideosPane({ session, selectedId, onSelect }) {
   // spinner. 500ms cadence is fast enough to feel live without
   // hammering the server (each tick is one stat-only endpoint hit).
   useEff_vv(() => {
-    if (path !== "" || entries !== null || !window.MK_VIDEO.scanStatus) return;
+    if (path !== "" || entries !== null || !MK_VIDEO.scanStatus) return;
     let cancelled = false;
     let timer = null;
     const poll = async () => {
-      const status = await window.MK_VIDEO.scanStatus(session);
+      const status = await MK_VIDEO.scanStatus(session);
       if (cancelled) return;
       setScan(status);
       // Stop polling once the prewarm reports done. The /api/browse
@@ -140,12 +146,12 @@ function VideosPane({ session, selectedId, onSelect }) {
   // swaps for the real frame. Stops polling once every visible video
   // is bumped (or when the pane unmounts / path changes).
   useEff_vv(() => {
-    if (!window.MK_VIDEO.thumbnailsReady || videos.length === 0) return undefined;
+    if (!MK_VIDEO.thumbnailsReady || videos.length === 0) return undefined;
     let cancelled = false;
     let timer = null;
     const tick = async () => {
       if (cancelled) return;
-      const data = await window.MK_VIDEO.thumbnailsReady(session);
+      const data = await MK_VIDEO.thumbnailsReady(session);
       if (cancelled) return;
       if (data && Array.isArray(data.ready)) {
         const readySet = new Set(data.ready);
@@ -176,13 +182,13 @@ function VideosPane({ session, selectedId, onSelect }) {
   }, [session, path, videos.length]);
 
   const onRescan = async () => {
-    if (!window.MK_VIDEO.triggerScan) return;
+    if (!MK_VIDEO.triggerScan) return;
     // Clear entries so the loading state + scan-status poll resume;
     // the /browse fetch above will re-run on the bumped nonce when
     // the user (or the natural completion) returns them here.
     setEntries(null);
     setRefreshNonce((n) => n + 1);
-    await window.MK_VIDEO.triggerScan(session);
+    await MK_VIDEO.triggerScan(session);
   };
 
   return (
@@ -306,7 +312,7 @@ function VideosPane({ session, selectedId, onSelect }) {
               <img
                 className="mk-album-cover-sm"
                 src={
-                  window.MK_VIDEO.thumbnailUrl(session, v.id)
+                  MK_VIDEO.thumbnailUrl(session, v.id)
                   + (thumbToken[v.id] ? `?v=${thumbToken[v.id]}` : "")
                 }
                 alt=""
@@ -422,7 +428,7 @@ function VideoStatsOverlay({ session, videoId, playerRef, onClose }) {
   useEff_vv(() => {
     let es = null;
     try {
-      es = new EventSource(window.MK_VIDEO.statsStreamUrl(session));
+      es = new EventSource(MK_VIDEO.statsStreamUrl(session));
       es.onmessage = (e) => {
         try { setServer(JSON.parse(e.data)); } catch (_x) { /* ignore bad frame */ }
       };
@@ -530,7 +536,7 @@ function VideoPlayerPane({ session, video, onClose, showStats, onCloseStats }) {
   // opening the shortcuts overlay).
   useEff_vv(() => {
     let cancelled = false;
-    window.MK_VIDEO.subtitles(session, video.id).then((data) => {
+    MK_VIDEO.subtitles(session, video.id).then((data) => {
       if (!cancelled && Array.isArray(data)) setSubtitles(data);
     });
     return () => { cancelled = true; };
@@ -541,7 +547,7 @@ function VideoPlayerPane({ session, video, onClose, showStats, onCloseStats }) {
   // Deps: video.id only. See note above re: excluding `session`.
   useEff_vv(() => {
     const el = videoRef.current;
-    if (el === null || typeof window.videojs !== "function") return undefined;
+    if (el === null || typeof videojs !== "function") return undefined;
     // Drop stale resolution before the new player decodes metadata so
     // the meta strip doesn't briefly show the previous video's value.
     setResolution(null);
@@ -562,7 +568,7 @@ function VideoPlayerPane({ session, video, onClose, showStats, onCloseStats }) {
     } catch (_e) {
       // ignore - private browsing / no quota
     }
-    const player = window.videojs(el, {
+    const player = videojs(el, {
       controls: true,
       autoplay: false,
       preload: "auto",
@@ -576,7 +582,7 @@ function VideoPlayerPane({ session, video, onClose, showStats, onCloseStats }) {
       // (and during seek buffer stalls) instead of a blank canvas.
       // Generated server-side; first request transcodes ~9 frames, then
       // cached on disk under <root>/.maneki/posters/.
-      poster: window.MK_VIDEO.posterUrl(session, video.id),
+      poster: MK_VIDEO.posterUrl(session, video.id),
       // Tell the browser to hide ALL its own chrome (URL bar, tab strip)
       // when entering fullscreen. The default 'auto' lets Chrome keep
       // the URL bar visible on macOS, which looks like the player isn't
@@ -598,14 +604,14 @@ function VideoPlayerPane({ session, video, onClose, showStats, onCloseStats }) {
       },
     });
     player.src({
-      src: window.MK_VIDEO.hlsUrl(session, video.id),
+      src: MK_VIDEO.hlsUrl(session, video.id),
       type: "application/x-mpegURL",
     });
     playerRef.current = player;
     // Expose to app-level shortcut handler so the `f` key can toggle
     // fullscreen on the actual video player instead of the audio
     // visualizer overlay. Cleared in the cleanup below.
-    window.MK_VIDEO_PLAYER = player;
+    store.videoPlayer = player;
 
     // Captions size: also call setValues explicitly so video.js's
     // initial cue render uses our smaller default even before it
@@ -654,7 +660,7 @@ function VideoPlayerPane({ session, video, onClose, showStats, onCloseStats }) {
         const lastTime = player.currentTime();
         player.error(null);
         player.src({
-          src: window.MK_VIDEO.hlsUrl(session, video.id),
+          src: MK_VIDEO.hlsUrl(session, video.id),
           type: "application/x-mpegURL",
         });
         player.one("loadedmetadata", () => {
@@ -694,7 +700,7 @@ function VideoPlayerPane({ session, video, onClose, showStats, onCloseStats }) {
     // video starts, stop the music. (The reverse — music pausing the
     // video — is handled in app.jsx via MK_AUDIO.onPlay.)
     player.on("play", () => {
-      try { window.MK_AUDIO?.pause?.(); } catch { /* no audio controller */ }
+      try { MK_AUDIO?.pause?.(); } catch { /* no audio controller */ }
     });
 
     // Capture source resolution for the meta strip. Re-fires on every
@@ -758,7 +764,7 @@ function VideoPlayerPane({ session, video, onClose, showStats, onCloseStats }) {
     // We don't cancel on `seeking` — the seek itself will fire fresh
     // segment fetches and the new prefetch chain springs from those.
     const cancelPrefetchOnPause = () => {
-      try { window.MK_VIDEO.cancelSession(session, video.id); } catch { /* ignore */ }
+      try { MK_VIDEO.cancelSession(session, video.id); } catch { /* ignore */ }
     };
     player.on("pause", cancelPrefetchOnPause);
     player.on("ended", cancelPrefetchOnPause);
@@ -766,7 +772,7 @@ function VideoPlayerPane({ session, video, onClose, showStats, onCloseStats }) {
     return () => {
       cancelStallTimer();
       document.removeEventListener("visibilitychange", onVisibility);
-      window.MK_VIDEO_PLAYER = null;
+      store.videoPlayer = null;
       try { player.dispose(); } catch { /* ignore */ }
       playerRef.current = null;
       // Tell the server to drop any in-flight HLS prefetch tasks for
@@ -775,7 +781,7 @@ function VideoPlayerPane({ session, video, onClose, showStats, onCloseStats }) {
       // the player visibly closes. `keepalive: true` (inside the API
       // method) ensures the request survives this synchronous cleanup
       // even if the tab is closing.
-      try { window.MK_VIDEO.cancelSession(session, video.id); } catch { /* ignore */ }
+      try { MK_VIDEO.cancelSession(session, video.id); } catch { /* ignore */ }
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [video.id]);
@@ -821,8 +827,8 @@ function VideoPlayerPane({ session, video, onClose, showStats, onCloseStats }) {
     const added = [];
     for (const sub of eager) {
       const src = sub.track_id
-        ? window.MK_VIDEO.subtitleTrackUrl(session, video.id, sub.track_id)
-        : window.MK_VIDEO.subtitleUrl(session, video.id, sub.lang);
+        ? MK_VIDEO.subtitleTrackUrl(session, video.id, sub.track_id)
+        : MK_VIDEO.subtitleUrl(session, video.id, sub.lang);
       // kind=captions (not subtitles) so video.js exposes the
       // "captions settings" submenu (font / size / colour).
       const track = player.addRemoteTextTrack(
@@ -854,21 +860,21 @@ function VideoPlayerPane({ session, video, onClose, showStats, onCloseStats }) {
   // also reports posters_ready) and re-set `player.poster()` with
   // a cache-busting query string as soon as our id appears.
   useEff_vv(() => {
-    if (!window.MK_VIDEO.thumbnailsReady) return undefined;
+    if (!MK_VIDEO.thumbnailsReady) return undefined;
     let cancelled = false;
     let timer = null;
     let done = false;
     const tick = async () => {
       if (cancelled || done) return;
       try {
-        const data = await window.MK_VIDEO.thumbnailsReady(session);
+        const data = await MK_VIDEO.thumbnailsReady(session);
         if (cancelled) return;
         const ready = data && Array.isArray(data.posters_ready) ? data.posters_ready : [];
         if (ready.includes(video.id)) {
           const player = playerRef.current;
           if (player) {
             try {
-              const url = window.MK_VIDEO.posterUrl(session, video.id) + "?v=" + Date.now();
+              const url = MK_VIDEO.posterUrl(session, video.id) + "?v=" + Date.now();
               player.poster(url);
             } catch (_e) { /* dead player */ }
           }
@@ -901,7 +907,7 @@ function VideoPlayerPane({ session, video, onClose, showStats, onCloseStats }) {
       const lastTime = player.currentTime() || 0;
       player.error(null);
       player.src({
-        src: window.MK_VIDEO.hlsUrl(session, video.id),
+        src: MK_VIDEO.hlsUrl(session, video.id),
         type: "application/x-mpegURL",
       });
       player.one("loadedmetadata", () => {
@@ -993,7 +999,7 @@ function VideoSearchPane({ session, q, selectedId, onSelect }) {
     }
     setResults(null);
     const timer = setTimeout(() => {
-      window.MK_VIDEO.search(session, trimmed).then(
+      MK_VIDEO.search(session, trimmed).then(
         (data) => { if (!cancelled) setResults(data); },
         (err) => { if (!cancelled) setError(String(err.message || err)); },
       );
@@ -1031,7 +1037,7 @@ function VideoSearchPane({ session, q, selectedId, onSelect }) {
             >
               <img
                 className="mk-album-cover-sm"
-                src={window.MK_VIDEO.thumbnailUrl(session, v.id)}
+                src={MK_VIDEO.thumbnailUrl(session, v.id)}
                 alt=""
                 loading="lazy"
                 onError={(e) => {
@@ -1065,8 +1071,4 @@ function VideoSearchPane({ session, q, selectedId, onSelect }) {
   );
 }
 
-Object.assign(window, {
-  MK_VideosPane: VideosPane,
-  MK_VideoSearchPane: VideoSearchPane,
-  MK_VideoPlayerPane: VideoPlayerPane,
-});
+export { VideosPane, VideoSearchPane, VideoPlayerPane };

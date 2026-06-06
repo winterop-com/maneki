@@ -1,6 +1,6 @@
 {
   "name": "maneki-desktop-electron",
-  "version": "0.11.5",
+  "version": "0.12.0",
   "description": "Electron sibling of the Maneki desktop wrapper \u2014 for comparison with the Tauri build.",
   "author": {
     "name": "Morten Hansen",
@@ -31,12 +31,11 @@
       "output": "dist"
     },
     "files": [
-      "src/**/*",
-      "../react/**/*"
+      "src/**/*"
     ],
     "extraResources": [
       {
-        "from": "../react",
+        "from": "../react/dist",
         "to": "react"
       }
     ],

@@ -14,7 +14,7 @@
 // Lives outside the artifact (underscored filename) so design-zip
 // drops don't touch it.
 
-(function () {
+export const MK_AUDIO = (function () {
   "use strict";
 
   const audio = document.createElement("audio");
@@ -179,7 +179,7 @@
     }, 700);
   });
 
-  window.MK_AUDIO = {
+  return {
     load(url) {
       // Setting `audio.src` alone (re)starts resource selection. We
       // deliberately do NOT call `audio.load()`: an explicit load()

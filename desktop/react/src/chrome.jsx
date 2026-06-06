@@ -1,7 +1,17 @@
 // Maneki chrome: top bar, main area panes (sidebar / albums / tracks /
 // stations / starred), now-playing bar, fullscreen visualizer, tweaks UI.
 
-const fmtDur_ch = (s) => window.MK_fmtDur(s);
+import React from "react";
+
+import { MK_AUDIO } from "./_audio.js";
+import { fmtDur } from "./format.js";
+import { TweaksPanel, TweakSection, TweakRadio, TweakSelect, TweakToggle, TweakSlider, TweakColor, TweakButton } from "./tweaks-panel.jsx";
+import { VideosPane, VideoSearchPane, VideoPlayerPane } from "./video-views.jsx";
+import { Visualizer } from "./visualizer.jsx";
+import { StarBtn } from "./views.jsx";
+import { wiredMakeCover as makeCover } from "./_wiring.jsx";
+
+const fmtDur_ch = (s) => fmtDur(s);
 // makeCover is declared globally by covers.jsx (function declaration)
 
 function TopBar({ user, q, setQ, onFocusSearch, onSignOut, searchInputRef, showStats, onToggleStats }) {
@@ -25,7 +35,7 @@ function TopBar({ user, q, setQ, onFocusSearch, onSignOut, searchInputRef, showS
       </div>
       <div className="mk-topbar-center">
         <span className="mk-brand">maneki</span>
-        <span className="mk-version">v{document.querySelector('meta[name="mk-version"]')?.content || "?"}</span>
+        <span className="mk-version">v{__MK_VERSION__}</span>
       </div>
       <div className="mk-topbar-right">
         <button
@@ -341,7 +351,7 @@ function TracksPane({ artist, album, playTrack, now, nowAlbum, repeat, isStarred
                   <td className="t-artist">{artist.name}</td>
                   <td className="t-time mono">{tr.time}</td>
                   <td className="t-star">
-                    <window.MK_StarBtn on={isStarred(key)} onToggle={() => toggleStar(key)} />
+                    <StarBtn on={isStarred(key)} onToggle={() => toggleStar(key)} />
                   </td>
                 </tr>
               );
@@ -432,7 +442,7 @@ function StarredPane({ starredTracks, playTrack, toggleStar }) {
                   <td className="t-title">{tr.title}</td>
                   <td className="t-artist">{tr.artistName}</td>
                   <td className="t-time mono">{tr.time}</td>
-                  <td className="t-star"><window.MK_StarBtn on={true} onToggle={() => toggleStar(tr.key)} /></td>
+                  <td className="t-star"><StarBtn on={true} onToggle={() => toggleStar(tr.key)} /></td>
                 </tr>
               ))}
             </tbody>
@@ -607,7 +617,7 @@ function AudioStatsOverlay({ format, onClose }) {
   }, []);
 
   useEffect(() => {
-    const sample = () => { if (window.MK_AUDIO?.getStats) setS(window.MK_AUDIO.getStats()); };
+    const sample = () => { if (MK_AUDIO?.getStats) setS(MK_AUDIO.getStats()); };
     sample();
     const id = setInterval(sample, 1000);
     return () => clearInterval(id);
@@ -739,7 +749,7 @@ function NowPlaying({ nowTrack, nowArtist, nowAlbum, nowStation, radioTitle, pla
               className="mk-scrub"
               type="range" min="0" max={Math.max(1, dur)} step="1"
               value={Math.min(pos, dur || 0)}
-              onChange={(e) => { const v = parseFloat(e.target.value); setPos(v); window.MK_AUDIO?.seek?.(v); }}
+              onChange={(e) => { const v = parseFloat(e.target.value); setPos(v); MK_AUDIO?.seek?.(v); }}
               disabled={!has || !dur}
               style={{ "--mk-progress": `${dur ? (pos / dur) * 100 : 0}%` }}
             />
@@ -761,7 +771,7 @@ function NowPlaying({ nowTrack, nowArtist, nowAlbum, nowStation, radioTitle, pla
             style={{ cursor: "pointer" }}
             onClick={cycleViz}
           >
-            <window.MK_Visualizer style={vizStyle} running={playing && !muted} accent={palette.viz} />
+            <Visualizer style={vizStyle} running={playing && !muted} accent={palette.viz} />
           </div>
         </div>
       )}
@@ -789,7 +799,7 @@ function FullscreenViz({ onClose, vizStyle, tweak, running, palette, nowTrack, n
         </div>
       </div>
       <div className="mk-fs-canvas" style={{ cursor: "pointer" }} onClick={cycleViz}>
-        <window.MK_Visualizer style={vizStyle} running={running} accent={palette.viz} dense />
+        <Visualizer style={vizStyle} running={running} accent={palette.viz} dense />
       </div>
       <div className="mk-fs-controls">
         <button className="mk-tbtn" onClick={onPrev} aria-label="Previous" data-tooltip="Previous (p)"><svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><path d="M6 6h2v12H6zM20 6v12L9 12z"/></svg></button>
@@ -843,8 +853,8 @@ function MainArea(props) {
       {!videoMode && section === "library" && <TracksPane artist={artist} album={album} playTrack={playTrack} now={now} nowAlbum={nowAlbum} repeat={t.repeat} isStarred={isStarred} toggleStar={toggleStar} loaded={loaded && (!album || album.tracksLoaded)}/>}
       {!videoMode && section === "stations" && <StationsPane STATIONS={STATIONS} playStation={playStation} now={now} loaded={loaded}/>}
       {!videoMode && section === "starred" && <StarredPane starredTracks={starredTracks} playTrack={playTrack} toggleStar={toggleStar}/>}
-      {videoMode && session && !videoSearchActive && <MK_VideosPane session={session} selectedId={selectedVideo?.id} onSelect={setSelectedVideo}/>}
-      {videoMode && session && videoSearchActive && <window.MK_VideoSearchPane session={session} q={q} selectedId={selectedVideo?.id} onSelect={setSelectedVideo}/>}
+      {videoMode && session && !videoSearchActive && <VideosPane session={session} selectedId={selectedVideo?.id} onSelect={setSelectedVideo}/>}
+      {videoMode && session && videoSearchActive && <VideoSearchPane session={session} q={q} selectedId={selectedVideo?.id} onSelect={setSelectedVideo}/>}
       {videoMode && session && <VideoSplitter/>}
       {videoMode && session && selectedVideo && (
         // Key on video.id so React unmounts + remounts the player when
@@ -853,7 +863,7 @@ function MainArea(props) {
         // <video> ref leaves the player in an error state (full-black
         // overlay) because video.js has already mangled the DOM around
         // the element by the time the second init runs.
-        <MK_VideoPlayerPane key={selectedVideo.id} session={session} video={selectedVideo} onClose={() => setSelectedVideo(null)} showStats={showStats} onCloseStats={onCloseStats}/>
+        <VideoPlayerPane key={selectedVideo.id} session={session} video={selectedVideo} onClose={() => setSelectedVideo(null)} showStats={showStats} onCloseStats={onCloseStats}/>
       )}
     </div>
   );
@@ -891,7 +901,6 @@ function MainArea(props) {
 
 // Tweaks UI — uses the tweaks-panel starter.
 function TweaksControls({ tweak, t, setShowConn }) {
-  const { TweaksPanel, TweakSection, TweakRadio, TweakSelect, TweakToggle, TweakSlider, TweakColor, TweakButton } = window;
   return (
     <TweaksPanel title="Tweaks">
       <TweakSection title="Theme">
@@ -941,7 +950,4 @@ function TweaksControls({ tweak, t, setShowConn }) {
   );
 }
 
-Object.assign(window, {
-  MK_TopBar: TopBar, MK_MainArea: MainArea, MK_KindRail: KindRail,
-  MK_FullscreenViz: FullscreenViz, MK_TweaksControls: TweaksControls,
-});
+export { TopBar, MainArea, KindRail, FullscreenViz, TweaksControls };

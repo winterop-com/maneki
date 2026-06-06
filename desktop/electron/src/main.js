@@ -137,7 +137,18 @@ function createWindow() {
   mainWindow.on("move", scheduleSave);
   mainWindow.on("close", saveBounds);
 
-  mainWindow.loadFile(path.join(__dirname, "..", "..", "react", "index.html"));
+  // The SPA is a Vite build now (no in-browser Babel). Three load paths:
+  if (app.isPackaged) {
+    // Packaged: electron-builder ships the built dist via extraResources
+    // (from: ../react/dist, to: react) -> Resources/react/index.html.
+    mainWindow.loadFile(path.join(process.resourcesPath, "react", "index.html"));
+  } else if (process.env.MK_DEV) {
+    // Dev: the live Vite dev server (HMR). `make desktop-electron-dev` starts it.
+    mainWindow.loadURL("http://localhost:1421");
+  } else {
+    // Unpackaged, no dev server: the built dist sitting next to the source.
+    mainWindow.loadFile(path.join(__dirname, "..", "..", "react", "dist", "index.html"));
+  }
 }
 
 // IPC: native fullscreen toggle for the renderer's MK_DESKTOP bridge.

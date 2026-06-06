@@ -21,12 +21,16 @@
 //      action handlers in `app.jsx`. The pos-and-duration push-back
 //      lives there too; see the comments in `app.jsx`.
 
-(function () {
-  "use strict";
+import React from "react";
+import { MK_API } from "./_api.js";
+import { MK_AUDIO } from "./_audio.js";
+import { LoginView } from "./views.jsx";
+import { makeCover } from "./covers.jsx";
+import { store } from "./store.js";
 
-  // ---------------------------------------------------------------
-  // 0. Helpers
-  // ---------------------------------------------------------------
+// ---------------------------------------------------------------
+// 0. Helpers
+// ---------------------------------------------------------------
 
   // Decide whether the user's base URL is maneki (Subsonic mounted
   // under /audio) or a 3rd-party Subsonic server (REST at the root).
@@ -40,40 +44,36 @@
   // hasAudio flag tells login() whether to validate the credential via
   // the Subsonic `ping` (audio present) or the native /auth/login
   // endpoint (video-only library, where /audio/rest/* isn't mounted).
-  async function resolveSubsonicBase(url) {
-    // If the user already typed a path that ends with the maneki
-    // mount (`/audio` or `/audio/`), trust them and don't double-append.
-    if (/\/audio\/?$/.test(url)) return { base: url.replace(/\/+$/, ""), hasAudio: true };
-    try {
-      const resp = await fetch(url + "/capabilities", { cache: "no-store" });
-      if (resp.ok) {
-        const caps = await resp.json();
-        if (caps && caps.server === "maneki") {
-          if (caps.endpoints?.audio_subsonic) {
-            return { base: url + "/audio", hasAudio: true };
-          }
-          // maneki server with no audio mount (video-only library).
-          return { base: url, hasAudio: false };
+async function resolveSubsonicBase(url) {
+  // If the user already typed a path that ends with the maneki
+  // mount (`/audio` or `/audio/`), trust them and don't double-append.
+  if (/\/audio\/?$/.test(url)) return { base: url.replace(/\/+$/, ""), hasAudio: true };
+  try {
+    const resp = await fetch(url + "/capabilities", { cache: "no-store" });
+    if (resp.ok) {
+      const caps = await resp.json();
+      if (caps && caps.server === "maneki") {
+        if (caps.endpoints?.audio_subsonic) {
+          return { base: url + "/audio", hasAudio: true };
         }
+        // maneki server with no audio mount (video-only library).
+        return { base: url, hasAudio: false };
       }
-    } catch (_e) {
-      // ignore - 3rd-party server or network error
     }
-    return { base: url, hasAudio: true };
+  } catch (_e) {
+    // ignore - 3rd-party server or network error
   }
+  return { base: url, hasAudio: true };
+}
 
-  // ---------------------------------------------------------------
-  // 1. Patch MK_LoginView so onConnect runs a real auth + data load.
-  // ---------------------------------------------------------------
-  const OriginalLoginView = window.MK_LoginView;
-  if (typeof OriginalLoginView !== "function") {
-    console.error("[wiring] MK_LoginView missing — designer artifact load order is wrong");
-    return;
-  }
+// ---------------------------------------------------------------
+// 1. Wrap LoginView so onConnect runs a real auth + data load.
+// ---------------------------------------------------------------
+const OriginalLoginView = LoginView;
 
-  function WiredLoginView(props) {
-    const [busyLabel, setBusyLabel] = React.useState(null);
-    async function handleConnect({ url, user, pass }) {
+function WiredLoginView(props) {
+  const [busyLabel, setBusyLabel] = React.useState(null);
+  async function handleConnect({ url, user, pass }) {
       // Authenticate against the real server, then preload the library
       // tree. Re-throw on failure so views.jsx's submit() catch sets
       // the LoginView's `err` state, which renders the .mk-login-error
@@ -89,7 +89,7 @@
         const trimmed = url.replace(/\/+$/, "");
         const { base: baseUrl, hasAudio } = await resolveSubsonicBase(trimmed);
         setBusyLabel("Connecting…");
-        const session = await window.MK_API.login({
+        const session = await MK_API.login({
           baseUrl,
           user,
           password: pass,
@@ -130,29 +130,30 @@
       onConnect: handleConnect,
       busyLabel,
     });
+}
+
+export { WiredLoginView };
+
+// ---------------------------------------------------------------
+// 2. Cover-art override — return real <img>-friendly URLs when the
+//    album object has `coverArtUrl` set; fall back to the artifact's
+//    procedural generator otherwise.
+// ---------------------------------------------------------------
+const OriginalMakeCover = makeCover;
+export function wiredMakeCover(kind, baseColor) {
+  // The artifact passes `al.cover` as the first arg. After the
+  // adapter ran, that field IS the asset URL (string) for any album
+  // that has cover art on the server. If it's still a procedural
+  // tag (e.g. "enya", "blue") we fall through to the original.
+  if (typeof kind === "string" && /^https?:\/\//.test(kind)) {
+    return kind;
   }
-  window.MK_LoginView = WiredLoginView;
+  return OriginalMakeCover ? OriginalMakeCover(kind, baseColor) : "";
+}
 
-  // ---------------------------------------------------------------
-  // 2. Cover-art override — return real <img>-friendly URLs when the
-  //    album object has `coverArtUrl` set; fall back to the artifact's
-  //    procedural generator otherwise.
-  // ---------------------------------------------------------------
-  const OriginalMakeCover = window.MK_makeCover;
-  window.MK_makeCover = function wiredMakeCover(kind, baseColor) {
-    // The artifact passes `al.cover` as the first arg. After the
-    // adapter ran, that field IS the asset URL (string) for any album
-    // that has cover art on the server. If it's still a procedural
-    // tag (e.g. "enya", "blue") we fall through to the original.
-    if (typeof kind === "string" && /^https?:\/\//.test(kind)) {
-      return kind;
-    }
-    return OriginalMakeCover ? OriginalMakeCover(kind, baseColor) : "";
-  };
-
-  // ---------------------------------------------------------------
-  // 3. Library loader — populate window.MK_DATA from the API.
-  // ---------------------------------------------------------------
+// ---------------------------------------------------------------
+// 3. Library loader — populate store.DATA from the API.
+// ---------------------------------------------------------------
   //
   // The artifact's chrome reads `window.MK_DATA.ARTISTS` (and friends)
   // at every render. To support partial loads we mutate the same
@@ -182,7 +183,7 @@
   // multi-second waterfall into a single round-trip + the slowest
   // per-artist call.
   async function loadLibrary(session) {
-    const api = window.MK_API;
+    const api = MK_API;
 
     // Skip the Subsonic phase entirely on a video-only library — the
     // server doesn't mount /audio/* there, so getArtists would 404 and
@@ -203,8 +204,8 @@
       // ignore - falls through to the audio path
     }
     if (!hasAudio) {
-      window.MK_DATA = { ARTISTS: [], STATIONS: [], LYRICS_BOADICEA: [] };
-      window.MK_SESSION = session;
+      store.DATA = { ARTISTS: [], STATIONS: [], LYRICS_BOADICEA: [] };
+      store.SESSION = session;
       return;
     }
 
@@ -282,13 +283,13 @@
       };
     });
 
-    window.MK_DATA = {
+    store.DATA = {
       ARTISTS: seed,
       STATIONS: stations,
       STARRED_TRACKS,
       LYRICS_BOADICEA: [],
     };
-    window.MK_SESSION = session;
+    store.SESSION = session;
 
     // Phase 2: album SHELLS via bulk getAlbumList2 pagination instead of a
     // getArtist-per-artist storm. One page (size 500) returns albums across
@@ -337,7 +338,7 @@
     // is incomplete rather than wondering why artists have no albums. Bulk =
     // far fewer calls than the old per-artist storm, so fewer failure points.
     if (firstError) {
-      window.MK_setConnError?.({
+      store.setConnError?.({
         message: "Library partially loaded — album fetch failed. Server may be flaky.",
         retry: () => loadLibrary(session),
       });
@@ -360,15 +361,15 @@
   // Returns the album object (with tracks populated) or null if the
   // artist/album can't be found.
   async function loadAlbumTracks(session, artistId, albumId) {
-    const data = window.MK_DATA;
-    if (!data || !window.MK_API) return null;
+    const data = store.DATA;
+    if (!data || !MK_API) return null;
     const artist = (data.ARTISTS || []).find((a) => a.id === artistId);
     const album = artist?.albums.find((al) => al.id === albumId);
     if (!album) return null;
     if (album.tracksLoaded) return album;
     if (album._tracksPromise) return album._tracksPromise;
     const p = (async () => {
-      const full = await window.MK_API.getAlbum(session, albumId);
+      const full = await MK_API.getAlbum(session, albumId);
       album.tracks = (full.song || []).map((s) => ({
         n: s.track ?? 0,
         title: s.title || "",
@@ -394,10 +395,10 @@
       delete album._tracksPromise;
     }
   }
-  window.MK_loadAlbumTracks = loadAlbumTracks;
+  export { loadAlbumTracks };
 
   // ---------------------------------------------------------------
-  // 4. Auto-resume — if we have a stored session, populate MK_DATA
+  // 4. Auto-resume — if we have a stored session, populate store.DATA
   //    before App() first mounts and skip the login form.
   // ---------------------------------------------------------------
   //
@@ -422,8 +423,8 @@
   // threshold. The library populates in the background after that.
   const RESUME_SOFT_TIMEOUT_MS = 12000;
 
-  window.MK_RESUME = async function resume() {
-    const session = window.MK_API.loadSession();
+  export async function resume() {
+    const session = MK_API.loadSession();
     if (!session) return null;
     try {
       await Promise.race([
@@ -436,19 +437,19 @@
     } catch (err) {
       if (isAuthError(err)) {
         console.warn("[wiring] resume: auth failed, clearing session:", err);
-        window.MK_API.clearSession();
+        MK_API.clearSession();
         return null;
       }
       console.warn("[wiring] resume: transient failure or timeout, keeping session:", err);
       // Surface a banner so the user knows why the sidebar is empty,
       // with a Retry that re-runs the load against the same session.
-      window.MK_setConnError?.({
+      store.setConnError?.({
         message: `Couldn't reach ${session.baseUrl}. Server may be offline.`,
         retry: () => {
           loadLibrary(session).catch((e) => {
-            window.MK_setConnError?.({
+            store.setConnError?.({
               message: `Still can't reach ${session.baseUrl}. ${e?.message || ""}`.trim(),
-              retry: () => window.MK_setConnError?.(null),
+              retry: () => store.setConnError?.(null),
             });
           });
         },
@@ -457,17 +458,16 @@
       // can render with what we have.
       return session;
     }
-  };
+  }
 
   // Audio errors → banner. The audio element fires `error` on stream
   // failure, e.g. when the server is unreachable mid-track or a radio
   // station drops its connection.
-  if (window.MK_AUDIO?.onError) {
-    window.MK_AUDIO.onError(() => {
-      window.MK_setConnError?.({
+  if (MK_AUDIO?.onError) {
+    MK_AUDIO.onError(() => {
+      store.setConnError?.({
         message: "Stream failed. The server may have gone offline.",
-        retry: () => window.MK_AUDIO?.play?.(),
+        retry: () => MK_AUDIO?.play?.(),
       });
     });
   }
-})();
