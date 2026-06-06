@@ -64,6 +64,11 @@ desktop/electron/node_modules/
 desktop/electron/dist/
 desktop/electron/bun.lock
 
+# Desktop React SPA (Vite). bun.lock IS committed (frozen installs in CI);
+# node_modules + the built dist/ are not.
+desktop/react/node_modules/
+desktop/react/dist/
+
 # Generated bundle so `maneki ui` can serve the SPA from an installed
 # wheel. `scripts/copy_ui_static.py` mirrors `desktop/react/` into
 # here; the canonical source lives in `desktop/react/`.
