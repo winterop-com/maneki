@@ -187,8 +187,20 @@ Why MPEG-TS (.ts) and not fragmented MP4 (.m4s): per-segment ffmpeg runs each pr
 
 Encoding choices:
 
-- **Video**: always re-encoded with libx264 (`-preset veryfast -crf 23`) so each segment starts on a forced keyframe (`-force_key_frames expr:gte(t,0)`). Re-encoding costs CPU but lets segments be independently seekable — the price for any-position scrub on any source codec.
+- **Video**: re-encoded to H.264 so each segment starts on a forced keyframe (`-force_key_frames expr:gte(t,0)`) and is independently seekable — the price for any-position scrub on any source codec. The encoder is picked once per process (see Hardware acceleration below): a GPU encoder where available, else software `libx264 -preset veryfast -crf 23`.
 - **Audio**: stereo AAC at 192 kbps.
+
+### Hardware acceleration
+
+Software `libx264` can't transcode 4K/HDR in realtime — the stats panel shows `realtime_ratio >= 1.0` (encoder-bound) and the player eventually starves. Where a hardware H.264 encoder is available maneki hands the *encode* to the GPU (decode + any tonemap stay in software — the encode is the expensive part, and full-GPU pipelines are far more driver-fragile):
+
+- **VAAPI** (`h264_vaapi`) on Linux — AMD/Intel via the kernel render node. AMD's ROCm is *compute*; video encode rides the GPU's VCN block through VAAPI/libva. Prerequisites: `libva` + a VA driver (`mesa-va-drivers` / `intel-media-va-driver`), and read access to `/dev/dri/renderD128` (add the user to the `render`/`video` group; in containers, map the device in and match the GID). maneki runs a tiny probe-encode at startup and silently uses software if the device isn't actually usable — a *listed* encoder isn't a working one.
+- **VideoToolbox** (`h264_videotoolbox`) on macOS / Apple Silicon.
+- **libx264** everywhere else, and as the always-available per-file fallback (if a hardware encode fails on a specific file, that session drops to software and retries).
+
+Selection order: `MANEKI_HWENC` (`auto` default, or `vaapi` / `videotoolbox` / `none`) → VAAPI → VideoToolbox → libx264. The stats panel shows which encoder produced each segment, so you can confirm the GPU actually engaged. Hardware encoders are bitrate-driven (`~6 Mbit/s`, tunable via `MANEKI_HWENC_BITRATE` / `_MAXRATE` / `_BUFSIZE`); the render node is overridable via `MANEKI_VAAPI_DEVICE`.
+
+**HDR**: 4K Dolby-Vision/HDR sources are tonemapped to SDR BT.709 in software (`zscale`+`tonemap`) before the H.264 encode, since browsers don't display HDR H.264. This needs an ffmpeg built with `zscale` (libzimg); without it the tonemap is skipped (HDR plays with washed-out colours rather than failing the transcode).
 - **Timestamps**: `-output_ts_offset N*SEG_LEN` + `-avoid_negative_ts disabled` shifts each segment's output PTS to its nominal manifest position. Adjacent segments don't overlap and the player's `currentTime` matches the manifest timeline. (A pre-v0.9 bug here would emit a partial .ts on ffmpeg cancel during a rapid scrub, the cache check would short-circuit on the partial file, and the player would jump 4-5 min on the next seek; fixed by unlinking partial files on cancel and bumping `HLS_CACHE_VERSION` to wipe any leftover stubs from older runs.)
 
 Foreground transcodes are capped at 3 concurrent (rapid seeks fire one fetch per scrub and the browser's HLS engine doesn't cancel old XHRs; without the cap, 18 simultaneous ffmpegs sharing disk I/O each took 15s instead of 200ms and the player wedged). Queued requests release as slots free up; normal playback fits inside the cap. Background prefetch warms several segments **ahead** of the playhead (forward look-ahead, plus the previous segment for back-buttons) so a high-latency client doesn't outrun the encoder over serialized segment round-trips. It runs at OS-idle priority on a dedicated near-zero-quiet budget lane that fills the sub-second gaps *between* foreground segments — unlike prewarm/thumbnail work, which holds off during continuous playback — and is cancelled on seek-away / pause / player-close (the SPA sends `DELETE /api/videos/{id}/session`).

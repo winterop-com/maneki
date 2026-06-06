@@ -40,6 +40,13 @@ from pathlib import Path
 
 from pydantic import BaseModel, ConfigDict
 
+from maneki.video.serve.encoders import (
+    Encoder,
+    is_hdr,
+    select_encoder,
+    tonemap_available,
+    video_codec_args,
+)
 from maneki.video.serve.transcode import FFmpegNotFoundError, low_priority_kwargs
 from maneki.video.serve.transcode_budget import TranscodeBudget
 
@@ -91,6 +98,10 @@ class SegmentTiming(BaseModel):
     seconds: float
     realtime_ratio: float
     low_priority: bool
+    # Which H.264 encoder produced this segment: libx264 / h264_vaapi /
+    # h264_videotoolbox. Surfaced in the stats panel so it's obvious whether
+    # the GPU actually engaged (and whether a HW path silently fell back).
+    encoder: str = "libx264"
 
 
 class SessionStats(BaseModel):
@@ -207,6 +218,12 @@ class OnDemandHLS:
         self._recent_transcodes: deque[SegmentTiming] = deque(maxlen=_RECENT_TRANSCODES)
         self._transcodes_done = 0
         self._last_activity = 0.0
+        # Resolved lazily on the first transcode: the H.264 encoder for this
+        # session (process-wide auto-detect) and whether the source is HDR (so
+        # it gets tonemapped to SDR). `_encoder` is downgraded to libx264 for
+        # the rest of the session if a hardware encode ever fails on this file.
+        self._encoder: Encoder | None = None
+        self._hdr: bool | None = None
 
     def manifest(self) -> str:
         return build_manifest(self.segments)
@@ -232,7 +249,7 @@ class OnDemandHLS:
             idle_seconds=round(now - self._last_activity, 1) if self._last_activity else -1.0,
         )
 
-    def _record_transcode(self, idx: int, seconds: float, *, low_priority: bool) -> None:
+    def _record_transcode(self, idx: int, seconds: float, *, low_priority: bool, encoder: str = "libx264") -> None:
         """Log a completed transcode's wall time into the stats ring buffer."""
         self._transcodes_done += 1
         self._recent_transcodes.append(
@@ -241,6 +258,7 @@ class OnDemandHLS:
                 seconds=round(seconds, 3),
                 realtime_ratio=round(seconds / SEG_LEN, 3),
                 low_priority=low_priority,
+                encoder=encoder,
             )
         )
 
@@ -355,6 +373,19 @@ class OnDemandHLS:
     async def _transcode_segment(self, idx: int, *, low_priority: bool = False) -> None:
         spec = self.segments[idx]
         self.session_dir.mkdir(parents=True, exist_ok=True)
+        # Resolve the H.264 encoder + HDR-ness once per session: a process-wide
+        # auto-detect for the encoder, a single ffprobe for HDR. The encoder
+        # may already be downgraded to libx264 by a prior segment's HW failure.
+        if self._encoder is None:
+            self._encoder = select_encoder()
+        encoder = self._encoder
+        if self._hdr is None:
+            # "_hdr" gates the SDR tonemap: only when the source is HDR AND
+            # ffmpeg can actually tonemap (has zscale). Without zscale we skip
+            # it — HDR plays washed-out (the pre-existing behaviour) instead of
+            # failing the transcode.
+            self._hdr = is_hdr(self.input_path) and tonemap_available()
+        decode_args, vf, encode_args = video_codec_args(encoder, hdr=self._hdr)
         # Each segment is encoded as an independent slice, but its output
         # PTS is shifted with `-output_ts_offset` to exactly N*SEG_LEN.
         # Together with EXTINF=SEG_LEN in the playlist, segments end up
@@ -395,6 +426,7 @@ class OnDemandHLS:
             "-loglevel",
             "warning",
             *thread_args,
+            *decode_args,
             "-ss",
             f"{spec.start_s:.6f}",
             "-i",
@@ -409,12 +441,8 @@ class OnDemandHLS:
             "0",
             "-avoid_negative_ts",
             "disabled",
-            "-c:v",
-            "libx264",
-            "-preset",
-            "veryfast",
-            "-crf",
-            "23",
+            *(["-vf", vf] if vf else []),
+            *encode_args,
             "-force_key_frames",
             "expr:gte(t,0)",
             "-c:a",
@@ -491,11 +519,25 @@ class OnDemandHLS:
             # Same reasoning as the CancelledError path: a non-zero
             # exit can also leave partial bytes on disk.
             self._unlink_partial(idx)
+            # A hardware encode can fail on a specific file (pixel format,
+            # codec quirk, flaky driver). Drop this session to software and
+            # retry the segment once rather than failing the whole stream.
+            if encoder != "libx264":
+                _log.warning(
+                    "hls: %s encode failed for %s seg-%04d (%s); falling back to libx264",
+                    encoder,
+                    self.video_id,
+                    idx,
+                    tail,
+                )
+                self._encoder = "libx264"
+                await self._transcode_segment(idx, low_priority=low_priority)
+                return
             raise RuntimeError(f"ffmpeg failed for segment {idx} (rc={proc.returncode}): {tail}")
         # Success: log the wall time for the stats panel. Cancels and
         # failures (which `raise` above) are deliberately not recorded -
         # the panel measures completed-segment throughput.
-        self._record_transcode(idx, time.monotonic() - start, low_priority=low_priority)
+        self._record_transcode(idx, time.monotonic() - start, low_priority=low_priority, encoder=encoder)
 
     def _unlink_partial(self, idx: int) -> None:
         """Best-effort cleanup of a half-written segment file."""
@@ -533,7 +575,7 @@ class OnDemandHLS:
 # Without this, segments produced by old code linger in the cache and
 # the player loads them by URL even though their PTS is now wrong,
 # causing position jumps / subtitle drift.
-HLS_CACHE_VERSION = "4"  # partial-segment cleanup on ffmpeg cancel/error
+HLS_CACHE_VERSION = "5"  # pluggable HW encoder (vaapi/videotoolbox) + HDR tonemap
 
 
 class HLSManager:
