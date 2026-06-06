@@ -176,7 +176,21 @@ desktop-tauri-dev: desktop-sync-frontend _wipe-tauri-userdata
 
 desktop-tauri-build: desktop-sync-frontend desktop-sync-version
 	@echo ">>> Tauri release build — produces a .app under desktop/tauri/src-tauri/target/release/bundle/"
-	@cd desktop/tauri/src-tauri && cargo tauri build
+	@# Sign with a Developer ID if one is available, mirroring electron-builder's
+	@# keychain auto-discovery so a local `make build` produces a signed Tauri app
+	@# too (CI sets APPLE_SIGNING_IDENTITY from secrets; locally we sniff the
+	@# login keychain). Honours a pre-set APPLE_SIGNING_IDENTITY; with no cert it
+	@# falls back to an ad-hoc (unsigned) build. Notarization still needs the
+	@# Apple ID env vars (see SIGNING.md) — unset here, same as Electron locally.
+	@cd desktop/tauri/src-tauri && \
+	  SIGN_ID="$${APPLE_SIGNING_IDENTITY:-$$(security find-identity -v -p codesigning 2>/dev/null | sed -n 's/.*"\(Developer ID Application: [^"]*\)".*/\1/p' | head -1)}"; \
+	  if [ -n "$$SIGN_ID" ]; then \
+	    echo ">>> Signing as: $$SIGN_ID"; \
+	    APPLE_SIGNING_IDENTITY="$$SIGN_ID" cargo tauri build; \
+	  else \
+	    echo ">>> No Developer ID in keychain — ad-hoc (unsigned) build"; \
+	    cargo tauri build; \
+	  fi
 	@# Tauri 2 has no artifactName option, so post-rename the .dmg /
 	@# .app so they're distinguishable from the Electron sibling
 	@# ('Maneki_X.Y.Z_arch.dmg' -> 'Maneki-Tauri-X.Y.Z-arch.dmg').
