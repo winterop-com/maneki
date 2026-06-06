@@ -195,12 +195,17 @@ def test_open_db_rebuilds_when_schema_version_row_missing(tmp_path: Path) -> Non
         conn.close()
 
 
-def test_open_db_rebuilds_on_maneki_version_mismatch(tmp_path: Path) -> None:
-    """A DB stamped with a different maneki version triggers a clean rebuild."""
+def test_open_db_keeps_cache_on_maneki_version_mismatch(tmp_path: Path) -> None:
+    """A maneki version bump alone must NOT rebuild — SCHEMA_VERSION gates reuse.
+
+    Re-indexing on every release re-walked + re-probed large libraries (and
+    wiped the video probe cache that shares this index.db) for no benefit. A
+    row inserted under an older version stamp must survive a newer open.
+    """
     root = tmp_path / "lib"
     root.mkdir()
 
-    # Open once at the current version, then tamper the stamp.
+    # Open once, stamp an older version, insert a row.
     conn = library.open_db(root)
     conn.execute("UPDATE meta SET value='0.0.0' WHERE key='maneki_version'")
     conn.execute(
@@ -209,14 +214,13 @@ def test_open_db_rebuilds_on_maneki_version_mismatch(tmp_path: Path) -> None:
     )
     conn.close()
 
-    # Reopening should detect the version mismatch and rebuild from scratch.
-    from maneki import __version__ as MANEKI_VERSION
-
+    # Reopening at the current version reuses the index (no rebuild).
     conn = library.open_db(root)
     try:
+        assert not library.is_empty(conn)
+        # The stamp is left as-is on reuse (it records the building version).
         v = conn.execute("SELECT value FROM meta WHERE key='maneki_version'").fetchone()[0]
-        assert v == MANEKI_VERSION
-        assert library.is_empty(conn)
+        assert v == "0.0.0"
     finally:
         conn.close()
 
@@ -246,21 +250,27 @@ def test_open_db_keeps_cache_on_same_version(tmp_path: Path) -> None:
         conn.close()
 
 
-def test_open_db_rebuilds_when_maneki_version_row_missing(tmp_path: Path) -> None:
-    """Pre-stamp DBs (created before the maneki_version row existed) get rebuilt on next open."""
+def test_open_db_keeps_cache_when_maneki_version_row_missing(tmp_path: Path) -> None:
+    """A missing maneki_version row (pre-stamp DB) does NOT force a rebuild.
+
+    Only SCHEMA_VERSION + root gate reuse, so a pre-stamp index whose schema
+    still matches is kept as-is rather than re-walked.
+    """
     root = tmp_path / "lib"
     root.mkdir()
 
     conn = library.open_db(root)
+    conn.execute(
+        "INSERT INTO albums(rel_path, artist_dir, album_dir, track_count, dir_mtime, scanned_at) "
+        "VALUES ('Artist/Album', 'Artist', 'Album', 1, 0, 0)"
+    )
     conn.execute("DELETE FROM meta WHERE key='maneki_version'")
     conn.close()
 
     conn = library.open_db(root)
     try:
-        # Row exists again after rebuild.
-        v = conn.execute("SELECT value FROM meta WHERE key='maneki_version'").fetchone()
-        assert v is not None
-        assert library.is_empty(conn)
+        # Reused despite the missing stamp: the row survived.
+        assert not library.is_empty(conn)
     finally:
         conn.close()
 
