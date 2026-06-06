@@ -31,12 +31,34 @@ Pattern lifted from chapkit / servicekit's `gunicorn.conf.py`. See
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import os
 import sys
 
 import structlog
 from structlog.typing import Processor
+
+
+class _DropCancelledError(logging.Filter):
+    """Drop uvicorn's benign CancelledError tracebacks from cancelled requests.
+
+    A client disconnecting mid-stream (a video seek/close) or a Ctrl+C
+    shutdown while a response is still draining surfaces as an
+    asyncio.CancelledError. Starlette's BaseHTTPMiddleware (our access-log /
+    bearer-auth layers) re-raises it instead of swallowing it, so uvicorn logs
+    a full stack for what is never a real error. We drop records whose
+    exception is a CancelledError; everything else passes untouched.
+    """
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        exc = record.exc_info[1] if record.exc_info else None
+        while exc is not None:
+            if isinstance(exc, asyncio.CancelledError):
+                return False
+            # Unwrap the "during handling of the above, another occurred" chain.
+            exc = exc.__cause__ or exc.__context__
+        return True
 
 
 def configure_logging(level: str | None = None, fmt: str | None = None) -> structlog.stdlib.BoundLogger:
@@ -100,6 +122,10 @@ def configure_logging(level: str | None = None, fmt: str | None = None) -> struc
     formatter = structlog.stdlib.ProcessorFormatter(processors=formatter_processors)
     handler = logging.StreamHandler(sys.stdout)
     handler.setFormatter(formatter)
+    # Suppress the noisy CancelledError tracebacks from cancelled requests /
+    # shutdown (see _DropCancelledError). Filter on the handler so it catches
+    # the records wherever they originate (uvicorn.error, lifespan, ...).
+    handler.addFilter(_DropCancelledError())
 
     root = logging.getLogger()
     root.handlers[:] = [handler]
