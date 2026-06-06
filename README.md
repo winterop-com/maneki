@@ -85,6 +85,10 @@ Video player — video.js v8 on the HLS source, contact-sheet poster (16:9, gene
 
 ![Browser UI — video player with contact-sheet poster](docs/screenshots/web-video-player.png)
 
+Live playback diagnostics — a draggable, SSE-fed overlay that classifies playback as healthy / encoder-bound / network-bound, with buffer-ahead, transcode realtime ratio, bandwidth, and dropped-frame counts:
+
+![Browser UI — video stats overlay](docs/screenshots/web-video-stats.png)
+
 More in the [serve guide](https://winterop-com.github.io/maneki/guides/serve-unified/) and the [video guide](https://winterop-com.github.io/maneki/guides/video/).
 
 ## Documentation
