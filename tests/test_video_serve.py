@@ -186,6 +186,23 @@ def test_list_videos_returns_entries(client: TestClient) -> None:
     assert entries[0]["size_bytes"] == 1024
 
 
+def test_get_video_by_id_returns_entry(client: TestClient) -> None:
+    """GET /api/videos/{id} returns the full entry — backs video deep-links."""
+    vid = client.get("/api/videos").json()[0]["id"]
+    resp = client.get(f"/api/videos/{vid}")
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["id"] == vid
+    assert body["name"] == "ep1"
+    assert "subtitles" in body
+
+
+def test_get_video_by_id_unknown_is_404(client: TestClient) -> None:
+    """An unknown id (stale/typed deep-link URL) is a clean 404, not a 500."""
+    resp = client.get("/api/videos/does-not-exist-00000000")
+    assert resp.status_code == 404
+
+
 def test_stream_full_file(client: TestClient, library_root: Path) -> None:
     entries = client.get("/api/videos").json()
     video_id = entries[0]["id"]

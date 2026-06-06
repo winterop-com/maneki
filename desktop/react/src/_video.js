@@ -62,6 +62,13 @@ export const MK_VIDEO = (function () {
       return call(`${videoApiBase(session)}/videos`);
     },
 
+    // Fetch one video's full metadata by id — for deep-linking straight to
+    // a player (#/video/v/<id>) without browsing to its folder first.
+    // Rejects on 404 (unknown/stale id) so the route can show "not found".
+    async getVideo(session, videoId) {
+      return call(`${videoApiBase(session)}/videos/${encodeURIComponent(videoId)}`);
+    },
+
     // Poll target: returns { scanning, phase, total, scanned } where
     // phase is "idle" / "walking" / "probing" / "done". The SPA's
     // VideosPane polls this every ~500ms during cold start so the

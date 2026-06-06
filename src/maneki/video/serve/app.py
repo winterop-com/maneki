@@ -209,6 +209,17 @@ def create_app(
         """Return a flat list of every video file under the library root."""
         return _videos()
 
+    @app.get("/api/videos/{video_id}")
+    def get_video(video_id: str) -> VideoEntry:
+        """Return one video's metadata by id.
+
+        Powers deep-linking straight to a player (`#/video/v/<id>`): the SPA
+        route loader fetches the full entry (name, subtitles, duration, size)
+        instead of relying on it already being in a browsed folder list.
+        404 when the id is unknown (stale/typed URL).
+        """
+        return _find(app, video_id, root)
+
     @app.get("/api/scan_status")
     def scan_status() -> ScanState:
         """Return the current scan progress for the SPA's loading bar.
