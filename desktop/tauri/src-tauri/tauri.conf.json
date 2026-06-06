@@ -31,10 +31,7 @@
   },
   "bundle": {
     "active": true,
-    "targets": [
-      "app",
-      "dmg"
-    ],
+    "targets": "all",
     "category": "Music",
     "shortDescription": "Maneki desktop client",
     "longDescription": "Native desktop wrapper around the Maneki web UI. Connects to a maneki serve instance over LAN or Tailscale and plays your library.",
