@@ -477,6 +477,9 @@ function VideoStatsOverlay({ session, videoId, playerRef, onClose }) {
   const others = sessions.filter((s) => s.video_id !== videoId).length;
   const diag = diagnosePlayback(mine, client);
   const ratio = mine && mine.avg_realtime_ratio != null ? mine.avg_realtime_ratio : null;
+  // Encoder of the most recent transcoded segment — shows whether the GPU
+  // actually engaged (h264_vaapi / h264_videotoolbox) or it's on software.
+  const encoder = mine && mine.recent && mine.recent.length ? mine.recent[mine.recent.length - 1].encoder : null;
   const fmtMbit = (bps) => (bps == null ? "—" : `${(bps / 1e6).toFixed(1)} Mbit/s`);
   const budget = server ? server.budget : null;
 
@@ -502,6 +505,7 @@ function VideoStatsOverlay({ session, videoId, playerRef, onClose }) {
       <div className="mk-stats-grid">
         <Row k="buffer ahead" v={client ? `${client.bufferAhead.toFixed(1)}s` : "—"} />
         <Row k="transcode" v={ratio == null ? "—" : `${ratio.toFixed(2)}x realtime`} />
+        <Row k="encoder" v={encoder || "—"} />
         <Row k="bandwidth" v={client ? fmtMbit(client.bandwidth) : "—"} />
         <Row k="encoder load" v={budget ? `${budget.foreground_in_flight}fg / ${budget.background_in_flight}bg / ${budget.max_workers}` : "—"} />
         <Row k="segments" v={mine ? `${mine.transcodes_done} done / ${mine.segments_total}` : "—"} />
