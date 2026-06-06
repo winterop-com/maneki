@@ -682,6 +682,14 @@ function VideoPlayerPane({ session, video, onClose }) {
     player.on("playing", clearError);
     player.on("loadeddata", clearError);
 
+    // The video and the audio library player are independent media
+    // elements; without this they'd play over each other. Whenever the
+    // video starts, stop the music. (The reverse — music pausing the
+    // video — is handled in app.jsx via MK_AUDIO.onPlay.)
+    player.on("play", () => {
+      try { window.MK_AUDIO?.pause?.(); } catch { /* no audio controller */ }
+    });
+
     // Capture source resolution for the meta strip. Re-fires on every
     // src() swap (recovery, manual retry) so the displayed value
     // tracks whatever's actually decoding.

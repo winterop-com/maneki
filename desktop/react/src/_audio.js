@@ -124,7 +124,21 @@
     ended: new Set(),
     durationchange: new Set(),
     error: new Set(),
+    play: new Set(),
+    pause: new Set(),
   };
+
+  // Mirror the element's real play/pause state so the app can treat the
+  // <audio> element as the single source of truth — including when it's
+  // paused by something other than the transport button (e.g. a video
+  // starting playback). The 'play' / 'pause' events fire for every
+  // transition, programmatic or not.
+  audio.addEventListener("play", () => {
+    for (const cb of listeners.play) cb();
+  });
+  audio.addEventListener("pause", () => {
+    for (const cb of listeners.pause) cb();
+  });
 
   audio.addEventListener("timeupdate", () => {
     for (const cb of listeners.time) cb(audio.currentTime);
@@ -240,6 +254,8 @@
     onEnded(cb) { listeners.ended.add(cb); return () => listeners.ended.delete(cb); },
     onDurationChange(cb) { listeners.durationchange.add(cb); return () => listeners.durationchange.delete(cb); },
     onError(cb) { listeners.error.add(cb); return () => listeners.error.delete(cb); },
+    onPlay(cb) { listeners.play.add(cb); return () => listeners.play.delete(cb); },
+    onPause(cb) { listeners.pause.add(cb); return () => listeners.pause.delete(cb); },
     get element() { return audio; },
   };
 })();
