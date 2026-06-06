@@ -910,6 +910,17 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#hardware-acceleration" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Hardware acceleration
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#get-videoapivideosidsubtitles" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1594,6 +1605,17 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#hardware-acceleration" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Hardware acceleration
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#get-videoapivideosidsubtitles" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1835,10 +1857,19 @@
 <p>Why MPEG-TS (.ts) and not fragmented MP4 (.m4s): per-segment ffmpeg runs each produce their own init segment, and the codec headers (<code>SPS/PPS</code>) differ subtly between invocations. fMP4 needs one shared init across every segment, so cross-segment playback breaks with <code>MEDIA_ERR_DECODE</code>. MPEG-TS segments carry their own headers and stitch cleanly.</p>
 <p>Encoding choices:</p>
 <ul>
-<li><strong>Video</strong>: always re-encoded with libx264 (<code>-preset veryfast -crf 23</code>) so each segment starts on a forced keyframe (<code>-force_key_frames expr:gte(t,0)</code>). Re-encoding costs CPU but lets segments be independently seekable — the price for any-position scrub on any source codec.</li>
+<li><strong>Video</strong>: re-encoded to H.264 so each segment starts on a forced keyframe (<code>-force_key_frames expr:gte(t,0)</code>) and is independently seekable — the price for any-position scrub on any source codec. The encoder is picked once per process (see Hardware acceleration below): a GPU encoder where available, else software <code>libx264 -preset veryfast -crf 23</code>.</li>
 <li><strong>Audio</strong>: stereo AAC at 192 kbps.</li>
-<li><strong>Timestamps</strong>: <code>-output_ts_offset N*SEG_LEN</code> + <code>-avoid_negative_ts disabled</code> shifts each segment's output PTS to its nominal manifest position. Adjacent segments don't overlap and the player's <code>currentTime</code> matches the manifest timeline. (A pre-v0.9 bug here would emit a partial .ts on ffmpeg cancel during a rapid scrub, the cache check would short-circuit on the partial file, and the player would jump 4-5 min on the next seek; fixed by unlinking partial files on cancel and bumping <code>HLS_CACHE_VERSION</code> to wipe any leftover stubs from older runs.)</li>
 </ul>
+<h3 id="hardware-acceleration">Hardware acceleration<a class="headerlink" href="#hardware-acceleration" title="Permanent link">&para;</a></h3>
+<p>Software <code>libx264</code> can't transcode 4K/HDR in realtime — the stats panel shows <code>realtime_ratio &gt;= 1.0</code> (encoder-bound) and the player eventually starves. Where a hardware H.264 encoder is available maneki hands the <em>encode</em> to the GPU (decode + any tonemap stay in software — the encode is the expensive part, and full-GPU pipelines are far more driver-fragile):</p>
+<ul>
+<li><strong>VAAPI</strong> (<code>h264_vaapi</code>) on Linux — AMD/Intel via the kernel render node. AMD's ROCm is <em>compute</em>; video encode rides the GPU's VCN block through VAAPI/libva. Prerequisites: <code>libva</code> + a VA driver (<code>mesa-va-drivers</code> / <code>intel-media-va-driver</code>), and read access to <code>/dev/dri/renderD128</code> (add the user to the <code>render</code>/<code>video</code> group; in containers, map the device in and match the GID). maneki runs a tiny probe-encode at startup and silently uses software if the device isn't actually usable — a <em>listed</em> encoder isn't a working one.</li>
+<li><strong>VideoToolbox</strong> (<code>h264_videotoolbox</code>) on macOS / Apple Silicon.</li>
+<li><strong>libx264</strong> everywhere else, and as the always-available per-file fallback (if a hardware encode fails on a specific file, that session drops to software and retries).</li>
+</ul>
+<p>Selection order: <code>MANEKI_HWENC</code> (<code>auto</code> default, or <code>vaapi</code> / <code>videotoolbox</code> / <code>none</code>) → VAAPI → VideoToolbox → libx264. The stats panel shows which encoder produced each segment, so you can confirm the GPU actually engaged. Hardware encoders are bitrate-driven (<code>~6 Mbit/s</code>, tunable via <code>MANEKI_HWENC_BITRATE</code> / <code>_MAXRATE</code> / <code>_BUFSIZE</code>); the render node is overridable via <code>MANEKI_VAAPI_DEVICE</code>.</p>
+<p><strong>HDR</strong>: 4K Dolby-Vision/HDR sources are tonemapped to SDR BT.709 in software (<code>zscale</code>+<code>tonemap</code>) before the H.264 encode, since browsers don't display HDR H.264. This needs an ffmpeg built with <code>zscale</code> (libzimg); without it the tonemap is skipped (HDR plays with washed-out colours rather than failing the transcode).
+- <strong>Timestamps</strong>: <code>-output_ts_offset N*SEG_LEN</code> + <code>-avoid_negative_ts disabled</code> shifts each segment's output PTS to its nominal manifest position. Adjacent segments don't overlap and the player's <code>currentTime</code> matches the manifest timeline. (A pre-v0.9 bug here would emit a partial .ts on ffmpeg cancel during a rapid scrub, the cache check would short-circuit on the partial file, and the player would jump 4-5 min on the next seek; fixed by unlinking partial files on cancel and bumping <code>HLS_CACHE_VERSION</code> to wipe any leftover stubs from older runs.)</p>
 <p>Foreground transcodes are capped at 3 concurrent (rapid seeks fire one fetch per scrub and the browser's HLS engine doesn't cancel old XHRs; without the cap, 18 simultaneous ffmpegs sharing disk I/O each took 15s instead of 200ms and the player wedged). Queued requests release as slots free up; normal playback fits inside the cap. Background prefetch warms several segments <strong>ahead</strong> of the playhead (forward look-ahead, plus the previous segment for back-buttons) so a high-latency client doesn't outrun the encoder over serialized segment round-trips. It runs at OS-idle priority on a dedicated near-zero-quiet budget lane that fills the sub-second gaps <em>between</em> foreground segments — unlike prewarm/thumbnail work, which holds off during continuous playback — and is cancelled on seek-away / pause / player-close (the SPA sends <code>DELETE /api/videos/{id}/session</code>).</p>
 <p>Returns <code>503</code> if ffmpeg is missing, <code>400</code> if the requested filename looks like a path-traversal attempt or has an unparseable segment index, <code>404</code> for unknown video ids or out-of-range segments, <code>499</code> if the client disconnected mid-transcode (and the running ffmpeg is killed), <code>500</code> if the ffmpeg subprocess fails (stderr tail in detail).</p>
 <p>Cache lifecycle: on every startup the cache is swept for orphaned video-id directories (renamed / deleted source files) and the cache-version marker is verified — if it doesn't match the running build's <code>HLS_CACHE_VERSION</code>, the whole cache is wiped so segments produced under different rules don't poison the player.</p>
