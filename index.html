@@ -310,6 +310,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#screenshots" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Screenshots
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#what-it-does" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1254,6 +1265,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#screenshots" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Screenshots
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#what-it-does" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1318,11 +1340,19 @@
 
 
 <h1 id="maneki">Maneki<a class="headerlink" href="#maneki" title="Permanent link">&para;</a></h1>
-<p>A Python 3.13 CLI for a self-hosted media library: convert arbitrary audio rips (FLAC / MP3 / M4A / WAV / OGG / OPUS) into a clean tagged library and serve it over LAN / Tailscale via a Subsonic-compatible HTTP server, plus a video pipeline (HLS streaming with on-demand segments, sidecar + embedded subtitles, contact-sheet posters, folder browser) all behind one <code>maneki serve</code> and one web SPA.</p>
+<p>A self-hosted media library for your own audio and video. Convert arbitrary audio rips (FLAC / MP3 / M4A / WAV / OGG / OPUS) into a clean tagged library and serve it over LAN / Tailscale via a Subsonic-compatible HTTP server; stream video over HLS with on-demand segments, sidecar + embedded subtitles, contact-sheet posters, and a folder browser — all behind one <code>maneki serve</code> and one web SPA.</p>
 <h2 id="the-name">The name<a class="headerlink" href="#the-name" title="Permanent link">&para;</a></h2>
 <p><strong>Maneki</strong> (招き, <em>mah-neh-kee</em>) is the Japanese word for <em>beckoning</em>. It's the verb-form of <em>maneki-neko</em> (招き猫) — the small ceramic cat with a raised paw you've seen on shop counters and restaurant windows across Japan. The cat sits there quietly all day; when you walk in, its paw is already up, inviting you in. Whoever placed it didn't have to do anything; the cat does the welcoming.</p>
 <p>A self-hosted media server has the same job. It lives on a box in the corner. You don't see it, you don't manage it, you don't poke at it. When you open the app on your phone or laptop and want to watch a film or play music, your library should already be there, ready, waving you in. No URL to type, no port to remember, no "is the server up?" — just open and play.</p>
 <p>That's what <code>maneki serve &lt;library&gt;</code> aims to be: the cat on the shelf.</p>
+<h2 id="screenshots">Screenshots<a class="headerlink" href="#screenshots" title="Permanent link">&para;</a></h2>
+<p>The browser SPA — bordered panels with floating titles, one palette across audio and video. A vertical AUDIO / VIDEO rail on the left switches modes, and self-hides when only one kind is mounted at the library root.</p>
+<p>Audio — Artists → Albums → Tracks, with a Now Playing band and the FFT spectrum visualizer:</p>
+<p><img alt="Audio library" src="screenshots/web-audio.png" /></p>
+<p>Video — folder browser with instant-paint row thumbnails and a sticky breadcrumb; click into any season for the episode list:</p>
+<p><img alt="Video folder browse" src="screenshots/web-video-browse.png" /></p>
+<p>Video player — video.js on the HLS source with a server-generated 16:9 contact-sheet poster (<code>t</code> for theater mode, <code>f</code> for fullscreen, captions auto-prefer English):</p>
+<p><img alt="Video player" src="screenshots/web-video-player.png" /></p>
 <h2 id="what-it-does">What it does<a class="headerlink" href="#what-it-does" title="Permanent link">&para;</a></h2>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>input/                            output/
 <a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>└── messy rips/                   └── Artist/
@@ -1350,7 +1380,7 @@
 <li><strong><code>maneki library</code></strong> — cross-cutting tools for any library root. <code>info</code> counts files per kind, <code>list</code> walks the tree, <code>inspect</code> dumps tags / cover for an audio file or ffprobe streams / container info for a video file.</li>
 <li><strong><code>maneki audio playlist</code></strong> — auto-generate <code>.m3u8</code> playlists anchored to a seed track using tag-based similarity (artist / genre / year). <code>gen</code> writes a mix; <code>list</code> / <code>show</code> browse what's saved. Output is plain extended M3U so VLC and Subsonic clients can play it.</li>
 <li><strong><code>maneki audio inspect</code></strong> — quick tag dump for a single file (also reachable via the cross-cutting <code>maneki library inspect</code>).</li>
-<li><strong>Desktop apps</strong> — Tauri (~15 MB, native WebKit on macOS) and Electron (~120 MB, bundled Chromium) wrappers around a generic Subsonic client UI. URL + Username + Password login; salted-token auth; refresh-restores via URL hash. Built from source with <code>make build</code> (we don't publish prebuilt binaries yet — code-signing is on the <a href="roadmap/">roadmap</a>). See <a href="guides/desktop/">Desktop apps</a>.</li>
+<li><strong>Desktop apps</strong> — Tauri (~15 MB, native WebKit on macOS) and Electron (~120 MB, bundled Chromium) wrappers around a generic Subsonic client UI. URL + Username + Password login; salted-token auth; refresh-restores via URL hash. Prebuilt installers for macOS / Linux / Windows are attached to every <a href="https://github.com/winterop-com/maneki/releases/latest">release</a> — the macOS Tauri build is signed + notarized; the rest are unsigned. Or build from source with <code>make build</code>. See <a href="guides/desktop/">Desktop apps</a>.</li>
 <li><strong>Mobile</strong> — no Maneki app of its own; <code>serve</code> exposes the standard Subsonic API so play:Sub / Amperfy (iOS) and Symfonium / DSub / Tempo (Android) all work against it. See <a href="guides/mobile/">Mobile</a>.</li>
 </ul>
 <h2 id="quickstart">Quickstart<a class="headerlink" href="#quickstart" title="Permanent link">&para;</a></h2>
@@ -1374,7 +1404,7 @@
 </ul>
 <p><code>maneki audio convert</code> handles all of these; the rest of the CLI gives you tools to browse, play, audit, and stream the result.</p>
 <h2 id="status">Status<a class="headerlink" href="#status" title="Permanent link">&para;</a></h2>
-<p>v0.9.0. Top-level commands: <code>maneki serve</code> (single-library audio + video + SPA, auto-detects what's there), <code>maneki library</code> (cross-cutting info / list / inspect), <code>maneki audio &lt;...&gt;</code> (convert, library, inspect, ui, playlist), <code>maneki video &lt;...&gt;</code> (reserved for tooling). mypy + pyright + ruff clean, 648 tests green. Audio side real-world tested against Symfonium / Amperfy / play:Sub / Feishin clients with persistent favourites and synced lyrics; video side ships HLS with on-demand segments, single-ffmpeg multi-stream subtitle extraction, 16:9 contact-sheet posters, watcher hot-reload, and a SQLite-backed scan index shared with the audio side at <code>&lt;root&gt;/.maneki/index.db</code>.</p>
+<p>v0.11.2. Top-level commands: <code>maneki serve</code> (single-library audio + video + SPA, auto-detects what's there), <code>maneki library</code> (cross-cutting info / list / inspect), <code>maneki audio &lt;...&gt;</code> (convert, library, inspect, ui, playlist), <code>maneki video &lt;...&gt;</code> (reserved for tooling). Signed + notarized macOS desktop builds (plus unsigned Linux / Windows / Electron) ship on every release. mypy + pyright + ruff clean, 667 tests green. Audio side real-world tested against Symfonium / Amperfy / play:Sub / Feishin clients with persistent favourites and synced lyrics; video side ships HLS with on-demand segments, single-ffmpeg multi-stream subtitle extraction, 16:9 contact-sheet posters, watcher hot-reload, and a SQLite-backed scan index shared with the audio side at <code>&lt;root&gt;/.maneki/index.db</code>.</p>
 <p>Roadmap items still open are listed at <a href="roadmap/">Roadmap</a>.</p>
 
 
