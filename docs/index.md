@@ -26,6 +26,10 @@ Video player — video.js on the HLS source with a server-generated 16:9 contact
 
 ![Video player](screenshots/web-video-player.png)
 
+Live diagnostics — a draggable overlay (fed by Server-Sent Events) that classifies playback as healthy, encoder-bound, or network-bound, with buffer-ahead, transcode realtime ratio, bandwidth, and dropped-frame counts:
+
+![Video stats overlay](screenshots/web-video-stats.png)
+
 ## What it does
 
 ```
