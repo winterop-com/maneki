@@ -343,7 +343,7 @@ def create_app(
 
         async def _run() -> None:
             try:
-                async with shared_budget.background_slot(quiet=False):
+                async with shared_budget.background_slot(lane="ondemand"):
                     await poster_manager.ensure_thumbnail(
                         video_id,
                         path,
@@ -370,7 +370,7 @@ def create_app(
 
         async def _run() -> None:
             try:
-                async with shared_budget.background_slot(quiet=False):
+                async with shared_budget.background_slot(lane="ondemand"):
                     await poster_manager.ensure_poster(
                         video_id,
                         path,

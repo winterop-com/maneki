@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 from pathlib import Path
 
 import pytest
@@ -9,10 +10,13 @@ from fastapi.testclient import TestClient
 
 from maneki.video.serve import create_app
 from maneki.video.serve.hls import (
+    HLS_PREFETCH_AHEAD,
     SEG_LEN,
+    OnDemandHLS,
     build_manifest,
     plan_segments,
 )
+from maneki.video.serve.transcode_budget import TranscodeBudget
 
 
 @pytest.fixture
@@ -82,3 +86,59 @@ def test_build_manifest_is_vod_with_endlist() -> None:
 def test_build_manifest_target_duration_rounds_up() -> None:
     text = build_manifest(plan_segments(10.0, seg_len=SEG_LEN), seg_len=SEG_LEN)
     assert "#EXT-X-TARGETDURATION:6" in text
+
+
+# --- Forward-prefetch -------------------------------------------------------
+
+
+def _session(tmp_path: Path) -> OnDemandHLS:
+    # 600s @ 6s segments = 100 segments; no real file needed (we never run
+    # ffmpeg here — only the prefetch bookkeeping is exercised).
+    return OnDemandHLS(
+        video_id="vid",
+        input_path=tmp_path / "movie.mkv",
+        duration_s=600.0,
+        session_dir=tmp_path,
+        budget=TranscodeBudget(),
+    )
+
+
+def test_prefetch_neighbors_fans_out_forward(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """prefetch_neighbors warms idx+1..idx+N (forward look-ahead) plus idx-1."""
+    sess = _session(tmp_path)
+    warmed: list[int] = []
+    monkeypatch.setattr(sess, "_prefetch_one", warmed.append)
+
+    sess.prefetch_neighbors(20)
+
+    # idx+1..idx+HLS_PREFETCH_AHEAD in order, then the single backward neighbour.
+    assert warmed == [*range(21, 21 + HLS_PREFETCH_AHEAD), 19]
+    assert sum(1 for w in warmed if w > 20) == HLS_PREFETCH_AHEAD
+
+
+def test_prefetch_depth_stays_within_active_window(tmp_path: Path) -> None:
+    """The forward depth must fit the note_active window or it cancels itself."""
+    from maneki.video.serve import hls as hls_mod
+
+    assert HLS_PREFETCH_AHEAD <= hls_mod._ACTIVE_AHEAD
+
+
+async def test_note_active_cancels_lookahead_outside_active_window(tmp_path: Path) -> None:
+    """A seek cancels prefetch tasks the playhead has moved away from."""
+    sess = _session(tmp_path)
+
+    async def sleeper() -> None:
+        await asyncio.sleep(10)
+
+    inside = {19: asyncio.create_task(sleeper()), 25: asyncio.create_task(sleeper())}
+    outside = {10: asyncio.create_task(sleeper()), 40: asyncio.create_task(sleeper())}
+    sess._prefetch_tasks.update(inside)
+    sess._prefetch_tasks.update(outside)
+
+    sess.note_active(20)  # active window [20-2, 20+8] = [18, 28]
+    await asyncio.sleep(0.02)  # let the cancellations propagate
+
+    assert all(t.cancelled() for t in outside.values())
+    assert not any(t.cancelled() for t in inside.values())
+    for t in inside.values():
+        t.cancel()

@@ -62,6 +62,15 @@ SEG_LEN = 6.0
 _ACTIVE_AHEAD = 8
 _ACTIVE_BEHIND = 2
 
+# How many segments forward to prefetch after each foreground request. The
+# browser's HLS engine buffers ~30s ahead, but over a high-latency link the
+# per-segment request round-trips serialize and the playhead outruns a
+# warm-only-the-next-one cache. Warming several ahead (on the near-zero-quiet
+# prefetch lane, at OS-idle priority) keeps segments ready before the player
+# asks. MUST stay <= _ACTIVE_AHEAD so note_active() doesn't immediately cancel
+# the look-ahead as "seeked away from" during normal linear playback.
+HLS_PREFETCH_AHEAD = 6
+
 # Per-session ring-buffer depth for transcode timings. Enough to show a
 # trend in the stats panel without unbounded growth on a long watch.
 _RECENT_TRANSCODES = 20
@@ -294,16 +303,21 @@ class OnDemandHLS:
         return out_path
 
     def prefetch_neighbors(self, idx: int) -> None:
-        """Kick off background transcodes for `idx+1` and `idx-1` if uncached.
+        """Warm `idx+1 .. idx+HLS_PREFETCH_AHEAD` (forward) and `idx-1` (back).
 
-        Helps small forward / backward scrubs land on a warm cache.
-        Forward is the common case (skipping ads / intros, peeking
-        ahead); we still warm idx-1 because back-buttons happen.
-        Fire-and-forget - the call returns immediately; failures are
-        swallowed since prefetch is best-effort.
+        Forward look-ahead is the point: on a high-latency link the player
+        can't fetch segments fast enough to stay buffered, so we transcode
+        several ahead of the playhead (on the near-zero-quiet `prefetch`
+        lane, OS-idle priority) to keep them ready before they're asked for.
+        We still warm `idx-1` because back-buttons happen. The forward depth
+        stays within the `note_active` active window so linear playback
+        doesn't cancel its own look-ahead. Fire-and-forget - returns
+        immediately; `_prefetch_one` dedupes, range-checks and skips cached,
+        and failures are swallowed since prefetch is best-effort.
         """
-        for candidate in (idx + 1, idx - 1):
-            self._prefetch_one(candidate)
+        for ahead in range(1, HLS_PREFETCH_AHEAD + 1):
+            self._prefetch_one(idx + ahead)
+        self._prefetch_one(idx - 1)
 
     def _prefetch_one(self, idx: int) -> None:
         if idx < 0 or idx >= len(self.segments):
@@ -318,7 +332,7 @@ class OnDemandHLS:
 
     async def _safe_prefetch(self, idx: int) -> None:
         try:
-            async with self._budget.background_slot():
+            async with self._budget.background_slot(lane="prefetch"):
                 await self.ensure_segment(idx, low_priority=True)
         except asyncio.CancelledError:
             # Cancellation is the expected path when the player closes
