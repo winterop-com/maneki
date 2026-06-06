@@ -48,13 +48,13 @@ def test_has_videos_false_when_root_missing(tmp_path: Path) -> None:
 def test_scan_videos_returns_flat_layout(library_root: Path) -> None:
     entries = scan_videos(library_root)
     assert len(entries) == 2
-    names = sorted(e["name"] for e in entries)
+    names = sorted(e.name for e in entries)
     assert names == ["Show.S01E01.1080p", "Show.S01E02.1080p"]
 
 
 def test_scan_videos_skips_non_video_files(library_root: Path) -> None:
     entries = scan_videos(library_root)
-    paths = [e["path"] for e in entries]
+    paths = [e.path for e in entries]
     assert not any(p.endswith(".txt") for p in paths)
 
 
@@ -69,23 +69,23 @@ def test_scan_videos_returns_empty_when_root_missing(tmp_path: Path) -> None:
 
 def test_scan_videos_ids_are_stable_and_unique(library_root: Path) -> None:
     entries = scan_videos(library_root)
-    ids = [e["id"] for e in entries]
+    ids = [e.id for e in entries]
     assert len(set(ids)) == len(ids)
     # Re-scan should produce identical IDs.
     again = scan_videos(library_root)
-    assert [e["id"] for e in again] == ids
+    assert [e.id for e in again] == ids
 
 
 def test_scan_videos_includes_size(library_root: Path) -> None:
     entries = scan_videos(library_root)
     for e in entries:
-        assert e["size_bytes"] > 0
+        assert e.size_bytes > 0
 
 
 def test_scan_videos_walks_nested_layout(nested_layout: Path) -> None:
     """Files at arbitrary depth are surfaced; relative paths reflect the layout."""
     entries = scan_videos(nested_layout)
-    rel_paths = sorted(e["rel_path"] for e in entries)
+    rel_paths = sorted(e.rel_path for e in entries)
     assert rel_paths == [
         "Movies/Inception (2010)/Inception.mkv",
         "Shows/X/Season 01/X - S01E01.mkv",
@@ -103,7 +103,7 @@ def test_scan_videos_skips_maneki_cache_dir(tmp_path: Path) -> None:
     (tmp_path / ".maneki").mkdir()
     (tmp_path / ".maneki" / "fake.mkv").write_bytes(b"\x1a\x45\xdf\xa3fake")
     entries = scan_videos(tmp_path)
-    rel_paths = [e["rel_path"] for e in entries]
+    rel_paths = [e.rel_path for e in entries]
     assert rel_paths == ["real.mkv"]
 
 
@@ -121,7 +121,7 @@ def test_scan_video_ids_do_not_collide_across_slug_aliases(tmp_path: Path) -> No
     (tmp_path / "tv" / "ch01.mkv").write_bytes(b"\x1a\x45\xdf\xa3a")
     (tmp_path / "tv-ch01.mkv").write_bytes(b"\x1a\x45\xdf\xa3b")
     entries = scan_videos(tmp_path)
-    ids = [e["id"] for e in entries]
+    ids = [e.id for e in entries]
     assert len(ids) == 2
     assert len(set(ids)) == 2, f"id collision: {ids}"
 
@@ -132,5 +132,5 @@ def test_scan_videos_picks_up_new_extensions(tmp_path: Path) -> None:
     (tmp_path / "dvd.vob").write_bytes(b"\x00" * 16)
     (tmp_path / "broadcast.mpg").write_bytes(b"\x00" * 16)
     entries = scan_videos(tmp_path)
-    names = sorted(e["name"] for e in entries)
+    names = sorted(e.name for e in entries)
     assert names == ["broadcast", "dvd", "old"]

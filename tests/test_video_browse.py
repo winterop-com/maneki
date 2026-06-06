@@ -90,8 +90,8 @@ def test_browse_dir_empty_root_lists_nothing(tmp_path: Path) -> None:
     """An empty library root returns an empty (but valid) browse response."""
     body = browse_dir(tmp_path, "")
     assert body is not None
-    assert body["folders"] == []
-    assert body["videos"] == []
+    assert body.folders == []
+    assert body.videos == []
 
 
 def test_browse_dir_returns_none_when_root_missing(tmp_path: Path) -> None:

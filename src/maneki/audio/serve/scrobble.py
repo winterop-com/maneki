@@ -24,11 +24,11 @@ import json
 import logging
 import threading
 from concurrent.futures import ThreadPoolExecutor
-from dataclasses import asdict, dataclass
 from typing import TYPE_CHECKING, Any
 from urllib.parse import urlparse
 
 import httpx
+from pydantic import BaseModel, ConfigDict
 
 if TYPE_CHECKING:
     from maneki.audio.serve.config import ScrobbleConfig, ScrobbleMqttConfig, ScrobbleWebhookConfig
@@ -36,8 +36,7 @@ if TYPE_CHECKING:
 log = logging.getLogger(__name__)
 
 
-@dataclass(frozen=True, slots=True)
-class ScrobbleEvent:
+class ScrobbleEvent(BaseModel):
     """Structured payload emitted to webhook / MQTT.
 
     Field naming mirrors the Subsonic spec's scrobble parameters plus a
@@ -45,6 +44,8 @@ class ScrobbleEvent:
     receiver doesn't have to round-trip back to the server to look them
     up.
     """
+
+    model_config = ConfigDict(frozen=True)
 
     user: str
     track_id: str
@@ -56,7 +57,7 @@ class ScrobbleEvent:
     submission: bool  # True = "I finished playing this", False = "I just started"
 
     def as_json(self) -> str:
-        return json.dumps(asdict(self), separators=(",", ":"))
+        return json.dumps(self.model_dump(), separators=(",", ":"))
 
 
 class ScrobbleDispatcher:

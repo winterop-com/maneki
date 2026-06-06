@@ -3,7 +3,8 @@
 from __future__ import annotations
 
 import re
-from dataclasses import dataclass
+
+from pydantic import BaseModel, ConfigDict
 
 from maneki.audio.lyrics.lrclib import LrcLibClient, LrcLibError
 from maneki.audio.lyrics.sidecar import read_sidecar, sidecar_path, write_sidecar
@@ -31,9 +32,10 @@ _TIMESTAMP_RE = re.compile(r"\[(\d{1,3}):(\d{2})(?:\.(\d{1,3}))?\]")
 _META_HEADER_RE = re.compile(r"^\[[a-zA-Z]+:.*\]$")
 
 
-@dataclass(frozen=True, slots=True)
-class LrcLine:
+class LrcLine(BaseModel):
     """One synced LRC line: timestamp in milliseconds + visible text."""
+
+    model_config = ConfigDict(frozen=True)
 
     start_ms: int
     text: str

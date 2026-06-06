@@ -13,13 +13,15 @@ else Maneki-native.
 from __future__ import annotations
 
 import secrets
-from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 
+from pydantic import BaseModel, ConfigDict
 
-@dataclass(frozen=True)
-class Token:
+
+class Token(BaseModel):
     """An issued bearer token with its metadata."""
+
+    model_config = ConfigDict(frozen=True)
 
     value: str
     username: str

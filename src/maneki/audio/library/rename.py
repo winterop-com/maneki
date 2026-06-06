@@ -15,8 +15,9 @@ album/year tags, AND the album's parent (the artist directory) tracks
 from __future__ import annotations
 
 import logging
-from dataclasses import dataclass
 from pathlib import Path
+
+from pydantic import BaseModel, ConfigDict
 
 from maneki.audio import naming
 from maneki.audio.library.models import LibraryAlbum
@@ -28,9 +29,10 @@ class RenameError(Exception):
     """Raised when the rename target collides with an existing path or fs IO fails."""
 
 
-@dataclass(frozen=True, slots=True)
-class RenameResult:
+class RenameResult(BaseModel):
     """What the rename actually did. Use `.changed` to short-circuit no-op cases."""
+
+    model_config = ConfigDict(frozen=True)
 
     old_path: Path
     new_path: Path

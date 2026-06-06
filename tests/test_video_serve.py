@@ -80,15 +80,15 @@ def test_thumbnails_ready_lists_cached_ids(library_root: Path) -> None:
     from maneki.video.serve.scan import VideoEntry
 
     app = create_app(library_root)
-    entry: VideoEntry = {
-        "id": "abc-12345678",
-        "name": "abc",
-        "path": str(library_root / "videos" / "ep1.mkv"),
-        "size_bytes": 1024,
-        "rel_path": "videos/ep1.mkv",
-        "duration_s": 10.0,
-        "subtitles": [],
-    }
+    entry = VideoEntry(
+        id="abc-12345678",
+        name="abc",
+        path=str(library_root / "videos" / "ep1.mkv"),
+        size_bytes=1024,
+        rel_path="videos/ep1.mkv",
+        duration_s=10.0,
+        subtitles=[],
+    )
     app.state.video_cache = [entry]
     poster_mgr = app.state.poster_manager
     poster_mgr.cache_dir.mkdir(parents=True, exist_ok=True)

@@ -55,8 +55,8 @@ def test_video_index_persists_across_instances(library: Path) -> None:
     try:
         loaded = idx2.load_all()
         assert "ep1-abc12345" in loaded
-        assert loaded["ep1-abc12345"]["name"] == "ep1"
-        assert loaded["ep1-abc12345"]["duration_s"] == 42.0
+        assert loaded["ep1-abc12345"].name == "ep1"
+        assert loaded["ep1-abc12345"].duration_s == 42.0
         assert idx2.fingerprints() == {"ep1-abc12345": (123.0, 1024)}
     finally:
         idx2.close()
@@ -180,13 +180,13 @@ def test_prewarm_scan_reuses_cache_on_second_pass(library: Path) -> None:
 
         second = asyncio.run(prewarm_scan(library, tracker2, index=idx))
 
-        ids_first = {e["id"] for e in first}
-        ids_second = {e["id"] for e in second}
+        ids_first = {e.id for e in first}
+        ids_second = {e.id for e in second}
         assert ids_first == ids_second, "delta scan must yield the same set of videos"
         # Fingerprints unchanged means we reused the cache rather than re-probing.
         assert idx.fingerprints() == fps_after_first
         # And the listing endpoint sees both files.
-        assert {e["name"] for e in second} == {"ep1", "ep2"}
+        assert {e.name for e in second} == {"ep1", "ep2"}
     finally:
         idx.close()
 
@@ -210,7 +210,7 @@ def test_prewarm_scan_picks_up_new_file_without_reprobing_old(library: Path) -> 
         assert len(new_ids) == 1, "exactly one new id should appear after dropping a file"
         # The original entries remain in the listing too.
         assert len(result) == 3
-        assert {e["name"] for e in result} == {"ep1", "ep2", "ep3"}
+        assert {e.name for e in result} == {"ep1", "ep2", "ep3"}
     finally:
         idx.close()
 
@@ -229,7 +229,7 @@ def test_prewarm_scan_prunes_deleted_files(library: Path) -> None:
         result = asyncio.run(prewarm_scan(library, tracker2, index=idx))
 
         assert len(result) == 1
-        assert result[0]["name"] == "ep1"
+        assert result[0].name == "ep1"
         # The cache no longer carries the deleted id.
         assert len(idx.fingerprints()) == 1
     finally:
@@ -267,6 +267,6 @@ def test_prewarm_scan_works_without_index(library: Path) -> None:
     """Legacy callers (tests, direct sub-app use) get the no-cache path."""
     tracker = VideoScanTracker()
     result = asyncio.run(prewarm_scan(library, tracker))
-    assert {e["name"] for e in result} == {"ep1", "ep2"}
+    assert {e.name for e in result} == {"ep1", "ep2"}
     # No DB file should have been created when the caller didn't pass one.
     assert not db_path(library).exists()

@@ -264,7 +264,7 @@ def create_app(
             return []
         out: list[VideoEntry] = []
         for entry in _videos():
-            hay = (entry["name"] + " " + entry["rel_path"]).lower()
+            hay = (entry.name + " " + entry.rel_path).lower()
             if needle in hay:
                 out.append(entry)
                 if len(out) >= limit:
@@ -288,7 +288,7 @@ def create_app(
     def stream_video(video_id: str, request: Request) -> Response:
         """Serve the bytes of the requested video with HTTP Range support."""
         entry = _find(app, video_id, root)
-        return _range_response(Path(entry["path"]), request)
+        return _range_response(Path(entry.path), request)
 
     @app.get("/api/videos/{video_id}/play")
     async def play_video(video_id: str) -> StreamingResponse:
@@ -304,7 +304,7 @@ def create_app(
         except FFmpegNotFoundError as exc:
             raise HTTPException(status_code=503, detail=str(exc)) from exc
         return StreamingResponse(
-            transcode_to_mp4(Path(entry["path"])),
+            transcode_to_mp4(Path(entry.path)),
             media_type="video/mp4",
             headers={"Cache-Control": "no-cache"},
         )
@@ -396,7 +396,7 @@ def create_app(
                 assert_ffmpeg_available()
             except FFmpegNotFoundError as exc:
                 raise HTTPException(status_code=503, detail=str(exc)) from exc
-            _schedule_thumbnail(video_id, Path(entry["path"]), entry["duration_s"])
+            _schedule_thumbnail(video_id, Path(entry.path), entry.duration_s)
             return _placeholder_response()
         cached = poster_manager.poster_path(video_id)
         if cached.exists():
@@ -407,10 +407,10 @@ def create_app(
             raise HTTPException(status_code=503, detail=str(exc)) from exc
         _schedule_poster(
             video_id,
-            Path(entry["path"]),
-            size_bytes=entry["size_bytes"],
-            title=entry["name"],
-            duration_s=entry["duration_s"],
+            Path(entry.path),
+            size_bytes=entry.size_bytes,
+            title=entry.name,
+            duration_s=entry.duration_s,
         )
         return _placeholder_response()
 
@@ -430,7 +430,7 @@ def create_app(
             assert_ffmpeg_available()
         except FFmpegNotFoundError as exc:
             raise HTTPException(status_code=503, detail=str(exc)) from exc
-        _schedule_thumbnail(video_id, Path(entry["path"]), entry["duration_s"])
+        _schedule_thumbnail(video_id, Path(entry.path), entry.duration_s)
         return _placeholder_response()
 
     @app.delete("/api/videos/{video_id}/session")
@@ -506,7 +506,7 @@ def create_app(
         ready: list[str] = []
         posters_ready: list[str] = []
         for v in videos:
-            vid = v["id"]
+            vid = v.id
             if poster_manager.thumbnail_path(vid).exists():
                 ready.append(vid)
             if poster_manager.poster_path(vid).exists():
@@ -530,7 +530,7 @@ def create_app(
         speaking viewer expects.
         """
         entry = _find(app, video_id, root)
-        video_path = Path(entry["path"])
+        video_path = Path(entry.path)
         tracks: list[dict[str, object]] = []
         for s in discover_sidecars(video_path):
             tracks.append(
@@ -569,7 +569,7 @@ def create_app(
         under `<root>/.maneki/subs/<id>/embed-<N>.vtt`.
         """
         entry = _find(app, video_id, root)
-        video_path = Path(entry["path"])
+        video_path = Path(entry.path)
         if key.startswith("embed-"):
             try:
                 idx = int(key[len("embed-") :])
@@ -611,11 +611,11 @@ def create_app(
         except FFmpegNotFoundError as exc:
             raise HTTPException(status_code=503, detail=str(exc)) from exc
 
-        duration = entry["duration_s"]
+        duration = entry.duration_s
         if duration is None or duration <= 0:
             raise HTTPException(status_code=503, detail="cannot determine video duration for HLS")
 
-        session = hls_manager.get_or_create(video_id, Path(entry["path"]), duration)
+        session = hls_manager.get_or_create(video_id, Path(entry.path), duration)
 
         if filename == "index.m3u8":
             return Response(
@@ -856,7 +856,7 @@ def _find(app: FastAPI, video_id: str, root: Path) -> VideoEntry:
         # Rebuild the dict when the underlying list reference changes
         # (rescan replaces it wholesale via `video_sub.state.video_cache = ...`).
         if by_id is None or cache_id_marker != cache_id:
-            by_id = {v["id"]: v for v in cache}
+            by_id = {v.id: v for v in cache}
             app.state._video_by_id = by_id
             app.state._video_by_id_for = cache_id
         entry = by_id.get(video_id)
@@ -865,7 +865,7 @@ def _find(app: FastAPI, video_id: str, root: Path) -> VideoEntry:
         raise HTTPException(status_code=404, detail=f"video {video_id!r} not found")
     # Cold fallback: cache hasn't been populated yet. Walk once.
     for v in scan_videos(root):
-        if v["id"] == video_id:
+        if v.id == video_id:
             return v
     raise HTTPException(status_code=404, detail=f"video {video_id!r} not found")
 
