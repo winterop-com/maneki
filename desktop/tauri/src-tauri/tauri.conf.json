@@ -5,8 +5,8 @@
   "identifier": "com.winterop.maneki",
   "build": {
     "frontendDist": "../../react/dist",
-    "beforeBuildCommand": "cd ../react && bun run build",
-    "beforeDevCommand": "cd ../react && bun run dev",
+    "beforeBuildCommand": "cd ../react && bun install --frozen-lockfile && bun run build",
+    "beforeDevCommand": "cd ../react && bun install --frozen-lockfile && bun run dev",
     "devUrl": "http://localhost:1421"
   },
   "app": {

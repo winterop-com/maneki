@@ -37,6 +37,14 @@ jobs:
           enable-cache: true
           cache-dependency-glob: "uv.lock"
 
+      # `make build-python` builds the Vite SPA into the wheel (the
+      # ui-static-sync step now depends on the frontend build), so the runner
+      # needs bun.
+      - name: Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
       - name: Set up Python 3.13
         run: uv python install 3.13
 

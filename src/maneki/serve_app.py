@@ -466,7 +466,10 @@ def _mount_ui(combined: FastAPI, ui_dir: Path | None) -> None:
     chosen = ui_dir if ui_dir is not None else _discover_react_dir()
     if chosen is None or not (chosen / "index.html").is_file():
         raise RuntimeError(
-            f"--ui requested but no SPA at {chosen}. The SPA lives at desktop/react/ in the source tree."
+            "--ui requested but no built SPA found. The SPA is a Vite build now — "
+            "build it first: `make desktop-build-frontend` (or "
+            "`cd desktop/react && bun install && bun run build`), which produces "
+            "desktop/react/dist/. (Installed wheels bundle it automatically.)"
         )
     combined.mount("/", StaticFiles(directory=chosen, html=True), name="spa")
 

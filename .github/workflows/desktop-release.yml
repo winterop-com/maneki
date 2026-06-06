@@ -58,6 +58,14 @@ jobs:
         with:
           workspaces: desktop/tauri/src-tauri
 
+      # The SPA is a Vite build now; tauri-action runs the config's
+      # beforeBuildCommand (cd ../react && bun install && bun run build), so
+      # the runner needs bun.
+      - name: Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
       - name: Linux build deps
         if: matrix.os == 'ubuntu-22.04'
         run: |
@@ -112,6 +120,18 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 20
+
+      - name: Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      # Build the Vite SPA first — electron-builder ships desktop/react/dist
+      # via extraResources, so it must exist (electron-builder does NOT run
+      # the frontend build itself).
+      - name: Build the SPA (Vite)
+        working-directory: desktop/react
+        run: bun install --frozen-lockfile && bun run build
 
       - name: Build Electron bundles (unsigned)
         working-directory: desktop/electron
