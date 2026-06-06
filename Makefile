@@ -2,6 +2,16 @@
 
 UV := $(shell command -v uv 2> /dev/null)
 
+# Local-only secrets (Apple ID / app-specific password / team id for
+# desktop notarization) live in a gitignored `.env` at the repo root — see
+# `.env.example` and SIGNING.md. Sourced + exported here so the Tauri and
+# Electron build recipes can notarize. Use plain `KEY=value` lines (make
+# include syntax — no surrounding quotes). Absent `.env` is fine.
+ifneq (,$(wildcard .env))
+include .env
+export APPLE_ID APPLE_PASSWORD APPLE_TEAM_ID APPLE_SIGNING_IDENTITY APPLE_APP_SPECIFIC_PASSWORD
+endif
+
 help:
 	@echo "Usage: make [target]"
 	@echo ""

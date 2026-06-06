@@ -6,6 +6,10 @@ dist/
 wheels/
 *.egg-info
 
+# Local secrets (Apple notarization creds etc.) — never commit. Template
+# lives in .env.example.
+.env
+
 # Virtual environments
 .venv
 
