@@ -27,12 +27,25 @@ calls.
 
 ## Install
 
-Right now: **build from source on your own machine.** We don't publish
-desktop binaries to GitHub Releases, because shipping unsigned `.dmg` /
-`.exe` files past Gatekeeper / SmartScreen is a worse user experience
-than building locally. Code-signing setup (Apple Developer ID +
-Authenticode) is on the [roadmap](../roadmap.md); once that lands, the
-GHA matrix builds will come back.
+**Download a prebuilt build** from the
+[latest release](https://github.com/winterop-com/maneki/releases/latest).
+Each tag publishes installers for every platform:
+
+| Platform              | Tauri (recommended)                                              | Electron                          |
+|-----------------------|-----------------------------------------------------------------|-----------------------------------|
+| macOS (Apple Silicon) | `Maneki_X.Y.Z_aarch64.dmg` — **signed + notarized**, opens clean | `Maneki-Electron-X.Y.Z-arm64.dmg` |
+| Linux                 | `.deb` / `.rpm` / `.AppImage`                                   | `.AppImage` / `.deb`              |
+| Windows               | `.msi` / `_x64-setup.exe`                                       | `.exe`                            |
+
+The macOS Tauri `.dmg` is the only **signed + notarized** build — it's the
+recommended pick on a Mac and opens with no Gatekeeper warning. The Linux
+and Windows Tauri builds and all Electron builds ship **unsigned and
+untested**; on first launch you'll need to get past Gatekeeper /
+SmartScreen (on macOS: right-click the app → **Open**).
+
+### Build from source
+
+Alternatively, build locally:
 
 ```bash
 git clone https://github.com/winterop-com/maneki.git
@@ -44,7 +57,7 @@ make desktop-electron-build   # ~3 min — produces .dmg
 ```
 
 `make build` collects everything into a single `./dist/` directory at
-the repo root for easy access:
+the repo root:
 
 ```
 dist/

@@ -1,6 +1,6 @@
 # Maneki
 
-A Python 3.13 CLI for a self-hosted media library: convert arbitrary audio rips (FLAC / MP3 / M4A / WAV / OGG / OPUS) into a clean tagged library and serve it over LAN / Tailscale via a Subsonic-compatible HTTP server, plus a video pipeline (HLS streaming with on-demand segments, sidecar + embedded subtitles, contact-sheet posters, folder browser) all behind one `maneki serve` and one web SPA.
+A self-hosted media library for your own audio and video. Convert arbitrary audio rips (FLAC / MP3 / M4A / WAV / OGG / OPUS) into a clean tagged library and serve it over LAN / Tailscale via a Subsonic-compatible HTTP server; stream video over HLS with on-demand segments, sidecar + embedded subtitles, contact-sheet posters, and a folder browser — all behind one `maneki serve` and one web SPA.
 
 ## The name
 
@@ -9,6 +9,22 @@ A Python 3.13 CLI for a self-hosted media library: convert arbitrary audio rips 
 A self-hosted media server has the same job. It lives on a box in the corner. You don't see it, you don't manage it, you don't poke at it. When you open the app on your phone or laptop and want to watch a film or play music, your library should already be there, ready, waving you in. No URL to type, no port to remember, no "is the server up?" — just open and play.
 
 That's what `maneki serve <library>` aims to be: the cat on the shelf.
+
+## Screenshots
+
+The browser SPA — bordered panels with floating titles, one palette across audio and video. A vertical AUDIO / VIDEO rail on the left switches modes, and self-hides when only one kind is mounted at the library root.
+
+Audio — Artists → Albums → Tracks, with a Now Playing band and the FFT spectrum visualizer:
+
+![Audio library](screenshots/web-audio.png)
+
+Video — folder browser with instant-paint row thumbnails and a sticky breadcrumb; click into any season for the episode list:
+
+![Video folder browse](screenshots/web-video-browse.png)
+
+Video player — video.js on the HLS source with a server-generated 16:9 contact-sheet poster (`t` for theater mode, `f` for fullscreen, captions auto-prefer English):
+
+![Video player](screenshots/web-video-player.png)
 
 ## What it does
 
@@ -40,7 +56,7 @@ Then on top of that:
 - **`maneki library`** — cross-cutting tools for any library root. `info` counts files per kind, `list` walks the tree, `inspect` dumps tags / cover for an audio file or ffprobe streams / container info for a video file.
 - **`maneki audio playlist`** — auto-generate `.m3u8` playlists anchored to a seed track using tag-based similarity (artist / genre / year). `gen` writes a mix; `list` / `show` browse what's saved. Output is plain extended M3U so VLC and Subsonic clients can play it.
 - **`maneki audio inspect`** — quick tag dump for a single file (also reachable via the cross-cutting `maneki library inspect`).
-- **Desktop apps** — Tauri (~15 MB, native WebKit on macOS) and Electron (~120 MB, bundled Chromium) wrappers around a generic Subsonic client UI. URL + Username + Password login; salted-token auth; refresh-restores via URL hash. Built from source with `make build` (we don't publish prebuilt binaries yet — code-signing is on the [roadmap](roadmap.md)). See [Desktop apps](guides/desktop.md).
+- **Desktop apps** — Tauri (~15 MB, native WebKit on macOS) and Electron (~120 MB, bundled Chromium) wrappers around a generic Subsonic client UI. URL + Username + Password login; salted-token auth; refresh-restores via URL hash. Prebuilt installers for macOS / Linux / Windows are attached to every [release](https://github.com/winterop-com/maneki/releases/latest) — the macOS Tauri build is signed + notarized; the rest are unsigned. Or build from source with `make build`. See [Desktop apps](guides/desktop.md).
 - **Mobile** — no Maneki app of its own; `serve` exposes the standard Subsonic API so play:Sub / Amperfy (iOS) and Symfonium / DSub / Tempo (Android) all work against it. See [Mobile](guides/mobile.md).
 
 ## Quickstart
@@ -72,6 +88,6 @@ Years of rip-collection wrangling produces an audio library full of:
 
 ## Status
 
-v0.9.0. Top-level commands: `maneki serve` (single-library audio + video + SPA, auto-detects what's there), `maneki library` (cross-cutting info / list / inspect), `maneki audio <...>` (convert, library, inspect, ui, playlist), `maneki video <...>` (reserved for tooling). mypy + pyright + ruff clean, 648 tests green. Audio side real-world tested against Symfonium / Amperfy / play:Sub / Feishin clients with persistent favourites and synced lyrics; video side ships HLS with on-demand segments, single-ffmpeg multi-stream subtitle extraction, 16:9 contact-sheet posters, watcher hot-reload, and a SQLite-backed scan index shared with the audio side at `<root>/.maneki/index.db`.
+v0.11.2. Top-level commands: `maneki serve` (single-library audio + video + SPA, auto-detects what's there), `maneki library` (cross-cutting info / list / inspect), `maneki audio <...>` (convert, library, inspect, ui, playlist), `maneki video <...>` (reserved for tooling). Signed + notarized macOS desktop builds (plus unsigned Linux / Windows / Electron) ship on every release. mypy + pyright + ruff clean, 667 tests green. Audio side real-world tested against Symfonium / Amperfy / play:Sub / Feishin clients with persistent favourites and synced lyrics; video side ships HLS with on-demand segments, single-ffmpeg multi-stream subtitle extraction, 16:9 contact-sheet posters, watcher hot-reload, and a SQLite-backed scan index shared with the audio side at `<root>/.maneki/index.db`.
 
 Roadmap items still open are listed at [Roadmap](roadmap.md).

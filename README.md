@@ -6,7 +6,7 @@
 [![License: AGPL v3](https://img.shields.io/badge/License-AGPL%20v3-blue.svg)](LICENSE)
 [![Documentation](https://img.shields.io/badge/docs-mkdocs-blue.svg)](https://winterop-com.github.io/maneki/)
 
-Python 3.13 CLI for a self-hosted media library — audio (convert rips + serve via Subsonic) and video (HLS streaming with on-demand segments, sidecar + embedded subtitles, contact-sheet posters, click-in folder browser). Point `maneki serve` at one directory; it scans recursively, auto-detects what's audio and what's video, and serves both kinds plus the web SPA on one port. The Subsonic mount appears only when audio is present, the video mount only when video is present.
+A self-hosted media library for your own audio and video. Point `maneki serve` at one directory and it scans recursively, auto-detects what's audio and what's video, and serves both kinds plus the web SPA on a single port. Audio is served over a Subsonic-compatible API (convert rips, then stream to any Subsonic client); video streams over HLS with on-demand segments, sidecar + embedded subtitles, contact-sheet posters, and a click-in folder browser. The Subsonic mount appears only when audio is present, the video mount only when video is present.
 
 ## The name
 
@@ -40,7 +40,7 @@ sudo apt install ffmpeg        # Debian / Ubuntu
 
 ### Desktop apps
 
-Beyond the CLI and the browser SPA, Maneki has native desktop clients — a **Tauri** (~15 MB, native WebKit) and an **Electron** (~120 MB, bundled Chromium) wrapper around the same Subsonic web UI. There are no prebuilt binaries yet (shipping unsigned `.dmg` / `.exe` past Gatekeeper / SmartScreen is a worse experience than building locally; code-signing is on the [roadmap](docs/roadmap.md)), so you build from source:
+Beyond the CLI and the browser SPA, Maneki has native desktop clients — a **Tauri** (~15 MB, native WebKit) and an **Electron** (~120 MB, bundled Chromium) wrapper around the same Subsonic web UI. Prebuilt installers for macOS, Linux, and Windows are attached to every [release](https://github.com/winterop-com/maneki/releases/latest) — the macOS Tauri `.dmg` is signed + notarized (opens with no Gatekeeper warning); the Linux/Windows and Electron builds are unsigned. Or build from source:
 
 ```bash
 git clone https://github.com/winterop-com/maneki.git && cd maneki
@@ -113,7 +113,7 @@ Or jump straight to:
 
 ## Status
 
-v0.9.0 · audio (Subsonic-compat) + video (HLS, sidecar + embedded subtitles, 16:9 contact-sheet posters, folder browser, watcher hot-reload) share one `maneki serve` and the web SPA at `/`. ruff + mypy + pyright clean, full pytest suite green (648 tests).
+v0.11.2 · audio (Subsonic-compat) + video (HLS, sidecar + embedded subtitles, 16:9 contact-sheet posters, folder browser, watcher hot-reload) share one `maneki serve` and the web SPA at `/`. Signed + notarized macOS desktop builds (plus unsigned Linux / Windows / Electron) ship on every release. ruff + mypy + pyright clean, full pytest suite green (667 tests).
 
 **Audio**: OpenSubsonic-compatible (`multipleGenres`, `transcodeOffset`, `songLyrics` extensions), backs heart / star buttons with a persistent `<root>/.maneki/stars.toml`, returns sub-ms FTS5-ranked `/search3` results, promotes LRC lyrics to `synced: true`, tested against Symfonium / Amperfy / play:Sub / Feishin on iOS / Android / desktop. Persistent SQLite library index at `<root>/.maneki/index.db` keeps cold starts under a second; the filesystem watcher does per-album incremental rescans.
 
