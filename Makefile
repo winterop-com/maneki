@@ -190,6 +190,13 @@ desktop-tauri-dev: desktop-sync-frontend _wipe-tauri-userdata
 
 desktop-tauri-build: desktop-sync-frontend desktop-sync-version
 	@echo ">>> Tauri release build — produces a .app under desktop/tauri/src-tauri/target/release/bundle/"
+	@# Clear leftover create-dmg state before bundling. bundle_dmg.sh aborts
+	@# outright if a stale `Maneki` volume is still mounted (an interrupted
+	@# build, or a downloaded .dmg left open in Finder) or a rw.*.dmg scratch
+	@# image lingers. Detach + remove them. Idempotent, no-ops when clean, and
+	@# never fails the build (the leading `-` + `|| true`).
+	@-for v in /Volumes/Maneki*; do [ -d "$$v" ] && hdiutil detach "$$v" -force >/dev/null 2>&1 || true; done; true
+	@-rm -f desktop/tauri/src-tauri/target/release/bundle/dmg/rw.*.dmg 2>/dev/null || true
 	@# Sign with a Developer ID if one is available, mirroring electron-builder's
 	@# keychain auto-discovery so a local `make build` produces a signed Tauri app
 	@# too (CI sets APPLE_SIGNING_IDENTITY from secrets; locally we sniff the
