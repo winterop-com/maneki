@@ -561,7 +561,91 @@ function LCDDisplay({ has, title, sub1, sub2, year, format, pos, dur, playing, m
 // in TweaksControls so clicking the panel walks the same list.
 const VIZ_ORDER = ["bars", "mirror", "ridge", "scope"];
 
+// Verdict for the audio stats overlay. The <audio> element is the single
+// source of truth: a deep buffer (or readyState HAVE_ENOUGH_DATA) is
+// healthy; a thin buffer while still loading is buffering; no usable data
+// is a stall. This is the audio analogue of diagnosePlayback() for video,
+// minus the encoder dimension (audio is served as a plain ranged file, so
+// there's no transcode wall to hit).
+function audioVerdict(s) {
+  if (!s) return { level: "idle", text: "connecting…" };
+  if (s.paused) return { level: "idle", text: "paused" };
+  const buf = s.bufferAhead;
+  if (s.readyState >= 4 || buf >= 10) return { level: "ok", text: `healthy — ${buf.toFixed(0)}s buffered ahead` };
+  if (s.readyState <= 1) return { level: "warn", text: "stalled — waiting for data" };
+  if (s.networkState === 2) return { level: "warn", text: `buffering — ${buf.toFixed(0)}s ahead` };
+  return { level: "warn", text: `thin buffer — ${buf.toFixed(0)}s ahead` };
+}
+
+// Live audio diagnostics overlay. Unlike the video panel there's no SSE:
+// audio has no per-segment transcode pipeline to report on, so everything
+// is sampled off MK_AUDIO's <audio> element once a second. Draggable by its
+// header (pointer capture keeps a drag from leaking to the UI underneath),
+// reusing the same .mk-stats-* chrome as the video overlay.
+function AudioStatsOverlay({ format }) {
+  const { useState, useEffect, useRef } = React;
+  const rootRef = useRef(null);
+  const [pos, setPos] = useState({ x: 14, y: 14 });
+  const [s, setS] = useState(null);
+
+  useEffect(() => {
+    const parent = rootRef.current && rootRef.current.parentElement;
+    if (parent) {
+      const r = parent.getBoundingClientRect();
+      setPos({ x: Math.round(r.left + 14), y: Math.round(r.top + 14) });
+    }
+  }, []);
+
+  useEffect(() => {
+    const sample = () => { if (window.MK_AUDIO?.getStats) setS(window.MK_AUDIO.getStats()); };
+    sample();
+    const id = setInterval(sample, 1000);
+    return () => clearInterval(id);
+  }, []);
+
+  const startDrag = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const handle = e.currentTarget;
+    try { handle.setPointerCapture(e.pointerId); } catch (_x) { /* unsupported */ }
+    const box = handle.parentElement.getBoundingClientRect();
+    const offX = e.clientX - box.left, offY = e.clientY - box.top, w = box.width, h = box.height;
+    const move = (ev) => setPos({
+      x: Math.min(Math.max(0, ev.clientX - offX), Math.max(0, window.innerWidth - w)),
+      y: Math.min(Math.max(0, ev.clientY - offY), Math.max(0, window.innerHeight - h)),
+    });
+    const up = (ev) => {
+      try { handle.releasePointerCapture(ev.pointerId); } catch (_x) { /* already released */ }
+      handle.removeEventListener("pointermove", move);
+      handle.removeEventListener("pointerup", up);
+    };
+    handle.addEventListener("pointermove", move);
+    handle.addEventListener("pointerup", up);
+  };
+
+  const READY = ["nothing", "metadata", "current", "future", "enough"];
+  const NET = ["empty", "idle", "loading", "no-source"];
+  const diag = audioVerdict(s);
+  const Row = ({ k, v }) => (<><span>{k}</span><span>{v}</span></>);
+  return (
+    <div ref={rootRef} className="mk-stats-overlay mono" style={{ left: pos.x + "px", top: pos.y + "px" }}>
+      <div className={"mk-stats-verdict mk-stats-" + diag.level} onPointerDown={startDrag} title="Drag to move">
+        {diag.text}
+      </div>
+      <div className="mk-stats-grid">
+        <Row k="buffer ahead" v={s ? `${s.bufferAhead.toFixed(1)}s` : "—"} />
+        <Row k="ready" v={s ? (READY[s.readyState] ?? s.readyState) : "—"} />
+        <Row k="network" v={s ? (NET[s.networkState] ?? s.networkState) : "—"} />
+        <Row k="stalls" v={s ? s.stalls : "—"} />
+        <Row k="format" v={format || "—"} />
+        <Row k="position" v={s && s.duration ? `${s.currentTime.toFixed(0)} / ${s.duration.toFixed(0)}s` : "—"} />
+      </div>
+    </div>
+  );
+}
+
 function NowPlaying({ nowTrack, nowArtist, nowAlbum, nowStation, radioTitle, playing, muted, vol, setVol, pos, setPos, dur, handlePlayPause, handleNext, handlePrev, setMuted, palette, vizStyle, tweak, fullscreenViz, setFullscreenViz, showSpectrum, layout, lcd, lcdColor }) {
+  const [showStats, setShowStats] = React.useState(false);
   const cycleViz = () => {
     const i = VIZ_ORDER.indexOf(vizStyle);
     tweak("viz", VIZ_ORDER[(i + 1) % VIZ_ORDER.length]);
@@ -579,7 +663,20 @@ function NowPlaying({ nowTrack, nowArtist, nowAlbum, nowStation, radioTitle, pla
   return (
     <div className={"mk-now" + (has ? " has-track" : " no-track") + " layout-" + layout + (lcd ? " mk-now-lcd" : "")} data-lcd-color={lcdColor || "green"}>
       <div className="mk-now-pane">
-        <div className="mk-pane-label">Now Playing</div>
+        <div className="mk-pane-label">
+          Now Playing
+          {has && (
+            <button
+              className={"mk-fs-btn" + (showStats ? " active" : "")}
+              data-tooltip="Stream stats"
+              aria-label="Stream stats"
+              onClick={() => setShowStats((v) => !v)}
+            >
+              <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg>
+            </button>
+          )}
+        </div>
+        {showStats && has && <AudioStatsOverlay format={format} />}
         <div className="mk-now-body">
           {lcd ? (
             <LCDDisplay has={has} title={title} sub1={sub1} sub2={sub2} year={year} format={format} pos={pos} dur={dur} playing={playing} muted={muted} vol={vol} nowStation={nowStation} cover={cover}/>

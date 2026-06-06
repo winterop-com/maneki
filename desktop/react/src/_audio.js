@@ -140,6 +140,12 @@
     for (const cb of listeners.pause) cb();
   });
 
+  // Count rebuffering events (the element fired 'waiting' because it ran
+  // out of buffered data) so the stats overlay can show how often the
+  // stream has stalled — the audio equivalent of the video buffer story.
+  let stallCount = 0;
+  audio.addEventListener("waiting", () => { stallCount += 1; });
+
   audio.addEventListener("timeupdate", () => {
     for (const cb of listeners.time) cb(audio.currentTime);
   });
@@ -235,6 +241,28 @@
       return waveLine((d) => analyser.getByteTimeDomainData(d), audioCtx.currentTime, outputDelay());
     },
     pause() { audio.pause(); },
+    // Snapshot of the <audio> element's delivery health for the stats
+    // overlay. Audio is served as a single ranged file (no per-segment
+    // transcode pipeline like video), so everything the panel needs comes
+    // straight off the element: how far the buffer runs ahead of the
+    // playhead, the ready/network state machine, and the stall count.
+    getStats() {
+      let bufferedEnd = 0;
+      try {
+        if (audio.buffered && audio.buffered.length > 0) {
+          bufferedEnd = audio.buffered.end(audio.buffered.length - 1);
+        }
+      } catch (_e) { /* buffered can throw in transient states */ }
+      return {
+        bufferAhead: Math.max(0, bufferedEnd - audio.currentTime),
+        currentTime: audio.currentTime,
+        duration: Number.isFinite(audio.duration) ? audio.duration : null,
+        readyState: audio.readyState,    // 0 nothing .. 4 enough-data
+        networkState: audio.networkState, // 0 empty, 1 idle, 2 loading, 3 no-source
+        paused: audio.paused,
+        stalls: stallCount,
+      };
+    },
     seek(seconds) {
       if (!Number.isFinite(seconds)) return;
       // Don't crash on streams whose duration we don't know (radio).
