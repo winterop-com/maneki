@@ -636,6 +636,28 @@ body {
   border-bottom: 1px solid var(--line-soft);
   cursor: move;
   user-select: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+.mk-stats-close {
+  flex: none;
+  background: none;
+  border: none;
+  color: var(--text-dim);
+  font-size: 15px;
+  line-height: 1;
+  padding: 0 2px;
+  cursor: pointer;
+}
+.mk-stats-close:hover { color: var(--text); }
+/* Icon-only stats toggle in the topbar; squares up the mk-signout padding. */
+.mk-stats-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 3px 7px;
 }
 .mk-stats-ok { color: #4ec9a0; }
 .mk-stats-warn { color: #e6b450; }
