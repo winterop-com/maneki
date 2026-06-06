@@ -6,6 +6,7 @@
     "name": "Morten Hansen",
     "email": "morten@winterop.com"
   },
+  "homepage": "https://github.com/winterop-com/maneki",
   "main": "src/main.js",
   "private": true,
   "type": "commonjs",

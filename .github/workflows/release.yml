@@ -129,11 +129,21 @@ jobs:
           } > /tmp/release-notes.md
           echo "notes_path=/tmp/release-notes.md" >> "$GITHUB_OUTPUT"
 
-      - name: Create GitHub release
+      - name: Create or update GitHub release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          gh release create "${GITHUB_REF_NAME}" \
-            --title "${GITHUB_REF_NAME}" \
-            --notes-file "${{ steps.notes.outputs.notes_path }}" \
-            dist/*.whl dist/*.tar.gz
+          # The desktop-release workflow runs off the same tag and may create
+          # the release first (to attach installers). Be idempotent: edit the
+          # release if it already exists, otherwise create it. Either way this
+          # job owns the authoritative title/notes and the Python artifacts.
+          if gh release view "${GITHUB_REF_NAME}" >/dev/null 2>&1; then
+            gh release edit "${GITHUB_REF_NAME}" \
+              --title "${GITHUB_REF_NAME}" \
+              --notes-file "${{ steps.notes.outputs.notes_path }}"
+          else
+            gh release create "${GITHUB_REF_NAME}" \
+              --title "${GITHUB_REF_NAME}" \
+              --notes-file "${{ steps.notes.outputs.notes_path }}"
+          fi
+          gh release upload "${GITHUB_REF_NAME}" dist/*.whl dist/*.tar.gz --clobber
