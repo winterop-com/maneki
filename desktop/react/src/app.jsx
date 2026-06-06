@@ -1,6 +1,7 @@
 // Maneki main app — three-pane browse, now-playing, transport, overlays.
 
 import React from "react";
+import { useLocation, useNavigate } from "react-router-dom";
 
 import { MK_API } from "./_api.js";
 import { MK_AUDIO } from "./_audio.js";
@@ -166,6 +167,63 @@ function App() {
     if (!hasAudio && hasVideo) setKind("video");
   }, [hasAudio, hasVideo]);
   const session = MK_API?.loadSession?.() || null;
+
+  // ---- Deep-linking: keep the nav selection and the URL hash in sync. ----
+  // The UI is unchanged; this just mirrors section/kind/artist/album/video
+  // into the hash (#/library/artist/:id/album/:id, #/video/v/:id, …) so any
+  // view is addressable, refresh restores it, and back/forward work. The
+  // `lastPathRef` guard breaks the two-way feedback loop (a path we just
+  // pushed must not be re-applied as if the user navigated).
+  const navigate = useNavigate();
+  const location = useLocation();
+  const lastPathRef = uR("");
+  const navPath = () => {
+    if (kind === "video") return selectedVideo ? `/video/v/${encodeURIComponent(selectedVideo.id)}` : "/video";
+    if (section === "stations") return "/stations";
+    if (section === "starred") return "/starred";
+    if (artistId && albumId) return `/library/artist/${artistId}/album/${albumId}`;
+    if (artistId) return `/library/artist/${artistId}`;
+    return "/library";
+  };
+  // State -> URL.
+  uE(() => {
+    if (!authed) return;
+    const p = navPath();
+    if (p !== location.pathname && p !== lastPathRef.current) {
+      lastPathRef.current = p;
+      navigate(p);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [authed, kind, section, artistId, albumId, selectedVideo]);
+  // URL -> State (first load, back/forward, pasted link).
+  uE(() => {
+    if (!authed) return;
+    const path = location.pathname;
+    if (path === lastPathRef.current) return; // we just pushed this
+    lastPathRef.current = path;
+    const seg = path.split("/").filter(Boolean);
+    if (seg[0] === "video") {
+      setKind("video");
+      if (seg[1] === "v" && seg[2]) {
+        // Deep-link into a player: resolve the full entry by id (ids can
+        // contain spaces/brackets, so they're percent-encoded in the path).
+        MK_VIDEO?.getVideo?.(session, decodeURIComponent(seg[2]))
+          .then((v) => setSelectedVideo(v))
+          .catch(() => setSelectedVideo(null));
+      } else {
+        setSelectedVideo(null);
+      }
+    } else if (seg[0] === "stations") {
+      setKind("audio"); setSection("stations");
+    } else if (seg[0] === "starred") {
+      setKind("audio"); setSection("starred");
+    } else {
+      setKind("audio"); setSection("library");
+      setArtistId(seg[1] === "artist" ? seg[2] || null : null);
+      setAlbumId(seg[3] === "album" ? seg[4] || null : null);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [authed, location.pathname]);
 
   // Star state (per-track keyed "artistId/albumId/trackN"). Seeded from
   // MK_DATA.STARRED_TRACKS (getStarred2) rather than scanning loaded
