@@ -2,8 +2,13 @@
 
 The DB at `<library_root>/.maneki/index.db` is a fully-derived cache of
 the filesystem walk + tag read + audit. The filesystem is the source of
-truth, so when the schema changes — or when the running maneki version
-changes — we unlink the file and rebuild instead of running migrations.
+truth, so when the schema changes — or the library root moves — we unlink
+the file and rebuild instead of running migrations. A maneki *version*
+bump alone does NOT rebuild: the on-disk format is gated by SCHEMA_VERSION
+(bump it whenever the scan output or row layout changes), so routine
+releases reuse the existing index. This matters because the video probe
+cache shares this same index.db — re-indexing on every release also wiped
+it, re-walking + re-probing the whole video library for no benefit.
 
 `_can_use_existing` is the single gatekeeper. It logs WHICH check
 failed when it returns False, so a user running the same maneki
@@ -177,7 +182,10 @@ def reclaim_freelist(conn: sqlite3.Connection) -> None:
 
 
 def _can_use_existing(path: Path, root: Path) -> bool:
-    """Return True iff the on-disk DB matches the current schema + root + version.
+    """Return True iff the on-disk DB matches the current schema + root.
+
+    The maneki package version is stamped (for diagnostics) but does NOT
+    gate reuse — only SCHEMA_VERSION and the library root do.
 
     Logs at INFO which check failed when returning False so users
     seeing unexpected rebuilds can see the cause without attaching a
@@ -219,17 +227,18 @@ def _can_use_existing(path: Path, root: Path) -> bool:
                 want_root,
             )
             return False
-        # version_row may be missing on DBs created before the stamp
-        # existed — treat absence as a mismatch so they rebuild + acquire
-        # the stamp on first open.
-        if version_row is None or version_row[0] != MANEKI_VERSION:
-            log.info(
-                "library cache: rebuild — maneki_version stamp=%r != current=%r",
-                version_row[0] if version_row else None,
-                MANEKI_VERSION,
-            )
-            return False
-        log.info("library cache: reusing existing index.db (schema=%s version=%s)", SCHEMA_VERSION, MANEKI_VERSION)
+        # A maneki_version mismatch deliberately does NOT trigger a rebuild.
+        # The on-disk format is gated by SCHEMA_VERSION (bump it whenever the
+        # scan output or row layout changes); maneki_version is stamped for
+        # diagnostics only. Rebuilding on every release re-walked + re-probed
+        # large libraries — and, since the video probe cache shares this same
+        # index.db, wiped that too — for no benefit when the schema matched.
+        stamped_by = version_row[0] if version_row else "<pre-stamp>"
+        log.info(
+            "library cache: reusing existing index.db (schema=%s, stamped by maneki %s)",
+            SCHEMA_VERSION,
+            stamped_by,
+        )
         return True
     finally:
         probe.close()
