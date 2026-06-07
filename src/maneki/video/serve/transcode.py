@@ -28,6 +28,17 @@ class FFmpegNotFoundError(RuntimeError):
     """Raised when ffmpeg is not on PATH but a transcode was requested."""
 
 
+def log_safe(value: object) -> str:
+    """Neutralise line breaks before a value goes into a log message.
+
+    A video_id traces back to the request path and ffmpeg stderr echoes the
+    source filename, so a file named with an embedded newline could forge log
+    lines (CodeQL py/log-injection). Collapse CR / LF to spaces so each log
+    entry stays a single line.
+    """
+    return str(value).replace("\r", " ").replace("\n", " ")
+
+
 def _ffmpeg_path() -> str:
     """Return the absolute path to ffmpeg, or raise FFmpegNotFoundError."""
     path = shutil.which("ffmpeg")
