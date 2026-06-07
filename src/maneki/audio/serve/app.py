@@ -122,12 +122,21 @@ def create_app(*, root: Path, cfg: ServeConfig, use_cache: bool = True) -> FastA
     app.state.root = root
     app.state.cfg = cfg
     app.state.cache = IndexCache(root, use_cache=use_cache)
-    # Stars / favourites — separate file from the index DB (which is
-    # fully derived and gets wiped on schema bumps). User data lives at
-    # `<root>/.maneki/stars.toml`; survives `library index drop`.
-    from maneki.audio.serve.stars import StarStore
+    # User accounts + per-user data. One registry serves the whole app;
+    # require_auth resolves each request to its account and hands the
+    # endpoints that user's stores via request.state. Per-user data (stars,
+    # ...) lives at `<root>/.maneki/users/<name>/`; survives `library index
+    # drop` (which only touches the derived index DB).
+    from maneki.audio.serve.users import UserRegistry, migrate_global_stars
+    from maneki.settings import get_settings
 
-    app.state.stars = StarStore.for_root(root)
+    if get_settings().users:
+        app.state.users = UserRegistry.from_settings(root)
+    else:
+        # No [[users]] configured -> a single admin honouring --user/--password.
+        app.state.users = UserRegistry.single_user(root, cfg)
+    # First multi-user boot: fold any legacy global stars.toml into the admin.
+    migrate_global_stars(root, app.state.users)
 
     # Scrobble forwarder — only spun up when `[scrobble.webhook]` or
     # `[scrobble.mqtt]` is in serve.toml. The dispatcher's `dispatch()`
@@ -207,11 +216,14 @@ def create_app(*, root: Path, cfg: ServeConfig, use_cache: bool = True) -> FastA
         scheme, so the contract lives in this docstring + the app
         `description` instead.
         """
-        del request
         try:
-            verify(cfg, user=u, password=p, token=t, salt=s)
+            account = verify(app.state.users, user=u, password=p, token=t, salt=s)
         except AuthError as exc:
             raise _SubsonicAuthError(str(exc)) from exc
+        # Scope per-user data to the authenticated account for this request.
+        request.state.username = account.name
+        request.state.admin = account.admin
+        request.state.stars = app.state.users.stars_for(account.name)
 
     app.state.require_auth = require_auth
 

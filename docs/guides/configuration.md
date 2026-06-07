@@ -73,9 +73,16 @@ password = "change-me"
   a salted token — `md5(password + salt)` — which the server must recompute, and
   the native video login compares the cleartext. Neither can work against a
   hash. Protect the file with permissions (`chmod 600`), not hashing.
-- `admin = true` marks an account that may manage users.
-- Per-user data (starred favourites, playlists, listening history) is keyed to
-  the logged-in account; see the [roadmap](../roadmap.md) for what's live.
+- `admin = true` marks an account that may manage users (and see all users via
+  `getUsers`); non-admins see only themselves.
+- Each account authenticates with its own password and gets its own
+  **starred favourites**, stored at `<root>/.maneki/users/<name>/stars.toml`.
+  On first multi-user start, an existing global `stars.toml` is migrated into
+  the first admin account so nobody loses their favourites. Per-user playlists
+  and listening history are on the [roadmap](../roadmap.md).
+
+If you define **no** `[[users]]`, maneki falls back to the single `[server]`
+account below — so existing single-user installs are unchanged.
 
 ### `[server]` — single-user fallback
 

@@ -21,7 +21,6 @@ from typing import Any
 from fastapi import APIRouter, Query, Request
 
 from maneki.audio.serve.app import envelope, error_envelope
-from maneki.audio.serve.config import ServeConfig
 from maneki.audio.serve.index import IndexCache
 from maneki.audio.serve.payloads import album_payload, artist_summary, song_payload
 from maneki.audio.serve.scrobble import ScrobbleDispatcher, ScrobbleEvent
@@ -35,7 +34,7 @@ def _get_cache(request: Request) -> IndexCache:
 
 
 def _get_stars(request: Request) -> StarStore:
-    return request.app.state.stars  # type: ignore[no-any-return]
+    return request.state.stars  # type: ignore[no-any-return]
 
 
 # ---------------------------------------------------------------------------
@@ -76,8 +75,8 @@ async def scrobble(
         return envelope()
 
     album, track = pair
-    cfg: ServeConfig = request.app.state.cfg
-    user = u or cfg.username
+    # The authenticated account (require_auth verified `u` against it).
+    user = request.state.username
 
     from datetime import UTC, datetime
 
@@ -329,14 +328,14 @@ async def get_playlists() -> dict:
 # ---------------------------------------------------------------------------
 
 
-def _user_payload(username: str) -> dict[str, Any]:
-    """All-roles-true. Single-user server, the user owns the box."""
+def _user_payload(username: str, *, admin: bool) -> dict[str, Any]:
+    """Subsonic role flags for an account; `admin` gates the management roles."""
     return {
         "username": username,
         "email": f"{username}@maneki.audio.local",
         "scrobblingEnabled": True,
-        "adminRole": True,
-        "settingsRole": True,
+        "adminRole": admin,
+        "settingsRole": admin,
         "downloadRole": True,
         "uploadRole": False,
         "playlistRole": True,
@@ -354,20 +353,28 @@ def _user_payload(username: str) -> dict[str, Any]:
 @router.api_route("/getUser", methods=["GET", "POST", "HEAD"])
 @router.api_route("/getUser.view", methods=["GET", "POST", "HEAD"], include_in_schema=False)
 async def get_user(request: Request, username: str | None = Query(default=None)) -> dict:
-    """Return user details. The single configured user has every role."""
-    cfg = request.app.state.cfg
-    target = username or cfg.username
-    if target != cfg.username:
+    """Return an account's role flags. Non-admins may only query themselves."""
+    registry = request.app.state.users
+    target = username or request.state.username
+    if not request.state.admin and target != request.state.username:
         return error_envelope(70, f"User not found: {target}")
-    return envelope("user", _user_payload(cfg.username))
+    account = registry.get(target)
+    if account is None:
+        return error_envelope(70, f"User not found: {target}")
+    return envelope("user", _user_payload(account.name, admin=account.admin))
 
 
 @router.api_route("/getUsers", methods=["GET", "POST", "HEAD"])
 @router.api_route("/getUsers.view", methods=["GET", "POST", "HEAD"], include_in_schema=False)
 async def get_users(request: Request) -> dict:
-    """Return all users — just the one we host."""
-    cfg = request.app.state.cfg
-    return envelope("users", {"user": [_user_payload(cfg.username)]})
+    """List accounts — admins see everyone, others see only themselves."""
+    registry = request.app.state.users
+    if request.state.admin:
+        accounts = registry.all()
+    else:
+        me = registry.get(request.state.username)
+        accounts = [me] if me is not None else []
+    return envelope("users", {"user": [_user_payload(a.name, admin=a.admin) for a in accounts]})
 
 
 # ---------------------------------------------------------------------------
