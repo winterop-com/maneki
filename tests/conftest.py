@@ -4,9 +4,36 @@ from __future__ import annotations
 
 import shutil
 import subprocess
+from collections.abc import Iterator
 from pathlib import Path
 
 import pytest
+
+
+@pytest.fixture(autouse=True)
+def _isolate_settings(tmp_path_factory: pytest.TempPathFactory) -> Iterator[None]:
+    """Point `get_settings()` at an empty per-test config.
+
+    Without this, `get_settings()` (read by `create_app` / `create_combined_app`
+    to decide the user set) would pick up the developer's real
+    `~/.config/maneki/maneki.toml` and leak `[[users]]` into unrelated tests,
+    and its `lru_cache` would carry config written by one test into the next.
+    Tests that need a specific config re-point these themselves.
+    """
+    from maneki.settings import Settings, reset_settings_cache
+
+    # `Settings()` reads its TOML from `model_config["toml_file"]`; pointing it at
+    # a nonexistent per-test file makes `get_settings()` resolve to defaults
+    # (no `[[users]]`), regardless of the dev machine's real config. We don't
+    # touch `config_dir`/`config_path` so tests of those keep their real values;
+    # per-test fixtures that set their own `toml_file` win (set after this).
+    empty = tmp_path_factory.mktemp("settings") / "maneki.toml"
+    original_toml = Settings.model_config.get("toml_file")
+    Settings.model_config["toml_file"] = str(empty)
+    reset_settings_cache()
+    yield
+    Settings.model_config["toml_file"] = original_toml
+    reset_settings_cache()
 
 
 @pytest.fixture(scope="session")

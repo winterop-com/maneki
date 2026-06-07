@@ -25,6 +25,7 @@ and any structured consumer see one consistent picture.
 from __future__ import annotations
 
 import os
+import re
 import tomllib
 from functools import lru_cache
 from pathlib import Path
@@ -351,6 +352,42 @@ password = "admin"
 # level = "INFO"           # DEBUG | INFO | WARNING | ERROR
 # format = "pretty"        # pretty | json
 """
+
+
+# Matches a `[[users]]` block: the header line + the `key = value` lines under
+# it, stopping at the next `[`-anchored table header (or EOF). Anchored on
+# line-start `[` so a `[` inside a password value doesn't truncate the block.
+_USERS_BLOCK_RE = re.compile(r"(?m)^\[\[users\]\][ \t]*\n(?:^(?!\[).*\n?)*")
+
+
+def _user_to_toml_dict(u: UserAccount) -> dict[str, object]:
+    d: dict[str, object] = {"name": u.name, "password": u.password}
+    if u.admin:
+        d["admin"] = True
+    return d
+
+
+def write_users(users: list[UserAccount]) -> Path:
+    """Rewrite the `[[users]]` blocks in `maneki.toml`, preserving everything else.
+
+    Strips the existing `[[users]]` blocks (comments inside them included) and
+    appends freshly-rendered ones; the rest of the file — other sections,
+    comments, nested scrobble — is left untouched. Drops the settings cache.
+    """
+    from maneki.audio import _toml_dump
+
+    path = config_path()
+    text = path.read_text(encoding="utf-8") if path.exists() else ""
+    text = _USERS_BLOCK_RE.sub("", text).rstrip()
+    if users:
+        blocks = _toml_dump.dumps({"users": [_user_to_toml_dict(u) for u in users]}).strip()
+        text = f"{text}\n\n{blocks}\n" if text else f"{blocks}\n"
+    elif text:
+        text += "\n"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(text, encoding="utf-8")
+    reset_settings_cache()
+    return path
 
 
 def write_starter_config(path: Path | None = None, *, force: bool = False) -> Path:

@@ -12,7 +12,10 @@ import warnings
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from maneki.audio.serve.users import UserRegistry
 
 from fastapi import Depends, FastAPI, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -91,7 +94,13 @@ async def _lifespan(_app: FastAPI) -> AsyncGenerator[None]:
     yield
 
 
-def create_app(*, root: Path, cfg: ServeConfig, use_cache: bool = True) -> FastAPI:
+def create_app(
+    *,
+    root: Path,
+    cfg: ServeConfig,
+    use_cache: bool = True,
+    users: UserRegistry | None = None,
+) -> FastAPI:
     """Build the FastAPI app for `root` with the given credentials.
 
     `use_cache=False` disables the persistent `<root>/.maneki/index.db`
@@ -128,13 +137,12 @@ def create_app(*, root: Path, cfg: ServeConfig, use_cache: bool = True) -> FastA
     # ...) lives at `<root>/.maneki/users/<name>/`; survives `library index
     # drop` (which only touches the derived index DB).
     from maneki.audio.serve.users import UserRegistry, migrate_global_stars
-    from maneki.settings import get_settings
 
-    if get_settings().users:
-        app.state.users = UserRegistry.from_settings(root)
-    else:
-        # No [[users]] configured -> a single admin honouring --user/--password.
-        app.state.users = UserRegistry.single_user(root, cfg)
+    # The combined server passes a registry built from the consolidated config;
+    # a bare `create_app(cfg=...)` (tests, audio-only embedders) gets a single
+    # admin from that cfg. We deliberately DON'T read the global config here, so
+    # the app's account set is exactly what the caller intends.
+    app.state.users = users if users is not None else UserRegistry.single_user(root, cfg)
     # First multi-user boot: fold any legacy global stars.toml into the admin.
     migrate_global_stars(root, app.state.users)
 

@@ -98,6 +98,9 @@ def dumps(data: dict[str, Any]) -> str:
             if any(isinstance(v, dict) for v in value.values()):
                 raise TypeError(f"nested tables not supported (key {key!r})")
             sections.append(_format_section(key, value))
+        elif isinstance(value, (list, tuple)) and value and all(isinstance(v, dict) for v in value):
+            # Array of tables — `[[key]]` per dict (e.g. `[[users]]`).
+            sections.extend(_format_array_table(key, table) for table in value)
         else:
             top_scalars.append(f"{_format_key(key)} = {_format_value(value)}")
     out_parts: list[str] = []
@@ -110,6 +113,14 @@ def dumps(data: dict[str, Any]) -> str:
 def _format_section(name: str, table: dict[str, Any]) -> str:
     """Render `[name]` followed by `key = value` lines."""
     lines = [f"[{_format_key(name)}]"]
+    for key, value in table.items():
+        lines.append(f"{_format_key(key)} = {_format_value(value)}")
+    return "\n".join(lines)
+
+
+def _format_array_table(name: str, table: dict[str, Any]) -> str:
+    """Render one `[[name]]` array-of-tables entry."""
+    lines = [f"[[{_format_key(name)}]]"]
     for key, value in table.items():
         lines.append(f"{_format_key(key)} = {_format_value(value)}")
     return "\n".join(lines)

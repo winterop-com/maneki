@@ -85,6 +85,20 @@ password = "change-me"
 If you define **no** `[[users]]`, maneki falls back to the single `[server]`
 account below — so existing single-user installs are unchanged.
 
+Manage accounts without hand-editing the file:
+
+```bash
+maneki config user add alice --admin     # prompts for a password
+maneki config user add bob
+maneki config user list
+maneki config user passwd bob
+maneki config user rm bob
+```
+
+These edit only the `[[users]]` blocks — the rest of `maneki.toml` (comments,
+other sections) is left untouched. The first `add` seeds `[[users]]` from your
+existing `[server]` account so it keeps working.
+
 ### `[server]` — single-user fallback
 
 Used **only when no `[[users]]` are defined**. Defaults to `admin`/`admin` with a

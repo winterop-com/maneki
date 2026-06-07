@@ -190,3 +190,47 @@ def test_config_no_args_prints_help(runner: CliRunner) -> None:
     out = result.stdout + result.output
     for cmd in ("show", "path", "migrate"):
         assert cmd in out
+
+
+# ---------------------------------------------------------------------------
+# `maneki config user`
+# ---------------------------------------------------------------------------
+
+
+def test_user_add_list_passwd_rm(runner: CliRunner, monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    _redirect_config(monkeypatch, tmp_path)
+    (tmp_path / "maneki.toml").write_text('[server]\nusername = "root"\npassword = "rootpw"\n', encoding="utf-8")
+
+    assert runner.invoke(app, ["config", "user", "add", "alice", "--admin", "--password", "apw"]).exit_code == 0
+    assert runner.invoke(app, ["config", "user", "add", "bob", "--password", "bpw"]).exit_code == 0
+
+    listed = runner.invoke(app, ["config", "user", "list"]).stdout
+    assert "alice" in listed and "bob" in listed and "root" in listed  # root seeded from [server]
+
+    # Duplicate add is rejected.
+    assert runner.invoke(app, ["config", "user", "add", "alice", "--password", "x"]).exit_code == 1
+    # passwd + rm.
+    assert runner.invoke(app, ["config", "user", "passwd", "bob", "--password", "new"]).exit_code == 0
+    assert runner.invoke(app, ["config", "user", "rm", "bob"]).exit_code == 0
+    assert "bob" not in runner.invoke(app, ["config", "user", "list"]).stdout
+    # rm unknown is an error.
+    assert runner.invoke(app, ["config", "user", "rm", "nobody"]).exit_code == 1
+
+
+def test_write_users_preserves_other_sections(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    from maneki import settings as settings_mod
+    from maneki.settings import Settings, UserAccount, get_settings, reset_settings_cache, write_users
+
+    cfg = tmp_path / "maneki.toml"
+    monkeypatch.setattr(settings_mod, "config_path", lambda: cfg)
+    Settings.model_config["toml_file"] = str(cfg)
+    cfg.write_text('# keep me\n[media]\nhwenc = "none"\n', encoding="utf-8")
+    reset_settings_cache()
+
+    write_users([UserAccount(name="x", password="p", admin=True)])
+    body = cfg.read_text()
+    assert "# keep me" in body
+    assert "[media]" in body and 'hwenc = "none"' in body
+    assert "[[users]]" in body
+    reset_settings_cache()
+    assert [u.name for u in get_settings().users] == ["x"]
