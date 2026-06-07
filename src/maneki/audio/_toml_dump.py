@@ -49,13 +49,15 @@ def _escape_str(s: str) -> str:
 
 
 def _format_value(value: Any) -> str:
-    """Render a Python scalar as its TOML literal form."""
+    """Render a Python scalar (or a flat list of scalars) as its TOML literal."""
     if isinstance(value, bool):
         return "true" if value else "false"
     if isinstance(value, (int, float)):
         return str(value)
     if isinstance(value, str):
         return _escape_str(value)
+    if isinstance(value, (list, tuple)):
+        return "[" + ", ".join(_format_value(v) for v in value) + "]"
     raise TypeError(f"unsupported TOML value type: {type(value).__name__}")
 
 

@@ -22,6 +22,7 @@ from threading import RLock
 from pydantic import BaseModel, ConfigDict
 
 from maneki.audio.serve.config import ServeConfig
+from maneki.audio.serve.playlists import PlaylistStore
 from maneki.audio.serve.stars import StarStore
 
 log = logging.getLogger(__name__)
@@ -59,6 +60,7 @@ class UserRegistry:
         self._users: dict[str, ResolvedUser] = {u.name: u for u in users}
         self._lock = RLock()
         self._stars: dict[str, StarStore] = {}
+        self._playlists: dict[str, PlaylistStore] = {}
 
     @classmethod
     def from_settings(cls, root: Path) -> UserRegistry:
@@ -96,6 +98,15 @@ class UserRegistry:
             if store is None:
                 store = StarStore(self.user_dir(name) / "stars.toml")
                 self._stars[name] = store
+            return store
+
+    def playlists_for(self, name: str) -> PlaylistStore:
+        """The account's `PlaylistStore`, built once and cached."""
+        with self._lock:
+            store = self._playlists.get(name)
+            if store is None:
+                store = PlaylistStore(self.user_dir(name) / "playlists", owner=name)
+                self._playlists[name] = store
             return store
 
 

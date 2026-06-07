@@ -311,18 +311,6 @@ def _id_resolves(cache: IndexCache, sid: str) -> bool:
 
 
 # ---------------------------------------------------------------------------
-# Playlists — return empty list. Read-only support is a future addition.
-# ---------------------------------------------------------------------------
-
-
-@router.api_route("/getPlaylists", methods=["GET", "POST", "HEAD"])
-@router.api_route("/getPlaylists.view", methods=["GET", "POST", "HEAD"], include_in_schema=False)
-async def get_playlists() -> dict:
-    """No playlist support yet — return empty list."""
-    return envelope("playlists", {"playlist": []})
-
-
-# ---------------------------------------------------------------------------
 # Users — single-user server. Feishin / Supersonic / others probe getUser
 # right after login to learn the role flags.
 # ---------------------------------------------------------------------------
