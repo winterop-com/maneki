@@ -609,6 +609,17 @@ function VideoPlayerPane({ session, video, onClose, showStats, onCloseStats }) {
     } catch (_e) {
       // ignore - private browsing / no quota
     }
+    // WebKit (Safari + every Tauri webview on macOS/iOS) plays HLS
+    // natively and reliably, but its MSE is the weak spot: it can't
+    // append our MPEG-TS segments, and under Tauri's custom-protocol
+    // origin it blocks the blob: URL that VHS hands to the <video> tag.
+    // The result is video.js exhausting the single playlist with
+    // "Playback cannot continue. No available working or supported
+    // playlists." Forcing VHS (overrideNative: true) is what triggers
+    // that path. So on WebKit we let the browser use native HLS; on
+    // Chromium (web + Electron) we keep VHS, which transmuxes cleanly
+    // and exposes the bandwidth figure the stats overlay reads.
+    const isWebKit = !!vjs.browser?.IS_ANY_SAFARI;
     const player = vjs(el, {
       controls: true,
       autoplay: false,
@@ -630,7 +641,7 @@ function VideoPlayerPane({ session, video, onClose, showStats, onCloseStats }) {
       // really fullscreen even though it is.
       fullscreen: { options: { navigationUI: "hide" } },
       html5: {
-        vhs: { overrideNative: true },
+        vhs: { overrideNative: !isWebKit },
         // Use video.js's text-track UI rather than the browser's native
         // one - the native UI varies per browser and doesn't surface a
         // visible button in the control bar. With this off, the
