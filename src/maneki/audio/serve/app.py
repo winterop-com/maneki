@@ -224,6 +224,7 @@ def create_app(*, root: Path, cfg: ServeConfig, use_cache: bool = True) -> FastA
         request.state.username = account.name
         request.state.admin = account.admin
         request.state.stars = app.state.users.stars_for(account.name)
+        request.state.playlists = app.state.users.playlists_for(account.name)
 
     app.state.require_auth = require_auth
 
@@ -237,6 +238,7 @@ def create_app(*, root: Path, cfg: ServeConfig, use_cache: bool = True) -> FastA
     from maneki.audio.serve.endpoints.extras import router as extras_router
     from maneki.audio.serve.endpoints.lyrics import router as lyrics_router
     from maneki.audio.serve.endpoints.media import router as media_router
+    from maneki.audio.serve.endpoints.playlists import router as playlists_router
     from maneki.audio.serve.endpoints.radio import router as radio_router
     from maneki.audio.serve.endpoints.scan import router as scan_router
     from maneki.audio.serve.endpoints.search import router as search_router
@@ -254,6 +256,7 @@ def create_app(*, root: Path, cfg: ServeConfig, use_cache: bool = True) -> FastA
     app.include_router(media_router, prefix="/rest", dependencies=auth_dep, tags=["media"])
     app.include_router(search_router, prefix="/rest", dependencies=auth_dep, tags=["search"])
     app.include_router(extras_router, prefix="/rest", dependencies=auth_dep, tags=["extras"])
+    app.include_router(playlists_router, prefix="/rest", dependencies=auth_dep, tags=["playlists"])
     app.include_router(lyrics_router, prefix="/rest", dependencies=auth_dep, tags=["lyrics"])
     app.include_router(radio_router, prefix="/rest", dependencies=auth_dep, tags=["radio"])
     app.include_router(stubs_router, prefix="/rest", dependencies=auth_dep, tags=["stubs"])

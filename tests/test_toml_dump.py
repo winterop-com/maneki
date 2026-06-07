@@ -119,9 +119,16 @@ def test_nested_tables_not_supported() -> None:
 
 
 def test_unsupported_value_type_raises() -> None:
-    """Lists / datetimes / None aren't supported; raises TypeError early."""
+    """Datetimes / None / sets aren't supported; raises TypeError early."""
     with pytest.raises(TypeError):
-        _toml_dump.dumps({"items": [1, 2, 3]})
+        _toml_dump.dumps({"key": None})
+
+
+def test_list_values_round_trip() -> None:
+    """Flat lists of scalars render as TOML arrays (playlists, library roots)."""
+    out = _toml_dump.dumps({"track_ids": ["tr_a", "tr_b"], "nums": [1, 2]})
+    assert 'track_ids = ["tr_a", "tr_b"]' in out
+    assert "nums = [1, 2]" in out
 
 
 # ---------------------------------------------------------------------------

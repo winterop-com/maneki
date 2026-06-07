@@ -76,10 +76,10 @@ password = "change-me"
 - `admin = true` marks an account that may manage users (and see all users via
   `getUsers`); non-admins see only themselves.
 - Each account authenticates with its own password and gets its own
-  **starred favourites**, stored at `<root>/.maneki/users/<name>/stars.toml`.
+  **starred favourites** and **playlists**, under `<root>/.maneki/users/<name>/`.
   On first multi-user start, an existing global `stars.toml` is migrated into
-  the first admin account so nobody loses their favourites. Per-user playlists
-  and listening history are on the [roadmap](../roadmap.md).
+  the first admin account so nobody loses their favourites. Per-user listening
+  history is on the [roadmap](../roadmap.md).
 
 If you define **no** `[[users]]`, maneki falls back to the single `[server]`
 account below — so existing single-user installs are unchanged.
