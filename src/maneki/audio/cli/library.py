@@ -61,7 +61,7 @@ def library_tree(
     ctx: typer.Context,
     target_dir: Annotated[
         Path,
-        typer.Argument(exists=True, file_okay=False, help="Library root."),
+        typer.Argument(exists=True, file_okay=False, envvar="MANEKI_LIBRARY", help="Library root."),
     ],
     json_out: Annotated[
         bool,
@@ -97,7 +97,7 @@ def library_audit(
     ctx: typer.Context,
     target_dir: Annotated[
         Path,
-        typer.Argument(exists=True, file_okay=False, help="Library root."),
+        typer.Argument(exists=True, file_okay=False, envvar="MANEKI_LIBRARY", help="Library root."),
     ],
     issues_only: Annotated[
         bool,
@@ -138,7 +138,7 @@ def library_fix(
     ctx: typer.Context,
     target_dir: Annotated[
         Path,
-        typer.Argument(exists=True, file_okay=False, help="Library root."),
+        typer.Argument(exists=True, file_okay=False, envvar="MANEKI_LIBRARY", help="Library root."),
     ],
     dry_run: Annotated[
         bool,
@@ -234,7 +234,7 @@ def lyrics_fetch(
     ctx: typer.Context,
     target_dir: Annotated[
         Path,
-        typer.Argument(exists=True, file_okay=False, help="Library root."),
+        typer.Argument(exists=True, file_okay=False, envvar="MANEKI_LIBRARY", help="Library root."),
     ],
     missing_only: Annotated[
         bool,
@@ -401,7 +401,7 @@ library_app.add_typer(index_app, name="index")
 def index_status(
     target_dir: Annotated[
         Path,
-        typer.Argument(exists=True, file_okay=False, help="Library root."),
+        typer.Argument(exists=True, file_okay=False, envvar="MANEKI_LIBRARY", help="Library root."),
     ],
 ) -> None:
     """Print index DB metadata + counts."""
@@ -444,7 +444,7 @@ def index_status(
 def index_drop(
     target_dir: Annotated[
         Path,
-        typer.Argument(exists=True, file_okay=False, help="Library root."),
+        typer.Argument(exists=True, file_okay=False, envvar="MANEKI_LIBRARY", help="Library root."),
     ],
 ) -> None:
     """Delete `<DIR>/.maneki/` (the persistent index DB). Idempotent."""
@@ -463,7 +463,7 @@ def index_rebuild(
     ctx: typer.Context,
     target_dir: Annotated[
         Path,
-        typer.Argument(exists=True, file_okay=False, help="Library root."),
+        typer.Argument(exists=True, file_okay=False, envvar="MANEKI_LIBRARY", help="Library root."),
     ],
     no_cache: _NoCacheOpt = False,
 ) -> None:

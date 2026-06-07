@@ -15,7 +15,10 @@ from maneki.audio.metadata import SUPPORTED_AUDIO_EXTS, TagOverrides, apply_tag_
 @library_app.command("retag")
 def retag(
     target_dir: Annotated[
-        Path, typer.Argument(exists=True, file_okay=False, help="Directory whose audio files get re-tagged.")
+        Path,
+        typer.Argument(
+            exists=True, file_okay=False, envvar="MANEKI_LIBRARY", help="Directory whose audio files get re-tagged."
+        ),
     ],
     album: Annotated[str | None, typer.Option("--album", help="Override album title.")] = None,
     artist: Annotated[str | None, typer.Option("--artist", help="Override per-track artist.")] = None,

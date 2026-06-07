@@ -69,6 +69,22 @@ uvx maneki audio library audit ./output                            # audit
 uvx maneki audio playlist gen ./output --seed <track> --minutes 60 # auto-generate a mix
 ```
 
+## Environment variables
+
+Everything has flags/positionals, but a few env vars are handy — especially running `maneki serve` as a service:
+
+| Variable | What it does |
+| --- | --- |
+| `MANEKI_LIBRARY` | Default library root for every root-taking command (`serve`, `info`, `list`, `audio library …`, `playlist …`). Set once instead of passing the path. |
+| `MANEKI_FFMPEG` / `MANEKI_FFPROBE` | Point maneki at specific ffmpeg/ffprobe binaries — e.g. a keg-only `ffmpeg-full` that bundles libzimg/`zscale` for HDR tonemapping — without touching `PATH`. |
+| `MANEKI_HWENC` | H.264 encoder: `auto` (default) · `vaapi` · `videotoolbox` · `none` (force software). |
+| `MANEKI_HWENC_BITRATE` / `_MAXRATE` / `_BUFSIZE` | Hardware-encoder bitrate (defaults `6M` / `8M` / `12M`). |
+| `MANEKI_VAAPI_DEVICE` | VAAPI render node (default `/dev/dri/renderD128`). |
+| `MANEKI_ACOUSTID_KEY` | AcoustID API key for `audio convert --enrich` fingerprinting. |
+| `MANEKI_LOG_FORMAT` / `MANEKI_LOG_LEVEL` | `json` for machine-readable logs; level e.g. `DEBUG`. |
+
+Run **`maneki doctor`** to check ffmpeg, the selected encoder, HDR tonemapping, the SPA bundle, and `fpcalc`. The server's Subsonic username/password can also come from `MANEKI_SERVER__USERNAME` / `MANEKI_SERVER__PASSWORD` (see `maneki audio config`).
+
 ## Screenshots
 
 The browser SPA — bordered panels with floating titles, same palette across audio + video. Vertical AUDIO / VIDEO rail on the left switches modes; the rail self-hides when only one kind is mounted at the library root.

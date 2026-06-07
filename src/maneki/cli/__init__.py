@@ -67,7 +67,12 @@ def _print_version(value: bool) -> None:
 
 @app.command("serve")
 def serve_cmd(
-    root: Annotated[Path, typer.Argument(help="Library root - scanned recursively for both audio and video files")],
+    root: Annotated[
+        Path,
+        typer.Argument(
+            envvar="MANEKI_LIBRARY", help="Library root - scanned recursively for both audio and video files"
+        ),
+    ],
     host: Annotated[str, typer.Option("--host", help="Interface to bind")] = "127.0.0.1",
     port: Annotated[int, typer.Option("--port", "-p", help="Port to bind")] = 8765,
     auth: Annotated[
@@ -219,7 +224,7 @@ def _global_options(
 
 @app.command("info")
 def library_info(
-    root: Annotated[Path, typer.Argument(help="Library root to describe.")],
+    root: Annotated[Path, typer.Argument(envvar="MANEKI_LIBRARY", help="Library root to describe.")],
 ) -> None:
     """Print audio + video file counts for one library root."""
     _print_summaries([summarize(root.resolve())])
@@ -228,7 +233,7 @@ def library_info(
 @app.command("list")
 @app.command("ls", hidden=True)
 def library_list(
-    root: Annotated[Path, typer.Argument(help="Library root to walk.")],
+    root: Annotated[Path, typer.Argument(envvar="MANEKI_LIBRARY", help="Library root to walk.")],
 ) -> None:
     """List every audio and video file under a library root (cheap stat walk, no probe)."""
     _print_scans([scan_files(root.resolve())])
@@ -261,7 +266,6 @@ def library_inspect(
 
 
 def _print_summaries(summaries: list[LibrarySummary]) -> None:
-    from rich.box import SIMPLE_HEAVY
     from rich.console import Console
     from rich.table import Table
 
@@ -269,30 +273,25 @@ def _print_summaries(summaries: list[LibrarySummary]) -> None:
     for i, s in enumerate(summaries):
         if i > 0:
             console.print("")
-        table = Table.grid(padding=(0, 2))
-        table.add_column(style="dim")
-        table.add_column()
-        table.add_row("root", str(s.root))
+        table = Table(title=f"[bold]{s.root}[/bold]", title_justify="left", title_style="cyan")
+        table.add_column("kind", style="cyan")
+        table.add_column("count", justify="right")
         table.add_row("audio", f"{s.audio_count:,} tracks")
         table.add_row("video", f"{s.video_count:,} files")
         if s.is_empty:
-            table.add_row("", "[yellow](no audio or video files found)[/]")
-        from rich.panel import Panel
-
-        console.print(Panel(table, title="[bold]Library[/bold]", border_style="cyan", box=SIMPLE_HEAVY))
+            table.add_row("[yellow]—[/]", "[yellow]no audio or video files found[/]")
+        console.print(table)
 
 
 def _print_scans(scans: list[ScanResult]) -> None:
-    from rich.box import SIMPLE_HEAVY
     from rich.console import Console
-    from rich.panel import Panel
     from rich.table import Table
 
     console = Console()
     for i, s in enumerate(scans):
         if i > 0:
             console.print("")
-        console.print(Panel(f"[bold]{s.root}[/]", border_style="cyan", box=SIMPLE_HEAVY))
+        console.print(f"[bold cyan]{s.root}[/]")
         if s.audio:
             console.print(f"\n[bold cyan]Audio[/]  [dim]{len(s.audio)} tracks[/]")
             table = Table(box=None, show_header=False, pad_edge=False, padding=(0, 2))

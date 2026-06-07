@@ -18,7 +18,10 @@ from maneki.audio.metadata import SUPPORTED_AUDIO_EXTS, embed_cover_only
 def cover(
     image: Annotated[Path, typer.Argument(exists=True, dir_okay=False, help="Cover image (JPG/PNG).")],
     target_dir: Annotated[
-        Path, typer.Argument(exists=True, file_okay=False, help="Directory whose audio files get this cover.")
+        Path,
+        typer.Argument(
+            exists=True, file_okay=False, envvar="MANEKI_LIBRARY", help="Directory whose audio files get this cover."
+        ),
     ],
     cover_max_edge: Annotated[
         int,
