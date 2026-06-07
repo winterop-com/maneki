@@ -173,21 +173,21 @@ scanning library…
 
 Note the **Tailscale** URL — that's what the iPhone will use.
 
-For anything beyond a private LAN, set proper credentials. The simplest path:
+For anything beyond a private LAN, set proper credentials. Scaffold the config
+file and edit it:
 
 ```bash
-mkdir -p ~/.config/maneki
-cat > ~/.config/maneki/maneki.toml <<'EOF'
-[server]
-username = "your-username"
-password = "your-strong-password"
-EOF
+maneki config init          # writes ~/.config/maneki/maneki.toml (commented)
+$EDITOR ~/.config/maneki/maneki.toml
+chmod 600 ~/.config/maneki/maneki.toml
 ```
 
-Restart `maneki serve` — the yellow warning is gone.
+Set `[server] username`/`password`, or add one or more `[[users]]` accounts for
+multiple people. Restart `maneki serve` — the yellow warning is gone. See the
+[Configuration guide](configuration.md) for every section and env var.
 
 (If you're upgrading from a pre-v0.11 install with a `serve.toml`, run
-`maneki audio config migrate` once to move it to the new format.)
+`maneki config migrate` once to move it to the new format.)
 
 Leave the server running. You can also run it as a background process via
 launchd / systemd; see [Serve](serve-unified.md) for examples.

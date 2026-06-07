@@ -83,7 +83,7 @@ Everything has flags/positionals, but a few env vars are handy — especially ru
 | `MANEKI_ACOUSTID_KEY` | AcoustID API key for `audio convert --enrich` fingerprinting. |
 | `MANEKI_LOG_FORMAT` / `MANEKI_LOG_LEVEL` | `json` for machine-readable logs; level e.g. `DEBUG`. |
 
-Run **`maneki doctor`** to check ffmpeg, the selected encoder, HDR tonemapping, the SPA bundle, and `fpcalc`. The server's Subsonic username/password can also come from `MANEKI_SERVER__USERNAME` / `MANEKI_SERVER__PASSWORD` (see `maneki audio config`).
+Run **`maneki doctor`** to check ffmpeg, the selected encoder, HDR tonemapping, the SPA bundle, and `fpcalc`. All settings live in one `~/.config/maneki/maneki.toml` — `maneki config init` scaffolds it, `maneki config show` inspects it. See the [Configuration guide](https://winterop-com.github.io/maneki/guides/configuration/) for every section + env var.
 
 ## Screenshots
 
