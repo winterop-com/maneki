@@ -14,6 +14,7 @@ import typer
 
 from maneki import __version__
 from maneki.audio.cli import app as audio_app
+from maneki.cli.config_cmd import config_app
 from maneki.cli.doctor import doctor_cmd
 from maneki.cli.ui import ui_cmd
 from maneki.library import (
@@ -34,8 +35,9 @@ _APP_HELP = (
   [cyan]maneki doctor[/]                 Check ffmpeg + the video encoder setup
   [cyan]maneki info[/] / [cyan]list[/] / [cyan]inspect[/]    Summarise / scan / probe any library root
 
-[bold]Subcommand group[/]
+[bold]Subcommand groups[/]
 
+  [cyan]maneki config[/]   Inspect / scaffold settings (`config init`, `show`, `path`)
   [cyan]maneki audio[/]    Music: convert, audit, retag, playlist tools
 
 Pass [cyan]--help[/] after the group for its commands.
@@ -325,6 +327,7 @@ def _fmt_size(n: int) -> str:
 
 app.command("ui")(ui_cmd)
 app.command("doctor")(doctor_cmd)
+app.add_typer(config_app, name="config")
 app.add_typer(
     audio_app,
     name="audio",

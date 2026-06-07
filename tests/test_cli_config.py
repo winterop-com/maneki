@@ -14,21 +14,22 @@ from pathlib import Path
 import pytest
 from typer.testing import CliRunner
 
-from maneki.audio.cli import app
+from maneki.cli import app
 
 
 def _redirect_config(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
-    """Point both `config_path()` and `legacy_serve_path()` at tmp_path."""
-    from maneki.audio.config import MediakitConfig
-
-    monkeypatch.setattr("maneki.audio.config.config_dir", lambda: tmp_path)
-    MediakitConfig.model_config["toml_file"] = str(tmp_path / "maneki.toml")
-    # Also wipe MANEKI_* env vars so test isolation holds.
+    """Point `config_path()` + `legacy_serve_path()` + the Settings TOML at tmp_path."""
     import os
 
+    from maneki.settings import Settings, reset_settings_cache
+
+    monkeypatch.setattr("maneki.audio.config.config_dir", lambda: tmp_path)
+    Settings.model_config["toml_file"] = str(tmp_path / "maneki.toml")
+    # Wipe MANEKI_* env vars so test isolation holds, then drop the cache.
     for key in list(os.environ):
         if key.startswith("MANEKI_"):
             monkeypatch.delenv(key, raising=False)
+    reset_settings_cache()
 
 
 @pytest.fixture
@@ -60,10 +61,10 @@ def test_config_show_with_defaults(runner: CliRunner, monkeypatch: pytest.Monkey
     _redirect_config(monkeypatch, tmp_path)
     result = runner.invoke(app, ["config", "show"])
     assert result.exit_code == 0
-    assert "username = 'admin'" in result.stdout
+    # No [[users]] -> a single admin account synthesized from [server].
+    assert "admin (admin)" in result.stdout
     # Default password 'admin' is sensitive even when default-valued, mask it.
     assert "****" in result.stdout
-    assert "admin" in result.stdout
     assert "exists: False" in result.stdout
 
 
@@ -150,6 +151,30 @@ def test_config_migrate_no_legacy_no_op(runner: CliRunner, monkeypatch: pytest.M
     result = runner.invoke(app, ["config", "migrate"])
     assert result.exit_code == 0
     assert "No legacy" in result.stdout
+
+
+# ---------------------------------------------------------------------------
+# `maneki config init`
+# ---------------------------------------------------------------------------
+
+
+def test_config_init_writes_starter(runner: CliRunner, monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    """`config init` scaffolds a commented starter file; `--force` overwrites."""
+    _redirect_config(monkeypatch, tmp_path)
+    result = runner.invoke(app, ["config", "init"])
+    assert result.exit_code == 0
+    target = tmp_path / "maneki.toml"
+    assert target.exists()
+    body = target.read_text()
+    assert "[[users]]" in body
+    assert "[server]" in body
+    # Refuses to clobber without --force.
+    again = runner.invoke(app, ["config", "init"])
+    assert again.exit_code == 1
+    assert "already exists" in again.stdout
+    # --force overwrites.
+    forced = runner.invoke(app, ["config", "init", "--force"])
+    assert forced.exit_code == 0
 
 
 # ---------------------------------------------------------------------------

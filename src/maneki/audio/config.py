@@ -38,12 +38,21 @@ from maneki.audio.serve.config import ScrobbleConfig
 
 
 def config_dir() -> Path:
-    """`~/.config/maneki/` — created on first write, not on read."""
-    return Path.home() / ".config" / "maneki"
+    """`$XDG_CONFIG_HOME/maneki` (or `~/.config/maneki`). Created on first write."""
+    base = os.environ.get("XDG_CONFIG_HOME")
+    root = Path(base) if base else Path.home() / ".config"
+    return root / "maneki"
 
 
 def config_path() -> Path:
-    """The new consolidated config file."""
+    """The consolidated config file.
+
+    `MANEKI_CONFIG` overrides the location entirely (point it at any `.toml`);
+    otherwise it's `<config_dir>/maneki.toml`, honouring `$XDG_CONFIG_HOME`.
+    """
+    override = os.environ.get("MANEKI_CONFIG")
+    if override:
+        return Path(override).expanduser()
     return config_dir() / "maneki.toml"
 
 

@@ -81,8 +81,7 @@ def _global_options(
 # those modules register on `library.library_app` and need it defined first.
 # These are side-effect imports — the `_` assignment shuts up pyright's
 # reportUnusedImport without us needing per-line ignores.
-from maneki.audio.cli import config_cmd as _config_cmd  # noqa: E402, I001
-from maneki.audio.cli import convert as _convert_cmd  # noqa: E402
+from maneki.audio.cli import convert as _convert_cmd  # noqa: E402, I001
 from maneki.audio.cli import cover as _cover_cmd  # noqa: E402
 from maneki.audio.cli import cover_pick as _cover_pick_cmd  # noqa: E402
 from maneki.audio.cli import inspect as _inspect_cmd  # noqa: E402
@@ -91,7 +90,6 @@ from maneki.audio.cli import playlist as _playlist_cmd  # noqa: E402
 from maneki.audio.cli import retag as _retag_cmd  # noqa: E402
 
 _ = (
-    _config_cmd,
     _convert_cmd,
     _cover_cmd,
     _cover_pick_cmd,

@@ -31,6 +31,7 @@ theme:
 nav:
   - Home: index.md
   - Quickstart: guides/quickstart.md
+  - Configuration: guides/configuration.md
   - Server:
       - maneki serve: guides/serve-unified.md
       - maneki library: guides/library.md
