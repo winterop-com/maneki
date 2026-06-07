@@ -18,9 +18,12 @@ the leading `subsonic-response` wrapper applied by `envelope()` here.
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Query
+import time
+
+from fastapi import APIRouter, Query, Request
 
 from maneki.audio.serve.app import envelope
+from maneki.audio.serve.payloads import song_payload
 
 router = APIRouter()
 
@@ -258,9 +261,26 @@ async def get_album_info2(id: str = Query(default="")) -> dict:
 
 @router.api_route("/getNowPlaying", methods=["GET", "POST", "HEAD"])
 @router.api_route("/getNowPlaying.view", methods=["GET", "POST", "HEAD"], include_in_schema=False)
-async def get_now_playing() -> dict:
-    """Empty now-playing list — single-user serve has nobody else listening."""
-    return envelope("nowPlaying", {"entry": []})
+async def get_now_playing(request: Request) -> dict:
+    """Who's listening right now — the latest now-playing probe per user."""
+    registry = request.app.state.users
+    cache = request.app.state.cache
+    now = time.time()
+    entries: list[dict] = []
+    for account in registry.all():
+        np = registry.history_for(account.name).now_playing(now=now)
+        if np is None:
+            continue
+        track_id, played_at = np
+        pair = cache.tracks_by_id.get(track_id)
+        if pair is None:
+            continue
+        album, track = pair
+        entry = song_payload(album, track)
+        entry["username"] = account.name
+        entry["minutesAgo"] = int((now - played_at) // 60)
+        entries.append(entry)
+    return envelope("nowPlaying", {"entry": entries})
 
 
 # ---------------------------------------------------------------------------

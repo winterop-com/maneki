@@ -8,6 +8,7 @@ from typing import Any
 from fastapi import APIRouter, Query, Request
 
 from maneki.audio.serve.app import envelope, error_envelope
+from maneki.audio.serve.ids import album_id
 from maneki.audio.serve.index import IndexCache
 from maneki.audio.serve.payloads import album_payload, artist_summary, song_payload
 from maneki.audio.serve.stars import StarStore
@@ -179,10 +180,28 @@ async def get_album_list2(  # noqa: PLR0912 — Subsonic's `type` enum has many 
         albums.sort(key=lambda a: (a.tag_album or a.album_dir).casefold())
     elif type == "alphabeticalByArtist":
         albums.sort(key=lambda a: (a.artist_dir.casefold(), (a.tag_album or a.album_dir).casefold()))
+    elif type in ("recent", "frequent"):
+        # Per-user history: distinct albums of the user's recently- or most-
+        # played tracks, in that order. Empty when the user has no history yet.
+        cache = _get_cache(request)
+        history = request.state.history
+        track_ids = history.recent_track_ids(1000) if type == "recent" else history.frequent_track_ids(1000)
+        seen: set[str] = set()
+        ranked = []
+        for tid in track_ids:
+            pair = cache.tracks_by_id.get(tid)
+            if pair is None:
+                continue
+            al = pair[0]
+            aid = album_id(al)
+            if aid not in seen:
+                seen.add(aid)
+                ranked.append(al)
+        albums = ranked
     else:
-        # alphabeticalByName + every unsupported type (newest, highest, frequent,
-        # recent, starred) all fall back to alphabetical-by-name. Cleaner than
-        # returning an error for clients that reach for "newest" by default.
+        # alphabeticalByName + remaining unsupported types (newest, highest)
+        # fall back to alphabetical-by-name. Cleaner than erroring for clients
+        # that reach for "newest" by default.
         albums.sort(key=lambda a: (a.tag_album or a.album_dir).casefold())
 
     page = albums[offset : offset + size]
