@@ -1546,10 +1546,11 @@ positional or <code>MANEKI_LIBRARY</code>.</p>
 <li><code>admin = true</code> marks an account that may manage users (and see all users via
   <code>getUsers</code>); non-admins see only themselves.</li>
 <li>Each account authenticates with its own password and gets its own
-  <strong>starred favourites</strong> and <strong>playlists</strong>, under <code>&lt;root&gt;/.maneki/users/&lt;name&gt;/</code>.
-  On first multi-user start, an existing global <code>stars.toml</code> is migrated into
-  the first admin account so nobody loses their favourites. Per-user listening
-  history is on the <a href="../../roadmap/">roadmap</a>.</li>
+  <strong>starred favourites</strong>, <strong>playlists</strong>, and <strong>listening history</strong> (recently /
+  most played, play counts), under <code>&lt;root&gt;/.maneki/users/&lt;name&gt;/</code>. <code>getNowPlaying</code>
+  shows who's listening across all accounts. On first multi-user start, an
+  existing global <code>stars.toml</code> is migrated into the first admin account so
+  nobody loses their favourites.</li>
 </ul>
 <p>If you define <strong>no</strong> <code>[[users]]</code>, maneki falls back to the single <code>[server]</code>
 account below — so existing single-user installs are unchanged.</p>
