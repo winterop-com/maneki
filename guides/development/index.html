@@ -1488,7 +1488,7 @@
 </ul>
 <p>Coverage runs via <code>make coverage</code>; CI thresholds set in <code>pyproject.toml</code>.</p>
 <h2 id="adding-a-new-subcommand">Adding a new subcommand<a class="headerlink" href="#adding-a-new-subcommand" title="Permanent link">&para;</a></h2>
-<p>Top-level commands live on the root <code>app</code> Typer instance; library-related ones live on the <code>library_app</code> subapp (so the user types <code>maneki library &lt;verb&gt;</code>).</p>
+<p>Top-level commands live on the root <code>app</code> Typer instance; audio-library ones live on the <code>library_app</code> subapp in <code>audio/cli/</code> (so the user types <code>maneki audio library &lt;verb&gt;</code>).</p>
 <ol>
 <li>Create <code>src/maneki/audio/cli/&lt;name&gt;.py</code>:
    <div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="c1"># Top-level (e.g. another sibling of convert / inspect / serve):</span>
@@ -1513,7 +1513,7 @@
 <a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a><span class="n">_</span> <span class="o">=</span> <span class="p">(</span><span class="o">...</span><span class="p">,</span> <span class="n">_my_cmd_cmd</span><span class="p">)</span>
 </code></pre></div></li>
 </ol>
-<p>Typer handles the rest — <code>maneki my-cmd --help</code> (or <code>maneki library my-cmd --help</code>) Just Works.</p>
+<p>Typer handles the rest — <code>maneki my-cmd --help</code> (or <code>maneki audio library my-cmd --help</code>) Just Works.</p>
 <h2 id="adding-a-new-subsonic-endpoint">Adding a new Subsonic endpoint<a class="headerlink" href="#adding-a-new-subsonic-endpoint" title="Permanent link">&para;</a></h2>
 <ol>
 <li>Pick the right router in <code>src/maneki/audio/serve/endpoints/</code> (browsing, search, media, scan, system, extras).</li>

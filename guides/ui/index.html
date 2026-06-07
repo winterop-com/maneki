@@ -80,7 +80,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#maneki-audio-ui" class="md-skip">
+        <a href="#maneki-ui" class="md-skip">
           Skip to content
         </a>
       
@@ -628,10 +628,10 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#when-to-reach-for-maneki-audio-ui-instead-of-the-desktop-wrappers" class="md-nav__link">
+  <a href="#when-to-reach-for-maneki-ui-instead-of-the-desktop-wrappers" class="md-nav__link">
     <span class="md-ellipsis">
       
-        When to reach for maneki audio ui instead of the desktop wrappers
+        When to reach for maneki ui instead of the desktop wrappers
       
     </span>
   </a>
@@ -1223,10 +1223,10 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#when-to-reach-for-maneki-audio-ui-instead-of-the-desktop-wrappers" class="md-nav__link">
+  <a href="#when-to-reach-for-maneki-ui-instead-of-the-desktop-wrappers" class="md-nav__link">
     <span class="md-ellipsis">
       
-        When to reach for maneki audio ui instead of the desktop wrappers
+        When to reach for maneki ui instead of the desktop wrappers
       
     </span>
   </a>
@@ -1275,16 +1275,16 @@
   
 
 
-<h1 id="maneki-audio-ui"><code>maneki audio ui</code><a class="headerlink" href="#maneki-audio-ui" title="Permanent link">&para;</a></h1>
-<p>Static-serve the desktop SPA as a local web client against any Subsonic-compatible server. Unlike <a href="../serve-unified/"><code>maneki serve</code></a> (which IS a Subsonic server), <code>maneki audio ui</code> is purely a client — point it at your own server, a friend's, a Navidrome install, anything that speaks the spec.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>maneki<span class="w"> </span>audio<span class="w"> </span>ui<span class="w">                                       </span><span class="c1"># opens http://localhost:1888</span>
-<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>maneki<span class="w"> </span>audio<span class="w"> </span>ui<span class="w"> </span>--port<span class="w"> </span><span class="m">8080</span><span class="w">                           </span><span class="c1"># different port</span>
-<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>maneki<span class="w"> </span>audio<span class="w"> </span>ui<span class="w"> </span>--url<span class="w"> </span>http://macair:8765<span class="w"> </span><span class="se">\ </span><span class="w">           </span><span class="c1"># pre-fill the picker</span>
+<h1 id="maneki-ui"><code>maneki ui</code><a class="headerlink" href="#maneki-ui" title="Permanent link">&para;</a></h1>
+<p>Static-serve the desktop SPA as a local web client against any Subsonic-compatible server. Unlike <a href="../serve-unified/"><code>maneki serve</code></a> (which IS a Subsonic server), <code>maneki ui</code> is purely a client — point it at your own server, a friend's, a Navidrome install, anything that speaks the spec.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>maneki<span class="w"> </span>ui<span class="w">                                       </span><span class="c1"># opens http://localhost:1888</span>
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>maneki<span class="w"> </span>ui<span class="w"> </span>--port<span class="w"> </span><span class="m">8080</span><span class="w">                           </span><span class="c1"># different port</span>
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>maneki<span class="w"> </span>ui<span class="w"> </span>--url<span class="w"> </span>http://macair:8765<span class="w"> </span><span class="se">\ </span><span class="w">           </span><span class="c1"># pre-fill the picker</span>
 <a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="w">            </span>--user<span class="w"> </span>admin<span class="w"> </span>--password<span class="w"> </span>admin
-<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>maneki<span class="w"> </span>audio<span class="w"> </span>ui<span class="w"> </span>--no-open<span class="w">                             </span><span class="c1"># skip auto-opening the browser</span>
+<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>maneki<span class="w"> </span>ui<span class="w"> </span>--no-open<span class="w">                             </span><span class="c1"># skip auto-opening the browser</span>
 </code></pre></div>
 <p>The SPA is the same code Tauri / Electron bundle, served over a tiny local HTTP server. The picker accepts a URL + credentials, stores them, and the rest of the session talks Subsonic directly to whatever server you typed.</p>
-<h2 id="when-to-reach-for-maneki-audio-ui-instead-of-the-desktop-wrappers">When to reach for <code>maneki audio ui</code> instead of the desktop wrappers<a class="headerlink" href="#when-to-reach-for-maneki-audio-ui-instead-of-the-desktop-wrappers" title="Permanent link">&para;</a></h2>
+<h2 id="when-to-reach-for-maneki-ui-instead-of-the-desktop-wrappers">When to reach for <code>maneki ui</code> instead of the desktop wrappers<a class="headerlink" href="#when-to-reach-for-maneki-ui-instead-of-the-desktop-wrappers" title="Permanent link">&para;</a></h2>
 <table>
 <thead>
 <tr>
@@ -1295,7 +1295,7 @@
 <tbody>
 <tr>
 <td>Quick browser-based player against any Subsonic server</td>
-<td><code>maneki audio ui</code></td>
+<td><code>maneki ui</code></td>
 </tr>
 <tr>
 <td>Standalone macOS app with native window chrome, dock icon, media keys</td>
@@ -1303,7 +1303,7 @@
 </tr>
 <tr>
 <td>Browser tab against a server you don't admin</td>
-<td><code>maneki audio ui --url http://...</code></td>
+<td><code>maneki ui --url http://...</code></td>
 </tr>
 <tr>
 <td>Dedicated client for daily driving</td>
@@ -1314,11 +1314,11 @@
 <p>Both surfaces share the same SPA — the visual + interaction is identical. The difference is just packaging.</p>
 <h2 id="pre-filling-the-picker">Pre-filling the picker<a class="headerlink" href="#pre-filling-the-picker" title="Permanent link">&para;</a></h2>
 <p>Optional <code>--url / --user / --password</code> get serialised into the page URL as query parameters that the picker reads on load. Useful for shell aliases or shortcuts:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="nb">alias</span><span class="w"> </span><span class="nv">mkmac</span><span class="o">=</span><span class="s1">&#39;maneki audio ui --url http://macair:8765 --user admin --password admin&#39;</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="nb">alias</span><span class="w"> </span><span class="nv">mkmac</span><span class="o">=</span><span class="s1">&#39;maneki ui --url http://macair:8765 --user admin --password admin&#39;</span>
 </code></pre></div>
 <p>Password ends up in shell history this way — fine for a local LAN setup, less great for shared machines.</p>
 <h2 id="running-as-a-background-service">Running as a background service<a class="headerlink" href="#running-as-a-background-service" title="Permanent link">&para;</a></h2>
-<p>Mostly you launch <code>maneki audio ui</code> on demand (it's a CLI command, not a daemon). If you want it always running on a dedicated kiosk / always-on machine, wrap it in a systemd unit or launchd plist that runs <code>maneki audio ui --no-open --host 0.0.0.0 --port 1888</code>.</p>
+<p>Mostly you launch <code>maneki ui</code> on demand (it's a CLI command, not a daemon). If you want it always running on a dedicated kiosk / always-on machine, wrap it in a systemd unit or launchd plist that runs <code>maneki ui --no-open --host 0.0.0.0 --port 1888</code>.</p>
 
 
 
