@@ -218,9 +218,12 @@ def test_open_db_keeps_cache_on_maneki_version_mismatch(tmp_path: Path) -> None:
     conn = library.open_db(root)
     try:
         assert not library.is_empty(conn)
-        # The stamp is left as-is on reuse (it records the building version).
+        # Reuse (not a rebuild — the row survived) refreshes the diagnostic
+        # stamp to the running version so logs don't read like a stale release.
+        from maneki import __version__ as MANEKI_VERSION
+
         v = conn.execute("SELECT value FROM meta WHERE key='maneki_version'").fetchone()[0]
-        assert v == "0.0.0"
+        assert v == MANEKI_VERSION
     finally:
         conn.close()
 
