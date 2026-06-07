@@ -555,7 +555,7 @@ function VideoPlayerPane({ session, video, onClose, showStats, onCloseStats }) {
     Promise.all([
       import("video.js"),
       import("video.js/dist/video-js.css"),
-      import("@videojs/themes/dist/sea/index.css"),
+      import("@videojs/themes/dist/city/index.css"),
     ])
       .then(([mod]) => {
         if (!cancelled) setVjs(() => mod.default);
@@ -1014,7 +1014,7 @@ function VideoPlayerPane({ session, video, onClose, showStats, onCloseStats }) {
           <div data-vjs-player>
             <video
               ref={videoRef}
-              className="video-js vjs-theme-sea vjs-big-play-centered vjs-fluid"
+              className="video-js vjs-theme-city vjs-big-play-centered vjs-fluid"
               playsInline
               crossOrigin="anonymous"
             >
