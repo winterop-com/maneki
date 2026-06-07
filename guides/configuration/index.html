@@ -10,13 +10,13 @@
       
       
       
-        <link rel="canonical" href="https://winterop-com.github.io/maneki/guides/ui/">
+        <link rel="canonical" href="https://winterop-com.github.io/maneki/guides/configuration/">
       
       
-        <link rel="prev" href="../inspect/">
+        <link rel="prev" href="../quickstart/">
       
       
-        <link rel="next" href="../playlist/">
+        <link rel="next" href="../serve-unified/">
       
       
         
@@ -27,7 +27,7 @@
     
     
       
-        <title>audio ui - Maneki</title>
+        <title>Configuration - Maneki</title>
       
     
     
@@ -80,7 +80,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#maneki-ui" class="md-skip">
+        <a href="#configuration" class="md-skip">
           Skip to content
         </a>
       
@@ -116,7 +116,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              audio ui
+              Configuration
             
           </span>
         </div>
@@ -292,10 +292,37 @@
       
   
   
+    
   
   
-    <li class="md-nav__item">
-      <a href="../configuration/" class="md-nav__link">
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Configuration
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
         
   
   
@@ -311,6 +338,153 @@
   
 
       </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#where-the-file-lives" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Where the file lives
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#commands" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Commands
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#precedence" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Precedence
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#sections" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Sections
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Sections">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#libraries" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        [libraries]
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#users" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Users
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#server-single-user-fallback" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        [server] — single-user fallback
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#acoustid" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        [acoustid]
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#media" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        [media]
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#logging" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        [logging]
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#environment-variables" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Environment variables
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
     </li>
   
 
@@ -442,10 +616,8 @@
       
   
   
-    
   
   
-  
     
     
       
@@ -468,11 +640,13 @@
       
     
     
-    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5" checked>
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_5" >
         
           
           <label class="md-nav__link" for="__nav_5" id="__nav_5_label" tabindex="">
@@ -493,7 +667,7 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_5_label" aria-expanded="true">
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_5_label" aria-expanded="false">
           <label class="md-nav__title" for="__nav_5">
             <span class="md-nav__icon md-icon"></span>
             
@@ -592,37 +766,10 @@
                 
   
   
-    
   
   
-  
-    <li class="md-nav__item md-nav__item--active">
-      
-      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
-      
-      
-        
-      
-      
-        <label class="md-nav__link md-nav__link--active" for="__toc">
-          
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    audio ui
-  
-
-    
-  </span>
-  
-  
-
-          <span class="md-nav__icon md-icon"></span>
-        </label>
-      
-      <a href="./" class="md-nav__link md-nav__link--active">
+    <li class="md-nav__item">
+      <a href="../ui/" class="md-nav__link">
         
   
   
@@ -638,59 +785,6 @@
   
 
       </a>
-      
-        
-
-<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
-  
-  
-  
-    
-  
-  
-    <label class="md-nav__title" for="__toc">
-      <span class="md-nav__icon md-icon"></span>
-      Table of contents
-    </label>
-    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
-      
-        <li class="md-nav__item">
-  <a href="#when-to-reach-for-maneki-ui-instead-of-the-desktop-wrappers" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        When to reach for maneki ui instead of the desktop wrappers
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#pre-filling-the-picker" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Pre-filling the picker
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#running-as-a-background-service" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Running as a background service
-      
-    </span>
-  </a>
-  
-</li>
-      
-    </ul>
-  
-</nav>
-      
     </li>
   
 
@@ -1250,10 +1344,10 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#when-to-reach-for-maneki-ui-instead-of-the-desktop-wrappers" class="md-nav__link">
+  <a href="#where-the-file-lives" class="md-nav__link">
     <span class="md-ellipsis">
       
-        When to reach for maneki ui instead of the desktop wrappers
+        Where the file lives
       
     </span>
   </a>
@@ -1261,10 +1355,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#pre-filling-the-picker" class="md-nav__link">
+  <a href="#commands" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Pre-filling the picker
+        Commands
       
     </span>
   </a>
@@ -1272,10 +1366,104 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#running-as-a-background-service" class="md-nav__link">
+  <a href="#precedence" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Running as a background service
+        Precedence
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#sections" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Sections
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Sections">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#libraries" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        [libraries]
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#users" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Users
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#server-single-user-fallback" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        [server] — single-user fallback
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#acoustid" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        [acoustid]
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#media" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        [media]
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#logging" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        [logging]
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#environment-variables" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Environment variables
       
     </span>
   </a>
@@ -1302,50 +1490,152 @@
   
 
 
-<h1 id="maneki-ui"><code>maneki ui</code><a class="headerlink" href="#maneki-ui" title="Permanent link">&para;</a></h1>
-<p>Static-serve the desktop SPA as a local web client against any Subsonic-compatible server. Unlike <a href="../serve-unified/"><code>maneki serve</code></a> (which IS a Subsonic server), <code>maneki ui</code> is purely a client — point it at your own server, a friend's, a Navidrome install, anything that speaks the spec.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>maneki<span class="w"> </span>ui<span class="w">                                       </span><span class="c1"># opens http://localhost:1888</span>
-<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>maneki<span class="w"> </span>ui<span class="w"> </span>--port<span class="w"> </span><span class="m">8080</span><span class="w">                           </span><span class="c1"># different port</span>
-<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>maneki<span class="w"> </span>ui<span class="w"> </span>--url<span class="w"> </span>http://macair:8765<span class="w"> </span><span class="se">\ </span><span class="w">           </span><span class="c1"># pre-fill the picker</span>
-<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="w">            </span>--user<span class="w"> </span>admin<span class="w"> </span>--password<span class="w"> </span>admin
-<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>maneki<span class="w"> </span>ui<span class="w"> </span>--no-open<span class="w">                             </span><span class="c1"># skip auto-opening the browser</span>
+<h1 id="configuration">Configuration<a class="headerlink" href="#configuration" title="Permanent link">&para;</a></h1>
+<p>maneki reads all of its settings from <strong>one file</strong>: <code>~/.config/maneki/maneki.toml</code>.
+Everything — library roots, user accounts, server credentials, ffmpeg/encoder
+overrides, logging — lives there, and every value can also be set with a
+<code>MANEKI_*</code> environment variable.</p>
+<h2 id="where-the-file-lives">Where the file lives<a class="headerlink" href="#where-the-file-lives" title="Permanent link">&para;</a></h2>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>~/.config/maneki/maneki.toml
 </code></pre></div>
-<p>The SPA is the same code Tauri / Electron bundle, served over a tiny local HTTP server. The picker accepts a URL + credentials, stores them, and the rest of the session talks Subsonic directly to whatever server you typed.</p>
-<h2 id="when-to-reach-for-maneki-ui-instead-of-the-desktop-wrappers">When to reach for <code>maneki ui</code> instead of the desktop wrappers<a class="headerlink" href="#when-to-reach-for-maneki-ui-instead-of-the-desktop-wrappers" title="Permanent link">&para;</a></h2>
+<ul>
+<li>Honours <strong><code>$XDG_CONFIG_HOME</code></strong> — if set, the file is <code>$XDG_CONFIG_HOME/maneki/maneki.toml</code>.</li>
+<li><strong><code>MANEKI_CONFIG</code></strong> overrides the location entirely — point it at any <code>.toml</code>
+  (handy for running several instances, or keeping config beside a library).</li>
+<li><code>maneki config path</code> prints the resolved path on your system.</li>
+</ul>
+<p>The file may contain <strong>plaintext passwords</strong> (see <a href="#users">Users</a>), so keep it
+private: <code>chmod 600 ~/.config/maneki/maneki.toml</code>.</p>
+<h2 id="commands">Commands<a class="headerlink" href="#commands" title="Permanent link">&para;</a></h2>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>maneki<span class="w"> </span>config<span class="w"> </span>init<span class="w">        </span><span class="c1"># write a starter file with every section as commented examples</span>
+<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>maneki<span class="w"> </span>config<span class="w"> </span>show<span class="w">        </span><span class="c1"># print the resolved config (secrets masked)</span>
+<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>maneki<span class="w"> </span>config<span class="w"> </span>path<span class="w">        </span><span class="c1"># print the file path</span>
+<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a>maneki<span class="w"> </span>config<span class="w"> </span>migrate<span class="w">     </span><span class="c1"># move a pre-0.11 serve.toml into maneki.toml (one-off)</span>
+</code></pre></div>
+<p><code>maneki config init</code> is the fastest way to start — it scaffolds a fully
+commented template you uncomment and edit. Add <code>--force</code> to overwrite.</p>
+<h2 id="precedence">Precedence<a class="headerlink" href="#precedence" title="Permanent link">&para;</a></h2>
+<p>Highest wins:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>CLI flag  &gt;  MANEKI_* env var  &gt;  maneki.toml  &gt;  built-in default
+</code></pre></div>
+<p>So <code>maneki serve /some/lib</code> overrides <code>[libraries]</code>, <code>MANEKI_HWENC=none</code>
+overrides <code>[media] hwenc</code>, and so on.</p>
+<h2 id="sections">Sections<a class="headerlink" href="#sections" title="Permanent link">&para;</a></h2>
+<h3 id="libraries"><code>[libraries]</code><a class="headerlink" href="#libraries" title="Permanent link">&para;</a></h3>
+<p>The roots maneki scans (recursively, audio + video). Overridden by a <code>serve</code>
+positional or <code>MANEKI_LIBRARY</code>.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="k">[libraries]</span>
+<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a><span class="n">locations</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">[</span><span class="s2">&quot;~/Music&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;/Volumes/NAS/media&quot;</span><span class="p">]</span>
+</code></pre></div>
+<h3 id="users">Users<a class="headerlink" href="#users" title="Permanent link">&para;</a></h3>
+<p>One <code>[[users]]</code> block per person. Each account is a separate login.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="k">[[users]]</span>
+<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a><span class="n">name</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;alice&quot;</span>
+<a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a><span class="n">password</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;change-me&quot;</span>
+<a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a><span class="n">admin</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="kc">true</span><span class="w">            </span><span class="c1"># may manage other users</span>
+<a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a>
+<a id="__codelineno-4-6" name="__codelineno-4-6" href="#__codelineno-4-6"></a><span class="k">[[users]]</span>
+<a id="__codelineno-4-7" name="__codelineno-4-7" href="#__codelineno-4-7"></a><span class="n">name</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;bob&quot;</span>
+<a id="__codelineno-4-8" name="__codelineno-4-8" href="#__codelineno-4-8"></a><span class="n">password</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;change-me&quot;</span>
+</code></pre></div>
+<ul>
+<li><strong>Passwords are plaintext, by necessity.</strong> Subsonic clients authenticate with
+  a salted token — <code>md5(password + salt)</code> — which the server must recompute, and
+  the native video login compares the cleartext. Neither can work against a
+  hash. Protect the file with permissions (<code>chmod 600</code>), not hashing.</li>
+<li><code>admin = true</code> marks an account that may manage users.</li>
+<li>Per-user data (starred favourites, playlists, listening history) is keyed to
+  the logged-in account; see the <a href="../../roadmap/">roadmap</a> for what's live.</li>
+</ul>
+<h3 id="server-single-user-fallback"><code>[server]</code> — single-user fallback<a class="headerlink" href="#server-single-user-fallback" title="Permanent link">&para;</a></h3>
+<p>Used <strong>only when no <code>[[users]]</code> are defined</strong>. Defaults to <code>admin</code>/<code>admin</code> with a
+startup warning, so set it (or add <code>[[users]]</code>) before exposing the server.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="k">[server]</span>
+<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a><span class="n">username</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;admin&quot;</span>
+<a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a><span class="n">password</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;admin&quot;</span>
+</code></pre></div>
+<p>Optional play-event forwarding (e.g. Home Assistant) nests under it:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="k">[server.scrobble.webhook]</span>
+<a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a><span class="n">url</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;https://example.invalid/hook&quot;</span>
+<a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a><span class="k">[server.scrobble.mqtt]</span>
+<a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a><span class="n">broker</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;mqtt://homeassistant:1883&quot;</span>
+</code></pre></div>
+<h3 id="acoustid"><code>[acoustid]</code><a class="headerlink" href="#acoustid" title="Permanent link">&para;</a></h3>
+<p>API key for <code>maneki audio convert --enrich</code> fingerprinting (free at
+<a href="https://acoustid.org/api-key">acoustid.org</a>).</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="k">[acoustid]</span>
+<a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a><span class="n">api_key</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;...&quot;</span>
+</code></pre></div>
+<h3 id="media"><code>[media]</code><a class="headerlink" href="#media" title="Permanent link">&para;</a></h3>
+<p>ffmpeg/ffprobe binaries + the H.264 hardware encoder. Useful to point maneki at
+a fuller ffmpeg (e.g. one with <code>zscale</code>/libzimg for HDR tonemapping) without
+touching your <code>PATH</code>.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a><span class="k">[media]</span>
+<a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a><span class="n">ffmpeg</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;/opt/homebrew/opt/ffmpeg-full/bin/ffmpeg&quot;</span>
+<a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a><span class="n">ffprobe</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;/opt/homebrew/opt/ffmpeg-full/bin/ffprobe&quot;</span>
+<a id="__codelineno-8-4" name="__codelineno-8-4" href="#__codelineno-8-4"></a><span class="n">hwenc</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;auto&quot;</span><span class="w">            </span><span class="c1"># auto | vaapi | videotoolbox | none</span>
+<a id="__codelineno-8-5" name="__codelineno-8-5" href="#__codelineno-8-5"></a><span class="n">hwenc_bitrate</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;6M&quot;</span>
+<a id="__codelineno-8-6" name="__codelineno-8-6" href="#__codelineno-8-6"></a><span class="n">hwenc_maxrate</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;8M&quot;</span>
+<a id="__codelineno-8-7" name="__codelineno-8-7" href="#__codelineno-8-7"></a><span class="n">hwenc_bufsize</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;12M&quot;</span>
+<a id="__codelineno-8-8" name="__codelineno-8-8" href="#__codelineno-8-8"></a><span class="n">vaapi_device</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;/dev/dri/renderD128&quot;</span>
+</code></pre></div>
+<p>Run <code>maneki doctor</code> to see which encoder will actually be used.</p>
+<h3 id="logging"><code>[logging]</code><a class="headerlink" href="#logging" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a><span class="k">[logging]</span>
+<a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a><span class="n">level</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;INFO&quot;</span><span class="w">           </span><span class="c1"># DEBUG | INFO | WARNING | ERROR</span>
+<a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a><span class="n">format</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;pretty&quot;</span><span class="w">        </span><span class="c1"># pretty | json (json for shipping logs)</span>
+</code></pre></div>
+<h2 id="environment-variables">Environment variables<a class="headerlink" href="#environment-variables" title="Permanent link">&para;</a></h2>
+<p>Every setting has a <code>MANEKI_*</code> override. Nested keys use <code>__</code> (double
+underscore); a handful of common ones also have a short flat alias.</p>
 <table>
 <thead>
 <tr>
-<th>Want a</th>
-<th>Use</th>
+<th>Variable</th>
+<th>Section / meaning</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td>Quick browser-based player against any Subsonic server</td>
-<td><code>maneki ui</code></td>
+<td><code>MANEKI_CONFIG</code></td>
+<td>Path to the config file (overrides the location)</td>
 </tr>
 <tr>
-<td>Standalone macOS app with native window chrome, dock icon, media keys</td>
-<td>desktop wrapper — <code>make desktop-tauri-build</code> / <code>make desktop-electron-build</code> (built from source)</td>
+<td><code>MANEKI_LIBRARY</code></td>
+<td>Default library root (also a <code>serve</code>/<code>info</code>/<code>list</code> argument)</td>
 </tr>
 <tr>
-<td>Browser tab against a server you don't admin</td>
-<td><code>maneki ui --url http://...</code></td>
+<td><code>MANEKI_SERVER__USERNAME</code> / <code>MANEKI_SERVER__PASSWORD</code></td>
+<td><code>[server]</code> credentials</td>
 </tr>
 <tr>
-<td>Dedicated client for daily driving</td>
-<td>desktop wrapper (sticks around in the dock)</td>
+<td><code>MANEKI_FFMPEG</code> / <code>MANEKI_FFPROBE</code></td>
+<td><code>[media]</code> ffmpeg / ffprobe binary</td>
+</tr>
+<tr>
+<td><code>MANEKI_HWENC</code></td>
+<td><code>[media]</code> encoder: <code>auto</code> / <code>vaapi</code> / <code>videotoolbox</code> / <code>none</code></td>
+</tr>
+<tr>
+<td><code>MANEKI_HWENC_BITRATE</code> / <code>_MAXRATE</code> / <code>_BUFSIZE</code></td>
+<td><code>[media]</code> hardware bitrate</td>
+</tr>
+<tr>
+<td><code>MANEKI_VAAPI_DEVICE</code></td>
+<td><code>[media]</code> VAAPI render node</td>
+</tr>
+<tr>
+<td><code>MANEKI_ACOUSTID_KEY</code></td>
+<td><code>[acoustid]</code> API key</td>
+</tr>
+<tr>
+<td><code>MANEKI_LOG_LEVEL</code> / <code>MANEKI_LOG_FORMAT</code></td>
+<td><code>[logging]</code> level / renderer</td>
 </tr>
 </tbody>
 </table>
-<p>Both surfaces share the same SPA — the visual + interaction is identical. The difference is just packaging.</p>
-<h2 id="pre-filling-the-picker">Pre-filling the picker<a class="headerlink" href="#pre-filling-the-picker" title="Permanent link">&para;</a></h2>
-<p>Optional <code>--url / --user / --password</code> get serialised into the page URL as query parameters that the picker reads on load. Useful for shell aliases or shortcuts:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="nb">alias</span><span class="w"> </span><span class="nv">mkmac</span><span class="o">=</span><span class="s1">&#39;maneki ui --url http://macair:8765 --user admin --password admin&#39;</span>
-</code></pre></div>
-<p>Password ends up in shell history this way — fine for a local LAN setup, less great for shared machines.</p>
-<h2 id="running-as-a-background-service">Running as a background service<a class="headerlink" href="#running-as-a-background-service" title="Permanent link">&para;</a></h2>
-<p>Mostly you launch <code>maneki ui</code> on demand (it's a CLI command, not a daemon). If you want it always running on a dedicated kiosk / always-on machine, wrap it in a systemd unit or launchd plist that runs <code>maneki ui --no-open --host 0.0.0.0 --port 1888</code>.</p>
+<p><code>maneki config show</code> lists which <code>MANEKI_*</code> variables are currently set (values
+masked) so you can see what's overriding the file.</p>
 
 
 
