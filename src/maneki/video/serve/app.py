@@ -26,6 +26,7 @@ from pydantic import BaseModel
 from maneki import __version__
 from maneki.access_log import make_access_log_middleware
 from maneki.video.serve.demo import DEMO_HTML
+from maneki.video.serve.encoders import select_encoder
 from maneki.video.serve.hls import SEG_LEN, HLSManager, SessionStats
 from maneki.video.serve.poster import PosterManager
 from maneki.video.serve.scan import BrowseResponse, VideoEntry, browse_dir, scan_videos
@@ -40,6 +41,7 @@ from maneki.video.serve.subtitles import (
 from maneki.video.serve.transcode import (
     FFmpegNotFoundError,
     assert_ffmpeg_available,
+    log_safe,
     transcode_to_mp4,
 )
 from maneki.video.serve.transcode_budget import BudgetState, TranscodeBudget
@@ -142,6 +144,16 @@ def create_app(
     app.add_middleware(make_access_log_middleware("maneki.video.serve.access"))
     shared_budget = budget if budget is not None else TranscodeBudget()
     hls_manager = HLSManager(budget=shared_budget)
+    # Resolve + announce the H.264 transcode encoder once at startup so it's
+    # obvious in the logs whether the GPU engaged (and to prime the VAAPI
+    # probe here rather than on the first playback). Auto-detected: VAAPI
+    # (Linux) / VideoToolbox (macOS) / libx264, overridable via MANEKI_HWENC.
+    _encoder = select_encoder()
+    log.info(
+        "video: H.264 transcode encoder = %s (%s)",
+        _encoder,
+        "software" if _encoder == "libx264" else "hardware-accelerated",
+    )
     # Posters live under <root>/.maneki/posters/ - library-local cache
     # so they survive server restarts and follow the library if moved.
     poster_manager = PosterManager(
@@ -350,7 +362,7 @@ def create_app(
                         duration_s=duration_s,
                     )
             except Exception:  # noqa: BLE001 - background work must not crash the server
-                log.warning("thumbnail generation failed for %s", video_id, exc_info=True)
+                log.warning("thumbnail generation failed for %s", log_safe(video_id), exc_info=True)
             finally:
                 _thumb_in_flight.discard(video_id)
 
@@ -379,7 +391,7 @@ def create_app(
                         duration_s=duration_s,
                     )
             except Exception:  # noqa: BLE001
-                log.warning("poster generation failed for %s", video_id, exc_info=True)
+                log.warning("poster generation failed for %s", log_safe(video_id), exc_info=True)
             finally:
                 _poster_in_flight.discard(video_id)
 

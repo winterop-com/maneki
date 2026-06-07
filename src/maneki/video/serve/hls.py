@@ -47,7 +47,7 @@ from maneki.video.serve.encoders import (
     tonemap_available,
     video_codec_args,
 )
-from maneki.video.serve.transcode import FFmpegNotFoundError, low_priority_kwargs
+from maneki.video.serve.transcode import FFmpegNotFoundError, log_safe, low_priority_kwargs
 from maneki.video.serve.transcode_budget import TranscodeBudget
 
 _log = logging.getLogger(__name__)
@@ -363,9 +363,9 @@ class OnDemandHLS:
             # and can decide whether to investigate.
             _log.warning(
                 "hls: prefetch failed for %s seg-%04d: %s",
-                self.video_id,
+                log_safe(self.video_id),
                 idx,
-                exc,
+                log_safe(exc),
             )
         finally:
             self._prefetch_tasks.pop(idx, None)
@@ -526,9 +526,9 @@ class OnDemandHLS:
                 _log.warning(
                     "hls: %s encode failed for %s seg-%04d (%s); falling back to libx264",
                     encoder,
-                    self.video_id,
+                    log_safe(self.video_id),
                     idx,
-                    tail,
+                    log_safe(tail),
                 )
                 self._encoder = "libx264"
                 await self._transcode_segment(idx, low_priority=low_priority)
