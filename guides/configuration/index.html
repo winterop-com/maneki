@@ -1554,43 +1554,53 @@ positional or <code>MANEKI_LIBRARY</code>.</p>
 </ul>
 <p>If you define <strong>no</strong> <code>[[users]]</code>, maneki falls back to the single <code>[server]</code>
 account below — so existing single-user installs are unchanged.</p>
+<p>Manage accounts without hand-editing the file:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>maneki<span class="w"> </span>config<span class="w"> </span>user<span class="w"> </span>add<span class="w"> </span>alice<span class="w"> </span>--admin<span class="w">     </span><span class="c1"># prompts for a password</span>
+<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>maneki<span class="w"> </span>config<span class="w"> </span>user<span class="w"> </span>add<span class="w"> </span>bob
+<a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a>maneki<span class="w"> </span>config<span class="w"> </span>user<span class="w"> </span>list
+<a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a>maneki<span class="w"> </span>config<span class="w"> </span>user<span class="w"> </span>passwd<span class="w"> </span>bob
+<a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a>maneki<span class="w"> </span>config<span class="w"> </span>user<span class="w"> </span>rm<span class="w"> </span>bob
+</code></pre></div>
+<p>These edit only the <code>[[users]]</code> blocks — the rest of <code>maneki.toml</code> (comments,
+other sections) is left untouched. The first <code>add</code> seeds <code>[[users]]</code> from your
+existing <code>[server]</code> account so it keeps working.</p>
 <h3 id="server-single-user-fallback"><code>[server]</code> — single-user fallback<a class="headerlink" href="#server-single-user-fallback" title="Permanent link">&para;</a></h3>
 <p>Used <strong>only when no <code>[[users]]</code> are defined</strong>. Defaults to <code>admin</code>/<code>admin</code> with a
 startup warning, so set it (or add <code>[[users]]</code>) before exposing the server.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="k">[server]</span>
-<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a><span class="n">username</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;admin&quot;</span>
-<a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a><span class="n">password</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;admin&quot;</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="k">[server]</span>
+<a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a><span class="n">username</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;admin&quot;</span>
+<a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a><span class="n">password</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;admin&quot;</span>
 </code></pre></div>
 <p>Optional play-event forwarding (e.g. Home Assistant) nests under it:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="k">[server.scrobble.webhook]</span>
-<a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a><span class="n">url</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;https://example.invalid/hook&quot;</span>
-<a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a><span class="k">[server.scrobble.mqtt]</span>
-<a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a><span class="n">broker</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;mqtt://homeassistant:1883&quot;</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="k">[server.scrobble.webhook]</span>
+<a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a><span class="n">url</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;https://example.invalid/hook&quot;</span>
+<a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a><span class="k">[server.scrobble.mqtt]</span>
+<a id="__codelineno-7-4" name="__codelineno-7-4" href="#__codelineno-7-4"></a><span class="n">broker</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;mqtt://homeassistant:1883&quot;</span>
 </code></pre></div>
 <h3 id="acoustid"><code>[acoustid]</code><a class="headerlink" href="#acoustid" title="Permanent link">&para;</a></h3>
 <p>API key for <code>maneki audio convert --enrich</code> fingerprinting (free at
 <a href="https://acoustid.org/api-key">acoustid.org</a>).</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="k">[acoustid]</span>
-<a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a><span class="n">api_key</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;...&quot;</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a><span class="k">[acoustid]</span>
+<a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a><span class="n">api_key</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;...&quot;</span>
 </code></pre></div>
 <h3 id="media"><code>[media]</code><a class="headerlink" href="#media" title="Permanent link">&para;</a></h3>
 <p>ffmpeg/ffprobe binaries + the H.264 hardware encoder. Useful to point maneki at
 a fuller ffmpeg (e.g. one with <code>zscale</code>/libzimg for HDR tonemapping) without
 touching your <code>PATH</code>.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a><span class="k">[media]</span>
-<a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a><span class="n">ffmpeg</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;/opt/homebrew/opt/ffmpeg-full/bin/ffmpeg&quot;</span>
-<a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a><span class="n">ffprobe</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;/opt/homebrew/opt/ffmpeg-full/bin/ffprobe&quot;</span>
-<a id="__codelineno-8-4" name="__codelineno-8-4" href="#__codelineno-8-4"></a><span class="n">hwenc</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;auto&quot;</span><span class="w">            </span><span class="c1"># auto | vaapi | videotoolbox | none</span>
-<a id="__codelineno-8-5" name="__codelineno-8-5" href="#__codelineno-8-5"></a><span class="n">hwenc_bitrate</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;6M&quot;</span>
-<a id="__codelineno-8-6" name="__codelineno-8-6" href="#__codelineno-8-6"></a><span class="n">hwenc_maxrate</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;8M&quot;</span>
-<a id="__codelineno-8-7" name="__codelineno-8-7" href="#__codelineno-8-7"></a><span class="n">hwenc_bufsize</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;12M&quot;</span>
-<a id="__codelineno-8-8" name="__codelineno-8-8" href="#__codelineno-8-8"></a><span class="n">vaapi_device</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;/dev/dri/renderD128&quot;</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a><span class="k">[media]</span>
+<a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a><span class="n">ffmpeg</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;/opt/homebrew/opt/ffmpeg-full/bin/ffmpeg&quot;</span>
+<a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a><span class="n">ffprobe</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;/opt/homebrew/opt/ffmpeg-full/bin/ffprobe&quot;</span>
+<a id="__codelineno-9-4" name="__codelineno-9-4" href="#__codelineno-9-4"></a><span class="n">hwenc</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;auto&quot;</span><span class="w">            </span><span class="c1"># auto | vaapi | videotoolbox | none</span>
+<a id="__codelineno-9-5" name="__codelineno-9-5" href="#__codelineno-9-5"></a><span class="n">hwenc_bitrate</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;6M&quot;</span>
+<a id="__codelineno-9-6" name="__codelineno-9-6" href="#__codelineno-9-6"></a><span class="n">hwenc_maxrate</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;8M&quot;</span>
+<a id="__codelineno-9-7" name="__codelineno-9-7" href="#__codelineno-9-7"></a><span class="n">hwenc_bufsize</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;12M&quot;</span>
+<a id="__codelineno-9-8" name="__codelineno-9-8" href="#__codelineno-9-8"></a><span class="n">vaapi_device</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;/dev/dri/renderD128&quot;</span>
 </code></pre></div>
 <p>Run <code>maneki doctor</code> to see which encoder will actually be used.</p>
 <h3 id="logging"><code>[logging]</code><a class="headerlink" href="#logging" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a><span class="k">[logging]</span>
-<a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a><span class="n">level</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;INFO&quot;</span><span class="w">           </span><span class="c1"># DEBUG | INFO | WARNING | ERROR</span>
-<a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a><span class="n">format</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;pretty&quot;</span><span class="w">        </span><span class="c1"># pretty | json (json for shipping logs)</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a><span class="k">[logging]</span>
+<a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a><span class="n">level</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;INFO&quot;</span><span class="w">           </span><span class="c1"># DEBUG | INFO | WARNING | ERROR</span>
+<a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a><span class="n">format</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;pretty&quot;</span><span class="w">        </span><span class="c1"># pretty | json (json for shipping logs)</span>
 </code></pre></div>
 <h2 id="environment-variables">Environment variables<a class="headerlink" href="#environment-variables" title="Permanent link">&para;</a></h2>
 <p>Every setting has a <code>MANEKI_*</code> override. Nested keys use <code>__</code> (double
