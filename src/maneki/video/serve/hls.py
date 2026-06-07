@@ -40,6 +40,7 @@ from pathlib import Path
 
 from pydantic import BaseModel, ConfigDict
 
+from maneki.ffmpeg import ffmpeg_path
 from maneki.video.serve.encoders import (
     Encoder,
     is_hdr,
@@ -124,7 +125,7 @@ class SessionStats(BaseModel):
 
 
 def _ffmpeg_path() -> str:
-    path = shutil.which("ffmpeg")
+    path = ffmpeg_path()
     if path is None:
         raise FFmpegNotFoundError("ffmpeg is required for HLS but was not found on PATH")
     return path

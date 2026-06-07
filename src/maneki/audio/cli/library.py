@@ -1,4 +1,4 @@
-"""`maneki library` — every operation that reads, mutates, or manages the converted library.
+"""`maneki audio library` — every operation that reads, mutates, or manages the converted library.
 
 Subcommands:
 
@@ -10,7 +10,7 @@ Subcommands:
 - `retag DIR`           in-place tag overrides
 - `index status|drop|rebuild DIR`   manage the `<DIR>/.maneki/index.db` cache
 
-The single-command form (`maneki library DIR --audit / --fix / --cover-pick / ...`) is
+The single-command form (`maneki audio library DIR --audit / --fix / --cover-pick / ...`) is
 gone; pick a subcommand. The persistent index DB lives at `<DIR>/.maneki/index.db`
 and is shared by `serve`.
 """
@@ -410,7 +410,7 @@ def index_status(
     db_file = library_mod.db_path(root)
     if not db_file.exists():
         console.print(f"[yellow]no index at {db_file}[/yellow]")
-        console.print(f"[dim]run `maneki library tree {target_dir}` to build one[/dim]")
+        console.print(f"[dim]run `maneki audio library tree {target_dir}` to build one[/dim]")
         return
 
     conn = library_mod.open_db(root)
@@ -427,7 +427,7 @@ def index_status(
 
     from rich.table import Table
 
-    table = Table(title=f"maneki library index — {db_file}", show_header=False)
+    table = Table(title=f"maneki audio library index — {db_file}", show_header=False)
     table.add_column(style="cyan")
     table.add_column()
     for key, value in meta_rows:
@@ -539,7 +539,7 @@ def _render_audit_table(
 
     rows = [a for a in index.albums if (not issues_only or a.warnings)]
     label = "flagged" if issues_only else "total"
-    title = f"maneki library audit — {len(rows)} {label} of {len(index.albums)} albums"
+    title = f"maneki audio library audit — {len(rows)} {label} of {len(index.albums)} albums"
     table = Table(title=title, show_lines=False)
     table.add_column("Artist", style="cyan")
     table.add_column("Album")

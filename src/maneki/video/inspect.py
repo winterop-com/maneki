@@ -2,14 +2,13 @@
 
 Calls ffprobe once per file and groups the interesting fields into
 rich panels (file / format, video stream, audio streams, subtitles).
-Used by `maneki library inspect` to surface the same kind of detail
+Used by `maneki inspect` to surface the same kind of detail
 the audio side has had since day one.
 """
 
 from __future__ import annotations
 
 import json
-import shutil
 import subprocess
 from pathlib import Path
 
@@ -19,6 +18,8 @@ from rich.console import Console, Group
 from rich.panel import Panel
 from rich.table import Table
 from rich.text import Text
+
+from maneki.ffmpeg import ffprobe_path
 
 
 class VideoStream(BaseModel):
@@ -88,7 +89,7 @@ class VideoProbe(BaseModel):
 
 def probe_video_file(path: Path) -> VideoProbe | None:
     """Run ffprobe and return a typed summary, or None if ffprobe is missing / fails."""
-    ffprobe = shutil.which("ffprobe")
+    ffprobe = ffprobe_path()
     if ffprobe is None:
         return None
     try:

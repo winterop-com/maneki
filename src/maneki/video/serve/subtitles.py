@@ -32,6 +32,8 @@ from pathlib import Path
 
 from pydantic import BaseModel, ConfigDict
 
+from maneki.ffmpeg import ffmpeg_path, ffprobe_path
+
 SUBTITLE_EXTENSIONS = frozenset({".srt", ".vtt"})
 
 # Subtitle codecs we can convert to WebVTT. Image-based codecs (PGS,
@@ -179,7 +181,7 @@ def probe_embedded_subtitles(video_path: Path) -> list[EmbeddedSubtitle]:
         return list(cached)
     if not video_path.is_file():
         return []
-    ffprobe = shutil.which("ffprobe")
+    ffprobe = ffprobe_path()
     if ffprobe is None:
         return []
     args = [
@@ -274,7 +276,7 @@ async def extract_embedded_streams_to_vtt(
         return
     if not video_path.is_file():
         raise FileNotFoundError(video_path)
-    ffmpeg = shutil.which("ffmpeg")
+    ffmpeg = ffmpeg_path()
     if ffmpeg is None:
         raise RuntimeError("ffmpeg is required to extract embedded subtitles")
 
@@ -342,7 +344,7 @@ async def extract_embedded_streams_to_vtt(
 
 def _probe_video_start_time(video_path: Path) -> float:
     """Return the first video frame's PTS in seconds. 0.0 if unknown."""
-    ffprobe = shutil.which("ffprobe")
+    ffprobe = ffprobe_path()
     if ffprobe is None:
         return 0.0
     try:

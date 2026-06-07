@@ -51,15 +51,16 @@ End-to-end pipeline:
 
 Then on top of that:
 
-- **`maneki library`** — read, audit, fix, retag, cover, and manage the converted library. Subcommands:
-  - `library tree DIR` / `library audit DIR` / `library fix DIR` — render, audit, auto-fix
-  - `library cover IMAGE DIR` / `library cover-pick DIR` / `library retag DIR` — in-place tag and cover edits; semi-automated cover selection via [musichoarders.xyz](https://covers.musichoarders.xyz/)
-  - `library lyrics fetch DIR` — populate `<track>.lrc` sidecars from [LRCLIB](https://lrclib.net) (free, no API key, returns synced lyrics for popular tracks)
-  - `library index status|drop|rebuild DIR` — manage the persistent SQLite index at `<DIR>/.maneki/index.db`
+- **`maneki audio library`** — read, audit, fix, retag, cover, and manage the converted audio library. Subcommands:
+  - `audio library tree DIR` / `audit DIR` / `fix DIR` — render, audit, auto-fix
+  - `audio library cover IMAGE DIR` / `cover-pick DIR` / `retag DIR` — in-place tag and cover edits; semi-automated cover selection via [musichoarders.xyz](https://covers.musichoarders.xyz/)
+  - `audio library lyrics fetch DIR` — populate `<track>.lrc` sidecars from [LRCLIB](https://lrclib.net) (free, no API key, returns synced lyrics for popular tracks)
+  - `audio library index status|drop|rebuild DIR` — manage the persistent SQLite index at `<DIR>/.maneki/index.db`
 - **`maneki serve`** — one server, one library root. Scans the directory recursively and auto-mounts whichever kinds have content: the Subsonic API at `/audio/rest/*` when audio is present, the Maneki-native video API at `/video/api/*` when video is present, the web SPA at `/` with `--ui`. Any Subsonic client (Symfonium, Amperfy, play:Sub, Feishin) reads `/audio/rest/*` directly. Real heart / star button (persistent favourites at `<root>/.maneki/stars.toml`); LRC bodies promoted to `synced: true` so client lyrics views highlight live. Video pipeline includes HLS streaming with on-demand MPEG-TS segments, sidecar `.srt` + embedded subtitle extraction to WebVTT, contact-sheet posters, click-in folder browser. See [Serve](guides/serve-unified.md) and [Video](guides/video.md).
-- **`maneki library`** — cross-cutting tools for any library root. `info` counts files per kind, `list` walks the tree, `inspect` dumps tags / cover for an audio file or ffprobe streams / container info for a video file.
+- **`maneki info` / `list` / `inspect`** — cross-cutting top-level commands for any library root. `info` counts files per kind, `list` walks the tree, `inspect` dumps tags / cover for an audio file or ffprobe streams / container info for a video file.
+- **`maneki doctor`** — check the media-tooling environment: ffmpeg/ffprobe, which H.264 encoder serving will use (VAAPI / VideoToolbox / libx264), and whether HDR tonemapping (zscale) is available — with fix hints.
 - **`maneki audio playlist`** — auto-generate `.m3u8` playlists anchored to a seed track using tag-based similarity (artist / genre / year). `gen` writes a mix; `list` / `show` browse what's saved. Output is plain extended M3U so VLC and Subsonic clients can play it.
-- **`maneki audio inspect`** — quick tag dump for a single file (also reachable via the cross-cutting `maneki library inspect`).
+- **`maneki audio inspect`** — quick tag dump for a single file (also reachable via the cross-cutting `maneki inspect`).
 - **Desktop apps** — Tauri (~15 MB, native WebKit on macOS) and Electron (~120 MB, bundled Chromium) wrappers around a generic Subsonic client UI. URL + Username + Password login; salted-token auth; refresh-restores via URL hash. Prebuilt installers for macOS / Linux / Windows are attached to every [release](https://github.com/winterop-com/maneki/releases/latest) — the macOS Tauri build is signed + notarized; the rest are unsigned. Or build from source with `make build`. See [Desktop apps](guides/desktop.md).
 - **Mobile** — no Maneki app of its own; `serve` exposes the standard Subsonic API so play:Sub / Amperfy (iOS) and Symfonium / DSub / Tempo (Android) all work against it. See [Mobile](guides/mobile.md).
 
@@ -92,6 +93,6 @@ Years of rip-collection wrangling produces an audio library full of:
 
 ## Status
 
-v0.11.2. Top-level commands: `maneki serve` (single-library audio + video + SPA, auto-detects what's there), `maneki library` (cross-cutting info / list / inspect), `maneki audio <...>` (convert, library, inspect, ui, playlist), `maneki video <...>` (reserved for tooling). Signed + notarized macOS desktop builds (plus unsigned Linux / Windows / Electron) ship on every release. mypy + pyright + ruff clean, 667 tests green. Audio side real-world tested against Symfonium / Amperfy / play:Sub / Feishin clients with persistent favourites and synced lyrics; video side ships HLS with on-demand segments, single-ffmpeg multi-stream subtitle extraction, 16:9 contact-sheet posters, watcher hot-reload, and a SQLite-backed scan index shared with the audio side at `<root>/.maneki/index.db`.
+Top-level commands: `maneki serve` (single-library audio + video + SPA, auto-detects what's there), `maneki ui` (SPA client for any Subsonic server), `maneki doctor` (media-tooling check), `maneki info` / `list` / `inspect` (cross-cutting, any root), `maneki audio <...>` (convert, library, inspect, playlist). Signed + notarized macOS desktop builds (plus unsigned Linux / Windows / Electron) ship on every release. mypy + pyright + ruff clean, 667 tests green. Audio side real-world tested against Symfonium / Amperfy / play:Sub / Feishin clients with persistent favourites and synced lyrics; video side ships HLS with on-demand segments, single-ffmpeg multi-stream subtitle extraction, 16:9 contact-sheet posters, watcher hot-reload, and a SQLite-backed scan index shared with the audio side at `<root>/.maneki/index.db`.
 
 Roadmap items still open are listed at [Roadmap](roadmap.md).

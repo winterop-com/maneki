@@ -20,12 +20,12 @@ from __future__ import annotations
 import asyncio
 import logging
 import math
-import shutil
 from pathlib import Path
 
 from PIL import Image, ImageDraw, ImageFont
 from pydantic import BaseModel, ConfigDict
 
+from maneki.ffmpeg import ffmpeg_path, ffprobe_path
 from maneki.video.serve.scan import cache_stem, probe_duration
 from maneki.video.serve.transcode import low_priority_kwargs
 from maneki.video.serve.transcode_budget import TranscodeBudget
@@ -76,11 +76,11 @@ def _load_font(size: int) -> ImageFont.FreeTypeFont | ImageFont.ImageFont:
 
 
 def _ffmpeg_bin() -> str | None:
-    return shutil.which("ffmpeg")
+    return ffmpeg_path()
 
 
 def _ffprobe_bin() -> str | None:
-    return shutil.which("ffprobe")
+    return ffprobe_path()
 
 
 def _format_duration(seconds: float) -> str:

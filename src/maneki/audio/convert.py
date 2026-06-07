@@ -9,6 +9,8 @@ import subprocess
 from enum import Enum
 from pathlib import Path
 
+from maneki.ffmpeg import ffmpeg_path, ffprobe_path
+
 # Source extensions that always carry lossless audio.
 _LOSSLESS_EXTS: frozenset[str] = frozenset({".flac", ".wav", ".aiff", ".aif"})
 # Source extensions that always carry lossy audio.
@@ -17,8 +19,10 @@ _LOSSY_EXTS: frozenset[str] = frozenset({".mp3", ".ogg", ".opus", ".aac"})
 # the actual codec is determined by probing.
 _AMBIGUOUS_EXTS: frozenset[str] = frozenset({".m4a", ".mp4", ".m4b"})
 
-FFMPEG_BIN = "ffmpeg"
-FFPROBE_BIN = "ffprobe"
+# Honour the MANEKI_FFMPEG / MANEKI_FFPROBE overrides (same as the video side),
+# falling back to the bare name for the PATH lookup in ensure_ffmpeg().
+FFMPEG_BIN = ffmpeg_path() or "ffmpeg"
+FFPROBE_BIN = ffprobe_path() or "ffprobe"
 
 
 class OutputFormat(str, Enum):

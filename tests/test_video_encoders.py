@@ -104,13 +104,13 @@ def _fake_run(stdout: str) -> object:
 
 
 def test_is_hdr_true_for_pq(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
-    monkeypatch.setattr(encoders.shutil, "which", lambda _: "/usr/bin/ffprobe")
+    monkeypatch.setattr(encoders, "ffprobe_path", lambda: "/usr/bin/ffprobe")
     monkeypatch.setattr(encoders.subprocess, "run", _fake_run("smpte2084\n"))
     assert encoders.is_hdr(tmp_path / "movie.mkv") is True
 
 
 def test_is_hdr_false_for_sdr(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
-    monkeypatch.setattr(encoders.shutil, "which", lambda _: "/usr/bin/ffprobe")
+    monkeypatch.setattr(encoders, "ffprobe_path", lambda: "/usr/bin/ffprobe")
     monkeypatch.setattr(encoders.subprocess, "run", _fake_run("bt709\n"))
     assert encoders.is_hdr(tmp_path / "movie.mkv") is False
 
@@ -119,13 +119,13 @@ def test_is_hdr_false_for_sdr(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -
 
 
 def test_tonemap_available_true_when_zscale_present(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(encoders.shutil, "which", lambda _: "/usr/bin/ffmpeg")
+    monkeypatch.setattr(encoders, "ffmpeg_path", lambda: "/usr/bin/ffmpeg")
     monkeypatch.setattr(encoders.subprocess, "run", _fake_run(" .S zscale            V->V       Apply resizing\n"))
     assert encoders.tonemap_available() is True
 
 
 def test_tonemap_available_false_without_zscale(monkeypatch: pytest.MonkeyPatch) -> None:
     # tonemap present but no zscale -> can't run the software tonemap chain.
-    monkeypatch.setattr(encoders.shutil, "which", lambda _: "/usr/bin/ffmpeg")
+    monkeypatch.setattr(encoders, "ffmpeg_path", lambda: "/usr/bin/ffmpeg")
     monkeypatch.setattr(encoders.subprocess, "run", _fake_run(" .S tonemap           V->V       Conversion\n"))
     assert encoders.tonemap_available() is False

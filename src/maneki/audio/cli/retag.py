@@ -1,4 +1,4 @@
-"""`maneki library retag DIR` — override tags on every audio file under DIR in-place."""
+"""`maneki audio library retag DIR` — override tags on every audio file under DIR in-place."""
 
 from __future__ import annotations
 

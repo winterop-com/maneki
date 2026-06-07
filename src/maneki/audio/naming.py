@@ -43,7 +43,7 @@ _VA_ALIASES: frozenset[str] = frozenset(
 _SCENE_DOMAIN_RE = re.compile(r"^(?:[\w-]+\.)+[a-z]{2,5}\.?$", re.IGNORECASE)
 
 # Patterns indicating a string still contains scene-rip residue that *should*
-# have been cleaned by the convert pipeline. Used by `maneki library`
+# have been cleaned by the convert pipeline. Used by `maneki audio library`
 # auditing to flag rows the user might want to fix with `retag`.
 _SCENE_RESIDUE_PATTERNS: tuple[re.Pattern[str], ...] = (
     # Underscore between two ≥2-letter chunks (e.g. `Absolute_Music_45`).

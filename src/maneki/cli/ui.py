@@ -1,11 +1,12 @@
-"""`maneki ui` — local web UI that points at any Subsonic server.
+"""`maneki ui` - local web UI that points at any Subsonic server.
 
 Unlike `maneki serve` (which is itself a Subsonic server), `maneki ui`
-is purely a client. It static-serves the desktop SPA — the same
-HTML/JS/CSS the Tauri and Electron wrappers load — on a local port, then
+is purely a client. It static-serves the desktop SPA - the same
+HTML/JS/CSS the Tauri and Electron wrappers load - on a local port, then
 opens a browser tab against it. The SPA's login picker asks for a server
 URL + credentials and talks to any spec-compliant Subsonic server
-(maneki serve, Navidrome, Airsonic, Gonic, ...).
+(maneki serve, Navidrome, Airsonic, Gonic, ...). It serves the whole SPA
+(audio AND video), so it's a top-level command, not audio-specific.
 
 Useful when:
   - You want a browser UI against a remote maneki serve without
@@ -32,25 +33,23 @@ import uvicorn
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 
-from maneki.audio.cli import app
-
 
 def _resolve_static_dir() -> Path:
     """Resolve the SPA static directory.
 
     Two layouts to support:
-      - PyPI install: `src/maneki/audio/_ui_static/` (copied in by
+      - PyPI install: `maneki/_ui_static/` (copied in by
         `scripts/copy_ui_static.py` at `make build` time).
-      - Source checkout: `desktop/react/` from the repo root — useful
-        for `uv run maneki ui` during development before the bundle
-        has been generated.
+      - Source checkout: `desktop/react/dist/` from the repo root - useful
+        for `uv run maneki ui` during development once the bundle has been
+        built (`make desktop-build-frontend`).
     """
     bundled = files("maneki") / "_ui_static"
     bundled_path = Path(str(bundled))
     if bundled_path.is_dir() and (bundled_path / "index.html").exists():
         return bundled_path
     here = Path(__file__).resolve()
-    # ui.py -> cli/ -> maneki/audio/ -> src/ -> repo root
+    # ui.py -> cli/ -> maneki/ -> src/ -> repo root
     repo_root = here.parents[3]
     dev_dir = repo_root / "desktop" / "react" / "dist"
     if dev_dir.is_dir() and (dev_dir / "index.html").exists():
@@ -63,8 +62,7 @@ def _resolve_static_dir() -> Path:
     )
 
 
-@app.command()
-def ui(
+def ui_cmd(
     host: Annotated[
         str,
         typer.Option("--host", help="Interface to bind. Default 127.0.0.1 (local only)."),
@@ -112,7 +110,7 @@ def ui(
     if params:
         target += "?" + urlencode(params)
 
-    print(f">>> maneki ui — static files: {static_dir}")
+    print(f">>> maneki ui - static files: {static_dir}")
     print(f">>> Open this in a browser: {target}")
     if not no_open:
         webbrowser.open(target)

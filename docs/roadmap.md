@@ -7,7 +7,7 @@ What's landed, what's open, what's speculative. Keep this in sync with code chan
 ### Landed
 
 - **Single library root**: `maneki serve <root>` walks one directory recursively and auto-mounts whichever kinds it finds — no `<root>/audio/` or `<root>/videos/` subdir convention. Empty roots mount neither kind; mixed roots mount both.
-- **`maneki library`**: cross-cutting tools that take any library root - `info` for file counts per kind, `list` (alias `ls`) for a full inventory walk, `inspect` for a file's tags / cover (audio) or ffprobe streams + container info (video). Output is rich-formatted.
+- **`maneki info` / `list` / `inspect`**: cross-cutting top-level commands that take any library root - `info` for file counts per kind, `list` (alias `ls`) for a full inventory walk, `inspect` for a file's tags / cover (audio) or ffprobe streams + container info (video). Output is rich-formatted.
 - **Base scan + raw stream**: every video file under the library root is discovered recursively; flat list endpoint; HTTP Range stream (with RFC 7233 suffix-range support).
 - **Subtitle sidecars**: `.srt` discovery + on-the-fly conversion to WebVTT.
 - **HLS pipeline (on-demand segments)**: synthesised VOD manifest with `#EXT-X-ENDLIST` upfront from ffprobe duration; per-segment MPEG-TS transcode on first request, cached on disk. Seek-anywhere works without waiting for a linear transcode to catch up. Foreground concurrency capped at 3 so rapid seeks don't wedge the player; partial .ts files are unlinked on ffmpeg cancel so a cancelled seek can't poison the next request. HLS cache survives server restarts and is wiped automatically when `HLS_CACHE_VERSION` changes (versioned marker file).

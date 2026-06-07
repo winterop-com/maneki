@@ -200,7 +200,11 @@ Software `libx264` can't transcode 4K/HDR in realtime — the stats panel shows 
 
 Selection order: `MANEKI_HWENC` (`auto` default, or `vaapi` / `videotoolbox` / `none`) → VAAPI → VideoToolbox → libx264. The stats panel shows which encoder produced each segment, so you can confirm the GPU actually engaged. Hardware encoders are bitrate-driven (`~6 Mbit/s`, tunable via `MANEKI_HWENC_BITRATE` / `_MAXRATE` / `_BUFSIZE`); the render node is overridable via `MANEKI_VAAPI_DEVICE`.
 
-**HDR**: 4K Dolby-Vision/HDR sources are tonemapped to SDR BT.709 in software (`zscale`+`tonemap`) before the H.264 encode, since browsers don't display HDR H.264. This needs an ffmpeg built with `zscale` (libzimg); without it the tonemap is skipped (HDR plays with washed-out colours rather than failing the transcode).
+**HDR**: 4K Dolby-Vision/HDR sources are tonemapped to SDR BT.709 in software (`zscale`+`tonemap`) before the H.264 encode, since browsers don't display HDR H.264. This needs an ffmpeg built with `zscale` (libzimg); without it the tonemap is skipped (HDR plays with washed-out colours rather than failing the transcode). The stock Homebrew `ffmpeg` omits libzimg — install a fuller build (`brew install ffmpeg-full`, or a static ffmpeg) that bundles zscale.
+
+**Which ffmpeg?** maneki finds `ffmpeg` / `ffprobe` on `PATH`. To point it at a specific build without touching the global `PATH` (e.g. a keg-only `ffmpeg-full`), set **`MANEKI_FFMPEG`** / **`MANEKI_FFPROBE`** to the binary paths — they override the lookup for all transcoding, probing, posters, and the scan.
+
+**Check your setup:** `maneki doctor` reports ffmpeg/ffprobe, which encoder serving will use (and whether the GPU engaged), VAAPI/VideoToolbox availability, and whether HDR tonemapping (zscale) is present — each with a fix hint.
 - **Timestamps**: `-output_ts_offset N*SEG_LEN` + `-avoid_negative_ts disabled` shifts each segment's output PTS to its nominal manifest position. Adjacent segments don't overlap and the player's `currentTime` matches the manifest timeline. (A pre-v0.9 bug here would emit a partial .ts on ffmpeg cancel during a rapid scrub, the cache check would short-circuit on the partial file, and the player would jump 4-5 min on the next seek; fixed by unlinking partial files on cancel and bumping `HLS_CACHE_VERSION` to wipe any leftover stubs from older runs.)
 
 Foreground transcodes are capped at 3 concurrent (rapid seeks fire one fetch per scrub and the browser's HLS engine doesn't cancel old XHRs; without the cap, 18 simultaneous ffmpegs sharing disk I/O each took 15s instead of 200ms and the player wedged). Queued requests release as slots free up; normal playback fits inside the cap. Background prefetch warms several segments **ahead** of the playhead (forward look-ahead, plus the previous segment for back-buttons) so a high-latency client doesn't outrun the encoder over serialized segment round-trips. It runs at OS-idle priority on a dedicated near-zero-quiet budget lane that fills the sub-second gaps *between* foreground segments — unlike prewarm/thumbnail work, which holds off during continuous playback — and is cancelled on seek-away / pause / player-close (the SPA sends `DELETE /api/videos/{id}/session`).
@@ -271,12 +275,7 @@ The video pipeline rides on `maneki serve`. Relevant flags:
 | `--no-cover-images` | Skip the contact-sheet poster phase entirely. `/poster` falls back to the row thumbnail. |
 | `--workers N` | Background-transcode worker cap. Default `min(8, cpu // 2)`. Affects prewarm + neighbour prefetch; foreground transcodes are capped at 3 concurrent regardless. |
 
-The `maneki video` subgroup carries placeholders for tooling that doesn't belong on the serve command:
-
-- `maneki video convert` — no-op placeholder (reserved for organize / transcode semantics)
-- `maneki video library` — no-op placeholder (reserves the symmetric namespace with `maneki audio library`)
-
 ## See also
 
-- [`maneki library`](library.md) — cross-cutting summary + scan that operates on both audio and video
+- [`maneki info` / `list` / `inspect`](library.md) — cross-cutting summary + scan that operates on both audio and video
 - [Architecture](../architecture.md) — how the pieces fit together

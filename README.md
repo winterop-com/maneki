@@ -59,9 +59,9 @@ uvx maneki serve ~/Downloads/library                     # audio on /audio/rest/
 uvx maneki serve ~/Downloads/library --ui                # also serve the web SPA at /
 
 # Shared across audio + video:
-uvx maneki library info    ~/Downloads/library           # kind counts (audio + video)
-uvx maneki library list    ~/Downloads/library           # full file inventory (or `ls`)
-uvx maneki library inspect ~/Downloads/library/some.mkv  # tags + cover (audio) or ffprobe streams (video)
+uvx maneki info    ~/Downloads/library           # kind counts (audio + video)
+uvx maneki list    ~/Downloads/library           # full file inventory (or `ls`)
+uvx maneki inspect ~/Downloads/library/some.mkv  # tags + cover (audio) or ffprobe streams (video)
 
 # Audio tooling:
 uvx maneki audio convert ./input ./output                          # convert rips
@@ -104,7 +104,7 @@ Or jump straight to:
 - [Architecture](docs/architecture.md) — how all the pieces fit together (process model, data flow, audio subprocess, SQLite index, FFT visualizer)
 - [Quickstart](docs/guides/quickstart.md) — end-to-end walkthrough including iPhone + Tailscale + Amperfy
 - [maneki serve](docs/guides/serve-unified.md) — single-library mode, auto-detect, web SPA
-- [maneki library](docs/guides/library.md) — cross-cutting info / list / inspect against any root
+- [maneki info / list / inspect](docs/guides/library.md) — cross-cutting info / list / inspect against any root
 - [maneki audio convert](docs/guides/convert.md) — codec / bitrate / enrichment matrix
 - [maneki audio library](docs/guides/audio-library.md) — audit rules + auto-fix + SQLite index
 - [maneki video](docs/guides/video.md) — HLS, subtitles, posters, folder browser

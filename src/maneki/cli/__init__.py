@@ -1,7 +1,8 @@
-"""Top-level maneki CLI - dispatches into the audio and video subcommand groups.
+"""Top-level maneki CLI.
 
-Shared verbs (`library`, `serve` later) live at the top level. Kind-specific
-deep features stay under `maneki audio <verb>` / `maneki video <verb>`.
+The hero `serve` command plus cross-cutting top-level verbs (`info` / `list` /
+`inspect`, `ui`, `doctor`); music-library deep features stay under the
+`maneki audio <verb>` subcommand group.
 """
 
 from __future__ import annotations
@@ -13,13 +14,14 @@ import typer
 
 from maneki import __version__
 from maneki.audio.cli import app as audio_app
+from maneki.cli.doctor import doctor_cmd
+from maneki.cli.ui import ui_cmd
 from maneki.library import (
     LibrarySummary,
     ScanResult,
     scan_files,
     summarize,
 )
-from maneki.video.cli import app as video_app
 
 _APP_HELP = (
     f"Self-hosted media toolkit (v{__version__}) - one server, one library, audio + video."
@@ -27,15 +29,16 @@ _APP_HELP = (
 
 [bold]Top-level commands[/]
 
-  [cyan]maneki serve[/]    Start the server against a library root
-  [cyan]maneki library[/]  Summarise / scan one or more libraries
+  [cyan]maneki serve[/]                  Start the server against a library root
+  [cyan]maneki ui[/]                     Web UI client for any Subsonic server
+  [cyan]maneki doctor[/]                 Check ffmpeg + the video encoder setup
+  [cyan]maneki info[/] / [cyan]list[/] / [cyan]inspect[/]    Summarise / scan / probe any library root
 
-[bold]Subcommand groups[/]
+[bold]Subcommand group[/]
 
   [cyan]maneki audio[/]    Music: convert, audit, retag, playlist tools
-  [cyan]maneki video[/]    Video: inspect, probe, library tools
 
-Pass [cyan]--help[/] after any group for its commands.
+Pass [cyan]--help[/] after the group for its commands.
 
 [bold]Links[/]
 
@@ -214,15 +217,7 @@ def _global_options(
     del version
 
 
-library_app = typer.Typer(
-    no_args_is_help=True,
-    add_completion=False,
-    rich_markup_mode="rich",
-    help="Inspect a library root - cross-cutting audio + video.",
-)
-
-
-@library_app.command("info")
+@app.command("info")
 def library_info(
     root: Annotated[Path, typer.Argument(help="Library root to describe.")],
 ) -> None:
@@ -230,8 +225,8 @@ def library_info(
     _print_summaries([summarize(root.resolve())])
 
 
-@library_app.command("list")
-@library_app.command("ls", hidden=True)
+@app.command("list")
+@app.command("ls", hidden=True)
 def library_list(
     root: Annotated[Path, typer.Argument(help="Library root to walk.")],
 ) -> None:
@@ -239,7 +234,7 @@ def library_list(
     _print_scans([scan_files(root.resolve())])
 
 
-@library_app.command("inspect")
+@app.command("inspect")
 def library_inspect(
     path: Annotated[
         Path,
@@ -329,14 +324,10 @@ def _fmt_size(n: int) -> str:
     return f"{n} B"
 
 
-app.add_typer(library_app, name="library")
+app.command("ui")(ui_cmd)
+app.command("doctor")(doctor_cmd)
 app.add_typer(
     audio_app,
     name="audio",
     help="Music library: convert / audit / retag, stream via Subsonic server.",
-)
-app.add_typer(
-    video_app,
-    name="video",
-    help="Video server (base layer).",
 )

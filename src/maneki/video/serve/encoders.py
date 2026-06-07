@@ -32,10 +32,13 @@ import functools
 import logging
 import os
 import platform
-import shutil
 import subprocess
 from pathlib import Path
 from typing import Literal
+
+from pydantic import BaseModel, ConfigDict
+
+from maneki.ffmpeg import ffmpeg_path, ffprobe_path
 
 log = logging.getLogger(__name__)
 
@@ -68,7 +71,7 @@ _HDR_TRANSFERS = frozenset({"smpte2084", "arib-std-b67"})
 @functools.cache
 def _ffmpeg_encoders() -> frozenset[str]:
     """Video encoder names ffmpeg reports via ``-encoders`` (empty if absent)."""
-    ffmpeg = shutil.which("ffmpeg")
+    ffmpeg = ffmpeg_path()
     if not ffmpeg:
         return frozenset()
     try:
@@ -100,7 +103,7 @@ def _vaapi_works() -> bool:
     """
     if "h264_vaapi" not in _ffmpeg_encoders() or not Path(VAAPI_DEVICE).exists():
         return False
-    ffmpeg = shutil.which("ffmpeg")
+    ffmpeg = ffmpeg_path()
     if not ffmpeg:
         return False
     cmd = [
@@ -134,7 +137,7 @@ def tonemap_available() -> bool:
     would fail there too. Skipping tonemap means HDR plays with the old
     washed-out colours — degraded, but not broken.
     """
-    ffmpeg = shutil.which("ffmpeg")
+    ffmpeg = ffmpeg_path()
     if not ffmpeg:
         return False
     try:
@@ -176,7 +179,7 @@ def select_encoder() -> Encoder:
 
 def is_hdr(input_path: Path) -> bool:
     """Probe whether the source video's transfer function is HDR (PQ / HLG)."""
-    ffprobe = shutil.which("ffprobe")
+    ffprobe = ffprobe_path()
     if not ffprobe:
         return False
     cmd = [
@@ -231,3 +234,62 @@ def video_codec_args(encoder: Encoder, *, hdr: bool) -> tuple[list[str], str | N
         )
     # libx264 (software fallback) — the original CRF-based settings.
     return ([], tonemap, ["-c:v", "libx264", "-preset", "veryfast", "-crf", "23"])
+
+
+@functools.cache
+def _ffmpeg_version() -> str | None:
+    """Ffmpeg's reported version (e.g. ``8.1.1``), or None if ffmpeg is absent."""
+    ffmpeg = ffmpeg_path()
+    if not ffmpeg:
+        return None
+    try:
+        out = subprocess.run(  # noqa: S603 - fixed args, no shell
+            [ffmpeg, "-hide_banner", "-version"],
+            capture_output=True,
+            text=True,
+            timeout=10,
+            check=False,
+        ).stdout
+    except (OSError, subprocess.SubprocessError):
+        return None
+    # First line looks like "ffmpeg version 8.1.1 Copyright (c) ...".
+    first = out.splitlines()[0] if out else ""
+    parts = first.split()
+    if len(parts) >= 3 and parts[0] == "ffmpeg" and parts[1] == "version":
+        return parts[2]
+    return first or None
+
+
+class EncoderReport(BaseModel):
+    """Snapshot of the media-tooling environment, for `maneki doctor`."""
+
+    model_config = ConfigDict(frozen=True)
+
+    ffmpeg_path: str | None
+    ffprobe_path: str | None
+    ffmpeg_version: str | None
+    hw_encoders: list[str]  # h264_vaapi / h264_videotoolbox that ffmpeg lists
+    vaapi_device: str
+    vaapi_device_present: bool
+    vaapi_works: bool  # the listed VAAPI encoder actually probe-encodes
+    tonemap_zscale: bool  # ffmpeg has zscale (libzimg) for HDR->SDR tonemap
+    selected: Encoder  # what select_encoder() will use right now
+    hwenc_override: str | None  # MANEKI_HWENC, if set
+
+
+def probe_encoders() -> EncoderReport:
+    """Gather the media-tooling environment into a report (for `maneki doctor`)."""
+    listed = _ffmpeg_encoders()
+    override = os.environ.get("MANEKI_HWENC")
+    return EncoderReport(
+        ffmpeg_path=ffmpeg_path(),
+        ffprobe_path=ffprobe_path(),
+        ffmpeg_version=_ffmpeg_version(),
+        hw_encoders=[e for e in ("h264_vaapi", "h264_videotoolbox") if e in listed],
+        vaapi_device=VAAPI_DEVICE,
+        vaapi_device_present=Path(VAAPI_DEVICE).exists(),
+        vaapi_works=_vaapi_works(),
+        tonemap_zscale=tonemap_available(),
+        selected=select_encoder(),
+        hwenc_override=override.strip().lower() if override else None,
+    )

@@ -17,13 +17,14 @@ import functools
 import hashlib
 import json
 import logging
-import shutil
 import subprocess
 from collections.abc import Callable, Iterator
 from pathlib import Path
 from typing import TYPE_CHECKING
 
 from pydantic import BaseModel
+
+from maneki.ffmpeg import ffprobe_path
 
 if TYPE_CHECKING:
     from maneki.video.serve.scan_cache import VideoIndex
@@ -493,7 +494,7 @@ def probe_duration(path: Path) -> float | None:
 
 
 def _probe_duration_uncached(path: Path) -> float | None:
-    ffprobe = shutil.which("ffprobe")
+    ffprobe = ffprobe_path()
     if ffprobe is None:
         return None
     try:

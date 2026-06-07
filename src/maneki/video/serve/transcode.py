@@ -16,12 +16,13 @@ from __future__ import annotations
 
 import asyncio
 import os
-import shutil
 import subprocess
 import sys
 from collections.abc import AsyncIterator
 from pathlib import Path
 from typing import Any
+
+from maneki.ffmpeg import ffmpeg_path
 
 
 class FFmpegNotFoundError(RuntimeError):
@@ -41,7 +42,7 @@ def log_safe(value: object) -> str:
 
 def _ffmpeg_path() -> str:
     """Return the absolute path to ffmpeg, or raise FFmpegNotFoundError."""
-    path = shutil.which("ffmpeg")
+    path = ffmpeg_path()
     if path is None:
         raise FFmpegNotFoundError("ffmpeg is required for /play but was not found on PATH")
     return path
