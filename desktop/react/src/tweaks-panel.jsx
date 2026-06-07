@@ -208,6 +208,10 @@ function TweaksPanel({ title = 'Tweaks', noDeckControls = false, children }) {
   React.useEffect(() => {
     if (!hasDeckStage || railEnabled) return undefined;
     const onMsg = (e) => {
+      // Only trust same-origin posts (these edit-mode hooks are dev-tool
+      // signals, never sent in normal use) so a cross-origin frame can't
+      // drive the UI. Guards CodeQL js/missing-origin-check.
+      if (e.origin !== window.location.origin) return;
       if (e.data && e.data.type === '__omelette_rail_enabled') setRailEnabled(true);
     };
     window.addEventListener('message', onMsg);
@@ -251,6 +255,10 @@ function TweaksPanel({ title = 'Tweaks', noDeckControls = false, children }) {
 
   React.useEffect(() => {
     const onMsg = (e) => {
+      // Same-origin only (see the rail-enabled handler above) — these are
+      // dev-tool edit-mode signals, never sent in normal use. Guards CodeQL
+      // js/missing-origin-check.
+      if (e.origin !== window.location.origin) return;
       const t = e?.data?.type;
       if (t === '__activate_edit_mode') setOpen(true);
       else if (t === '__deactivate_edit_mode') setOpen(false);
