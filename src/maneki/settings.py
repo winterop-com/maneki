@@ -240,3 +240,127 @@ def get_settings() -> Settings:
 def reset_settings_cache() -> None:
     """Drop the cached settings — for tests and after writing the config file."""
     get_settings.cache_clear()
+
+
+# ---------------------------------------------------------------------------
+# `maneki config` helpers: summary + scaffold
+# ---------------------------------------------------------------------------
+
+
+def _mask(value: str | None) -> str:
+    """Render a secret as `'****'` while distinguishing unset / empty."""
+    if value is None:
+        return "(unset)"
+    if value == "":
+        return "''"
+    return "'****'"
+
+
+def render_settings_summary(s: Settings) -> str:
+    """Format the resolved settings for `maneki config show` (secrets masked)."""
+    lines: list[str] = []
+    lines.append("[libraries]")
+    lines.append(f"  roots = {[str(p) for p in s.libraries.roots]}")
+    lines.append("")
+    lines.append(f"users ({len(s.accounts())}):")
+    for u in s.accounts():
+        flag = " (admin)" if u.admin else ""
+        lines.append(f"  - {u.name}{flag}  password = {_mask(u.password)}")
+    if not s.users:
+        lines.append("  (synthesized from [server] — no [[users]] defined)")
+    lines.append("")
+    lines.append("[acoustid]")
+    lines.append(f"  api_key = {_mask(s.acoustid.api_key)}")
+    lines.append("")
+    lines.append("[media]")
+    lines.append(f"  ffmpeg = {s.media.ffmpeg or '(PATH)'}")
+    lines.append(f"  ffprobe = {s.media.ffprobe or '(PATH)'}")
+    lines.append(f"  hwenc = {s.media.hwenc!r}")
+    lines.append(f"  vaapi_device = {s.media.vaapi_device!r}")
+    lines.append("")
+    lines.append("[logging]")
+    lines.append(f"  level = {s.logging.level!r}   format = {s.logging.format!r}")
+    lines.append("")
+    lines.append(f"file: {config_path()}")
+    lines.append(f"  exists: {config_path().exists()}")
+    if legacy_serve_path().exists():
+        lines.append(f"  legacy: {legacy_serve_path()} (run `maneki config migrate`)")
+    env = sorted(k for k in os.environ if k.startswith("MANEKI_"))
+    lines.append("")
+    lines.append("env overrides set:")
+    lines.extend(f"  {k} = {_mask(os.environ[k])}" for k in env) if env else lines.append("  (none)")
+    return "\n".join(lines)
+
+
+STARTER_TOML = """\
+# maneki configuration — one file for every setting.
+# Docs: https://winterop-com.github.io/maneki/
+#
+# Precedence (highest first): CLI flag > MANEKI_* env var > this file > default.
+# This file may hold PLAINTEXT passwords (Subsonic auth needs them recoverable),
+# so keep it private:  chmod 600 maneki.toml
+
+# --- Library roots ----------------------------------------------------------
+# Directories maneki scans recursively (audio + video). `maneki serve <root>`
+# or MANEKI_LIBRARY override this.
+# [libraries]
+# locations = ["~/Music", "/Volumes/NAS/media"]
+
+# --- User accounts ----------------------------------------------------------
+# One block per person; each gets their own login + favourites / playlists /
+# history. `admin = true` may manage other users. Passwords are plaintext.
+# [[users]]
+# name = "alice"
+# password = "change-me"
+# admin = true
+#
+# [[users]]
+# name = "bob"
+# password = "change-me"
+
+# --- Single-user fallback ---------------------------------------------------
+# Used only when no [[users]] are defined above. Defaults to admin/admin with a
+# startup warning — change this (or add [[users]]) before exposing the server.
+[server]
+username = "admin"
+password = "admin"
+
+# Optional play-event forwarding (e.g. Home Assistant):
+# [server.scrobble.webhook]
+# url = "https://example.invalid/hook"
+# [server.scrobble.mqtt]
+# broker = "mqtt://homeassistant:1883"
+
+# --- AcoustID ---------------------------------------------------------------
+# Key for `maneki audio convert --enrich` fingerprinting (free at acoustid.org).
+# [acoustid]
+# api_key = "..."
+
+# --- Media / transcoding ----------------------------------------------------
+# Override ffmpeg/ffprobe + the H.264 hardware encoder. Each field also has a
+# MANEKI_* env override (MANEKI_FFMPEG, MANEKI_HWENC, MANEKI_VAAPI_DEVICE, ...).
+# [media]
+# ffmpeg = "/opt/homebrew/opt/ffmpeg-full/bin/ffmpeg"
+# ffprobe = "/opt/homebrew/opt/ffmpeg-full/bin/ffprobe"
+# hwenc = "auto"            # auto | vaapi | videotoolbox | none
+# hwenc_bitrate = "6M"
+# vaapi_device = "/dev/dri/renderD128"
+
+# --- Logging ----------------------------------------------------------------
+# [logging]
+# level = "INFO"           # DEBUG | INFO | WARNING | ERROR
+# format = "pretty"        # pretty | json
+"""
+
+
+def write_starter_config(path: Path | None = None, *, force: bool = False) -> Path:
+    """Write the commented starter `maneki.toml`. Raises `FileExistsError` unless `force`.
+
+    Returns the path written. Creates the parent directory as needed.
+    """
+    target = path or config_path()
+    if target.exists() and not force:
+        raise FileExistsError(target)
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_text(STARTER_TOML, encoding="utf-8")
+    return target

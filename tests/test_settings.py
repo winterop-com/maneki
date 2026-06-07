@@ -96,3 +96,15 @@ def test_env_beats_toml_for_media(tmp_path: Path, monkeypatch: pytest.MonkeyPatc
     monkeypatch.setenv("MANEKI_HWENC", "none")
     reset_settings_cache()
     assert get_settings().media.hwenc == "none"  # env overrides TOML
+
+
+def test_config_path_honors_xdg_and_override(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    from maneki.audio import config as audio_config
+
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "xdg"))
+    monkeypatch.delenv("MANEKI_CONFIG", raising=False)
+    assert audio_config.config_dir() == tmp_path / "xdg" / "maneki"
+    assert audio_config.config_path() == tmp_path / "xdg" / "maneki" / "maneki.toml"
+
+    monkeypatch.setenv("MANEKI_CONFIG", str(tmp_path / "custom.toml"))
+    assert audio_config.config_path() == tmp_path / "custom.toml"

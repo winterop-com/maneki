@@ -19,11 +19,21 @@ audio-specific keys; they coexist.
 
 from __future__ import annotations
 
+import os
 import tomllib
 from pathlib import Path
 
-CONFIG_DIR = Path.home() / ".config" / "maneki"
-CONFIG_PATH = CONFIG_DIR / "maneki.toml"
+
+def _config_dir() -> Path:
+    base = os.environ.get("XDG_CONFIG_HOME")
+    return (Path(base) if base else Path.home() / ".config") / "maneki"
+
+
+CONFIG_DIR = _config_dir()
+# `MANEKI_CONFIG` points at any .toml; else `<config_dir>/maneki.toml` (XDG-aware).
+CONFIG_PATH = (
+    Path(os.environ["MANEKI_CONFIG"]).expanduser() if os.environ.get("MANEKI_CONFIG") else CONFIG_DIR / "maneki.toml"
+)
 
 
 def config_path() -> Path:
