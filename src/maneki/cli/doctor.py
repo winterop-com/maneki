@@ -108,7 +108,11 @@ def doctor_cmd() -> None:
 
     try:
         spa_dir = _resolve_static_dir()
-        table.add_row("web UI (SPA)", ok, str(spa_dir))
+        # _ui_static is the wheel-bundled copy; dist/ is a source build. The
+        # bundled copy takes priority, so in a dev checkout a stale one would
+        # be served until copy_ui_static re-runs.
+        kind = "wheel bundle" if spa_dir.name == "_ui_static" else "source build"
+        table.add_row("web UI (SPA)", ok, f"{kind}: {spa_dir}")
     except FileNotFoundError:
         table.add_row(
             "web UI (SPA)",
