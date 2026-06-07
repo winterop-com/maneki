@@ -6,7 +6,8 @@ import React from "react";
 import { createRoot } from "react-dom/client";
 import { HashRouter } from "react-router-dom";
 
-import "video.js/dist/video-js.css";
+// video.js CSS is loaded lazily with video.js itself (see video-views.jsx) so
+// it stays out of the initial bundle for audio-only sessions.
 import "./maneki.css";
 import "./desktop-overrides.css";
 

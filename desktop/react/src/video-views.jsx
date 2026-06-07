@@ -13,7 +13,7 @@
 //   videojs    - video.js v10 (CDN script in index.html)
 
 import React from "react";
-import videojs from "video.js";
+
 import { MK_VIDEO } from "./_video.js";
 import { MK_AUDIO } from "./_audio.js";
 import { store } from "./store.js";
@@ -75,7 +75,7 @@ const THUMB_FALLBACK_SVG =
       "</g></svg>",
   );
 
-function VideosPane({ session, selectedId, onSelect }) {
+function VideosPane({ session, selectedId, selectedRelPath, onSelect }) {
   const [path, setPath] = useSt_vv("");
   const [entries, setEntries] = useSt_vv(null);
   const [error, setError] = useSt_vv(null);
@@ -107,6 +107,17 @@ function VideosPane({ session, selectedId, onSelect }) {
     );
     return () => { cancelled = true; };
   }, [session, path, refreshNonce]);
+
+  // Follow the selected video into its folder. A deep link (#/video/v/:id)
+  // mounts the player while the browser is still at the root, so sync the
+  // listing to the video's containing folder. On a normal in-folder click the
+  // dir already matches, so this is a no-op there.
+  useEff_vv(() => {
+    if (!selectedRelPath) return;
+    const slash = selectedRelPath.lastIndexOf("/");
+    const dir = slash >= 0 ? selectedRelPath.slice(0, slash) : "";
+    setPath((cur) => (cur === dir ? cur : dir));
+  }, [selectedRelPath]);
 
   // Scan-progress poll. Runs only while the library is still loading
   // at the root (path === "" and entries === null). The server's
@@ -519,6 +530,11 @@ function VideoStatsOverlay({ session, videoId, playerRef, onClose }) {
 function VideoPlayerPane({ session, video, onClose, showStats, onCloseStats }) {
   const videoRef = useRef_vv(null);
   const playerRef = useRef_vv(null);
+  // video.js (+ its CSS + the City theme) is lazy-loaded: it's ~500 KB and
+  // many sessions are audio-only, so we keep it out of the initial bundle and
+  // pull it in only when a player pane mounts. `vjs` holds the videojs()
+  // factory once the dynamic import resolves; the player effect is gated on it.
+  const [vjs, setVjs] = useSt_vv(null);
   const [subtitles, setSubtitles] = useSt_vv(video.subtitles || []);
   // Latest player error message (or null when playing cleanly).
   // Surfaced as a banner overlay so the user gets actionable feedback
@@ -530,6 +546,27 @@ function VideoPlayerPane({ session, video, onClose, showStats, onCloseStats }) {
   // need a server-side ffprobe just for this — HLS doesn't downscale,
   // so the player-reported dims match the source file.
   const [resolution, setResolution] = useSt_vv(null);
+
+  // Lazy-load video.js + its CSS + the City theme as one on-demand chunk.
+  // setVjs stores the factory function (the updater form avoids React calling
+  // it as a state-updater). The player effect below waits on `vjs`.
+  useEff_vv(() => {
+    let cancelled = false;
+    Promise.all([
+      import("video.js"),
+      import("video.js/dist/video-js.css"),
+      import("@videojs/themes/dist/city/index.css"),
+    ])
+      .then(([mod]) => {
+        if (!cancelled) setVjs(() => mod.default);
+      })
+      .catch(() => {
+        /* offline / chunk load failure - the pane just shows no player */
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   // Fetch subtitles list (the listing's `subtitles` field is summary;
   // the endpoint may have more detail by the time we get here). Note: we
@@ -551,7 +588,7 @@ function VideoPlayerPane({ session, video, onClose, showStats, onCloseStats }) {
   // Deps: video.id only. See note above re: excluding `session`.
   useEff_vv(() => {
     const el = videoRef.current;
-    if (el === null || typeof videojs !== "function") return undefined;
+    if (el === null || typeof vjs !== "function") return undefined;
     // Drop stale resolution before the new player decodes metadata so
     // the meta strip doesn't briefly show the previous video's value.
     setResolution(null);
@@ -572,7 +609,7 @@ function VideoPlayerPane({ session, video, onClose, showStats, onCloseStats }) {
     } catch (_e) {
       // ignore - private browsing / no quota
     }
-    const player = videojs(el, {
+    const player = vjs(el, {
       controls: true,
       autoplay: false,
       preload: "auto",
@@ -605,6 +642,9 @@ function VideoPlayerPane({ session, video, onClose, showStats, onCloseStats }) {
         // Explicit so the menu is always wired even if a future
         // video.js default drops it.
         subsCapsButton: true,
+        // Skip-back / skip-forward 10s buttons flanking play (the modern
+        // look from videojs.org). v8 renders these natively.
+        skipButtons: { forward: 10, backward: 10 },
       },
     });
     player.src({
@@ -787,8 +827,10 @@ function VideoPlayerPane({ session, video, onClose, showStats, onCloseStats }) {
       // even if the tab is closing.
       try { MK_VIDEO.cancelSession(session, video.id); } catch { /* ignore */ }
     };
+    // `vjs` in deps: the effect no-ops until the lazy import resolves, then
+    // re-runs to actually build the player.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [video.id]);
+  }, [video.id, vjs]);
 
   // Register subtitle tracks with the player.
   //
@@ -854,7 +896,9 @@ function VideoPlayerPane({ session, video, onClose, showStats, onCloseStats }) {
       }
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [subtitles, video.id]);
+    // vjs: re-run once the player is built (it's created lazily).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [subtitles, video.id, vjs]);
 
   // When the player mounts before the poster has been generated,
   // /poster returns the 202 SVG placeholder and video.js paints a
@@ -893,8 +937,9 @@ function VideoPlayerPane({ session, video, onClose, showStats, onCloseStats }) {
       cancelled = true;
       if (timer !== null) clearTimeout(timer);
     };
+    // vjs: the poster is set on the player, built lazily.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [video.id]);
+  }, [video.id, vjs]);
 
   const subCount = subtitles.length;
   const resolutionLabel = resolution ? fmtResolution(resolution.w, resolution.h) : null;
@@ -969,7 +1014,7 @@ function VideoPlayerPane({ session, video, onClose, showStats, onCloseStats }) {
           <div data-vjs-player>
             <video
               ref={videoRef}
-              className="video-js vjs-big-play-centered vjs-fluid"
+              className="video-js vjs-theme-city vjs-big-play-centered vjs-fluid"
               playsInline
               crossOrigin="anonymous"
             >

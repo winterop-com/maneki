@@ -853,7 +853,7 @@ function MainArea(props) {
       {!videoMode && section === "library" && <TracksPane artist={artist} album={album} playTrack={playTrack} now={now} nowAlbum={nowAlbum} repeat={t.repeat} isStarred={isStarred} toggleStar={toggleStar} loaded={loaded && (!album || album.tracksLoaded)}/>}
       {!videoMode && section === "stations" && <StationsPane STATIONS={STATIONS} playStation={playStation} now={now} loaded={loaded}/>}
       {!videoMode && section === "starred" && <StarredPane starredTracks={starredTracks} playTrack={playTrack} toggleStar={toggleStar}/>}
-      {videoMode && session && !videoSearchActive && <VideosPane session={session} selectedId={selectedVideo?.id} onSelect={setSelectedVideo}/>}
+      {videoMode && session && !videoSearchActive && <VideosPane session={session} selectedId={selectedVideo?.id} selectedRelPath={selectedVideo?.rel_path} onSelect={setSelectedVideo}/>}
       {videoMode && session && videoSearchActive && <VideoSearchPane session={session} q={q} selectedId={selectedVideo?.id} onSelect={setSelectedVideo}/>}
       {videoMode && session && <VideoSplitter/>}
       {videoMode && session && selectedVideo && (

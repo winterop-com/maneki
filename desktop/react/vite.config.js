@@ -31,6 +31,11 @@ export default defineConfig({
   build: {
     outDir: "dist",
     emptyOutDir: true,
+    // The main bundle is ~270 KB; video.js is split into its own ~700 KB
+    // chunk that loads lazily only when a video player mounts (see
+    // video-views.jsx). That one library chunk can't be shrunk, so lift the
+    // warning above it - the initial load is already small.
+    chunkSizeWarningLimit: 800,
   },
   server: {
     // Fixed port so the Tauri/Electron dev shells can point at a known URL.
