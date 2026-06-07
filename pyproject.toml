@@ -78,6 +78,7 @@ dev = [
   "mkdocs-material>=9.7.6",
   "mkdocstrings[python]>=1.0.4",
   "mkdocs-claude-theme",
+  "httpx2>=2.3.0",
 ]
 
 [build-system]
