@@ -50,11 +50,14 @@ def doctor_cmd() -> None:
         ff_status = bad
     ff_where = report.ffmpeg_path or "not found (install ffmpeg, or set MANEKI_FFMPEG)"
     table.add_row("ffmpeg", ff_status, f"{report.ffmpeg_version or '-'}  {ff_where}{ff_over}")
-    table.add_row(
-        "ffprobe",
-        ok if report.ffprobe_path else bad,
-        f"{report.ffprobe_path or 'not found (install ffmpeg, or set MANEKI_FFPROBE)'}{fp_over}",
-    )
+    if report.ffprobe_path and report.ffprobe_version:
+        fp_status = ok
+    elif report.ffprobe_path:
+        fp_status = warn
+    else:
+        fp_status = bad
+    fp_where = report.ffprobe_path or "not found (install ffmpeg, or set MANEKI_FFPROBE)"
+    table.add_row("ffprobe", fp_status, f"{report.ffprobe_version or '-'}  {fp_where}{fp_over}")
 
     # The encoder serve will actually use.
     is_hw = report.selected != "libx264"

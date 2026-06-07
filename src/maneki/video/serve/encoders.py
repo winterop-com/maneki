@@ -236,15 +236,18 @@ def video_codec_args(encoder: Encoder, *, hdr: bool) -> tuple[list[str], str | N
     return ([], tonemap, ["-c:v", "libx264", "-preset", "veryfast", "-crf", "23"])
 
 
-@functools.cache
-def _ffmpeg_version() -> str | None:
-    """Ffmpeg's reported version (e.g. ``8.1.1``), or None if ffmpeg is absent."""
-    ffmpeg = ffmpeg_path()
-    if not ffmpeg:
+def _tool_version(binary: str | None, name: str) -> str | None:
+    """Version a tool reports via ``-version`` (e.g. ``8.1.1``), or None.
+
+    Probes the actual `binary` (which may be a MANEKI_FFMPEG/FFPROBE override),
+    so ffmpeg and ffprobe are reported independently - they can differ if the
+    overrides point at different builds.
+    """
+    if not binary:
         return None
     try:
         out = subprocess.run(  # noqa: S603 - fixed args, no shell
-            [ffmpeg, "-hide_banner", "-version"],
+            [binary, "-hide_banner", "-version"],
             capture_output=True,
             text=True,
             timeout=10,
@@ -255,9 +258,19 @@ def _ffmpeg_version() -> str | None:
     # First line looks like "ffmpeg version 8.1.1 Copyright (c) ...".
     first = out.splitlines()[0] if out else ""
     parts = first.split()
-    if len(parts) >= 3 and parts[0] == "ffmpeg" and parts[1] == "version":
+    if len(parts) >= 3 and parts[0] == name and parts[1] == "version":
         return parts[2]
     return first or None
+
+
+@functools.cache
+def _ffmpeg_version() -> str | None:
+    return _tool_version(ffmpeg_path(), "ffmpeg")
+
+
+@functools.cache
+def _ffprobe_version() -> str | None:
+    return _tool_version(ffprobe_path(), "ffprobe")
 
 
 class EncoderReport(BaseModel):
@@ -268,6 +281,7 @@ class EncoderReport(BaseModel):
     ffmpeg_path: str | None
     ffprobe_path: str | None
     ffmpeg_version: str | None
+    ffprobe_version: str | None
     hw_encoders: list[str]  # h264_vaapi / h264_videotoolbox that ffmpeg lists
     vaapi_device: str
     vaapi_device_present: bool
@@ -285,6 +299,7 @@ def probe_encoders() -> EncoderReport:
         ffmpeg_path=ffmpeg_path(),
         ffprobe_path=ffprobe_path(),
         ffmpeg_version=_ffmpeg_version(),
+        ffprobe_version=_ffprobe_version(),
         hw_encoders=[e for e in ("h264_vaapi", "h264_videotoolbox") if e in listed],
         vaapi_device=VAAPI_DEVICE,
         vaapi_device_present=Path(VAAPI_DEVICE).exists(),
