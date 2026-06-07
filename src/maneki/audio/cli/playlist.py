@@ -52,7 +52,7 @@ def _slug(name: str) -> str:
 def cmd_gen(
     target_dir: Annotated[
         Path,
-        typer.Argument(exists=True, file_okay=False, help="Library root."),
+        typer.Argument(exists=True, file_okay=False, envvar="MANEKI_LIBRARY", help="Library root."),
     ],
     seed: Annotated[
         Path,
@@ -134,7 +134,7 @@ def cmd_gen(
 def cmd_list(
     target_dir: Annotated[
         Path,
-        typer.Argument(exists=True, file_okay=False, help="Library root."),
+        typer.Argument(exists=True, file_okay=False, envvar="MANEKI_LIBRARY", help="Library root."),
     ],
 ) -> None:
     """List the playlists saved under `<ROOT>/.maneki/playlists/`."""
@@ -166,7 +166,7 @@ def cmd_list(
 def cmd_show(
     target_dir: Annotated[
         Path,
-        typer.Argument(exists=True, file_okay=False, help="Library root."),
+        typer.Argument(exists=True, file_okay=False, envvar="MANEKI_LIBRARY", help="Library root."),
     ],
     name: Annotated[
         str,

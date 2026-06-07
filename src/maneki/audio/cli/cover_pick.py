@@ -40,6 +40,7 @@ def cover_pick(
         typer.Argument(
             exists=True,
             file_okay=False,
+            envvar="MANEKI_LIBRARY",
             help="Library root or single album directory.",
         ),
     ],
