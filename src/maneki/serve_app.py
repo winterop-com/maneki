@@ -133,6 +133,12 @@ def create_combined_app(
     video_present = has_video(root)
     cfg = _resolve_cfg(audio_cfg)
     token_store = TokenStore()
+    # Accounts for the native (video) bearer login. Multi-user when [[users]]
+    # is configured, else a single admin honouring --user/--password.
+    from maneki.audio.serve.users import UserRegistry
+    from maneki.settings import get_settings
+
+    users = UserRegistry.from_settings(root) if get_settings().users else UserRegistry.single_user(root, cfg)
 
     # Lifespan: orphan-cleanup pass on startup, no eager prewarm.
     #
@@ -322,7 +328,8 @@ def create_combined_app(
 
     @combined.post("/auth/login", response_model=LoginResponse)
     def login(body: LoginRequest) -> LoginResponse:
-        if body.username != cfg.username or body.password != cfg.password:
+        account = users.get(body.username)
+        if account is None or account.password != body.password:
             raise HTTPException(status_code=401, detail="invalid credentials")
         token = token_store.issue(body.username)
         return LoginResponse(
@@ -408,11 +415,15 @@ class BearerAuthMiddleware(BaseHTTPMiddleware):
                     {"detail": "missing Authorization: Bearer <token>"},
                     status_code=401,
                 )
-            if self.token_store.validate(header[7:].strip()) is None:
+            token = self.token_store.validate(header[7:].strip())
+            if token is None:
                 return JSONResponse(
                     {"detail": "invalid or expired token"},
                     status_code=401,
                 )
+            # Expose the authenticated account to video endpoints (per-user
+            # video data scopes off this once it exists).
+            request.state.username = token.username
         return await call_next(request)
 
 

@@ -18,7 +18,7 @@ def _get_cache(request: Request) -> IndexCache:
 
 
 def _get_stars(request: Request) -> StarStore:
-    return request.app.state.stars  # type: ignore[no-any-return]
+    return request.state.stars  # type: ignore[no-any-return]
 
 
 def _matches(needle: str, haystack: str) -> bool:
