@@ -225,6 +225,7 @@ def create_app(*, root: Path, cfg: ServeConfig, use_cache: bool = True) -> FastA
         request.state.admin = account.admin
         request.state.stars = app.state.users.stars_for(account.name)
         request.state.playlists = app.state.users.playlists_for(account.name)
+        request.state.history = app.state.users.history_for(account.name)
 
     app.state.require_auth = require_auth
 

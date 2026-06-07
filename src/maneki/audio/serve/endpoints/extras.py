@@ -91,6 +91,9 @@ async def scrobble(
         submission=bool(submission),
     )
     dispatcher.dispatch(event)
+    # Record to the user's listening history (powers now-playing + recent/
+    # frequent + play counts). submission=False is the now-playing probe.
+    request.state.history.record(id, submission=bool(submission))
     return envelope()
 
 
