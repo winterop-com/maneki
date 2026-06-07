@@ -1,6 +1,6 @@
 # `maneki audio library`
 
-Every operation that reads, mutates, or manages the converted **audio** library lives under `maneki audio library`. This is the audio-specific subgroup; for cross-cutting library operations (covering both audio and video together) see [`maneki library`](library.md).
+Every operation that reads, mutates, or manages the converted **audio** library lives under `maneki audio library`. This is the audio-specific subgroup; for cross-cutting library operations (covering both audio and video together) see [`maneki info` / `list` / `inspect`](library.md).
 
 ```bash
 uvx maneki audio library tree DIR              # rich.Tree of artists / albums / tracks

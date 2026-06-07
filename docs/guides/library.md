@@ -1,17 +1,17 @@
-# `maneki library`
+# `maneki info` / `list` / `inspect`
 
-Cross-cutting tools that operate on a single library root containing both audio and video. The same root you'd hand to [`maneki serve`](serve-unified.md).
+Cross-cutting top-level commands that operate on a single library root containing both audio and video. The same root you'd hand to [`maneki serve`](serve-unified.md).
 
 For audio-specific deep operations (audit, retag, cover-pick, lyrics, ...) see [`maneki audio library`](audio-library.md) — those stay under the audio subgroup.
 
 ## Subcommands
 
-### `maneki library info <root>`
+### `maneki info <root>`
 
 Print file counts per kind for one library root. Rendered as a rich panel.
 
 ```bash
-maneki library info ~/Downloads/library
+maneki info ~/Downloads/library
 ```
 
 ```
@@ -21,12 +21,12 @@ maneki library info ~/Downloads/library
   video  105 files
 ```
 
-### `maneki library list <root>` (alias: `ls`)
+### `maneki list <root>` (alias: `ls`)
 
 Walk the library root and print every audio / video file found, grouped by kind. Cheap — filesystem stat only, no ffprobe / no Mutagen / no DB write.
 
 ```bash
-maneki library ls ~/Downloads/library
+maneki ls ~/Downloads/library
 ```
 
 ```
@@ -43,7 +43,7 @@ Video  105 files
   ...
 ```
 
-### `maneki library inspect <file>`
+### `maneki inspect <file>`
 
 Dispatch by extension:
 
@@ -51,7 +51,7 @@ Dispatch by extension:
 - **Video file** — ffprobe-driven file / container info, video streams (codec, resolution, fps, bitrate, profile / pix_fmt), audio streams (codec, channels, sample rate, language, title), subtitle streams (codec, language, default / forced flags).
 
 ```bash
-maneki library inspect ~/Downloads/library/tv/ch01.mkv
+maneki inspect ~/Downloads/library/tv/ch01.mkv
 ```
 
 ```
@@ -80,7 +80,7 @@ maneki library inspect ~/Downloads/library/tv/ch01.mkv
 
 ## Filesystem layout
 
-There is no subdirectory convention. `maneki library` walks the root recursively and picks files up by extension.
+There is no subdirectory convention. `maneki list` walks the root recursively and picks files up by extension.
 
 - **Audio** — `.mp3`, `.m4a`, `.m4b`, `.flac`, `.wav`, `.aiff`, `.aif`, `.ogg`, `.opus`, `.aac`, `.wma`, `.ape`. (`.mp4` is intentionally not in the audio set — it would collide with movie files. Use `.m4a` for audio-in-mp4-container.)
 - **Video** — `.mkv`, `.mp4`, `.m4v`, `.webm`, `.mov`, `.avi`, `.ts`, `.m2ts`, `.mts`, `.wmv`, `.flv`, `.mpg`, `.mpeg`, `.vob`, `.ogv`, `.ogg`, `.3gp`, `.3g2`, `.asf`, `.divx`.
@@ -89,7 +89,7 @@ The server's own `.maneki/` cache directory is always skipped — internal artef
 
 ## What this is not
 
-`maneki library` is intentionally simple: it counts, lists, and inspects files. It does not:
+These commands are intentionally simple: they count, list, and inspect files. It does not:
 
 - index into a SQLite cache (that's what `maneki serve` does internally for the Subsonic side)
 - audit or fix audio metadata (use [`maneki audio library audit`](audio-library.md))

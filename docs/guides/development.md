@@ -99,7 +99,7 @@ Coverage runs via `make coverage`; CI thresholds set in `pyproject.toml`.
 
 ## Adding a new subcommand
 
-Top-level commands live on the root `app` Typer instance; library-related ones live on the `library_app` subapp (so the user types `maneki library <verb>`).
+Top-level commands live on the root `app` Typer instance; audio-library ones live on the `library_app` subapp in `audio/cli/` (so the user types `maneki audio library <verb>`).
 
 1. Create `src/maneki/audio/cli/<name>.py`:
    ```python
@@ -126,7 +126,7 @@ Top-level commands live on the root `app` Typer instance; library-related ones l
    _ = (..., _my_cmd_cmd)
    ```
 
-Typer handles the rest — `maneki my-cmd --help` (or `maneki library my-cmd --help`) Just Works.
+Typer handles the rest — `maneki my-cmd --help` (or `maneki audio library my-cmd --help`) Just Works.
 
 ## Adding a new Subsonic endpoint
 

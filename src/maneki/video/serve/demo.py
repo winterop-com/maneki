@@ -1,4 +1,4 @@
-"""Minimal demo HTML page served at GET / by `maneki video serve`.
+"""Minimal demo HTML page served at GET / by `maneki serve`.
 
 Uses HLS (via hls.js loaded from a CDN for browsers without native HLS) so
 the player gets seek + a real timeline as ffmpeg produces segments. Shows

@@ -1,4 +1,4 @@
-"""`maneki library cover IMAGE DIR` — embed an image into every audio file under DIR."""
+"""`maneki audio library cover IMAGE DIR` — embed an image into every audio file under DIR."""
 
 from __future__ import annotations
 

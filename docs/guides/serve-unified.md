@@ -121,5 +121,5 @@ Same credentials as the audio Subsonic mount — one password sourced from the s
 
 ## See also
 
-- [`maneki library`](library.md) — cross-cutting library info / list / inspect for any root
+- [`maneki info` / `list` / `inspect`](library.md) — cross-cutting library info / list / inspect for any root
 - [`maneki video`](video.md) — what the video pipeline does (HLS, subtitles, posters, folder browser)

@@ -89,7 +89,6 @@ from maneki.audio.cli import inspect as _inspect_cmd  # noqa: E402
 from maneki.audio.cli import library as _library_cmd  # noqa: E402
 from maneki.audio.cli import playlist as _playlist_cmd  # noqa: E402
 from maneki.audio.cli import retag as _retag_cmd  # noqa: E402
-from maneki.audio.cli import ui as _ui_cmd  # noqa: E402
 
 _ = (
     _config_cmd,
@@ -100,5 +99,4 @@ _ = (
     _library_cmd,
     _playlist_cmd,
     _retag_cmd,
-    _ui_cmd,
 )

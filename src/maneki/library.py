@@ -1,6 +1,6 @@
 """Cross-cutting library scan that summarises both audio and video under one root.
 
-`maneki library [root]` calls into here. Maneki treats a library as a
+`maneki info` / `list` / `inspect` call into here. Maneki treats a library as a
 single directory — the same root is scanned for both audio and video files
 (by extension). There is no `audio/`/`videos/` subdirectory convention;
 users point at one directory and the scanner finds what's there at any
