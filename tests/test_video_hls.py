@@ -142,3 +142,55 @@ async def test_note_active_cancels_lookahead_outside_active_window(tmp_path: Pat
     assert not any(t.cancelled() for t in inside.values())
     for t in inside.values():
         t.cancel()
+
+
+# --- HW-encode fallback vs. signal-kill -------------------------------------
+
+
+class _FakeProc:
+    def __init__(self, returncode: int, stderr: bytes = b"") -> None:
+        self.returncode = returncode
+        self._stderr = stderr
+
+    async def communicate(self) -> tuple[bytes, bytes]:
+        return (b"", self._stderr)
+
+
+def _hw_session(tmp_path: Path) -> OnDemandHLS:
+    sess = OnDemandHLS("vid", tmp_path / "movie.mkv", 600.0, tmp_path / "sess", TranscodeBudget())
+    sess._encoder = "h264_videotoolbox"  # pretend a HW encoder was selected
+    sess._hdr = False
+    return sess
+
+
+async def test_signal_killed_ffmpeg_is_cancel_not_fallback(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """A negative returncode (Ctrl+C / shutdown) is a cancel, not an encode
+    failure: no HW->software downgrade, no scary 'encode failed' warning."""
+    sess = _hw_session(tmp_path)
+
+    async def fake_exec(*_a: object, **_k: object) -> _FakeProc:
+        # -2 == killed by SIGINT (the server shutting down mid-prefetch).
+        return _FakeProc(-2, b"[h264_videotoolbox] Color range not set for yuv420p. Using MPEG range.")
+
+    monkeypatch.setattr(asyncio, "create_subprocess_exec", fake_exec)
+
+    with pytest.raises(asyncio.CancelledError):
+        await sess._transcode_segment(0)
+    # The session must NOT have been downgraded by a mere signal-kill.
+    assert sess._encoder == "h264_videotoolbox"
+
+
+async def test_genuine_hw_failure_falls_back_to_software(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """A real non-zero exit (positive rc) downgrades the session to libx264."""
+    sess = _hw_session(tmp_path)
+
+    async def fake_exec(*_a: object, **_k: object) -> _FakeProc:
+        return _FakeProc(1, b"Error initializing output stream: some real failure")
+
+    monkeypatch.setattr(asyncio, "create_subprocess_exec", fake_exec)
+
+    # First attempt (HW) fails -> downgrade -> retry (also fails under libx264
+    # via the same fake) -> RuntimeError. The point is the downgrade happened.
+    with pytest.raises(RuntimeError):
+        await sess._transcode_segment(0)
+    assert sess._encoder == "libx264"

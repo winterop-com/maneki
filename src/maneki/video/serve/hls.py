@@ -514,14 +514,21 @@ class OnDemandHLS:
                 except OSError:
                     pass
         if proc.returncode != 0:
+            # A non-zero exit can leave partial bytes on disk either way.
+            self._unlink_partial(idx)
+            # Negative returncode == killed by a signal: the server shutting
+            # down (SIGINT/SIGTERM reaches the ffmpeg child via the process
+            # group) or our own kill on seek/disconnect. That's a cancellation,
+            # NOT an encoder/content problem — don't misreport it as an encode
+            # failure or run the HW->software fallback (which would also
+            # spuriously downgrade the session). Treat it like a cancel.
+            if proc.returncode is not None and proc.returncode < 0:
+                raise asyncio.CancelledError
             msg = stderr.decode("utf-8", errors="replace").strip().splitlines()
             tail = " | ".join(msg[-3:]) if msg else "(no stderr)"
-            # Same reasoning as the CancelledError path: a non-zero
-            # exit can also leave partial bytes on disk.
-            self._unlink_partial(idx)
-            # A hardware encode can fail on a specific file (pixel format,
-            # codec quirk, flaky driver). Drop this session to software and
-            # retry the segment once rather than failing the whole stream.
+            # A hardware encode can genuinely fail on a specific file (pixel
+            # format, codec quirk, flaky driver). Drop this session to software
+            # and retry the segment once rather than failing the whole stream.
             if encoder != "libx264":
                 _log.warning(
                     "hls: %s encode failed for %s seg-%04d (%s); falling back to libx264",
