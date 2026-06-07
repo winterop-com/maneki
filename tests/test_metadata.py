@@ -160,6 +160,22 @@ def test_clean_album_title_strips_disc_suffixes() -> None:
     # Honorifics with trailing period + space are preserved.
     assert clean_album_title("St. Vincent") == "St. Vincent"
     assert clean_album_title("Mr. Big") == "Mr. Big"
+    # Mismatched bracket from a sloppy rip (`[CD-01}` — opens `[`, closes `}`).
+    # Without the `}` in the closing class the keyword strip orphans the brace,
+    # which then leaks into the output folder name and breaks the disc merge.
+    assert (
+        clean_album_title("Tumbleweed Connection (Deluxe Edition) [CD-01}") == "Tumbleweed Connection (Deluxe Edition)"
+    )
+    assert (
+        clean_album_title("Tumbleweed Connection (Deluxe Edition) [CD-02]") == "Tumbleweed Connection (Deluxe Edition)"
+    )
+    # Bare trailing disc index riding on an edition bracket, no `CD`/parens
+    # around the number (`(Deluxe) 1`). The preceding `)` marks it as a disc.
+    assert clean_album_title("Captain Fantastic (Deluxe) 1") == "Captain Fantastic (Deluxe)"
+    assert clean_album_title("Captain Fantastic (Deluxe) (CD2)") == "Captain Fantastic (Deluxe)"
+    # ...but a trailing number NOT after a bracket is part of the title.
+    assert clean_album_title("Sgt. Pepper 1") == "Sgt. Pepper 1"
+    assert clean_album_title("blink-182") == "blink-182"
     # Don't mangle albums with no suffix.
     assert clean_album_title("Night Visions") == "Night Visions"
     assert clean_album_title(None) is None

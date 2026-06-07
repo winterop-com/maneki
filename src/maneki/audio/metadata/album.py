@@ -16,11 +16,13 @@ from maneki.audio.naming import is_various_artists
 # - bare paren:  `Album (1)` where the number is the disc index, no keyword
 _DISC_KEYWORD_RE = re.compile(
     # Period in the separator class so `Absolute Music 51 [CD.1]` strips cleanly.
-    r"\s*[\[\(\-]?\s*(?:cd|disc|disk)[\s\-_.]*\d+\s*[\]\)]?",
+    # Closing-bracket class includes `}` so mismatched-bracket rips strip too
+    # (`[CD-01}` — opener `[`, junk closer `}` — happens in the wild).
+    r"\s*[\[\(\-]?\s*(?:cd|disc|disk)[\s\-_.]*\d+\s*[\]\)\}]?",
     re.IGNORECASE,
 )
 _DISC_SUFFIX_RE = re.compile(
-    r"\s*[\[\(\-]?\s*(?:cd|disc|disk)[\s\-_.]*\d+\s*[\]\)]?\s*$",
+    r"\s*[\[\(\-]?\s*(?:cd|disc|disk)[\s\-_.]*\d+\s*[\]\)\}]?\s*$",
     re.IGNORECASE,
 )
 # Word-form disc suffixes that some box sets ship: `Greatest Hits I / Disc One`,
@@ -32,6 +34,12 @@ _DISC_WORD_SUFFIX_RE = re.compile(
     re.IGNORECASE,
 )
 _BARE_DISC_PAREN_RE = re.compile(r"\s*\(\s*\d{1,2}\s*\)\s*$")
+# Bare trailing disc index with no keyword and no parens, but immediately
+# following a closing edition bracket: `Album (Deluxe) 1` (disc 1 of a 2CD
+# rip whose tagger dropped the `CD`). The preceding `)`/`]` is what makes the
+# trailing number a disc marker rather than part of the title — so `Sgt.
+# Pepper 1` / `blink-182` stay untouched.
+_BARE_DISC_AFTER_BRACKET_RE = re.compile(r"(?<=[\)\]])\s+\d{1,2}\s*$")
 # Trailing separators left behind after disc-suffix stripping (` /`, ` -`, etc).
 _TRAILING_SEPARATOR_RE = re.compile(r"\s*[/\-]\s*$")
 
@@ -99,6 +107,8 @@ def clean_album_title(album: str | None) -> str | None:
         # box sets ship the latter, e.g. Queen `Greatest Hits I / Disc One`.
         stripped = _DISC_SUFFIX_RE.sub("", cleaned).strip(" -")
         stripped = _DISC_WORD_SUFFIX_RE.sub("", stripped).strip(" -")
+        # Bare disc index riding on an edition bracket (`Album (Deluxe) 1`).
+        stripped = _BARE_DISC_AFTER_BRACKET_RE.sub("", stripped).strip(" -")
         # Any leftover trailing separator (slash / dash / etc.) — common
         # after stripping `Album / Disc One` → `Album /`.
         stripped = _TRAILING_SEPARATOR_RE.sub("", stripped).strip()
