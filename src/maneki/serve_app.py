@@ -44,6 +44,7 @@ if TYPE_CHECKING:
     from collections.abc import Awaitable, Callable
 
     from maneki.audio.serve.config import ServeConfig
+    from maneki.audio.serve.users import UserRegistry
 
 _log = logging.getLogger(__name__)
 
@@ -351,7 +352,7 @@ def create_combined_app(
         )
 
     if audio_present:
-        _mount_audio(combined, root, use_cache=audio_use_cache, cfg=cfg)
+        _mount_audio(combined, root, use_cache=audio_use_cache, cfg=cfg, users=users)
 
     if video_present:
         _mount_video(combined, root, workers=transcode_workers, no_cover_images=no_cover_images)
@@ -427,7 +428,14 @@ class BearerAuthMiddleware(BaseHTTPMiddleware):
         return await call_next(request)
 
 
-def _mount_audio(combined: FastAPI, library_root: Path, *, use_cache: bool, cfg: ServeConfig) -> None:
+def _mount_audio(
+    combined: FastAPI,
+    library_root: Path,
+    *,
+    use_cache: bool,
+    cfg: ServeConfig,
+    users: UserRegistry,
+) -> None:
     """Mount the Subsonic app under /audio against the shared library root.
 
     Triggers the initial library scan synchronously so the first /audio/rest/*
@@ -442,7 +450,7 @@ def _mount_audio(combined: FastAPI, library_root: Path, *, use_cache: bool, cfg:
     """
     from maneki.audio.serve import create_app as create_audio_app
 
-    audio_app = create_audio_app(root=library_root, cfg=cfg, use_cache=use_cache)
+    audio_app = create_audio_app(root=library_root, cfg=cfg, use_cache=use_cache, users=users)
     audio_app.state.cache.rebuild()
     combined.mount("/audio", audio_app)
 
