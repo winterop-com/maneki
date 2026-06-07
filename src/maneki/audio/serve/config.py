@@ -66,15 +66,20 @@ DEFAULT_PASSWORD = "admin"  # noqa: S105 — default for first-run convenience; 
 def resolve_credentials(*, cli_user: str | None, cli_password: str | None) -> tuple[ServeConfig, bool]:
     """CLI flags win over env vars / TOML. Falls back to admin/admin when nothing is set.
 
-    Returns `(cfg, used_defaults)` so the caller can warn the user when
-    the insecure defaults are in play. Reads the consolidated config via
-    `maneki.audio.config.load_config` (which itself falls back to the legacy
-    `serve.toml` for one release cycle).
-    """
-    from maneki.audio.config import load_config
+    Returns `(cfg, used_defaults)` so the caller can warn the user when the
+    insecure defaults are in play. Reads the consolidated `maneki.settings`
+    (which falls back to the legacy `serve.toml` for one release cycle). The
+    primary admin account backs the single-user `ServeConfig` the Subsonic +
+    native auth paths consume; full multi-user enforcement layers on top.
 
-    cfg = load_config()
-    username = cli_user or cfg.server.username
-    password = cli_password or cfg.server.password
+    Import is function-local: `maneki.settings` imports back into
+    `maneki.audio.config`, so a module-level import here would cycle.
+    """
+    from maneki.settings import get_settings
+
+    settings = get_settings()
+    admin = settings.primary_admin()
+    username = cli_user or admin.name
+    password = cli_password or admin.password
     used_defaults = username == DEFAULT_USERNAME and password == DEFAULT_PASSWORD
-    return ServeConfig(username=username, password=password, scrobble=cfg.server.scrobble), used_defaults
+    return ServeConfig(username=username, password=password, scrobble=settings.server.scrobble), used_defaults

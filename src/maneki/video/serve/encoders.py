@@ -44,15 +44,36 @@ log = logging.getLogger(__name__)
 
 Encoder = Literal["libx264", "h264_vaapi", "h264_videotoolbox"]
 
-# VAAPI render node. Overridable for multi-GPU boxes / unusual layouts.
-VAAPI_DEVICE = os.environ.get("MANEKI_VAAPI_DEVICE", "/dev/dri/renderD128")
+# Encoder env knobs are read at CALL time (cached), not at import. Reading them
+# at import meant an env var set after this module loaded was silently ignored;
+# `@functools.cache` keeps the one-read-per-process behaviour while deferring it.
+# These mirror the `[media]` section of `maneki.settings`; the hot path reads
+# os.environ directly to avoid importing the settings object here.
 
-# Hardware encoders are bitrate-driven (no x264-style CRF). ~6 Mbit/s with a
-# little VBV headroom is a sane default for 1080p-class H.264 and keeps remote
-# links happy; tune via the env knobs if the downlink is the constraint.
-_HW_BITRATE = os.environ.get("MANEKI_HWENC_BITRATE", "6M")
-_HW_MAXRATE = os.environ.get("MANEKI_HWENC_MAXRATE", "8M")
-_HW_BUFSIZE = os.environ.get("MANEKI_HWENC_BUFSIZE", "12M")
+
+@functools.cache
+def _vaapi_device() -> str:
+    """VAAPI render node (`MANEKI_VAAPI_DEVICE`). Overridable for multi-GPU boxes."""
+    return os.environ.get("MANEKI_VAAPI_DEVICE", "/dev/dri/renderD128")
+
+
+@functools.cache
+def _hw_bitrate() -> str:
+    """Hardware-encoder target bitrate (`MANEKI_HWENC_BITRATE`, default 6M)."""
+    return os.environ.get("MANEKI_HWENC_BITRATE", "6M")
+
+
+@functools.cache
+def _hw_maxrate() -> str:
+    """Hardware-encoder VBV max rate (`MANEKI_HWENC_MAXRATE`, default 8M)."""
+    return os.environ.get("MANEKI_HWENC_MAXRATE", "8M")
+
+
+@functools.cache
+def _hw_bufsize() -> str:
+    """Hardware-encoder VBV buffer (`MANEKI_HWENC_BUFSIZE`, default 12M)."""
+    return os.environ.get("MANEKI_HWENC_BUFSIZE", "12M")
+
 
 # Software HDR (PQ / HLG) -> SDR BT.709 tonemap. Runs before the encoder so the
 # H.264 output displays correctly in browsers (which don't handle HDR H.264).
@@ -101,14 +122,14 @@ def _vaapi_works() -> bool:
     mapped into a container, wrong group perms), so we actually exercise the
     device with a 0.1s nullsrc encode rather than trust the encoder list.
     """
-    if "h264_vaapi" not in _ffmpeg_encoders() or not Path(VAAPI_DEVICE).exists():
+    if "h264_vaapi" not in _ffmpeg_encoders() or not Path(_vaapi_device()).exists():
         return False
     ffmpeg = ffmpeg_path()
     if not ffmpeg:
         return False
     cmd = [
         ffmpeg, "-hide_banner", "-loglevel", "error",
-        "-vaapi_device", VAAPI_DEVICE,
+        "-vaapi_device", _vaapi_device(),
         "-f", "lavfi", "-i", "nullsrc=s=64x64:d=0.1",
         "-vf", "format=nv12,hwupload",
         "-c:v", "h264_vaapi", "-f", "null", "-",
@@ -213,9 +234,9 @@ def video_codec_args(encoder: Encoder, *, hdr: bool) -> tuple[list[str], str | N
         upload = "format=nv12,hwupload"
         vf = f"{tonemap},{upload}" if tonemap else upload
         return (
-            ["-vaapi_device", VAAPI_DEVICE],
+            ["-vaapi_device", _vaapi_device()],
             vf,
-            ["-c:v", "h264_vaapi", "-b:v", _HW_BITRATE],
+            ["-c:v", "h264_vaapi", "-b:v", _hw_bitrate()],
         )
     if encoder == "h264_videotoolbox":
         return (
@@ -225,11 +246,11 @@ def video_codec_args(encoder: Encoder, *, hdr: bool) -> tuple[list[str], str | N
                 "-c:v",
                 "h264_videotoolbox",
                 "-b:v",
-                _HW_BITRATE,
+                _hw_bitrate(),
                 "-maxrate",
-                _HW_MAXRATE,
+                _hw_maxrate(),
                 "-bufsize",
-                _HW_BUFSIZE,
+                _hw_bufsize(),
             ],  # fmt: skip
         )
     # libx264 (software fallback) — the original CRF-based settings.
@@ -301,8 +322,8 @@ def probe_encoders() -> EncoderReport:
         ffmpeg_version=_ffmpeg_version(),
         ffprobe_version=_ffprobe_version(),
         hw_encoders=[e for e in ("h264_vaapi", "h264_videotoolbox") if e in listed],
-        vaapi_device=VAAPI_DEVICE,
-        vaapi_device_present=Path(VAAPI_DEVICE).exists(),
+        vaapi_device=_vaapi_device(),
+        vaapi_device_present=Path(_vaapi_device()).exists(),
         vaapi_works=_vaapi_works(),
         tonemap_zscale=tonemap_available(),
         selected=select_encoder(),
