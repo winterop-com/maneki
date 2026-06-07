@@ -131,6 +131,13 @@ def open_db(root: Path) -> sqlite3.Connection:
     _apply_pragmas(conn)
     if fresh:
         _create_schema(conn, root)
+    else:
+        # Reusing the existing index (schema + root matched). Refresh the
+        # maneki_version stamp to the running version so it records "last run
+        # by" rather than reading like a stale older release forever — this is
+        # a one-row update, NOT a re-index (the version bump never triggers
+        # one; only a SCHEMA_VERSION / root change does).
+        conn.execute("UPDATE meta SET value=? WHERE key='maneki_version'", (MANEKI_VERSION,))
     return conn
 
 
@@ -208,7 +215,6 @@ def _can_use_existing(path: Path, root: Path) -> bool:
         try:
             schema_row = probe.execute("SELECT value FROM meta WHERE key='schema_version'").fetchone()
             root_row = probe.execute("SELECT value FROM meta WHERE key='library_root_abs'").fetchone()
-            version_row = probe.execute("SELECT value FROM meta WHERE key='maneki_version'").fetchone()
         except sqlite3.DatabaseError as exc:
             log.info("library cache: rebuild — meta read failed (%s)", exc)
             return False
@@ -229,15 +235,16 @@ def _can_use_existing(path: Path, root: Path) -> bool:
             return False
         # A maneki_version mismatch deliberately does NOT trigger a rebuild.
         # The on-disk format is gated by SCHEMA_VERSION (bump it whenever the
-        # scan output or row layout changes); maneki_version is stamped for
-        # diagnostics only. Rebuilding on every release re-walked + re-probed
-        # large libraries — and, since the video probe cache shares this same
+        # scan output or row layout changes); maneki_version is diagnostic
+        # only. Rebuilding on every release re-walked + re-probed large
+        # libraries — and, since the video probe cache shares this same
         # index.db, wiped that too — for no benefit when the schema matched.
-        stamped_by = version_row[0] if version_row else "<pre-stamp>"
+        # open_db refreshes the stamp to the running version on reuse, so this
+        # logs what's actually running, not what last built the index.
         log.info(
-            "library cache: reusing existing index.db (schema=%s, stamped by maneki %s)",
+            "library cache: reusing existing index.db (schema=%s, maneki %s)",
             SCHEMA_VERSION,
-            stamped_by,
+            MANEKI_VERSION,
         )
         return True
     finally:
