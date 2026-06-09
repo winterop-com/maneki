@@ -27,8 +27,8 @@ const { app, BrowserWindow, ipcMain, screen } = require("electron");
 const path = require("path");
 const fs = require("fs");
 
-const MIN_WIDTH = 720;
-const MIN_HEIGHT = 480;
+const MIN_WIDTH = 1080;
+const MIN_HEIGHT = 720;
 const DEFAULT_WIDTH = 1440;
 const DEFAULT_HEIGHT = 900;
 const SAVE_DEBOUNCE_MS = 250;
