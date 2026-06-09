@@ -323,10 +323,19 @@ body[data-platform="darwin"] .mk-topbar input {
   background: transparent;
 }
 /* Firefox doesn't honour ::-webkit-* but supports the standard
- * scrollbar-* properties. Coverage covers ~all browsers we ship to. */
-* {
-  scrollbar-width: thin;
-  scrollbar-color: var(--line, #2a2e3f) transparent;
+ * scrollbar-* properties. Scope this to engines that LACK
+ * ::-webkit-scrollbar (i.e. Firefox) — modern WebKit (Safari 18.2+,
+ * and thus Tauri's system WKWebView) now implements the standard
+ * properties too, and per spec, once scrollbar-width/scrollbar-color
+ * are set they DISABLE the ::-webkit-scrollbar styling above. WebKit
+ * also ignores scrollbar-color on macOS overlay scrollbars, so applying
+ * this globally drops us back to the bare native light bar. Gating it
+ * keeps Chromium + WebKit on the themed ::-webkit-scrollbar path. */
+@supports not selector(::-webkit-scrollbar) {
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: var(--line, #2a2e3f) transparent;
+  }
 }
 
 /* Fullscreen visualizer header — the artifact's 24px top padding put
