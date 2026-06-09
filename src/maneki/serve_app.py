@@ -494,7 +494,19 @@ def _mount_ui(combined: FastAPI, ui_dir: Path | None) -> None:
 
 
 def _discover_react_dir() -> Path | None:
-    """Find desktop/react/ relative to this file's repo location."""
+    """Locate the built SPA, preferring the wheel-bundled copy.
+
+    Two layouts must work:
+
+    - Installed wheel: `scripts/copy_ui_static.py` copies the Vite build
+      into `maneki/_ui_static/` at build time, so it sits right next to
+      this module. This is the only copy that exists in a PyPI/uv install.
+    - Dev checkout: `_ui_static` is gitignored and may be stale or absent,
+      so fall back to `desktop/react/dist/` relative to the repo root.
+    """
+    bundled = Path(__file__).resolve().parent / "_ui_static"
+    if (bundled / "index.html").is_file():
+        return bundled
     repo_root = Path(__file__).resolve().parents[2]
     candidate = repo_root / "desktop" / "react" / "dist"
     return candidate if candidate.exists() else None
