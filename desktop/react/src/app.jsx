@@ -104,6 +104,8 @@ function App() {
   const [hasVideo, setHasVideo] = uS(false);
   const [kind, setKind] = uS("audio");
   const [selectedVideo, setSelectedVideo] = uS(null);
+  // Within video mode: "library" (local files) or "youtube" (channels).
+  const [videoSection, setVideoSection] = uS("library");
   // Player-only fullscreen mode. CSS pins .mk-video-player-pane to
   // the viewport and hides everything else when this is true. We
   // drive it ourselves instead of trying to use the HTML5
@@ -178,7 +180,15 @@ function App() {
   const location = useLocation();
   const lastPathRef = uR("");
   const navPath = () => {
-    if (kind === "video") return selectedVideo ? `/video/v/${encodeURIComponent(selectedVideo.id)}` : "/video";
+    if (kind === "video") {
+      if (selectedVideo) {
+        // YouTube selections get a distinct path so a reload re-resolves them
+        // via the YouTube API rather than the local-library lookup.
+        const kindSeg = selectedVideo.source === "youtube" ? "yt" : "v";
+        return `/video/${kindSeg}/${encodeURIComponent(selectedVideo.id)}`;
+      }
+      return videoSection === "youtube" ? "/video/youtube" : "/video";
+    }
     if (section === "stations") return "/stations";
     if (section === "starred") return "/starred";
     if (artistId && albumId) return `/library/artist/${artistId}/album/${albumId}`;
@@ -194,7 +204,7 @@ function App() {
       navigate(p);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [authed, kind, section, artistId, albumId, selectedVideo]);
+  }, [authed, kind, section, artistId, albumId, selectedVideo, videoSection]);
   // URL -> State (first load, back/forward, pasted link).
   uE(() => {
     if (!authed) return;
@@ -205,13 +215,22 @@ function App() {
     if (seg[0] === "video") {
       setKind("video");
       if (seg[1] === "v" && seg[2]) {
-        // Deep-link into a player: resolve the full entry by id (ids can
+        // Deep-link into a local player: resolve the full entry by id (ids can
         // contain spaces/brackets, so they're percent-encoded in the path).
+        setVideoSection("library");
         MK_VIDEO?.getVideo?.(session, decodeURIComponent(seg[2]))
           .then((v) => setSelectedVideo(v))
           .catch(() => setSelectedVideo(null));
+      } else if (seg[1] === "yt" && seg[2]) {
+        // Deep-link into a YouTube player: resolve via the YouTube API and
+        // tag the object so the player picks the YouTube HLS source.
+        setVideoSection("youtube");
+        MK_VIDEO?.ytVideo?.(session, decodeURIComponent(seg[2]))
+          .then((v) => setSelectedVideo({ id: v.id, name: v.title, duration_s: v.duration_s, source: "youtube" }))
+          .catch(() => setSelectedVideo(null));
       } else {
         setSelectedVideo(null);
+        setVideoSection(seg[1] === "youtube" ? "youtube" : "library");
       }
     } else if (seg[0] === "stations") {
       setKind("audio"); setSection("stations");
@@ -953,6 +972,7 @@ function App() {
         setShowLyrics={setShowLyrics}
         hasAudio={hasAudio} hasVideo={hasVideo} kind={kind} setKind={setKind} session={session}
         selectedVideo={selectedVideo} setSelectedVideo={setSelectedVideo}
+        videoSection={videoSection} setVideoSection={setVideoSection}
         q={q}
         showStats={showStats} onCloseStats={() => setShowStats(false)}
       />

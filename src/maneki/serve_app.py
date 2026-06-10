@@ -25,6 +25,7 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import logging
+from collections.abc import MutableMapping
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -355,7 +356,7 @@ def create_combined_app(
         _mount_audio(combined, root, use_cache=audio_use_cache, cfg=cfg, users=users)
 
     if video_present:
-        _mount_video(combined, root, workers=transcode_workers, no_cover_images=no_cover_images)
+        _mount_video(combined, root, workers=transcode_workers, no_cover_images=no_cover_images, users=users)
 
     if enable_ui:
         # Mount the SPA at "/" LAST. FastAPI/Starlette match routes in
@@ -455,18 +456,48 @@ def _mount_audio(
     combined.mount("/audio", audio_app)
 
 
-def _mount_video(combined: FastAPI, library_root: Path, *, workers: int | None, no_cover_images: bool) -> None:
+def _mount_video(
+    combined: FastAPI,
+    library_root: Path,
+    *,
+    workers: int | None,
+    no_cover_images: bool,
+    users: UserRegistry,
+) -> None:
     """Mount the video app under /video.
 
     `workers` controls the shared TranscodeBudget's background worker
     count. None = use the budget's default (cpu_count // 2, capped 4).
+    `users` is the shared account registry, passed through so the video
+    app's YouTube endpoints can scope subscriptions per user.
     """
     from maneki.video.serve import create_app as create_video_app
     from maneki.video.serve.transcode_budget import TranscodeBudget
 
     budget = TranscodeBudget(max_workers=workers) if workers is not None else None
-    video_app = create_video_app(library_root, budget=budget, no_cover_images=no_cover_images)
+    video_app = create_video_app(library_root, budget=budget, no_cover_images=no_cover_images, users=users)
     combined.mount("/video", video_app)
+
+
+class _SPAStaticFiles(StaticFiles):
+    """StaticFiles that makes the SPA shell always-revalidate.
+
+    Vite emits content-hashed asset filenames (`index-<hash>.js`), so those are
+    safe to cache forever. But `index.html` (which references the current
+    hashes) must NOT be cached, or a browser keeps loading an old build's
+    assets after a redeploy — the classic "I rebuilt but the UI is stale until
+    a hard refresh" trap. Mark the HTML shell `no-cache` (revalidate every
+    load) and the hashed assets `immutable`.
+    """
+
+    async def get_response(self, path: str, scope: MutableMapping[str, Any]) -> Response:
+        response = await super().get_response(path, scope)
+        media_type = getattr(response, "media_type", None) or ""
+        if media_type.startswith("text/html"):
+            response.headers["Cache-Control"] = "no-cache"
+        elif path.startswith("assets/") or "/assets/" in path:
+            response.headers["Cache-Control"] = "public, max-age=31536000, immutable"
+        return response
 
 
 def _mount_ui(combined: FastAPI, ui_dir: Path | None) -> None:
@@ -490,7 +521,7 @@ def _mount_ui(combined: FastAPI, ui_dir: Path | None) -> None:
             "`cd desktop/react && bun install && bun run build`), which produces "
             "desktop/react/dist/. (Installed wheels bundle it automatically.)"
         )
-    combined.mount("/", StaticFiles(directory=chosen, html=True), name="spa")
+    combined.mount("/", _SPAStaticFiles(directory=chosen, html=True), name="spa")
 
 
 def _discover_react_dir() -> Path | None:

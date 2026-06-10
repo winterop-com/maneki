@@ -110,6 +110,17 @@ class MediaSection(BaseModel):
     hwenc_maxrate: str = "8M"
     hwenc_bufsize: str = "12M"
     vaapi_device: str = "/dev/dri/renderD128"
+    # Default cap for YouTube playback quality (max output height). The SPA's
+    # per-stream quality picker overrides this; this is the starting value.
+    youtube_max_height: int = 1080
+    # YouTube anti-bot mitigation. Logged-in cookies make resolution reliable
+    # (otherwise high request volume from one IP trips "confirm you're not a
+    # bot"). Either read cookies live from a local browser profile
+    # (`youtube_cookies_from_browser = "chrome"` / "safari" / "firefox" / ...)
+    # or point at an exported Netscape cookies.txt (`youtube_cookiefile`).
+    # Flat env overrides: MANEKI_YT_COOKIES_FROM_BROWSER / MANEKI_YT_COOKIEFILE.
+    youtube_cookies_from_browser: str | None = None
+    youtube_cookiefile: str | None = None
 
 
 class LoggingSection(BaseModel):

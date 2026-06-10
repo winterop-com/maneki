@@ -43,11 +43,11 @@ from pydantic import BaseModel, ConfigDict
 from maneki.ffmpeg import ffmpeg_path
 from maneki.video.serve.encoders import (
     Encoder,
-    is_hdr,
     select_encoder,
     tonemap_available,
     video_codec_args,
 )
+from maneki.video.serve.sources import LocalSource, MediaSource
 from maneki.video.serve.transcode import FFmpegNotFoundError, log_safe, low_priority_kwargs
 from maneki.video.serve.transcode_budget import TranscodeBudget
 
@@ -184,13 +184,16 @@ class OnDemandHLS:
     def __init__(
         self,
         video_id: str,
-        input_path: Path,
+        source: MediaSource | Path,
         duration_s: float,
         session_dir: Path,
         budget: TranscodeBudget,
     ) -> None:
         self.video_id = video_id
-        self.input_path = input_path
+        # Accept a bare Path for the common local-file case (and existing
+        # callers / tests that construct a session straight from a path);
+        # normalise to a LocalSource so the rest of the class is uniform.
+        self.source: MediaSource = LocalSource(path=source) if isinstance(source, Path) else source
         self.duration_s = duration_s
         self.session_dir = session_dir
         self.segments = plan_segments(duration_s)
@@ -240,7 +243,7 @@ class OnDemandHLS:
         avg = sum(r.realtime_ratio for r in recent) / len(recent) if recent else None
         return SessionStats(
             video_id=self.video_id,
-            name=self.input_path.name,
+            name=self.source.display_name(),
             segments_total=len(self.segments),
             transcodes_done=self._transcodes_done,
             inflight_foreground=sorted(self._inflight_fg),
@@ -385,8 +388,8 @@ class OnDemandHLS:
             # ffmpeg can actually tonemap (has zscale). Without zscale we skip
             # it — HDR plays washed-out (the pre-existing behaviour) instead of
             # failing the transcode.
-            self._hdr = is_hdr(self.input_path) and tonemap_available()
-        decode_args, vf, encode_args = video_codec_args(encoder, hdr=self._hdr)
+            self._hdr = self.source.is_hdr() and tonemap_available()
+        decode_args, vf, encode_args = video_codec_args(encoder, hdr=self._hdr, height=self.source.target_height())
         # Each segment is encoded as an independent slice, but its output
         # PTS is shifted with `-output_ts_offset` to exactly N*SEG_LEN.
         # Together with EXTINF=SEG_LEN in the playlist, segments end up
@@ -428,10 +431,7 @@ class OnDemandHLS:
             "warning",
             *thread_args,
             *decode_args,
-            "-ss",
-            f"{spec.start_s:.6f}",
-            "-i",
-            str(self.input_path),
+            *self.source.seek_input_args(spec.start_s),
             "-t",
             f"{spec.duration_s:.6f}",
             "-output_ts_offset",
@@ -442,6 +442,9 @@ class OnDemandHLS:
             "0",
             "-avoid_negative_ts",
             "disabled",
+            # Remote split-stream sources map video + audio explicitly; local
+            # single-input files emit no -map and let ffmpeg auto-select.
+            *self.source.map_args(),
             *(["-vf", vf] if vf else []),
             *encode_args,
             "-force_key_frames",
@@ -625,13 +628,26 @@ class HLSManager:
         marker.write_text(HLS_CACHE_VERSION, encoding="utf-8")
 
     def get_or_create(self, video_id: str, input_path: Path, duration_s: float) -> OnDemandHLS:
+        """Local-file session (the original entry point).
+
+        Wraps the path in a LocalSource so existing callers and the prewarm
+        path are unchanged.
+        """
+        return self.get_or_create_source(video_id, LocalSource(path=input_path), duration_s)
+
+    def get_or_create_source(self, video_id: str, source: MediaSource, duration_s: float) -> OnDemandHLS:
+        """Session for an arbitrary MediaSource (local file or remote stream).
+
+        Remote (YouTube) ids are namespaced (`yt:<id>`) by the caller so their
+        cache stems never collide with local-file ids.
+        """
         from maneki.video.serve.scan import cache_stem
 
         existing = self.sessions.get(video_id)
         if existing is not None:
             return existing
         session_dir = self.base_dir / cache_stem(video_id)
-        session = OnDemandHLS(video_id, input_path, duration_s, session_dir, self.budget)
+        session = OnDemandHLS(video_id, source, duration_s, session_dir, self.budget)
         self.sessions[video_id] = session
         return session
 
@@ -648,9 +664,17 @@ class HLSManager:
         """
         from maneki.video.serve.scan import cache_stem
 
+        # Remote (YouTube) sessions are keyed `yt:<id>` and are NOT part of the
+        # local library scan, so they'd look like orphans to a rescan. Protect
+        # any currently-live remote session (and its on-disk dir) from the
+        # cleanup — its segments are regenerable, but wiping an active session's
+        # dir mid-watch forces needless re-transcodes.
+        remote_ids = {vid for vid in self.sessions if vid.startswith("yt:")}
+        protected = set(live_ids) | remote_ids
+
         removed = 0
         if self.base_dir.is_dir():
-            live_stems = {cache_stem(vid) for vid in live_ids}
+            live_stems = {cache_stem(vid) for vid in protected}
             for path in self.base_dir.iterdir():
                 if not path.is_dir():
                     continue
@@ -668,7 +692,7 @@ class HLSManager:
         # has no directory yet but still holds an asyncio.Lock per
         # potential segment in `_segment_locks` — on a 2h video at
         # 6s segments that's 1200 lock slots per stale entry.
-        for stale_id in [vid for vid in self.sessions if vid not in live_ids]:
+        for stale_id in [vid for vid in self.sessions if vid not in protected]:
             session = self.sessions.pop(stale_id, None)
             if session is not None:
                 # `getattr` keeps this defensive against future

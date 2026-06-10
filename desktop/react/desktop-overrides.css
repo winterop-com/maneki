@@ -526,6 +526,135 @@ body[data-platform="darwin"]:not([data-shell="browser"]) .mk-kind-rail {
   font-size: 11px;
 }
 
+/* ---- YouTube channels -------------------------------------------------- */
+
+/* Library / YouTube switch above the video browse grid. */
+.mk-video-section-tabs {
+  display: flex;
+  gap: 4px;
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--line);
+  flex-shrink: 0;
+}
+.mk-video-section-tab {
+  font-family: var(--mk-mono);
+  font-size: 11px;
+  letter-spacing: 0.3px;
+  text-transform: uppercase;
+  color: var(--text-soft);
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  padding: 4px 12px;
+  cursor: pointer;
+}
+.mk-video-section-tab:hover { color: var(--text); background: var(--row-hover); }
+.mk-video-section-tab.active { color: var(--accent); border-color: var(--accent); }
+
+/* Per-channel content sub-tabs (Videos / Shorts / Live). */
+.mk-yt-tabs {
+  display: flex;
+  gap: 4px;
+  padding: 6px 8px;
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: var(--panel);
+  border-bottom: 1px solid var(--line-soft);
+}
+.mk-yt-tab {
+  font-size: 12px;
+  color: var(--text-soft);
+  background: transparent;
+  border: none;
+  border-radius: 4px;
+  padding: 4px 10px;
+  cursor: pointer;
+}
+.mk-yt-tab:hover { background: var(--row-hover); color: var(--text); }
+.mk-yt-tab.active { background: var(--row-active); color: var(--accent); }
+
+/* Add-channel row. */
+.mk-yt-add {
+  display: flex;
+  gap: 6px;
+  padding: 8px;
+  border-bottom: 1px solid var(--line-soft);
+}
+.mk-yt-add-input {
+  flex: 1;
+  min-width: 0;
+  font-size: 12px;
+  padding: 6px 8px;
+  border-radius: 4px;
+  border: 1px solid var(--line);
+  background: var(--bg-elev2);
+  color: var(--text);
+}
+.mk-yt-add-input:focus { outline: none; border-color: var(--accent); }
+.mk-yt-add-btn {
+  font-size: 12px;
+  padding: 6px 14px;
+  border-radius: 4px;
+  border: 1px solid var(--accent);
+  background: transparent;
+  color: var(--accent);
+  cursor: pointer;
+}
+.mk-yt-add-btn:disabled { opacity: 0.4; cursor: default; }
+.mk-yt-add-err {
+  padding: 6px 10px;
+  font-size: 12px;
+  color: var(--danger, #e06c75);
+}
+
+/* Round channel avatar; remove (unsubscribe) button revealed on row hover. */
+.mk-yt-avatar { border-radius: 50%; }
+.mk-yt-remove {
+  margin-left: auto;
+  align-self: center;
+  background: transparent;
+  border: none;
+  color: var(--text-dim);
+  font-size: 18px;
+  line-height: 1;
+  padding: 2px 8px;
+  cursor: pointer;
+  opacity: 0;
+}
+.mk-album-row:hover .mk-yt-remove { opacity: 1; }
+.mk-yt-remove:hover { color: var(--danger, #e06c75); }
+
+/* LIVE badge over the thumbnail; currently-live items aren't playable yet. */
+.mk-yt-thumb-wrap { position: relative; flex-shrink: 0; }
+.mk-yt-live-badge {
+  position: absolute;
+  bottom: 2px;
+  left: 2px;
+  background: var(--danger, #e06c75);
+  color: #fff;
+  font-family: var(--mk-mono);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  padding: 1px 4px;
+  border-radius: 3px;
+}
+.mk-yt-unplayable { opacity: 0.55; cursor: default; }
+
+/* In-player resolution menu button (video.js control bar). Shows the current
+   pick as text (no stock quality glyph) and sizes to fit it. */
+.video-js .vjs-quality-button { width: auto; min-width: 3em; }
+.video-js .vjs-quality-button .vjs-icon-placeholder { display: inline-flex; align-items: center; justify-content: center; }
+.video-js .vjs-quality-label {
+  font-size: 1.1em;
+  line-height: 1;
+  padding: 0 2px;
+  font-variant-numeric: tabular-nums;
+}
+/* The text label has no ::before glyph, so suppress the default icon slot. */
+.video-js .vjs-quality-button .vjs-icon-placeholder::before { content: none; }
+
 /* Folder row in the browser - same shape as a video row but with a
    folder icon background and an arrow affordance. */
 .mk-folder-row {

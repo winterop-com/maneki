@@ -6,7 +6,7 @@ import React from "react";
 import { MK_AUDIO } from "./_audio.js";
 import { fmtDur } from "./format.js";
 import { TweaksPanel, TweakSection, TweakRadio, TweakSelect, TweakToggle, TweakSlider, TweakColor, TweakButton } from "./tweaks-panel.jsx";
-import { VideosPane, VideoSearchPane, VideoPlayerPane } from "./video-views.jsx";
+import { VideosPane, VideoSearchPane, VideoPlayerPane, YouTubePane } from "./video-views.jsx";
 import { Visualizer } from "./visualizer.jsx";
 import { StarBtn } from "./views.jsx";
 import { wiredMakeCover as makeCover } from "./_wiring.jsx";
@@ -843,9 +843,11 @@ function MainArea(props) {
     />
   );
 
-  const { kind, session, selectedVideo, setSelectedVideo, q } = props;
+  const { kind, session, selectedVideo, setSelectedVideo, q, videoSection = "library", setVideoSection } = props;
   const videoMode = kind === "video";
-  const videoSearchActive = videoMode && (q || "").trim().length > 0;
+  const youtubeMode = videoMode && videoSection === "youtube";
+  // Search only applies to the local library browser, not the YouTube pane.
+  const videoSearchActive = videoMode && !youtubeMode && (q || "").trim().length > 0;
   const browse = (
     <div className={"mk-browse" + (videoMode ? " mk-browse-video" : "")}>
       <Sidebar kind={kind} section={section} setSection={setSection} ARTISTS={ARTISTS} artistId={artistId} setArtistId={(id) => { setSection("library"); setArtistId(id); }} loaded={loaded}/>
@@ -853,8 +855,9 @@ function MainArea(props) {
       {!videoMode && section === "library" && <TracksPane artist={artist} album={album} playTrack={playTrack} now={now} nowAlbum={nowAlbum} repeat={t.repeat} isStarred={isStarred} toggleStar={toggleStar} loaded={loaded && (!album || album.tracksLoaded)}/>}
       {!videoMode && section === "stations" && <StationsPane STATIONS={STATIONS} playStation={playStation} now={now} loaded={loaded}/>}
       {!videoMode && section === "starred" && <StarredPane starredTracks={starredTracks} playTrack={playTrack} toggleStar={toggleStar}/>}
-      {videoMode && session && !videoSearchActive && <VideosPane session={session} selectedId={selectedVideo?.id} selectedRelPath={selectedVideo?.rel_path} onSelect={setSelectedVideo}/>}
-      {videoMode && session && videoSearchActive && <VideoSearchPane session={session} q={q} selectedId={selectedVideo?.id} onSelect={setSelectedVideo}/>}
+      {videoMode && session && !youtubeMode && !videoSearchActive && <VideosPane session={session} selectedId={selectedVideo?.id} selectedRelPath={selectedVideo?.rel_path} onSelect={setSelectedVideo}/>}
+      {videoMode && session && !youtubeMode && videoSearchActive && <VideoSearchPane session={session} q={q} selectedId={selectedVideo?.id} onSelect={setSelectedVideo}/>}
+      {videoMode && session && youtubeMode && <YouTubePane session={session} selectedId={selectedVideo?.id} onSelect={setSelectedVideo}/>}
       {videoMode && session && <VideoSplitter/>}
       {videoMode && session && selectedVideo && (
         // Key on video.id so React unmounts + remounts the player when
@@ -872,7 +875,31 @@ function MainArea(props) {
   // the focal point; running audio playback alongside is a separate (later)
   // design decision.
   if (videoMode) {
-    return <div className="mk-body layout-topband">{browse}</div>;
+    // A slim Library / YouTube switch sits above the browse grid. Switching
+    // clears any open player so we don't strand a local video over the
+    // YouTube list (or vice-versa).
+    const switchTo = (s) => { if (setVideoSection) setVideoSection(s); setSelectedVideo(null); };
+    return (
+      <div className="mk-body layout-topband">
+        <div className="mk-video-section-tabs">
+          <button
+            type="button"
+            className={"mk-video-section-tab" + (!youtubeMode ? " active" : "")}
+            onClick={() => switchTo("library")}
+          >
+            Library
+          </button>
+          <button
+            type="button"
+            className={"mk-video-section-tab" + (youtubeMode ? " active" : "")}
+            onClick={() => switchTo("youtube")}
+          >
+            YouTube
+          </button>
+        </div>
+        {browse}
+      </div>
+    );
   }
   if (t.layout === "rightrail") {
     return (
