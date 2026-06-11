@@ -206,13 +206,26 @@ export const MK_VIDEO = (function () {
     // happens server-side via yt-dlp; the SPA only ever sees our own shapes.
 
     // The current user's subscribed channels: [{id, title, url, handle,
-    // thumbnail_url}]. Returns [] on error so the pane renders empty rather
+    // thumbnail_url}]. `refresh` busts the server-side listing cache to look
+    // for new uploads. Returns [] on error so the pane renders empty rather
     // than crashing.
-    async ytChannels(session) {
+    async ytChannels(session, refresh = false) {
       try {
-        return await call(`${videoApiBase(session)}/youtube/channels`);
+        const q = refresh ? "?refresh=1" : "";
+        return await call(`${videoApiBase(session)}/youtube/channels${q}`);
       } catch {
         return [];
+      }
+    },
+
+    // Capped per-tab counts for a channel: {videos, shorts, live, *_capped}.
+    // Best-effort: returns null on error so the row just omits the numbers.
+    async ytChannelCounts(session, channelId, refresh = false) {
+      try {
+        const q = refresh ? "?refresh=1" : "";
+        return await call(`${videoApiBase(session)}/youtube/channels/${encodeURIComponent(channelId)}/counts${q}`);
+      } catch {
+        return null;
       }
     },
 
@@ -245,8 +258,11 @@ export const MK_VIDEO = (function () {
     // kind, is_live, ...}]. `tab` is "videos" | "shorts" | "streams"
     // (streams = live + recorded-live). Empty array when the channel has no
     // items of that kind.
-    async ytChannelVideos(session, channelId, tab = "videos") {
-      const q = tab && tab !== "videos" ? `?tab=${encodeURIComponent(tab)}` : "";
+    async ytChannelVideos(session, channelId, tab = "videos", refresh = false) {
+      const params = [];
+      if (tab && tab !== "videos") params.push(`tab=${encodeURIComponent(tab)}`);
+      if (refresh) params.push("refresh=1");
+      const q = params.length ? `?${params.join("&")}` : "";
       return call(`${videoApiBase(session)}/youtube/channels/${encodeURIComponent(channelId)}/videos${q}`);
     },
 

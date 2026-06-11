@@ -770,24 +770,35 @@ def create_app(
         return users.subscriptions_for(_current_username(request))
 
     @app.get("/api/youtube/channels")
-    async def youtube_channels(request: Request) -> list[youtube.ChannelInfo]:
+    async def youtube_channels(request: Request, refresh: bool = False) -> list[youtube.ChannelInfo]:
         """The current user's subscribed channels, with live identity/avatar.
 
         Each channel's header is fetched (and cached) concurrently. A channel
         that no longer resolves (deleted / renamed) is returned as a minimal
-        stub so the user can still see and remove it.
+        stub so the user can still see and remove it. `refresh=1` bypasses the
+        listing cache so the refresh button picks up new uploads.
         """
         store = _subs(request)
         ids = list(store.all_ids().keys())
 
         async def _head(cid: str) -> youtube.ChannelInfo:
             try:
-                listing = await youtube.list_channel(youtube.canonical_channel_url(cid))
+                listing = await youtube.list_channel(youtube.canonical_channel_url(cid), force=refresh)
                 return listing.channel
             except youtube.YouTubeError:
                 return youtube.ChannelInfo(id=cid, title=cid, url=youtube.canonical_channel_url(cid))
 
         return list(await asyncio.gather(*(_head(cid) for cid in ids)))
+
+    @app.get("/api/youtube/channels/{channel_id}/counts")
+    async def youtube_channel_counts(channel_id: str, refresh: bool = False) -> youtube.ChannelCounts:
+        """Capped per-tab item counts (videos / shorts / live) for the list view.
+
+        Best-effort: a tab that fails to extract counts as 0. `refresh=1` forces
+        a re-fetch. Reuses the per-tab listing cache, so this and the detail
+        view share work.
+        """
+        return await youtube.channel_counts(channel_id, force=refresh)
 
     @app.post("/api/youtube/channels", status_code=201)
     async def youtube_add_channel(body: AddChannelBody, request: Request) -> youtube.ChannelInfo:
@@ -808,17 +819,19 @@ def create_app(
         return {"removed": channel_id}
 
     @app.get("/api/youtube/channels/{channel_id}/videos")
-    async def youtube_channel_videos(channel_id: str, tab: str = "videos") -> list[youtube.ChannelVideo]:
+    async def youtube_channel_videos(
+        channel_id: str, tab: str = "videos", refresh: bool = False
+    ) -> list[youtube.ChannelVideo]:
         """List a channel tab's recent items (flat extraction, cached).
 
         `tab` is one of videos / shorts / streams. "streams" carries live and
         recorded-live broadcasts; an empty list means the channel has no items
-        of that kind.
+        of that kind. `refresh=1` bypasses the cache to look for new uploads.
         """
         if tab not in youtube.CHANNEL_TABS:
             raise HTTPException(status_code=400, detail=f"unknown tab {tab!r}; expected one of {youtube.CHANNEL_TABS}")
         try:
-            listing = await youtube.list_channel(youtube.canonical_channel_url(channel_id, tab), tab=tab)
+            listing = await youtube.list_channel(youtube.canonical_channel_url(channel_id, tab), tab=tab, force=refresh)
         except youtube.YouTubeError as exc:
             raise HTTPException(status_code=502, detail=str(exc)) from exc
         return listing.videos

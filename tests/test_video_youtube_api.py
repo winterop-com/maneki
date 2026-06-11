@@ -57,7 +57,9 @@ def test_add_list_remove_channel(
 ) -> None:
     client, registry = client_and_registry
 
-    async def fake_list(url: str, *, tab: str = "videos", limit: int = 60) -> youtube.ChannelListing:
+    async def fake_list(
+        url: str, *, tab: str = "videos", limit: int = 60, force: bool = False
+    ) -> youtube.ChannelListing:
         return _LISTING
 
     monkeypatch.setattr(youtube, "list_channel", fake_list)
@@ -91,7 +93,9 @@ def test_channel_videos_tab_is_passed_through(
     client, _ = client_and_registry
     seen: dict[str, str] = {}
 
-    async def fake_list(url: str, *, tab: str = "videos", limit: int = 60) -> youtube.ChannelListing:
+    async def fake_list(
+        url: str, *, tab: str = "videos", limit: int = 60, force: bool = False
+    ) -> youtube.ChannelListing:
         seen["tab"] = tab
         return _LISTING
 
@@ -102,12 +106,55 @@ def test_channel_videos_tab_is_passed_through(
     assert client.get("/api/youtube/channels/UCrlm/videos?tab=bogus").status_code == 400
 
 
+def test_channel_counts_capped(
+    monkeypatch: pytest.MonkeyPatch, client_and_registry: tuple[TestClient, UserRegistry]
+) -> None:
+    """Counts come from the capped per-tab listing; a tab at the cap reports
+    capped=True, a missing tab reports 0."""
+    client, _ = client_and_registry
+
+    def listing_with(n: int) -> youtube.ChannelListing:
+        return youtube.ChannelListing(
+            channel=youtube.ChannelInfo(id="UCx", title="X", url="u"),
+            videos=[youtube.ChannelVideo(id=f"v{i}", title="t", duration_s=1.0, thumbnail_url="x") for i in range(n)],
+        )
+
+    async def fake_list(
+        url: str, *, tab: str = "videos", limit: int = 60, force: bool = False
+    ) -> youtube.ChannelListing:
+        return {"videos": listing_with(60), "shorts": listing_with(3), "streams": listing_with(0)}[tab]
+
+    monkeypatch.setattr(youtube, "list_channel", fake_list)
+    body = client.get("/api/youtube/channels/UCx/counts").json()
+    assert body["videos"] == 60 and body["videos_capped"] is True
+    assert body["shorts"] == 3 and body["shorts_capped"] is False
+    assert body["live"] == 0 and body["live_capped"] is False
+
+
+def test_refresh_forces_listing(
+    monkeypatch: pytest.MonkeyPatch, client_and_registry: tuple[TestClient, UserRegistry]
+) -> None:
+    """?refresh=1 threads force=True into list_channel."""
+    client, _ = client_and_registry
+    seen: dict[str, bool] = {}
+
+    async def fake_list(
+        url: str, *, tab: str = "videos", limit: int = 60, force: bool = False
+    ) -> youtube.ChannelListing:
+        seen["force"] = force
+        return _LISTING
+
+    monkeypatch.setattr(youtube, "list_channel", fake_list)
+    client.get("/api/youtube/channels/UCrlm/videos?refresh=1")
+    assert seen["force"] is True
+
+
 def test_add_channel_surfaces_resolver_error(
     monkeypatch: pytest.MonkeyPatch, client_and_registry: tuple[TestClient, UserRegistry]
 ) -> None:
     client, _ = client_and_registry
 
-    async def boom(url: str, *, tab: str = "videos", limit: int = 60) -> youtube.ChannelListing:
+    async def boom(url: str, *, tab: str = "videos", limit: int = 60, force: bool = False) -> youtube.ChannelListing:
         raise youtube.YouTubeError("nope")
 
     monkeypatch.setattr(youtube, "list_channel", boom)

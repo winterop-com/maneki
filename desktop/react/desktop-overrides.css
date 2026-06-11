@@ -619,6 +619,28 @@ body[data-platform="darwin"]:not([data-shell="browser"]) .mk-kind-rail {
 }
 .mk-yt-unplayable { opacity: 0.55; cursor: default; }
 
+/* Refresh button in the YouTube pane headers (channel list + channel detail).
+   Pushed to the right of the crumb row; spins while a refresh is in flight. */
+.mk-yt-refresh {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: none;
+  color: var(--text-soft);
+  cursor: pointer;
+  padding: 2px 4px;
+  border-radius: 4px;
+}
+.mk-yt-refresh:hover { color: var(--accent); background: var(--row-hover); }
+.mk-yt-refresh:disabled { cursor: default; }
+.mk-yt-refresh.spinning svg { animation: mk-yt-spin 0.8s linear infinite; }
+@keyframes mk-yt-spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+
+/* Per-channel helper counts (videos / shorts / live) under the channel name. */
+.mk-yt-counts { display: flex; gap: 8px; flex-wrap: wrap; opacity: 0.75; }
+
 /* In-player resolution menu button (video.js control bar). Shows the current
    pick as text (no stock quality glyph) and sizes to fit it. */
 .video-js .vjs-quality-button { width: auto; min-width: 3em; }

@@ -399,15 +399,69 @@ async def list_channel(
     *,
     tab: ChannelTab = "videos",
     limit: int = DEFAULT_CHANNEL_LIMIT,
+    force: bool = False,
 ) -> ChannelListing:
-    """Flat-list a channel `tab` (videos / shorts / streams). Cached per tab."""
+    """Flat-list a channel `tab` (videos / shorts / streams). Cached per tab.
+
+    `force=True` skips the cache read (but still refreshes it) — the refresh
+    button uses this to look for new uploads without waiting out the TTL.
+    """
     key = f"{_channel_base(url)}#{tab}#{limit}"
-    cached = _channel_cache.get(key)
-    if isinstance(cached, ChannelListing):
-        return cached
+    if not force:
+        cached = _channel_cache.get(key)
+        if isinstance(cached, ChannelListing):
+            return cached
     listing = await asyncio.to_thread(_list_channel_sync, url, tab, limit)
     _channel_cache.set(key, listing)
     return listing
+
+
+class ChannelCounts(BaseModel):
+    """Per-tab item counts for a channel, for the list view's helper numbers.
+
+    Counts are the size of the capped listing (`DEFAULT_CHANNEL_LIMIT`), so a
+    channel with more items than the cap reports the cap with `capped=True`
+    (rendered as "60+"). True totals need a full uncapped extraction — tens of
+    seconds for a large channel and a bot-check risk — so they're deliberately
+    not fetched here.
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    videos: int
+    shorts: int
+    live: int
+    videos_capped: bool = False
+    shorts_capped: bool = False
+    live_capped: bool = False
+
+
+async def channel_counts(channel_id: str, *, force: bool = False) -> ChannelCounts:
+    """Capped item counts across a channel's three tabs.
+
+    Reuses the same per-tab `list_channel` cache the detail view populates, so
+    opening a channel and showing its counts share work. Tabs are fetched
+    concurrently; a missing tab (channel has no shorts/streams) counts as 0.
+    """
+    url = canonical_channel_url(channel_id)
+    results = await asyncio.gather(
+        *(list_channel(url, tab=tab, force=force) for tab in CHANNEL_TABS),
+        return_exceptions=True,
+    )
+    counts: dict[str, int] = {}
+    capped: dict[str, bool] = {}
+    for tab, res in zip(CHANNEL_TABS, results):
+        n = 0 if isinstance(res, BaseException) else len(res.videos)
+        counts[tab] = n
+        capped[tab] = n >= DEFAULT_CHANNEL_LIMIT
+    return ChannelCounts(
+        videos=counts["videos"],
+        shorts=counts["shorts"],
+        live=counts["streams"],
+        videos_capped=capped["videos"],
+        shorts_capped=capped["shorts"],
+        live_capped=capped["streams"],
+    )
 
 
 async def resolve_stream(video_id: str, *, max_height: int = DEFAULT_MAX_HEIGHT) -> ResolvedStream:

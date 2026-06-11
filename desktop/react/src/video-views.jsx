@@ -1275,6 +1275,33 @@ const YT_TABS = [
   { key: "streams", label: "Live" },
 ];
 
+// Format a capped count for the channel-row helper line: exact, or "60+" when
+// the listing hit the server cap (true totals are too expensive to fetch).
+function fmtCount(n, capped) {
+  if (!n) return "0";
+  return capped ? `${n}+` : `${n}`;
+}
+
+// Small circular-arrow refresh button used in the YouTube pane headers.
+// `spinning` animates it while a refresh is in flight (and disables clicks).
+function RefreshButton({ onClick, spinning, title = "Refresh" }) {
+  return (
+    <button
+      type="button"
+      className={"mk-yt-refresh" + (spinning ? " spinning" : "")}
+      onClick={onClick}
+      disabled={spinning}
+      title={title}
+      aria-label={title}
+    >
+      <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M21 12a9 9 0 11-3-6.7L21 8"/>
+        <path d="M21 3v5h-5"/>
+      </svg>
+    </button>
+  );
+}
+
 function YouTubePane({ session, selectedId, onSelect }) {
   const [channels, setChannels] = useSt_vv(null);
   const [addUrl, setAddUrl] = useSt_vv("");
@@ -1284,18 +1311,36 @@ function YouTubePane({ session, selectedId, onSelect }) {
   const [tab, setTab] = useSt_vv("videos");
   const [items, setItems] = useSt_vv(null);
   const [listErr, setListErr] = useSt_vv(null);
+  // Per-channel capped counts {channelId: {videos, shorts, live, *_capped}},
+  // fetched lazily after the list renders so the list shows immediately.
+  const [counts, setCounts] = useSt_vv({});
+  const [refreshing, setRefreshing] = useSt_vv(false);
 
-  const loadChannels = async () => {
-    const data = await MK_VIDEO.ytChannels(session);
+  const loadChannels = async (refresh = false) => {
+    const data = await MK_VIDEO.ytChannels(session, refresh);
     setChannels(Array.isArray(data) ? data : []);
+    return Array.isArray(data) ? data : [];
+  };
+
+  // Fetch counts for a set of channels one at a time (gentle on YouTube's
+  // bot-check) and merge them in as they arrive. `refresh` forces re-fetch.
+  const loadCounts = async (chans, refresh = false) => {
+    for (const ch of chans) {
+      const c = await MK_VIDEO.ytChannelCounts(session, ch.id, refresh);
+      if (c) setCounts((prev) => ({ ...prev, [ch.id]: c }));
+    }
   };
 
   useEff_vv(() => {
     let cancelled = false;
     MK_VIDEO.ytChannels(session).then((data) => {
-      if (!cancelled) setChannels(Array.isArray(data) ? data : []);
+      if (cancelled) return;
+      const list = Array.isArray(data) ? data : [];
+      setChannels(list);
+      loadCounts(list); // best-effort, fills in after the list paints
     });
     return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [session]);
 
   // Fetch the selected channel's items whenever the channel or tab changes.
@@ -1310,6 +1355,31 @@ function YouTubePane({ session, selectedId, onSelect }) {
     );
     return () => { cancelled = true; };
   }, [session, sel, tab]);
+
+  // Refresh: bust the server cache and re-fetch. In a channel re-pulls the
+  // current tab (look for new uploads); in the list re-pulls every channel's
+  // header + counts.
+  const onRefresh = async () => {
+    if (refreshing) return;
+    setRefreshing(true);
+    try {
+      if (sel) {
+        setItems(null);
+        setListErr(null);
+        const data = await MK_VIDEO.ytChannelVideos(session, sel.id, tab, true);
+        setItems(Array.isArray(data) ? data : []);
+        const c = await MK_VIDEO.ytChannelCounts(session, sel.id, true);
+        if (c) setCounts((prev) => ({ ...prev, [sel.id]: c }));
+      } else {
+        const list = await loadChannels(true);
+        await loadCounts(list, true);
+      }
+    } catch (_e) {
+      // best-effort; the list error UI covers detail-view failures
+    } finally {
+      setRefreshing(false);
+    }
+  };
 
   const onAdd = async (e) => {
     if (e && e.preventDefault) e.preventDefault();
@@ -1343,6 +1413,7 @@ function YouTubePane({ session, selectedId, onSelect }) {
           <span className="mk-crumb mk-crumb-link" onClick={() => setSel(null)}>YouTube</span>
           <span className="mk-crumb-sep">/</span>
           <span className="mk-crumb active" title={sel.title}>{sel.title}</span>
+          <RefreshButton onClick={onRefresh} spinning={refreshing} />
         </div>
         <div className="mk-yt-tabs">
           {YT_TABS.map((tdef) => (
@@ -1406,6 +1477,7 @@ function YouTubePane({ session, selectedId, onSelect }) {
     <div className="mk-pane mk-albums-pane">
       <div className="mk-pane-label mk-video-crumbs">
         <span className="mk-crumb active">YouTube channels</span>
+        <RefreshButton onClick={onRefresh} spinning={refreshing} title="Check channels for new uploads" />
       </div>
       <form className="mk-yt-add" onSubmit={onAdd}>
         <input
@@ -1448,6 +1520,13 @@ function YouTubePane({ session, selectedId, onSelect }) {
               <div className="mk-album-meta">
                 <div className="mk-album-name">{ch.title}</div>
                 {ch.handle && <div className="mk-album-sub"><span className="mono">{ch.handle}</span></div>}
+                {counts[ch.id] && (
+                  <div className="mk-album-sub mk-yt-counts mono">
+                    <span>{fmtCount(counts[ch.id].videos, counts[ch.id].videos_capped)} videos</span>
+                    {counts[ch.id].shorts > 0 && <span>{fmtCount(counts[ch.id].shorts, counts[ch.id].shorts_capped)} shorts</span>}
+                    {counts[ch.id].live > 0 && <span>{fmtCount(counts[ch.id].live, counts[ch.id].live_capped)} live</span>}
+                  </div>
+                )}
               </div>
               <button
                 type="button"
