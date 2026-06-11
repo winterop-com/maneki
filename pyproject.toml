@@ -1,6 +1,6 @@
 [project]
 name = "maneki"
-version = "0.15.5"
+version = "0.16.0"
 description = "Self-hosted media toolkit: audio today (convert / audit / retag rips, Textual TUI, Subsonic-compatible HTTP server), video next (folder-first metadata, HLS streaming)."
 readme = "README.md"
 requires-python = ">=3.13"
@@ -53,6 +53,7 @@ dependencies = [
   "itsdangerous>=2.2.0",
   "python-multipart>=0.0.27",
   "structlog>=25.5.0",
+  "yt-dlp>=2026.6.9",
 ]
 
 [project.urls]
@@ -155,7 +156,7 @@ module = "tests.*"
 disallow_untyped_defs = false
 
 [[tool.mypy.overrides]]
-module = ["mutagen.*"]
+module = ["mutagen.*", "yt_dlp.*"]
 ignore_missing_imports = true
 
 [tool.pyright]

@@ -96,7 +96,7 @@ def _session(tmp_path: Path) -> OnDemandHLS:
     # ffmpeg here — only the prefetch bookkeeping is exercised).
     return OnDemandHLS(
         video_id="vid",
-        input_path=tmp_path / "movie.mkv",
+        source=tmp_path / "movie.mkv",
         duration_s=600.0,
         session_dir=tmp_path,
         budget=TranscodeBudget(),

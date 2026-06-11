@@ -17,20 +17,26 @@ import logging
 import time
 from collections.abc import AsyncGenerator
 from pathlib import Path
-from typing import Iterator
+from typing import TYPE_CHECKING, Iterator
 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import FileResponse, HTMLResponse, Response, StreamingResponse
 from pydantic import BaseModel
 
+if TYPE_CHECKING:
+    from maneki.audio.serve.users import UserRegistry
+    from maneki.video.serve.subscriptions import SubscriptionStore
+
 from maneki import __version__
 from maneki.access_log import make_access_log_middleware
+from maneki.video.serve import youtube
 from maneki.video.serve.demo import DEMO_HTML
 from maneki.video.serve.encoders import select_encoder
-from maneki.video.serve.hls import SEG_LEN, HLSManager, SessionStats
+from maneki.video.serve.hls import SEG_LEN, HLSManager, OnDemandHLS, SessionStats
 from maneki.video.serve.poster import PosterManager
 from maneki.video.serve.scan import BrowseResponse, VideoEntry, browse_dir, scan_videos
 from maneki.video.serve.scan_state import ScanState, VideoScanTracker
+from maneki.video.serve.sources import RemoteSource
 from maneki.video.serve.subtitles import (
     SubtitleCache,
     SubtitleSidecar,
@@ -101,6 +107,12 @@ class VideoStatsResponse(BaseModel):
     sessions: list[SessionStats]
 
 
+class AddChannelBody(BaseModel):
+    """Body of POST /api/youtube/channels — the channel URL to subscribe to."""
+
+    url: str
+
+
 def build_video_stats(hls_manager: HLSManager, budget: TranscodeBudget, *, now: float) -> VideoStatsResponse:
     """Assemble a stats frame from the live sessions + shared budget.
 
@@ -121,6 +133,7 @@ def create_app(
     *,
     budget: TranscodeBudget | None = None,
     no_cover_images: bool = False,
+    users: UserRegistry | None = None,
 ) -> FastAPI:
     """Build the FastAPI app rooted at the given library directory.
 
@@ -134,6 +147,9 @@ def create_app(
             single-frame thumbnail instead of generating a 9-frame
             contact sheet. Same flag is honoured by the prewarm path
             to skip the poster phase entirely.
+        users: shared account registry, used to scope YouTube channel
+            subscriptions per user. None (tests / audio-only embedders)
+            makes the YouTube endpoints return 503.
     """
     app = FastAPI(title="maneki-video", version=__version__)
     # One structured access-log line per /video/* request — same shape
@@ -170,6 +186,10 @@ def create_app(
     app.state.library_root = root
     app.state.budget = shared_budget
     app.state.no_cover_images = no_cover_images
+    # User registry for per-user YouTube subscriptions. None when the app is
+    # built standalone (tests / audio-only embedders) — the YouTube endpoints
+    # then return 503.
+    app.state.users = users
     # Background-prewarm state. The parent app's lifespan walks the
     # library once at startup, populates `video_cache`, and ticks
     # `scan_tracker` per file so the SPA can render a progressbar.
@@ -639,10 +659,28 @@ def create_app(
             raise HTTPException(status_code=503, detail="cannot determine video duration for HLS")
 
         session = hls_manager.get_or_create(video_id, Path(entry.path), duration)
+        return await _hls_response(session, filename, request)
 
+    async def _hls_response(session: OnDemandHLS, filename: str, request: Request, *, seg_query: str = "") -> Response:
+        """Serve a manifest / segment from an already-resolved HLS session.
+
+        Shared by the local-file (`/api/videos/.../hls/...`) and YouTube
+        (`/api/youtube/videos/.../hls/...`) endpoints — everything past session
+        resolution (the foreground budget, the disconnect race, seek
+        cancellation, neighbour prefetch) is source-agnostic and lives here so
+        the two endpoints can't drift apart.
+
+        `seg_query` is appended to each segment URI in the manifest. Segment
+        URIs are relative (`seg-0000.ts`), so a query on the manifest URL (e.g.
+        the YouTube quality cap `?h=720`) is NOT inherited by segment requests —
+        without this, every segment would route to the default-quality session.
+        """
         if filename == "index.m3u8":
+            manifest = session.manifest()
+            if seg_query:
+                manifest = manifest.replace(".ts\n", f".ts?{seg_query}\n")
             return Response(
-                content=session.manifest(),
+                content=manifest,
                 media_type="application/vnd.apple.mpegurl",
             )
         if filename.startswith("seg-") and filename.endswith(".ts"):
@@ -706,6 +744,158 @@ def create_app(
             session.prefetch_neighbors(idx)
             return FileResponse(path, media_type="video/mp2t")
         raise HTTPException(status_code=404, detail=f"unknown hls resource {filename!r}")
+
+    # ------------------------------------------------------------------
+    # YouTube channels (per-user subscriptions + playback via the same
+    # HLS pipeline). Resolution goes through yt-dlp; a resolved video is
+    # wrapped in a RemoteSource and streamed exactly like a local file.
+    # ------------------------------------------------------------------
+    def _current_username(request: Request) -> str:
+        """The authenticated user, or the single-user fallback when auth is off.
+
+        `BearerAuthMiddleware` stamps `request.state.username` when --auth is on.
+        Without auth there's one implicit account (the admin), so per-user data
+        all lands under it.
+        """
+        name = getattr(request.state, "username", None)
+        if name:
+            return str(name)
+        accounts = users.all() if users else []
+        admin = next((u for u in accounts if u.admin), None) or (accounts[0] if accounts else None)
+        return admin.name if admin else "default"
+
+    def _subs(request: Request) -> SubscriptionStore:
+        if users is None:
+            raise HTTPException(status_code=503, detail="user registry unavailable; YouTube disabled")
+        return users.subscriptions_for(_current_username(request))
+
+    @app.get("/api/youtube/channels")
+    async def youtube_channels(request: Request, refresh: bool = False) -> list[youtube.ChannelInfo]:
+        """The current user's subscribed channels, with live identity/avatar.
+
+        Each channel's header is fetched (and cached) concurrently. A channel
+        that no longer resolves (deleted / renamed) is returned as a minimal
+        stub so the user can still see and remove it. `refresh=1` bypasses the
+        listing cache so the refresh button picks up new uploads.
+        """
+        store = _subs(request)
+        ids = list(store.all_ids().keys())
+
+        async def _head(cid: str) -> youtube.ChannelInfo:
+            try:
+                listing = await youtube.list_channel(youtube.canonical_channel_url(cid), force=refresh)
+                return listing.channel
+            except youtube.YouTubeError:
+                return youtube.ChannelInfo(id=cid, title=cid, url=youtube.canonical_channel_url(cid))
+
+        return list(await asyncio.gather(*(_head(cid) for cid in ids)))
+
+    @app.get("/api/youtube/channels/{channel_id}/counts")
+    async def youtube_channel_counts(channel_id: str, refresh: bool = False) -> youtube.ChannelCounts:
+        """Capped per-tab item counts (videos / shorts / live) for the list view.
+
+        Best-effort: a tab that fails to extract counts as 0. `refresh=1` forces
+        a re-fetch. Reuses the per-tab listing cache, so this and the detail
+        view share work.
+        """
+        return await youtube.channel_counts(channel_id, force=refresh)
+
+    @app.post("/api/youtube/channels", status_code=201)
+    async def youtube_add_channel(body: AddChannelBody, request: Request) -> youtube.ChannelInfo:
+        """Subscribe to a channel by URL (`@handle`, `/channel/UC...`, etc.)."""
+        try:
+            listing = await youtube.list_channel(body.url)
+        except youtube.YouTubeError as exc:
+            raise HTTPException(status_code=502, detail=str(exc)) from exc
+        if not listing.channel.id:
+            raise HTTPException(status_code=400, detail="could not determine channel id from URL")
+        _subs(request).add(listing.channel.id)
+        return listing.channel
+
+    @app.delete("/api/youtube/channels/{channel_id}")
+    def youtube_remove_channel(channel_id: str, request: Request) -> dict[str, str]:
+        """Unsubscribe. Idempotent."""
+        _subs(request).remove(channel_id)
+        return {"removed": channel_id}
+
+    @app.get("/api/youtube/channels/{channel_id}/videos")
+    async def youtube_channel_videos(
+        channel_id: str, tab: str = "videos", refresh: bool = False
+    ) -> list[youtube.ChannelVideo]:
+        """List a channel tab's recent items (flat extraction, cached).
+
+        `tab` is one of videos / shorts / streams. "streams" carries live and
+        recorded-live broadcasts; an empty list means the channel has no items
+        of that kind. `refresh=1` bypasses the cache to look for new uploads.
+        """
+        if tab not in youtube.CHANNEL_TABS:
+            raise HTTPException(status_code=400, detail=f"unknown tab {tab!r}; expected one of {youtube.CHANNEL_TABS}")
+        try:
+            listing = await youtube.list_channel(youtube.canonical_channel_url(channel_id, tab), tab=tab, force=refresh)
+        except youtube.YouTubeError as exc:
+            raise HTTPException(status_code=502, detail=str(exc)) from exc
+        return listing.videos
+
+    def _clamp_max_height(h: int | None) -> int:
+        """Resolve the quality cap: explicit `?h=`, else the configured default."""
+        if h and h > 0:
+            # Snap to a known rung so caches don't fragment on odd values.
+            return min(youtube.QUALITY_HEIGHTS, key=lambda q: abs(q - h))
+        from maneki.settings import get_settings
+
+        return get_settings().media.youtube_max_height
+
+    @app.get("/api/youtube/quality")
+    def youtube_quality() -> dict[str, object]:
+        """Quality options + the current default, for the SPA's picker."""
+        return {"heights": list(youtube.QUALITY_HEIGHTS), "default": _clamp_max_height(None)}
+
+    @app.get("/api/youtube/videos/{video_id}")
+    async def youtube_video(video_id: str, h: int = 0) -> youtube.ChannelVideo:
+        """Metadata for one video (title + duration), for deep-link player opens."""
+        try:
+            resolved = await youtube.resolve_stream(video_id, max_height=_clamp_max_height(h))
+        except youtube.YouTubeError as exc:
+            raise HTTPException(status_code=502, detail=str(exc)) from exc
+        return youtube.ChannelVideo(
+            id=video_id,
+            title=resolved.title,
+            duration_s=resolved.duration_s,
+            thumbnail_url=youtube.thumbnail_url(video_id),
+        )
+
+    @app.get("/api/youtube/videos/{video_id}/hls/{filename}")
+    async def youtube_hls_file(video_id: str, filename: str, request: Request, h: int = 0) -> Response:
+        """Serve a YouTube video's HLS manifest / segments via the shared pipeline.
+
+        Resolves the video to its googlevideo URLs (cached) at the requested
+        quality cap `h`, wraps them in a RemoteSource, and hands off to the same
+        `_hls_response` the local endpoint uses. The session is keyed
+        `yt:<id>@<h>` so different qualities don't share a segment cache and it
+        never collides with a local file (and survives library rescans).
+        """
+        if "/" in filename or filename.startswith("."):
+            raise HTTPException(status_code=400, detail="invalid filename")
+        try:
+            assert_ffmpeg_available()
+        except FFmpegNotFoundError as exc:
+            raise HTTPException(status_code=503, detail=str(exc)) from exc
+        max_height = _clamp_max_height(h)
+        try:
+            resolved = await youtube.resolve_stream(video_id, max_height=max_height)
+        except youtube.YouTubeError as exc:
+            raise HTTPException(status_code=502, detail=str(exc)) from exc
+        source = RemoteSource(
+            video_url=resolved.video_url,
+            audio_url=resolved.audio_url,
+            name=resolved.title,
+            headers=resolved.http_headers,
+            height=resolved.height,
+        )
+        session = hls_manager.get_or_create_source(f"yt:{video_id}@{max_height}", source, resolved.duration_s)
+        # Pin segments to this quality cap: relative seg URIs don't inherit the
+        # manifest's ?h=, so stamp it on so segments hit the matching session.
+        return await _hls_response(session, filename, request, seg_query=f"h={max_height}")
 
     return app
 

@@ -25,11 +25,12 @@ def _clear_caches() -> None:
 # --- codec args (pure functions) -------------------------------------------
 
 
-def test_libx264_sdr_is_unchanged() -> None:
+def test_libx264_sdr_is_crf_driven() -> None:
     decode, vf, encode = video_codec_args("libx264", hdr=False)
     assert decode == []
     assert vf is None
-    assert encode == ["-c:v", "libx264", "-preset", "veryfast", "-crf", "23"]
+    # CRF is resolution-independent, so libx264 ignores the bitrate ladder.
+    assert encode == ["-c:v", "libx264", "-preset", "veryfast", "-crf", "20"]
 
 
 def test_libx264_hdr_inserts_software_tonemap() -> None:
@@ -44,6 +45,29 @@ def test_videotoolbox_is_bitrate_driven() -> None:
     assert vf is None
     assert encode[:2] == ["-c:v", "h264_videotoolbox"]
     assert "-b:v" in encode and "-maxrate" in encode
+
+
+def test_bitrate_scales_with_output_height() -> None:
+    # The encoder's VBV ceiling tracks the output height so 1080p isn't starved.
+    _, _, e1080 = video_codec_args("h264_videotoolbox", hdr=False, height=1080)
+    _, _, e480 = video_codec_args("h264_videotoolbox", hdr=False, height=480)
+    assert e1080[e1080.index("-b:v") + 1] == "12M"
+    assert e480[e480.index("-b:v") + 1] == "3M"
+    # Unknown height falls back to the 1080p tier.
+    _, _, edefault = video_codec_args("h264_videotoolbox", hdr=False)
+    assert edefault[edefault.index("-b:v") + 1] == "12M"
+
+
+def test_explicit_bitrate_env_overrides_ladder(monkeypatch: pytest.MonkeyPatch) -> None:
+    import maneki.video.serve.encoders as enc
+
+    monkeypatch.setenv("MANEKI_HWENC_BITRATE", "20M")
+    enc._hw_bitrate.cache_clear()
+    enc._hw_maxrate.cache_clear()
+    enc._hw_bufsize.cache_clear()
+    _, _, encode = video_codec_args("h264_videotoolbox", hdr=False, height=480)
+    # Manual override wins regardless of height.
+    assert encode[encode.index("-b:v") + 1] == "20M"
 
 
 def test_vaapi_sets_device_and_uploads_to_gpu() -> None:

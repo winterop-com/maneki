@@ -78,8 +78,10 @@ Everything has flags/positionals, but a few env vars are handy — especially ru
 | `MANEKI_LIBRARY` | Default library root for every root-taking command (`serve`, `info`, `list`, `audio library …`, `playlist …`). Set once instead of passing the path. |
 | `MANEKI_FFMPEG` / `MANEKI_FFPROBE` | Point maneki at specific ffmpeg/ffprobe binaries — e.g. a keg-only `ffmpeg-full` that bundles libzimg/`zscale` for HDR tonemapping — without touching `PATH`. |
 | `MANEKI_HWENC` | H.264 encoder: `auto` (default) · `vaapi` · `videotoolbox` · `none` (force software). |
-| `MANEKI_HWENC_BITRATE` / `_MAXRATE` / `_BUFSIZE` | Hardware-encoder bitrate (defaults `6M` / `8M` / `12M`). |
+| `MANEKI_HWENC_BITRATE` / `_MAXRATE` / `_BUFSIZE` | Override the hardware-encoder bitrate. Unset, it scales with output height (≈12M at 1080p, 6M at 720p, …); set it to pin a fixed rate. |
 | `MANEKI_VAAPI_DEVICE` | VAAPI render node (default `/dev/dri/renderD128`). |
+| `MANEKI_YT_COOKIES_FROM_BROWSER` | Read YouTube cookies from a local browser profile (`chrome` · `safari` · `firefox` · …) so channel/stream resolution stays reliable instead of tripping YouTube's "confirm you're not a bot". |
+| `MANEKI_YT_COOKIEFILE` | Alternative to the above: path to an exported Netscape `cookies.txt`. |
 | `MANEKI_ACOUSTID_KEY` | AcoustID API key for `audio convert --enrich` fingerprinting. |
 | `MANEKI_LOG_FORMAT` / `MANEKI_LOG_LEVEL` | `json` for machine-readable logs; level e.g. `DEBUG`. |
 

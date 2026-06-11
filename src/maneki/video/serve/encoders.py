@@ -75,6 +75,43 @@ def _hw_bufsize() -> str:
     return os.environ.get("MANEKI_HWENC_BUFSIZE", "12M")
 
 
+# Target H.264 bitrate by OUTPUT height — (-b:v, -maxrate, -bufsize). The old
+# flat 6M was the quality bottleneck: fine for 480-720p, but visibly soft
+# ("filtered") at 1080p, where the encoder is the limiter, not the source.
+# These ceilings make a VideoToolbox/VAAPI re-encode near-transparent for
+# typical streaming content while still being VBR (most scenes sit well below).
+# Each row is (min_height, bitrate, maxrate, bufsize).
+_BITRATE_LADDER: tuple[tuple[int, str, str, str], ...] = (
+    (2160, "35M", "45M", "60M"),
+    (1440, "18M", "24M", "32M"),
+    (1080, "12M", "16M", "24M"),
+    (720, "6M", "8M", "12M"),
+    (480, "3M", "4M", "6M"),
+    (0, "1500k", "2M", "3M"),
+)
+
+
+def _bitrate_for(height: int | None) -> tuple[str, str, str]:
+    """`(-b:v, -maxrate, -bufsize)` for an output height; 1080p tier if unknown."""
+    h = height if (height and height > 0) else 1080
+    for min_h, bv, maxrate, bufsize in _BITRATE_LADDER:
+        if h >= min_h:
+            return bv, maxrate, bufsize
+    return "12M", "16M", "24M"
+
+
+def _bitrate_override() -> tuple[str, str, str] | None:
+    """An explicit `MANEKI_HWENC_BITRATE` overrides the ladder (manual control).
+
+    Only kicks in when the env var is actually set; otherwise the
+    resolution-aware ladder picks an appropriate ceiling. The maxrate/bufsize
+    companions ride along (each with their own default if unset).
+    """
+    if "MANEKI_HWENC_BITRATE" not in os.environ:
+        return None
+    return _hw_bitrate(), _hw_maxrate(), _hw_bufsize()
+
+
 # Software HDR (PQ / HLG) -> SDR BT.709 tonemap. Runs before the encoder so the
 # H.264 output displays correctly in browsers (which don't handle HDR H.264).
 # Needs an ffmpeg built with zscale (libzimg); the per-file software fallback
@@ -217,7 +254,9 @@ def is_hdr(input_path: Path) -> bool:
     return out in _HDR_TRANSFERS
 
 
-def video_codec_args(encoder: Encoder, *, hdr: bool) -> tuple[list[str], str | None, list[str]]:
+def video_codec_args(
+    encoder: Encoder, *, hdr: bool, height: int | None = None
+) -> tuple[list[str], str | None, list[str]]:
     """Ffmpeg args for `encoder` as ``(decode_args, vf_filter, encode_args)``.
 
     - ``decode_args`` go *before* ``-i`` (VAAPI needs ``-vaapi_device`` there).
@@ -225,10 +264,15 @@ def video_codec_args(encoder: Encoder, *, hdr: bool) -> tuple[list[str], str | N
       or ``None`` when no filter is needed.
     - ``encode_args`` replace the ``-c:v …`` block.
 
+    `height` is the output frame height; the hardware encoders pick their VBR
+    ceiling from it (see `_BITRATE_LADDER`) so 1080p isn't starved at the old
+    flat 6M. An explicit ``MANEKI_HWENC_BITRATE`` overrides the ladder.
+
     Decode + tonemap stay in software (see module docstring); only the encode
     is handed to the GPU.
     """
     tonemap = _TONEMAP_SW if hdr else None
+    bitrate, maxrate, bufsize = _bitrate_override() or _bitrate_for(height)
     if encoder == "h264_vaapi":
         # VAAPI needs frames uploaded to a GPU surface (nv12) to encode.
         upload = "format=nv12,hwupload"
@@ -236,25 +280,17 @@ def video_codec_args(encoder: Encoder, *, hdr: bool) -> tuple[list[str], str | N
         return (
             ["-vaapi_device", _vaapi_device()],
             vf,
-            ["-c:v", "h264_vaapi", "-b:v", _hw_bitrate()],
+            ["-c:v", "h264_vaapi", "-b:v", bitrate, "-maxrate", maxrate, "-bufsize", bufsize],
         )
     if encoder == "h264_videotoolbox":
         return (
             [],
             tonemap,
-            [
-                "-c:v",
-                "h264_videotoolbox",
-                "-b:v",
-                _hw_bitrate(),
-                "-maxrate",
-                _hw_maxrate(),
-                "-bufsize",
-                _hw_bufsize(),
-            ],  # fmt: skip
+            ["-c:v", "h264_videotoolbox", "-b:v", bitrate, "-maxrate", maxrate, "-bufsize", bufsize],
         )
-    # libx264 (software fallback) — the original CRF-based settings.
-    return ([], tonemap, ["-c:v", "libx264", "-preset", "veryfast", "-crf", "23"])
+    # libx264 (software fallback): CRF is resolution-independent, so it ignores
+    # the ladder. crf 20 (was 23) for a visibly cleaner software encode.
+    return ([], tonemap, ["-c:v", "libx264", "-preset", "veryfast", "-crf", "20"])
 
 
 def _tool_version(binary: str | None, name: str) -> str | None:

@@ -75,6 +75,70 @@ const THUMB_FALLBACK_SVG =
       "</g></svg>",
   );
 
+// Register a custom video.js control-bar MenuButton that lists playback
+// resolutions (Auto / 1080p / 720p / 480p) for YouTube streams. We can't use
+// the usual `videojs-hls-quality-selector` plugin: it drives variant switching
+// inside an adaptive HLS master playlist, but our manifests are single-variant
+// per quality, and in Tauri/WebKit playback is native HLS (no JS quality API).
+// Instead each item just swaps the source URL (?h=<height>) via `onPick`, which
+// works identically under both MSE (web) and native HLS (Tauri). Registered
+// once per videojs factory; guarded so re-mounts don't re-register.
+function registerQualityButton(videojs) {
+  if (videojs.getComponent("ManekiQualityButton")) return;
+  const MenuButton = videojs.getComponent("MenuButton");
+  const MenuItem = videojs.getComponent("MenuItem");
+
+  class QualityItem extends MenuItem {
+    constructor(player, options) {
+      super(player, { label: options.label, selectable: true, selected: !!options.selected });
+      this.qValue = options.qValue;
+      this.onPick = options.onPick;
+    }
+    handleClick() { this.onPick(this.qValue); }
+  }
+
+  class QualityButton extends MenuButton {
+    constructor(player, options) {
+      super(player, options);
+      this.addClass("vjs-quality-button");
+      this.controlText("Quality");
+      // A text label on the button face (the control bar shows the current
+      // pick, like "1080p"), since there's no stock quality icon.
+      this._labelEl = videojs.dom.createEl("span", { className: "vjs-quality-label" });
+      (this.el().querySelector(".vjs-icon-placeholder") || this.el()).appendChild(this._labelEl);
+      this._refreshLabel();
+    }
+    _refreshLabel(explicit) {
+      // `explicit` is the just-picked value (the React state / ref lags a
+      // render behind, so don't read it back immediately after a pick).
+      const cur = explicit != null ? explicit : this.options_.getQuality();
+      const match = (this.options_.qualities || []).find((q) => q.value === cur);
+      if (this._labelEl) this._labelEl.textContent = match ? match.label : "Auto";
+    }
+    createItems() {
+      const cur = this.options_.getQuality();
+      return (this.options_.qualities || []).map(
+        (q) =>
+          new QualityItem(this.player(), {
+            label: q.label,
+            qValue: q.value,
+            selected: q.value === cur,
+            onPick: (v) => { this.options_.onPick(v); this._refreshLabel(v); this.update(); },
+          }),
+      );
+    }
+  }
+
+  videojs.registerComponent("ManekiQualityButton", QualityButton);
+}
+
+const YT_QUALITIES = [
+  { label: "Auto", value: 0 },
+  { label: "1080p", value: 1080 },
+  { label: "720p", value: 720 },
+  { label: "480p", value: 480 },
+];
+
 function VideosPane({ session, selectedId, selectedRelPath, onSelect }) {
   const [path, setPath] = useSt_vv("");
   const [entries, setEntries] = useSt_vv(null);
@@ -546,6 +610,15 @@ function VideoPlayerPane({ session, video, onClose, showStats, onCloseStats }) {
   // need a server-side ffprobe just for this — HLS doesn't downscale,
   // so the player-reported dims match the source file.
   const [resolution, setResolution] = useSt_vv(null);
+  // YouTube playback quality cap (max height; 0 = Auto/server default). Only
+  // meaningful for `video.source === "youtube"`. Changing it hot-swaps the
+  // HLS source in place (see the quality effect) without remounting the player.
+  const [quality, setQuality] = useSt_vv(0);
+  const qualitySwapRef = useRef_vv(true);
+  // Mirror `quality` into a ref so the video.js menu button (which lives
+  // outside React) can read the current selection when its menu opens.
+  const qualityRef = useRef_vv(0);
+  useEff_vv(() => { qualityRef.current = quality; }, [quality]);
 
   // Lazy-load video.js + its CSS + the City theme as one on-demand chunk.
   // setVjs stores the factory function (the updater form avoids React calling
@@ -576,6 +649,9 @@ function VideoPlayerPane({ session, video, onClose, showStats, onCloseStats }) {
   // every time the parent re-renders for unrelated state changes (e.g.
   // opening the shortcuts overlay).
   useEff_vv(() => {
+    // YouTube videos don't expose sidecar/embedded subtitle tracks through
+    // our API — skip the fetch (it would just 404 -> []) and show none.
+    if (video.source === "youtube") { setSubtitles([]); return undefined; }
     let cancelled = false;
     MK_VIDEO.subtitles(session, video.id).then((data) => {
       if (!cancelled && Array.isArray(data)) setSubtitles(data);
@@ -634,7 +710,7 @@ function VideoPlayerPane({ session, video, onClose, showStats, onCloseStats }) {
       // (and during seek buffer stalls) instead of a blank canvas.
       // Generated server-side; first request transcodes ~9 frames, then
       // cached on disk under <root>/.maneki/posters/.
-      poster: MK_VIDEO.posterUrl(session, video.id),
+      poster: MK_VIDEO.playerPoster(session, video),
       // Tell the browser to hide ALL its own chrome (URL bar, tab strip)
       // when entering fullscreen. The default 'auto' lets Chrome keep
       // the URL bar visible on macOS, which looks like the player isn't
@@ -659,7 +735,7 @@ function VideoPlayerPane({ session, video, onClose, showStats, onCloseStats }) {
       },
     });
     player.src({
-      src: MK_VIDEO.hlsUrl(session, video.id),
+      src: MK_VIDEO.playerHlsUrl(session, video),
       type: "application/x-mpegURL",
     });
     playerRef.current = player;
@@ -667,6 +743,31 @@ function VideoPlayerPane({ session, video, onClose, showStats, onCloseStats }) {
     // fullscreen on the actual video player instead of the audio
     // visualizer overlay. Cleared in the cleanup below.
     store.videoPlayer = player;
+
+    // YouTube streams get an in-player resolution menu in the control bar
+    // (Auto / 1080p / 720p / 480p). Each pick swaps the HLS source via the
+    // `quality` state (see the quality-swap effect). Inserted just before the
+    // fullscreen toggle.
+    if (video.source === "youtube") {
+      try {
+        registerQualityButton(vjs);
+        const controlBar = player.getChild("controlBar");
+        if (controlBar && !controlBar.getChild("ManekiQualityButton")) {
+          const insertAt = Math.max(0, controlBar.children().length - 1);
+          controlBar.addChild(
+            "ManekiQualityButton",
+            {
+              qualities: YT_QUALITIES,
+              getQuality: () => qualityRef.current,
+              onPick: (v) => setQuality(v),
+            },
+            insertAt,
+          );
+        }
+      } catch (_e) {
+        // Non-fatal: a control-bar quirk shouldn't break playback.
+      }
+    }
 
     // Captions size: also call setValues explicitly so video.js's
     // initial cue render uses our smaller default even before it
@@ -715,7 +816,7 @@ function VideoPlayerPane({ session, video, onClose, showStats, onCloseStats }) {
         const lastTime = player.currentTime();
         player.error(null);
         player.src({
-          src: MK_VIDEO.hlsUrl(session, video.id),
+          src: MK_VIDEO.playerHlsUrl(session, video),
           type: "application/x-mpegURL",
         });
         player.one("loadedmetadata", () => {
@@ -919,6 +1020,9 @@ function VideoPlayerPane({ session, video, onClose, showStats, onCloseStats }) {
   // also reports posters_ready) and re-set `player.poster()` with
   // a cache-busting query string as soon as our id appears.
   useEff_vv(() => {
+    // YouTube posters are static CDN URLs (always "ready"); no server-side
+    // contact sheet is generated, so there's nothing to poll for.
+    if (video.source === "youtube") return undefined;
     if (!MK_VIDEO.thumbnailsReady) return undefined;
     let cancelled = false;
     let timer = null;
@@ -952,6 +1056,29 @@ function VideoPlayerPane({ session, video, onClose, showStats, onCloseStats }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [video.id, vjs]);
 
+  // Hot-swap the HLS source when the YouTube quality cap changes. Preserves the
+  // playhead and play/pause state so changing quality feels seamless. Skips the
+  // first run (the player init effect already set the initial source).
+  useEff_vv(() => {
+    if (video.source !== "youtube") return undefined;
+    if (qualitySwapRef.current) { qualitySwapRef.current = false; return undefined; }
+    const player = playerRef.current;
+    if (!player) return undefined;
+    const t = player.currentTime() || 0;
+    const wasPlaying = !player.paused();
+    try {
+      player.src({ src: MK_VIDEO.ytHlsUrl(session, video.id, quality), type: "application/x-mpegURL" });
+      player.one("loadedmetadata", () => {
+        try {
+          if (Number.isFinite(t) && t > 0) player.currentTime(t);
+          if (wasPlaying) player.play().catch(() => {});
+        } catch (_e) { /* dead player */ }
+      });
+    } catch (_e) { /* dead player */ }
+    return undefined;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [quality]);
+
   const subCount = subtitles.length;
   const resolutionLabel = resolution ? fmtResolution(resolution.w, resolution.h) : null;
   const metaBits = [
@@ -967,7 +1094,7 @@ function VideoPlayerPane({ session, video, onClose, showStats, onCloseStats }) {
       const lastTime = player.currentTime() || 0;
       player.error(null);
       player.src({
-        src: MK_VIDEO.hlsUrl(session, video.id),
+        src: MK_VIDEO.playerHlsUrl(session, video),
         type: "application/x-mpegURL",
       });
       player.one("loadedmetadata", () => {
@@ -989,7 +1116,7 @@ function VideoPlayerPane({ session, video, onClose, showStats, onCloseStats }) {
             <div className="mk-video-player-meta">{metaBits.join(" · ")}</div>
           )}
         </div>
-        <div style={{ display: "flex", gap: 6 }}>
+        <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
           <button className="mk-signout" onClick={onClose} style={{ fontSize: 11 }}>Close</button>
         </div>
       </div>
@@ -1131,4 +1258,291 @@ function VideoSearchPane({ session, q, selectedId, onSelect }) {
   );
 }
 
-export { VideosPane, VideoSearchPane, VideoPlayerPane };
+// YouTube pane: manage channel subscriptions and browse a channel's content.
+//
+// Two views, switched by `sel` (the selected channel):
+//   - no selection: an "Add channel" URL box + the list of subscribed
+//     channels (avatar, name, handle), each removable.
+//   - a channel selected: Videos / Shorts / Live sub-tabs over that channel's
+//     recent items. Clicking an item hands a youtube-shaped video object up to
+//     `onSelect`, which opens the shared player against the YouTube HLS source.
+//
+// Everything resolves server-side via yt-dlp; thumbnails come straight from
+// YouTube's CDN (no server round-trip).
+const YT_TABS = [
+  { key: "videos", label: "Videos" },
+  { key: "shorts", label: "Shorts" },
+  { key: "streams", label: "Live" },
+];
+
+// Format a capped count for the channel-row helper line: exact, or "60+" when
+// the listing hit the server cap (true totals are too expensive to fetch).
+function fmtCount(n, capped) {
+  if (!n) return "0";
+  return capped ? `${n}+` : `${n}`;
+}
+
+// Small circular-arrow refresh button used in the YouTube pane headers.
+// `spinning` animates it while a refresh is in flight (and disables clicks).
+function RefreshButton({ onClick, spinning, title = "Refresh" }) {
+  return (
+    <button
+      type="button"
+      className={"mk-yt-refresh" + (spinning ? " spinning" : "")}
+      onClick={onClick}
+      disabled={spinning}
+      title={title}
+      aria-label={title}
+    >
+      <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M21 12a9 9 0 11-3-6.7L21 8"/>
+        <path d="M21 3v5h-5"/>
+      </svg>
+    </button>
+  );
+}
+
+function YouTubePane({ session, selectedId, onSelect }) {
+  const [channels, setChannels] = useSt_vv(null);
+  const [addUrl, setAddUrl] = useSt_vv("");
+  const [adding, setAdding] = useSt_vv(false);
+  const [addErr, setAddErr] = useSt_vv(null);
+  const [sel, setSel] = useSt_vv(null); // selected channel object
+  const [tab, setTab] = useSt_vv("videos");
+  const [items, setItems] = useSt_vv(null);
+  const [listErr, setListErr] = useSt_vv(null);
+  // Per-channel capped counts {channelId: {videos, shorts, live, *_capped}},
+  // fetched lazily after the list renders so the list shows immediately.
+  const [counts, setCounts] = useSt_vv({});
+  const [refreshing, setRefreshing] = useSt_vv(false);
+
+  const loadChannels = async (refresh = false) => {
+    const data = await MK_VIDEO.ytChannels(session, refresh);
+    setChannels(Array.isArray(data) ? data : []);
+    return Array.isArray(data) ? data : [];
+  };
+
+  // Fetch counts for a set of channels one at a time (gentle on YouTube's
+  // bot-check) and merge them in as they arrive. `refresh` forces re-fetch.
+  const loadCounts = async (chans, refresh = false) => {
+    for (const ch of chans) {
+      const c = await MK_VIDEO.ytChannelCounts(session, ch.id, refresh);
+      if (c) setCounts((prev) => ({ ...prev, [ch.id]: c }));
+    }
+  };
+
+  useEff_vv(() => {
+    let cancelled = false;
+    MK_VIDEO.ytChannels(session).then((data) => {
+      if (cancelled) return;
+      const list = Array.isArray(data) ? data : [];
+      setChannels(list);
+      loadCounts(list); // best-effort, fills in after the list paints
+    });
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [session]);
+
+  // Fetch the selected channel's items whenever the channel or tab changes.
+  useEff_vv(() => {
+    if (!sel) return () => {};
+    let cancelled = false;
+    setItems(null);
+    setListErr(null);
+    MK_VIDEO.ytChannelVideos(session, sel.id, tab).then(
+      (data) => { if (!cancelled) setItems(Array.isArray(data) ? data : []); },
+      (err) => { if (!cancelled) setListErr(String(err.message || err)); },
+    );
+    return () => { cancelled = true; };
+  }, [session, sel, tab]);
+
+  // Refresh: bust the server cache and re-fetch. In a channel re-pulls the
+  // current tab (look for new uploads); in the list re-pulls every channel's
+  // header + counts.
+  const onRefresh = async () => {
+    if (refreshing) return;
+    setRefreshing(true);
+    try {
+      if (sel) {
+        setItems(null);
+        setListErr(null);
+        const data = await MK_VIDEO.ytChannelVideos(session, sel.id, tab, true);
+        setItems(Array.isArray(data) ? data : []);
+        const c = await MK_VIDEO.ytChannelCounts(session, sel.id, true);
+        if (c) setCounts((prev) => ({ ...prev, [sel.id]: c }));
+      } else {
+        const list = await loadChannels(true);
+        await loadCounts(list, true);
+      }
+    } catch (_e) {
+      // best-effort; the list error UI covers detail-view failures
+    } finally {
+      setRefreshing(false);
+    }
+  };
+
+  const onAdd = async (e) => {
+    if (e && e.preventDefault) e.preventDefault();
+    const url = addUrl.trim();
+    if (!url || adding) return;
+    setAdding(true);
+    setAddErr(null);
+    try {
+      await MK_VIDEO.ytAddChannel(session, url);
+      setAddUrl("");
+      await loadChannels();
+    } catch (err) {
+      setAddErr(String(err.message || err));
+    } finally {
+      setAdding(false);
+    }
+  };
+
+  const onRemove = async (channelId, ev) => {
+    ev.stopPropagation();
+    await MK_VIDEO.ytRemoveChannel(session, channelId);
+    if (sel && sel.id === channelId) setSel(null);
+    await loadChannels();
+  };
+
+  // ---- Channel detail view (a channel is selected) ----------------------
+  if (sel) {
+    return (
+      <div className="mk-pane mk-albums-pane">
+        <div className="mk-pane-label mk-video-crumbs">
+          <span className="mk-crumb mk-crumb-link" onClick={() => setSel(null)}>YouTube</span>
+          <span className="mk-crumb-sep">/</span>
+          <span className="mk-crumb active" title={sel.title}>{sel.title}</span>
+          <RefreshButton onClick={onRefresh} spinning={refreshing} />
+        </div>
+        <div className="mk-yt-tabs">
+          {YT_TABS.map((tdef) => (
+            <button
+              key={tdef.key}
+              type="button"
+              className={"mk-yt-tab" + (tab === tdef.key ? " active" : "")}
+              onClick={() => setTab(tdef.key)}
+            >
+              {tdef.label}
+            </button>
+          ))}
+        </div>
+        {listErr !== null && <div className="mk-empty"><div className="mk-empty-title">{listErr}</div></div>}
+        {listErr === null && items === null && <div className="mk-empty"><div className="mk-empty-title">Loading...</div></div>}
+        {Array.isArray(items) && items.length === 0 && (
+          <div className="mk-empty">
+            <div className="mk-empty-title">Nothing here</div>
+            <div className="mk-empty-sub">This channel has no {tab === "streams" ? "live streams" : tab}.</div>
+          </div>
+        )}
+        {Array.isArray(items) && items.length > 0 && (
+          <div className="mk-album-list">
+            {items.map((v) => {
+              const playable = !v.is_live; // currently-live has no fixed duration
+              return (
+                <div
+                  key={v.id}
+                  className={"mk-album-row" + (selectedId === v.id ? " active" : "") + (playable ? "" : " mk-yt-unplayable")}
+                  onClick={() => playable && onSelect({ id: v.id, name: v.title, duration_s: v.duration_s, source: "youtube" })}
+                  title={v.is_live ? `${v.title} (live - not playable yet)` : v.title}
+                >
+                  <div className="mk-yt-thumb-wrap">
+                    <img
+                      className="mk-album-cover-sm"
+                      src={v.thumbnail_url || MK_VIDEO.ytThumb(v.id)}
+                      alt=""
+                      loading="lazy"
+                      onError={(e) => { if (e.currentTarget.src !== THUMB_FALLBACK_SVG) e.currentTarget.src = THUMB_FALLBACK_SVG; }}
+                      style={{ objectFit: "cover", background: "var(--bg-elev2)" }}
+                    />
+                    {v.is_live && <span className="mk-yt-live-badge">LIVE</span>}
+                  </div>
+                  <div className="mk-album-meta">
+                    <div className="mk-album-name">{v.title}</div>
+                    <div className="mk-album-sub">
+                      <span className="mono">{v.is_live ? "live" : fmtDuration(v.duration_s)}</span>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // ---- Channel list view (no channel selected) --------------------------
+  return (
+    <div className="mk-pane mk-albums-pane">
+      <div className="mk-pane-label mk-video-crumbs">
+        <span className="mk-crumb active">YouTube channels</span>
+        <RefreshButton onClick={onRefresh} spinning={refreshing} title="Check channels for new uploads" />
+      </div>
+      <form className="mk-yt-add" onSubmit={onAdd}>
+        <input
+          className="mk-yt-add-input"
+          type="text"
+          placeholder="Add a channel URL (e.g. youtube.com/@RedLetterMedia)"
+          value={addUrl}
+          onChange={(e) => setAddUrl(e.target.value)}
+          spellCheck={false}
+        />
+        <button className="mk-yt-add-btn" type="submit" disabled={adding || !addUrl.trim()}>
+          {adding ? "Adding..." : "Add"}
+        </button>
+      </form>
+      {addErr !== null && <div className="mk-yt-add-err">{addErr}</div>}
+      {channels === null && <div className="mk-empty"><div className="mk-empty-title">Loading...</div></div>}
+      {Array.isArray(channels) && channels.length === 0 && (
+        <div className="mk-empty">
+          <div className="mk-empty-title">No channels yet</div>
+          <div className="mk-empty-sub">Paste a channel URL above to subscribe.</div>
+        </div>
+      )}
+      {Array.isArray(channels) && channels.length > 0 && (
+        <div className="mk-album-list">
+          {channels.map((ch) => (
+            <div
+              key={ch.id}
+              className="mk-album-row"
+              onClick={() => { setSel(ch); setTab("videos"); }}
+              title={ch.title}
+            >
+              <img
+                className="mk-album-cover-sm mk-yt-avatar"
+                src={ch.thumbnail_url || THUMB_FALLBACK_SVG}
+                alt=""
+                loading="lazy"
+                onError={(e) => { if (e.currentTarget.src !== THUMB_FALLBACK_SVG) e.currentTarget.src = THUMB_FALLBACK_SVG; }}
+                style={{ objectFit: "cover", background: "var(--bg-elev2)" }}
+              />
+              <div className="mk-album-meta">
+                <div className="mk-album-name">{ch.title}</div>
+                {ch.handle && <div className="mk-album-sub"><span className="mono">{ch.handle}</span></div>}
+                {counts[ch.id] && (
+                  <div className="mk-album-sub mk-yt-counts mono">
+                    <span>{fmtCount(counts[ch.id].videos, counts[ch.id].videos_capped)} videos</span>
+                    {counts[ch.id].shorts > 0 && <span>{fmtCount(counts[ch.id].shorts, counts[ch.id].shorts_capped)} shorts</span>}
+                    {counts[ch.id].live > 0 && <span>{fmtCount(counts[ch.id].live, counts[ch.id].live_capped)} live</span>}
+                  </div>
+                )}
+              </div>
+              <button
+                type="button"
+                className="mk-yt-remove"
+                title="Unsubscribe"
+                aria-label="Unsubscribe"
+                onClick={(ev) => onRemove(ch.id, ev)}
+              >
+                &times;
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+export { VideosPane, VideoSearchPane, VideoPlayerPane, YouTubePane };

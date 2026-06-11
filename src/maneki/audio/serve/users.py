@@ -18,6 +18,7 @@ import re
 import unicodedata
 from pathlib import Path
 from threading import RLock
+from typing import TYPE_CHECKING
 
 from pydantic import BaseModel, ConfigDict
 
@@ -25,6 +26,9 @@ from maneki.audio.serve.config import ServeConfig
 from maneki.audio.serve.history import HistoryStore
 from maneki.audio.serve.playlists import PlaylistStore
 from maneki.audio.serve.stars import StarStore
+
+if TYPE_CHECKING:
+    from maneki.video.serve.subscriptions import SubscriptionStore
 
 log = logging.getLogger(__name__)
 
@@ -48,7 +52,11 @@ def sanitize_username(name: str) -> str:
     """
     norm = unicodedata.normalize("NFC", name).strip().lower()
     slug = re.sub(r"[^a-z0-9_-]+", "_", norm).strip("._-") or "user"
-    digest = hashlib.sha1(name.encode("utf-8")).hexdigest()[:8]  # noqa: S324 - dir naming, not security
+    # `usedforsecurity=False`: this hash only disambiguates directory names, it
+    # guards nothing. The flag keeps the digest identical (no migration of
+    # existing per-user dirs) while telling linters / scanners it isn't a
+    # security use.
+    digest = hashlib.sha1(name.encode("utf-8"), usedforsecurity=False).hexdigest()[:8]
     return f"{slug}-{digest}"
 
 
@@ -63,6 +71,10 @@ class UserRegistry:
         self._stars: dict[str, StarStore] = {}
         self._playlists: dict[str, PlaylistStore] = {}
         self._history: dict[str, HistoryStore] = {}
+        # YouTube subscriptions are video-side data; the store is imported
+        # lazily in `subscriptions_for` so the audio package doesn't pull the
+        # video module (and yt-dlp) at import time.
+        self._subscriptions: dict[str, SubscriptionStore] = {}
 
     @classmethod
     def from_settings(cls, root: Path) -> UserRegistry:
@@ -118,6 +130,17 @@ class UserRegistry:
             if store is None:
                 store = HistoryStore(self.user_dir(name) / "history.db")
                 self._history[name] = store
+            return store
+
+    def subscriptions_for(self, name: str) -> SubscriptionStore:
+        """The account's YouTube `SubscriptionStore`, built once and cached."""
+        from maneki.video.serve.subscriptions import SubscriptionStore
+
+        with self._lock:
+            store = self._subscriptions.get(name)
+            if store is None:
+                store = SubscriptionStore(self.user_dir(name) / "youtube.toml")
+                self._subscriptions[name] = store
             return store
 
 

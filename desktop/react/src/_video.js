@@ -199,6 +199,110 @@ export const MK_VIDEO = (function () {
         );
       } catch { /* best-effort */ }
     },
+
+    // ---- YouTube channels -------------------------------------------------
+    // The video side can subscribe to YouTube channels (per user) and stream
+    // their videos through the same HLS pipeline as local files. Resolution
+    // happens server-side via yt-dlp; the SPA only ever sees our own shapes.
+
+    // The current user's subscribed channels: [{id, title, url, handle,
+    // thumbnail_url}]. `refresh` busts the server-side listing cache to look
+    // for new uploads. Returns [] on error so the pane renders empty rather
+    // than crashing.
+    async ytChannels(session, refresh = false) {
+      try {
+        const q = refresh ? "?refresh=1" : "";
+        return await call(`${videoApiBase(session)}/youtube/channels${q}`);
+      } catch {
+        return [];
+      }
+    },
+
+    // Capped per-tab counts for a channel: {videos, shorts, live, *_capped}.
+    // Best-effort: returns null on error so the row just omits the numbers.
+    async ytChannelCounts(session, channelId, refresh = false) {
+      try {
+        const q = refresh ? "?refresh=1" : "";
+        return await call(`${videoApiBase(session)}/youtube/channels/${encodeURIComponent(channelId)}/counts${q}`);
+      } catch {
+        return null;
+      }
+    },
+
+    // Subscribe by channel URL (@handle / channel/UC... / etc.). Resolves +
+    // persists server-side; returns the ChannelInfo. Throws on a bad URL so
+    // the caller can surface the error to the user.
+    async ytAddChannel(session, url) {
+      const resp = await fetch(`${videoApiBase(session)}/youtube/channels`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url }),
+      });
+      if (!resp.ok) {
+        let detail = `HTTP ${resp.status}`;
+        try { detail = (await resp.json()).detail || detail; } catch { /* keep status */ }
+        throw new Error(detail);
+      }
+      return resp.json();
+    },
+
+    async ytRemoveChannel(session, channelId) {
+      try {
+        await fetch(`${videoApiBase(session)}/youtube/channels/${encodeURIComponent(channelId)}`, {
+          method: "DELETE",
+        });
+      } catch { /* best-effort */ }
+    },
+
+    // A channel tab's recent items: [{id, title, duration_s, thumbnail_url,
+    // kind, is_live, ...}]. `tab` is "videos" | "shorts" | "streams"
+    // (streams = live + recorded-live). Empty array when the channel has no
+    // items of that kind.
+    async ytChannelVideos(session, channelId, tab = "videos", refresh = false) {
+      const params = [];
+      if (tab && tab !== "videos") params.push(`tab=${encodeURIComponent(tab)}`);
+      if (refresh) params.push("refresh=1");
+      const q = params.length ? `?${params.join("&")}` : "";
+      return call(`${videoApiBase(session)}/youtube/channels/${encodeURIComponent(channelId)}/videos${q}`);
+    },
+
+    // One YouTube video's metadata (title + duration), for deep-link opens.
+    async ytVideo(session, videoId) {
+      return call(`${videoApiBase(session)}/youtube/videos/${encodeURIComponent(videoId)}`);
+    },
+
+    // HLS manifest URL for a YouTube video — feeds the same player as local.
+    // `h` is an optional max-height quality cap (0 / omitted = server default).
+    ytHlsUrl(session, videoId, h = 0) {
+      const q = h && h > 0 ? `?h=${encodeURIComponent(h)}` : "";
+      return `${videoApiBase(session)}/youtube/videos/${encodeURIComponent(videoId)}/hls/index.m3u8${q}`;
+    },
+
+    // Thumbnail / poster come straight from YouTube's CDN (derivable from the
+    // id, no server round-trip, no ffmpeg). No session needed.
+    ytThumb(videoId) {
+      return `https://i.ytimg.com/vi/${encodeURIComponent(videoId)}/hqdefault.jpg`;
+    },
+
+    ytPoster(videoId) {
+      return `https://i.ytimg.com/vi/${encodeURIComponent(videoId)}/maxresdefault.jpg`;
+    },
+
+    // ---- Player source dispatch ------------------------------------------
+    // The player is given a `video` object that may be a local library entry
+    // or a YouTube video (`video.source === "youtube"`). These pick the right
+    // HLS manifest + poster so the player component stays source-agnostic.
+    playerHlsUrl(session, video) {
+      return video && video.source === "youtube"
+        ? this.ytHlsUrl(session, video.id)
+        : this.hlsUrl(session, video.id);
+    },
+
+    playerPoster(session, video) {
+      return video && video.source === "youtube"
+        ? this.ytPoster(video.id)
+        : this.posterUrl(session, video.id);
+    },
   };
 
   return MK_VIDEO;
