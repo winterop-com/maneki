@@ -1584,18 +1584,27 @@ startup warning, so set it (or add <code>[[users]]</code>) before exposing the s
 <a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a><span class="n">api_key</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;...&quot;</span>
 </code></pre></div>
 <h3 id="media"><code>[media]</code><a class="headerlink" href="#media" title="Permanent link">&para;</a></h3>
-<p>ffmpeg/ffprobe binaries + the H.264 hardware encoder. Useful to point maneki at
-a fuller ffmpeg (e.g. one with <code>zscale</code>/libzimg for HDR tonemapping) without
-touching your <code>PATH</code>.</p>
+<p>ffmpeg/ffprobe binaries, the H.264 hardware encoder, and YouTube playback.
+Useful to point maneki at a fuller ffmpeg (e.g. one with <code>zscale</code>/libzimg for
+HDR tonemapping) without touching your <code>PATH</code>.</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a><span class="k">[media]</span>
 <a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a><span class="n">ffmpeg</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;/opt/homebrew/opt/ffmpeg-full/bin/ffmpeg&quot;</span>
 <a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a><span class="n">ffprobe</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;/opt/homebrew/opt/ffmpeg-full/bin/ffprobe&quot;</span>
 <a id="__codelineno-9-4" name="__codelineno-9-4" href="#__codelineno-9-4"></a><span class="n">hwenc</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;auto&quot;</span><span class="w">            </span><span class="c1"># auto | vaapi | videotoolbox | none</span>
-<a id="__codelineno-9-5" name="__codelineno-9-5" href="#__codelineno-9-5"></a><span class="n">hwenc_bitrate</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;6M&quot;</span>
+<a id="__codelineno-9-5" name="__codelineno-9-5" href="#__codelineno-9-5"></a><span class="n">hwenc_bitrate</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;6M&quot;</span><span class="w">      </span><span class="c1"># set to pin a fixed rate; unset = scales with height</span>
 <a id="__codelineno-9-6" name="__codelineno-9-6" href="#__codelineno-9-6"></a><span class="n">hwenc_maxrate</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;8M&quot;</span>
 <a id="__codelineno-9-7" name="__codelineno-9-7" href="#__codelineno-9-7"></a><span class="n">hwenc_bufsize</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;12M&quot;</span>
 <a id="__codelineno-9-8" name="__codelineno-9-8" href="#__codelineno-9-8"></a><span class="n">vaapi_device</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;/dev/dri/renderD128&quot;</span>
+<a id="__codelineno-9-9" name="__codelineno-9-9" href="#__codelineno-9-9"></a><span class="n">youtube_max_height</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">1080</span><span class="w">            </span><span class="c1"># default cap for YouTube playback quality</span>
+<a id="__codelineno-9-10" name="__codelineno-9-10" href="#__codelineno-9-10"></a><span class="n">youtube_cookies_from_browser</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;chrome&quot;</span><span class="w">   </span><span class="c1"># chrome | safari | firefox | ...</span>
+<a id="__codelineno-9-11" name="__codelineno-9-11" href="#__codelineno-9-11"></a><span class="c1"># youtube_cookiefile = &quot;/path/to/cookies.txt&quot;   # alternative to the above</span>
 </code></pre></div>
+<p>Leave <code>hwenc_bitrate</code> unset to let the encoder scale the bitrate with the
+output resolution (≈12M at 1080p, 6M at 720p, …); set it to pin a fixed rate.</p>
+<p><code>youtube_cookies_from_browser</code> (or <code>youtube_cookiefile</code>) makes YouTube channel
+and stream resolution reliable: without logged-in cookies, repeated requests
+from one IP eventually trip YouTube's "Sign in to confirm you're not a bot".
+Point it at a browser you're signed into YouTube with.</p>
 <p>Run <code>maneki doctor</code> to see which encoder will actually be used.</p>
 <h3 id="logging"><code>[logging]</code><a class="headerlink" href="#logging" title="Permanent link">&para;</a></h3>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a><span class="k">[logging]</span>
@@ -1635,11 +1644,19 @@ underscore); a handful of common ones also have a short flat alias.</p>
 </tr>
 <tr>
 <td><code>MANEKI_HWENC_BITRATE</code> / <code>_MAXRATE</code> / <code>_BUFSIZE</code></td>
-<td><code>[media]</code> hardware bitrate</td>
+<td><code>[media]</code> hardware bitrate (override the height-scaled default)</td>
 </tr>
 <tr>
 <td><code>MANEKI_VAAPI_DEVICE</code></td>
 <td><code>[media]</code> VAAPI render node</td>
+</tr>
+<tr>
+<td><code>MANEKI_YT_COOKIES_FROM_BROWSER</code></td>
+<td><code>[media]</code> read YouTube cookies from a browser profile (<code>chrome</code> / <code>safari</code> / <code>firefox</code> / …)</td>
+</tr>
+<tr>
+<td><code>MANEKI_YT_COOKIEFILE</code></td>
+<td><code>[media]</code> path to an exported Netscape <code>cookies.txt</code></td>
 </tr>
 <tr>
 <td><code>MANEKI_ACOUSTID_KEY</code></td>

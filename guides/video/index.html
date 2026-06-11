@@ -975,6 +975,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#youtube-channels" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        YouTube channels
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#browser-compatibility" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1670,6 +1681,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#youtube-channels" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        YouTube channels
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#browser-compatibility" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1816,8 +1838,9 @@
 <a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a><span class="w">  </span><span class="nt">&quot;version&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;0.9.0&quot;</span><span class="p">,</span>
 <a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a><span class="w">  </span><span class="nt">&quot;audio&quot;</span><span class="p">:</span><span class="w"> </span><span class="kc">false</span><span class="p">,</span>
 <a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a><span class="w">  </span><span class="nt">&quot;video&quot;</span><span class="p">:</span><span class="w"> </span><span class="kc">true</span><span class="p">,</span>
-<a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a><span class="w">  </span><span class="nt">&quot;video_count&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">2</span>
-<a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a><span class="p">}</span>
+<a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a><span class="w">  </span><span class="nt">&quot;youtube&quot;</span><span class="p">:</span><span class="w"> </span><span class="kc">true</span><span class="p">,</span>
+<a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a><span class="w">  </span><span class="nt">&quot;video_count&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">2</span>
+<a id="__codelineno-3-8" name="__codelineno-3-8" href="#__codelineno-3-8"></a><span class="p">}</span>
 </code></pre></div>
 <h3 id="get-videoapivideos"><code>GET /video/api/videos</code><a class="headerlink" href="#get-videoapivideos" title="Permanent link">&para;</a></h3>
 <p>Flat list of every video file anywhere under the library root. One entry per file:</p>
@@ -1909,6 +1932,34 @@
 <p>Serves one subtitle track as WebVTT. <code>key</code> is either a sidecar language tag (<code>en</code>, <code>und</code>, ...) or <code>embed-&lt;stream_index&gt;</code> for embedded streams. Sidecars are converted on the fly (.srt → .vtt timestamps + header). Embedded streams are extracted via a <strong>single ffmpeg invocation with one <code>-map 0:&lt;idx&gt;</code> output per stream</strong> — the source file is opened once and every missing .vtt is written in one pass, then cached at <code>&lt;root&gt;/.maneki/subs/&lt;sha256(id)[:32]&gt;/embed-&lt;N&gt;.vtt</code> so re-requests are file-serve cheap.</p>
 <p>This pattern matters on .mkv files with many embedded tracks (Stranger Things S5 ships 45 of them): the older one-ffmpeg-per-stream approach spawned 45 simultaneous ffmpegs that each re-read the 800 MB source and saturated disk I/O. The single-pass version completes the same work in roughly the time of one stream extract. Per-video lock so concurrent requests for different tracks of the same file share the extraction.</p>
 <p>The SPA only registers the <strong>default + English / English-SDH</strong> tracks with video.js on player mount; the rest stay listed in the captions menu but aren't fetched. Trade-off: less captions-menu completeness, but no head-of-line block on the HLS critical path from 45 parallel <code>.vtt</code> fetches at video-open time.</p>
+<h2 id="youtube-channels">YouTube channels<a class="headerlink" href="#youtube-channels" title="Permanent link">&para;</a></h2>
+<p>Maneki can subscribe to YouTube channels and play their videos through the same
+HLS transcode pipeline as local files. It's a top-level source alongside Audio
+and Video (the <code>YOUTUBE</code> tab), available on any server — it needs nothing on
+disk, so it works even on an audio-only or empty library.</p>
+<p>Subscribe by pasting a channel URL (<code>@handle</code>, <code>/channel/UC…</code>, <code>/c/…</code>,
+<code>/user/…</code>). Each channel exposes <strong>Videos / Shorts / Live</strong> tabs (Live carries
+both in-progress and recorded/past streams; in-progress ones have no fixed
+duration yet and aren't playable). The list shows per-channel helper counts and
+a refresh button that looks for new uploads. In the player, a resolution menu
+(Auto / 1080p / 720p / 480p) hot-swaps quality without losing your place.</p>
+<p>Subscriptions are <strong>per user</strong>, stored at
+<code>&lt;root&gt;/.maneki/users/&lt;name&gt;/youtube.toml</code>. Resolution goes through
+<a href="https://github.com/yt-dlp/yt-dlp">yt-dlp</a> (a hard dependency); listings and
+resolved stream URLs are cached briefly (~30 min / ~5 h).</p>
+<p><strong>Set up cookies for reliability.</strong> Without logged-in cookies, repeated requests
+from one IP eventually trip YouTube's <em>"Sign in to confirm you're not a bot"</em>.
+Point maneki at a browser you're signed into YouTube with:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="nv">MANEKI_YT_COOKIES_FROM_BROWSER</span><span class="o">=</span>chrome<span class="w">   </span><span class="c1"># or safari / firefox / edge / brave …</span>
+<a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a><span class="c1"># or, with an exported Netscape cookies.txt:</span>
+<a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a><span class="nv">MANEKI_YT_COOKIEFILE</span><span class="o">=</span>/path/to/cookies.txt
+</code></pre></div>
+<p>(Equivalently <code>[media] youtube_cookies_from_browser</code> / <code>youtube_cookiefile</code> in
+the config file.) Default playback quality is <code>[media] youtube_max_height</code>
+(1080p); the in-player menu overrides it per stream.</p>
+<p>Known limits: no YouTube subtitles, no automatic new-upload polling (use the
+refresh button), and a very long watch can outlive a stream URL's ~6 h
+expiry. yt-dlp tracks YouTube closely — keep it current if extraction breaks.</p>
 <h2 id="browser-compatibility">Browser compatibility<a class="headerlink" href="#browser-compatibility" title="Permanent link">&para;</a></h2>
 <p>What plays in a browser depends on the file's codecs:</p>
 <table>
