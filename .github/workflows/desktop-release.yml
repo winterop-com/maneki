@@ -89,7 +89,7 @@ jobs:
           projectPath: desktop/tauri
 
       - name: Upload Tauri bundles to the release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           tag_name: ${{ github.event.inputs.tag || github.ref_name }}
           fail_on_unmatched_files: false
@@ -117,7 +117,7 @@ jobs:
           ref: ${{ github.event.inputs.tag || github.ref }}
 
       - name: Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: 20
 
@@ -144,7 +144,7 @@ jobs:
           npx --no-install electron-builder --publish never
 
       - name: Upload Electron bundles to the release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           tag_name: ${{ github.event.inputs.tag || github.ref_name }}
           fail_on_unmatched_files: false
