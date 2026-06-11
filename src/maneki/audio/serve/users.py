@@ -52,7 +52,11 @@ def sanitize_username(name: str) -> str:
     """
     norm = unicodedata.normalize("NFC", name).strip().lower()
     slug = re.sub(r"[^a-z0-9_-]+", "_", norm).strip("._-") or "user"
-    digest = hashlib.sha1(name.encode("utf-8")).hexdigest()[:8]  # noqa: S324 - dir naming, not security
+    # `usedforsecurity=False`: this hash only disambiguates directory names, it
+    # guards nothing. The flag keeps the digest identical (no migration of
+    # existing per-user dirs) while telling linters / scanners it isn't a
+    # security use.
+    digest = hashlib.sha1(name.encode("utf-8"), usedforsecurity=False).hexdigest()[:8]
     return f"{slug}-{digest}"
 
 
