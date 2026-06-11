@@ -72,24 +72,30 @@ def test_capabilities_audio_only_when_no_video(audio_only_root: Path) -> None:
     data = client.get("/capabilities").json()
     assert data["audio"] is True
     assert data["video"] is False
-    assert data["endpoints"]["video_api"] is None
+    # YouTube is a remote source, available regardless of local media; the
+    # native app (and its API base) is mounted to host its endpoints.
+    assert data["youtube"] is True
+    assert data["endpoints"]["video_api"] == "/video/api"
 
 
-def test_capabilities_empty_root_mounts_nothing(tmp_path: Path) -> None:
-    """A directory with no media at all mounts neither kind."""
+def test_capabilities_empty_root_still_offers_youtube(tmp_path: Path) -> None:
+    """A directory with no media still offers YouTube (audio/video both off)."""
     client = TestClient(create_combined_app(root=tmp_path, audio_cfg=_TEST_AUDIO_CFG))
     data = client.get("/capabilities").json()
     assert data["audio"] is False
     assert data["video"] is False
+    assert data["youtube"] is True
     assert data["endpoints"]["audio_subsonic"] is None
-    assert data["endpoints"]["video_api"] is None
+    assert data["endpoints"]["video_api"] == "/video/api"
 
 
-def test_video_routes_absent_when_audio_only(audio_only_root: Path) -> None:
-    """Pointing at an audio-only root means /video/api/videos must 404."""
+def test_local_video_list_empty_when_audio_only(audio_only_root: Path) -> None:
+    """Audio-only root: the native app is mounted (for YouTube), but the local
+    video listing is empty rather than 404 — the YouTube routes still work."""
     client = TestClient(create_combined_app(root=audio_only_root, audio_cfg=_TEST_AUDIO_CFG))
     resp = client.get("/video/api/videos")
-    assert resp.status_code == 404
+    assert resp.status_code == 200
+    assert resp.json() == []
 
 
 def test_audio_routes_absent_when_video_only(video_only_root: Path) -> None:

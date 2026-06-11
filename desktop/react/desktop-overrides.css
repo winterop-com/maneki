@@ -528,29 +528,6 @@ body[data-platform="darwin"]:not([data-shell="browser"]) .mk-kind-rail {
 
 /* ---- YouTube channels -------------------------------------------------- */
 
-/* Library / YouTube switch above the video browse grid. */
-.mk-video-section-tabs {
-  display: flex;
-  gap: 4px;
-  padding: 6px 8px;
-  border-bottom: 1px solid var(--line);
-  flex-shrink: 0;
-}
-.mk-video-section-tab {
-  font-family: var(--mk-mono);
-  font-size: 11px;
-  letter-spacing: 0.3px;
-  text-transform: uppercase;
-  color: var(--text-soft);
-  background: transparent;
-  border: 1px solid transparent;
-  border-radius: 4px;
-  padding: 4px 12px;
-  cursor: pointer;
-}
-.mk-video-section-tab:hover { color: var(--text); background: var(--row-hover); }
-.mk-video-section-tab.active { color: var(--accent); border-color: var(--accent); }
-
 /* Per-channel content sub-tabs (Videos / Shorts / Live). */
 .mk-yt-tabs {
   display: flex;

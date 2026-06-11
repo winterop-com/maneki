@@ -98,7 +98,7 @@ const PALETTE_CMDS_VIDEO_BASE = [
   { label: "Show keyboard shortcuts", k: "?" },
 ];
 
-function CommandPalette({ open, onClose, onRun, kind, hasAudio = true, hasVideo = false }) {
+function CommandPalette({ open, onClose, onRun, kind, hasAudio = true, hasVideo = false, hasYoutube = false }) {
   const [q, setQ] = useState("");
   const [sel, setSel] = useState(0);
   const inpRef = useRef(null);
@@ -118,7 +118,7 @@ function CommandPalette({ open, onClose, onRun, kind, hasAudio = true, hasVideo 
   // the list stays in sync with app.jsx; each row carries a `vizTheme` key
   // that runCmd applies. "Follow accent" restores the accent-driven default.
   const vizCmds = [];
-  if (kind !== "video") {
+  if (kind === "audio") {
     const themes = VIZ_THEMES || {};
     vizCmds.push({ label: "Spectrum colors: Follow accent", k: "", vizTheme: "accent" });
     for (const [key, v] of Object.entries(themes)) {
@@ -126,8 +126,9 @@ function CommandPalette({ open, onClose, onRun, kind, hasAudio = true, hasVideo 
     }
   }
   const tail = [];
-  if (kind === "video" && hasAudio) tail.push({ label: "Switch to audio", k: "" });
-  if (kind === "audio" && hasVideo) tail.push({ label: "Switch to video", k: "" });
+  if (kind !== "audio" && hasAudio) tail.push({ label: "Switch to audio", k: "" });
+  if (kind !== "video" && hasVideo) tail.push({ label: "Switch to video", k: "" });
+  if (kind !== "youtube" && hasYoutube) tail.push({ label: "Switch to YouTube", k: "" });
   tail.push({ label: "Sign out", k: "" });
   const cmds = [...base, ...vizCmds, ...tail];
   const list = useMemo(() => {

@@ -59,30 +59,29 @@ function TopBar({ user, q, setQ, onFocusSearch, onSignOut, searchInputRef, showS
 // hasAudio && hasVideo, so this component just renders the two tabs.
 // Labels are typeset vertically (writing-mode rotation) - no icon, just
 // the kind name large and clear.
-function KindRail({ kind, setKind, hasAudio = true, hasVideo = true }) {
-  // Hide the rail entirely when only one kind is mounted - there's
-  // nothing to switch between, and the empty rail just steals
-  // horizontal space and gives a confusing visual hint that a
-  // disabled tab exists.
-  if (!hasAudio || !hasVideo) return null;
+function KindRail({ kind, setKind, hasAudio = true, hasVideo = true, hasYoutube = false }) {
+  // One tab per available source. Hide the rail entirely when only one is
+  // present - there's nothing to switch between, and an empty rail just steals
+  // horizontal space and hints at a disabled tab.
+  const tabs = [
+    hasAudio && { key: "audio", label: "AUDIO" },
+    hasVideo && { key: "video", label: "VIDEO" },
+    hasYoutube && { key: "youtube", label: "YOUTUBE" },
+  ].filter(Boolean);
+  if (tabs.length < 2) return null;
   return (
     <div className="mk-kind-rail">
-      <button
-        type="button"
-        className={"mk-kind-tab" + (kind === "audio" ? " active" : "")}
-        onClick={() => setKind("audio")}
-        title="Audio"
-      >
-        <span className="mk-kind-label">AUDIO</span>
-      </button>
-      <button
-        type="button"
-        className={"mk-kind-tab" + (kind === "video" ? " active" : "")}
-        onClick={() => setKind("video")}
-        title="Video"
-      >
-        <span className="mk-kind-label">VIDEO</span>
-      </button>
+      {tabs.map((t) => (
+        <button
+          key={t.key}
+          type="button"
+          className={"mk-kind-tab" + (kind === t.key ? " active" : "")}
+          onClick={() => setKind(t.key)}
+          title={t.label.charAt(0) + t.label.slice(1).toLowerCase()}
+        >
+          <span className="mk-kind-label">{t.label}</span>
+        </button>
+      ))}
     </div>
   );
 }
@@ -195,7 +194,7 @@ function SpectrumResizer() {
 }
 
 function Sidebar({ kind, section, setSection, ARTISTS, artistId, setArtistId, loaded }) {
-  if (kind === "video") return null;
+  if (kind !== "audio") return null;
   return (
     <div className="mk-sidebar mk-pane">
       <div className="mk-pane-section">
@@ -843,23 +842,25 @@ function MainArea(props) {
     />
   );
 
-  const { kind, session, selectedVideo, setSelectedVideo, q, videoSection = "library", setVideoSection } = props;
+  const { kind, session, selectedVideo, setSelectedVideo, q } = props;
   const videoMode = kind === "video";
-  const youtubeMode = videoMode && videoSection === "youtube";
-  // Search only applies to the local library browser, not the YouTube pane.
-  const videoSearchActive = videoMode && !youtubeMode && (q || "").trim().length > 0;
+  const youtubeMode = kind === "youtube";
+  // Both the local-video and YouTube sources use the same list+player layout.
+  const mediaMode = videoMode || youtubeMode;
+  // Search only applies to the local library browser.
+  const videoSearchActive = videoMode && (q || "").trim().length > 0;
   const browse = (
-    <div className={"mk-browse" + (videoMode ? " mk-browse-video" : "")}>
+    <div className={"mk-browse" + (mediaMode ? " mk-browse-video" : "")}>
       <Sidebar kind={kind} section={section} setSection={setSection} ARTISTS={ARTISTS} artistId={artistId} setArtistId={(id) => { setSection("library"); setArtistId(id); }} loaded={loaded}/>
-      {!videoMode && section === "library" && <AlbumsPane artist={artist} albumId={albumId} setAlbumId={setAlbumId} loaded={loaded}/>}
-      {!videoMode && section === "library" && <TracksPane artist={artist} album={album} playTrack={playTrack} now={now} nowAlbum={nowAlbum} repeat={t.repeat} isStarred={isStarred} toggleStar={toggleStar} loaded={loaded && (!album || album.tracksLoaded)}/>}
-      {!videoMode && section === "stations" && <StationsPane STATIONS={STATIONS} playStation={playStation} now={now} loaded={loaded}/>}
-      {!videoMode && section === "starred" && <StarredPane starredTracks={starredTracks} playTrack={playTrack} toggleStar={toggleStar}/>}
-      {videoMode && session && !youtubeMode && !videoSearchActive && <VideosPane session={session} selectedId={selectedVideo?.id} selectedRelPath={selectedVideo?.rel_path} onSelect={setSelectedVideo}/>}
-      {videoMode && session && !youtubeMode && videoSearchActive && <VideoSearchPane session={session} q={q} selectedId={selectedVideo?.id} onSelect={setSelectedVideo}/>}
-      {videoMode && session && youtubeMode && <YouTubePane session={session} selectedId={selectedVideo?.id} onSelect={setSelectedVideo}/>}
-      {videoMode && session && <VideoSplitter/>}
-      {videoMode && session && selectedVideo && (
+      {!mediaMode && section === "library" && <AlbumsPane artist={artist} albumId={albumId} setAlbumId={setAlbumId} loaded={loaded}/>}
+      {!mediaMode && section === "library" && <TracksPane artist={artist} album={album} playTrack={playTrack} now={now} nowAlbum={nowAlbum} repeat={t.repeat} isStarred={isStarred} toggleStar={toggleStar} loaded={loaded && (!album || album.tracksLoaded)}/>}
+      {!mediaMode && section === "stations" && <StationsPane STATIONS={STATIONS} playStation={playStation} now={now} loaded={loaded}/>}
+      {!mediaMode && section === "starred" && <StarredPane starredTracks={starredTracks} playTrack={playTrack} toggleStar={toggleStar}/>}
+      {videoMode && session && !videoSearchActive && <VideosPane session={session} selectedId={selectedVideo?.id} selectedRelPath={selectedVideo?.rel_path} onSelect={setSelectedVideo}/>}
+      {videoMode && session && videoSearchActive && <VideoSearchPane session={session} q={q} selectedId={selectedVideo?.id} onSelect={setSelectedVideo}/>}
+      {youtubeMode && session && <YouTubePane session={session} selectedId={selectedVideo?.id} onSelect={setSelectedVideo}/>}
+      {mediaMode && session && <VideoSplitter/>}
+      {mediaMode && session && selectedVideo && (
         // Key on video.id so React unmounts + remounts the player when
         // the selection changes. Without the key, the component instance
         // sticks around and video.js's dispose + re-init on the same
@@ -871,35 +872,10 @@ function MainArea(props) {
     </div>
   );
 
-  // Video mode hides the audio NowPlaying entirely. The video player is
-  // the focal point; running audio playback alongside is a separate (later)
-  // design decision.
-  if (videoMode) {
-    // A slim Library / YouTube switch sits above the browse grid. Switching
-    // clears any open player so we don't strand a local video over the
-    // YouTube list (or vice-versa).
-    const switchTo = (s) => { if (setVideoSection) setVideoSection(s); setSelectedVideo(null); };
-    return (
-      <div className="mk-body layout-topband">
-        <div className="mk-video-section-tabs">
-          <button
-            type="button"
-            className={"mk-video-section-tab" + (!youtubeMode ? " active" : "")}
-            onClick={() => switchTo("library")}
-          >
-            Library
-          </button>
-          <button
-            type="button"
-            className={"mk-video-section-tab" + (youtubeMode ? " active" : "")}
-            onClick={() => switchTo("youtube")}
-          >
-            YouTube
-          </button>
-        </div>
-        {browse}
-      </div>
-    );
+  // Media modes (local video / YouTube) hide the audio NowPlaying entirely;
+  // the player is the focal point.
+  if (mediaMode) {
+    return <div className="mk-body layout-topband">{browse}</div>;
   }
   if (t.layout === "rightrail") {
     return (

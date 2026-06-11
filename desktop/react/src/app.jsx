@@ -102,10 +102,15 @@ function App() {
   // intent). hasAudio/hasVideo control which tabs are shown.
   const [hasAudio, setHasAudio] = uS(true);
   const [hasVideo, setHasVideo] = uS(false);
+  // YouTube is a top-level source alongside audio/video. Available on any
+  // maneki server (remote, needs nothing on disk), so it's independent of
+  // whether local video files exist.
+  const [hasYoutube, setHasYoutube] = uS(false);
   const [kind, setKind] = uS("audio");
   const [selectedVideo, setSelectedVideo] = uS(null);
-  // Within video mode: "library" (local files) or "youtube" (channels).
-  const [videoSection, setVideoSection] = uS("library");
+  // Switch top-level kind, dropping any open player so a local selection
+  // doesn't bleed into the YouTube view (or vice-versa).
+  const switchKind = React.useCallback((k) => { setKind(k); setSelectedVideo(null); }, []);
   // Player-only fullscreen mode. CSS pins .mk-video-player-pane to
   // the viewport and hides everything else when this is true. We
   // drive it ourselves instead of trying to use the HTML5
@@ -159,15 +164,20 @@ function App() {
     MK_VIDEO.capabilities(session).then((caps) => {
       if (cancelled) return;
       setHasVideo(caps?.video === true);
+      setHasYoutube(caps?.youtube === true);
       if (caps && typeof caps.audio === "boolean") setHasAudio(caps.audio);
     });
     return () => { cancelled = true; };
   }, [authed]);
-  // Auto-switch to video when there's no audio (e.g. maneki serve
-  // --video-only). Doesn't override an explicit user switch.
+  // Auto-switch away from the (empty) audio tab when there's no audio:
+  // prefer local video, else YouTube. Only acts while still on the default
+  // `audio` kind, so it never overrides an explicit switch OR a restored
+  // deep-link (e.g. refreshing on #/youtube with a video-only library).
   React.useEffect(() => {
-    if (!hasAudio && hasVideo) setKind("video");
-  }, [hasAudio, hasVideo]);
+    if (hasAudio || kind !== "audio") return;
+    if (hasVideo) setKind("video");
+    else if (hasYoutube) setKind("youtube");
+  }, [hasAudio, hasVideo, hasYoutube, kind]);
   const session = MK_API?.loadSession?.() || null;
 
   // ---- Deep-linking: keep the nav selection and the URL hash in sync. ----
@@ -179,15 +189,17 @@ function App() {
   const navigate = useNavigate();
   const location = useLocation();
   const lastPathRef = uR("");
+  // Set once the URL has been parsed into state on first load. Until then the
+  // State->URL effect must NOT push: it's declared first, so on mount it would
+  // run with the default (audio/library) state and clobber a deep-linked URL
+  // like /video/youtube before URL->State restores it (refresh -> /library bug).
+  const routeRestoredRef = uR(false);
   const navPath = () => {
+    if (kind === "youtube") {
+      return selectedVideo ? `/youtube/v/${encodeURIComponent(selectedVideo.id)}` : "/youtube";
+    }
     if (kind === "video") {
-      if (selectedVideo) {
-        // YouTube selections get a distinct path so a reload re-resolves them
-        // via the YouTube API rather than the local-library lookup.
-        const kindSeg = selectedVideo.source === "youtube" ? "yt" : "v";
-        return `/video/${kindSeg}/${encodeURIComponent(selectedVideo.id)}`;
-      }
-      return videoSection === "youtube" ? "/video/youtube" : "/video";
+      return selectedVideo ? `/video/v/${encodeURIComponent(selectedVideo.id)}` : "/video";
     }
     if (section === "stations") return "/stations";
     if (section === "starred") return "/starred";
@@ -197,18 +209,21 @@ function App() {
   };
   // State -> URL.
   uE(() => {
-    if (!authed) return;
+    if (!authed || !routeRestoredRef.current) return;
     const p = navPath();
     if (p !== location.pathname && p !== lastPathRef.current) {
       lastPathRef.current = p;
       navigate(p);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [authed, kind, section, artistId, albumId, selectedVideo, videoSection]);
+  }, [authed, kind, section, artistId, albumId, selectedVideo]);
   // URL -> State (first load, back/forward, pasted link).
   uE(() => {
     if (!authed) return;
     const path = location.pathname;
+    // Mark the initial restore done so State->URL may start pushing. Set even
+    // when we early-return below (the URL already matches state).
+    routeRestoredRef.current = true;
     if (path === lastPathRef.current) return; // we just pushed this
     lastPathRef.current = path;
     const seg = path.split("/").filter(Boolean);
@@ -217,20 +232,22 @@ function App() {
       if (seg[1] === "v" && seg[2]) {
         // Deep-link into a local player: resolve the full entry by id (ids can
         // contain spaces/brackets, so they're percent-encoded in the path).
-        setVideoSection("library");
         MK_VIDEO?.getVideo?.(session, decodeURIComponent(seg[2]))
           .then((v) => setSelectedVideo(v))
           .catch(() => setSelectedVideo(null));
-      } else if (seg[1] === "yt" && seg[2]) {
+      } else {
+        setSelectedVideo(null);
+      }
+    } else if (seg[0] === "youtube") {
+      setKind("youtube");
+      if (seg[1] === "v" && seg[2]) {
         // Deep-link into a YouTube player: resolve via the YouTube API and
         // tag the object so the player picks the YouTube HLS source.
-        setVideoSection("youtube");
         MK_VIDEO?.ytVideo?.(session, decodeURIComponent(seg[2]))
           .then((v) => setSelectedVideo({ id: v.id, name: v.title, duration_s: v.duration_s, source: "youtube" }))
           .catch(() => setSelectedVideo(null));
       } else {
         setSelectedVideo(null);
-        setVideoSection(seg[1] === "youtube" ? "youtube" : "library");
       }
     } else if (seg[0] === "stations") {
       setKind("audio"); setSection("stations");
@@ -668,7 +685,7 @@ function App() {
       // mute) to the video player and `return` so the audio switch below
       // can't fire and clobber state. Help/palette shortcuts (?, Cmd+P)
       // are global, handled above this block.
-      if (kind === "video" && selectedVideo && store.videoPlayer) {
+      if (kind !== "audio" && selectedVideo && store.videoPlayer) {
         const p = store.videoPlayer;
         switch (e.key) {
           case "f":
@@ -763,8 +780,8 @@ function App() {
       // shortcuts so they can't (eg) activate the audio FFT visualiser
       // overlay or trigger transport on a player that doesn't exist.
       // The cross-mode keys (?, Esc, Cmd+P) are handled above.
-      const isVideoModeNoPlayer = kind === "video";
-      if (isVideoModeNoPlayer && ["f", "l", "/", "s", "r", "n", " ", "m", "ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"].includes(e.key)) {
+      const isMediaModeNoPlayer = kind !== "audio";
+      if (isMediaModeNoPlayer && ["f", "l", "/", "s", "r", "n", " ", "m", "ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"].includes(e.key)) {
         return;
       }
       switch (e.key) {
@@ -825,11 +842,12 @@ function App() {
     // Cross-mode commands (work without a player loaded).
     if (c.label === "Show keyboard shortcuts") { setShowShortcuts(true); return; }
     if (c.label === "Sign out") { signOut(); return; }
-    if (c.label === "Switch to audio" && hasAudio) { setKind("audio"); return; }
-    if (c.label === "Switch to video" && hasVideo) { setKind("video"); return; }
-    if (kind === "video") {
-      // All other commands in video mode are no-ops without a player.
-      // Falling through to the audio branch (eg activating the FFT
+    if (c.label === "Switch to audio" && hasAudio) { switchKind("audio"); return; }
+    if (c.label === "Switch to video" && hasVideo) { switchKind("video"); return; }
+    if (c.label === "Switch to YouTube" && hasYoutube) { switchKind("youtube"); return; }
+    if (kind !== "audio") {
+      // All other commands in video / YouTube mode are no-ops without a
+      // player. Falling through to the audio branch (eg activating the FFT
       // visualiser overlay) makes the app look broken.
       if (!p) return;
       if (c.label === "Play / pause") { if (p.paused()) p.play(); else p.pause(); return; }
@@ -916,7 +934,7 @@ function App() {
 
   return (
     <div className="mk-root" data-kind={kind}>
-      <KindRail kind={kind} setKind={setKind} hasAudio={hasAudio} hasVideo={hasVideo}/>
+      <KindRail kind={kind} setKind={switchKind} hasAudio={hasAudio} hasVideo={hasVideo} hasYoutube={hasYoutube}/>
       <div className="mk-shell" data-layout={t.layout}>
       <TopBar
         user={user}
@@ -970,22 +988,21 @@ function App() {
         fullscreenViz={fullscreenViz} setFullscreenViz={setFullscreenViz}
         shuffle={shuffle} repeat={repeat}
         setShowLyrics={setShowLyrics}
-        hasAudio={hasAudio} hasVideo={hasVideo} kind={kind} setKind={setKind} session={session}
+        hasAudio={hasAudio} hasVideo={hasVideo} kind={kind} setKind={switchKind} session={session}
         selectedVideo={selectedVideo} setSelectedVideo={setSelectedVideo}
-        videoSection={videoSection} setVideoSection={setVideoSection}
         q={q}
         showStats={showStats} onCloseStats={() => setShowStats(false)}
       />
 
       <SearchDropdown
-        q={searchOpen && kind !== "video" ? q : ""}
+        q={searchOpen && kind === "audio" ? q : ""}
         results={results}
         anchorEl={searchInputRef.current}
         onPick={pickSearchResult}
         onClose={() => setSearchOpen(false)}
       />
       <ShortcutsOverlay open={showShortcuts} onClose={() => setShowShortcuts(false)} kind={kind} />
-      <CommandPalette open={showPalette} onClose={() => setShowPalette(false)} onRun={runCmd} kind={kind} hasAudio={hasAudio} hasVideo={hasVideo} />
+      <CommandPalette open={showPalette} onClose={() => setShowPalette(false)} onRun={runCmd} kind={kind} hasAudio={hasAudio} hasVideo={hasVideo} hasYoutube={hasYoutube} />
       <LyricsOverlay
         open={showLyrics && !!nowTrack}
         onClose={() => setShowLyrics(false)}

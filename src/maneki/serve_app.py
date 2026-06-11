@@ -133,6 +133,12 @@ def create_combined_app(
     """
     audio_present = has_audio(root)
     video_present = has_video(root)
+    # YouTube is a remote source: it needs nothing on disk (yt-dlp is a hard
+    # dependency, ffmpeg is assumed), so it's always available on a maneki
+    # server. The native (video) app hosts its endpoints, so that app is
+    # mounted whenever EITHER local video files exist OR YouTube is available
+    # (i.e. always) — letting YouTube work on audio-only / empty libraries.
+    youtube_present = True
     cfg = _resolve_cfg(audio_cfg)
     token_store = TokenStore()
     # Accounts for the native (video) bearer login. Multi-user when [[users]]
@@ -231,6 +237,11 @@ def create_combined_app(
             await _do_scan(do_prewarm_cache=prewarm_cache)
 
         async def _background_startup() -> None:
+            # Only the local-video library needs scanning / prewarm / a file
+            # watcher. The native app may be mounted purely for YouTube (no
+            # local video), in which case there's nothing on disk to index.
+            if not video_present:
+                return
             if video_sub_app is None or not hasattr(video_sub_app.state, "poster_manager"):
                 return
             video_sub = video_sub_app
@@ -320,10 +331,13 @@ def create_combined_app(
             "version": __version__,
             "audio": audio_present,
             "video": video_present,
+            "youtube": youtube_present,
             "auth_required": enable_auth,
             "endpoints": {
                 "audio_subsonic": "/audio/rest" if audio_present else None,
-                "video_api": "/video/api" if video_present else None,
+                # The native app is mounted whenever video OR YouTube is on, so
+                # its API base is available in both cases.
+                "video_api": "/video/api" if (video_present or youtube_present) else None,
                 "auth_login": "/auth/login",
             },
         }
@@ -355,7 +369,10 @@ def create_combined_app(
     if audio_present:
         _mount_audio(combined, root, use_cache=audio_use_cache, cfg=cfg, users=users)
 
-    if video_present:
+    if video_present or youtube_present:
+        # Mounted even with no local video so the YouTube endpoints exist; the
+        # local-library scan/prewarm/watcher in the lifespan stays gated on
+        # `video_present`, so an audio-only library pays no scan cost.
         _mount_video(combined, root, workers=transcode_workers, no_cover_images=no_cover_images, users=users)
 
     if enable_ui:
