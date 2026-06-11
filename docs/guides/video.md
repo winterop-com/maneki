@@ -90,6 +90,7 @@ Server identity + which kinds are present at the root.
   "version": "0.9.0",
   "audio": false,
   "video": true,
+  "youtube": true,
   "video_count": 2
 }
 ```
@@ -226,6 +227,43 @@ Serves one subtitle track as WebVTT. `key` is either a sidecar language tag (`en
 This pattern matters on .mkv files with many embedded tracks (Stranger Things S5 ships 45 of them): the older one-ffmpeg-per-stream approach spawned 45 simultaneous ffmpegs that each re-read the 800 MB source and saturated disk I/O. The single-pass version completes the same work in roughly the time of one stream extract. Per-video lock so concurrent requests for different tracks of the same file share the extraction.
 
 The SPA only registers the **default + English / English-SDH** tracks with video.js on player mount; the rest stay listed in the captions menu but aren't fetched. Trade-off: less captions-menu completeness, but no head-of-line block on the HLS critical path from 45 parallel `.vtt` fetches at video-open time.
+
+## YouTube channels
+
+Maneki can subscribe to YouTube channels and play their videos through the same
+HLS transcode pipeline as local files. It's a top-level source alongside Audio
+and Video (the `YOUTUBE` tab), available on any server — it needs nothing on
+disk, so it works even on an audio-only or empty library.
+
+Subscribe by pasting a channel URL (`@handle`, `/channel/UC…`, `/c/…`,
+`/user/…`). Each channel exposes **Videos / Shorts / Live** tabs (Live carries
+both in-progress and recorded/past streams; in-progress ones have no fixed
+duration yet and aren't playable). The list shows per-channel helper counts and
+a refresh button that looks for new uploads. In the player, a resolution menu
+(Auto / 1080p / 720p / 480p) hot-swaps quality without losing your place.
+
+Subscriptions are **per user**, stored at
+`<root>/.maneki/users/<name>/youtube.toml`. Resolution goes through
+[yt-dlp](https://github.com/yt-dlp/yt-dlp) (a hard dependency); listings and
+resolved stream URLs are cached briefly (~30 min / ~5 h).
+
+**Set up cookies for reliability.** Without logged-in cookies, repeated requests
+from one IP eventually trip YouTube's *"Sign in to confirm you're not a bot"*.
+Point maneki at a browser you're signed into YouTube with:
+
+```bash
+MANEKI_YT_COOKIES_FROM_BROWSER=chrome   # or safari / firefox / edge / brave …
+# or, with an exported Netscape cookies.txt:
+MANEKI_YT_COOKIEFILE=/path/to/cookies.txt
+```
+
+(Equivalently `[media] youtube_cookies_from_browser` / `youtube_cookiefile` in
+the config file.) Default playback quality is `[media] youtube_max_height`
+(1080p); the in-player menu overrides it per stream.
+
+Known limits: no YouTube subtitles, no automatic new-upload polling (use the
+refresh button), and a very long watch can outlive a stream URL's ~6 h
+expiry. yt-dlp tracks YouTube closely — keep it current if extraction breaks.
 
 ## Browser compatibility
 

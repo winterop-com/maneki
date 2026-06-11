@@ -142,6 +142,8 @@ _MEDIA_ENV: dict[str, str] = {
     "MANEKI_HWENC_MAXRATE": "hwenc_maxrate",
     "MANEKI_HWENC_BUFSIZE": "hwenc_bufsize",
     "MANEKI_VAAPI_DEVICE": "vaapi_device",
+    "MANEKI_YT_COOKIES_FROM_BROWSER": "youtube_cookies_from_browser",
+    "MANEKI_YT_COOKIEFILE": "youtube_cookiefile",
 }
 _LOG_ENV: dict[str, str] = {
     "MANEKI_LOG_LEVEL": "level",
@@ -349,14 +351,19 @@ password = "admin"
 # api_key = "..."
 
 # --- Media / transcoding ----------------------------------------------------
-# Override ffmpeg/ffprobe + the H.264 hardware encoder. Each field also has a
-# MANEKI_* env override (MANEKI_FFMPEG, MANEKI_HWENC, MANEKI_VAAPI_DEVICE, ...).
+# Override ffmpeg/ffprobe + the H.264 hardware encoder, and YouTube playback.
+# Each field also has a MANEKI_* env override (MANEKI_FFMPEG, MANEKI_HWENC,
+# MANEKI_VAAPI_DEVICE, MANEKI_YT_COOKIES_FROM_BROWSER, ...).
 # [media]
 # ffmpeg = "/opt/homebrew/opt/ffmpeg-full/bin/ffmpeg"
 # ffprobe = "/opt/homebrew/opt/ffmpeg-full/bin/ffprobe"
 # hwenc = "auto"            # auto | vaapi | videotoolbox | none
-# hwenc_bitrate = "6M"
+# hwenc_bitrate = "6M"      # set to pin a fixed rate; unset = scales with height
 # vaapi_device = "/dev/dri/renderD128"
+# youtube_max_height = 1080            # default YouTube playback quality cap
+# youtube_cookies_from_browser = "chrome"   # chrome | safari | firefox | ...
+#                                            # avoids YouTube's "not a bot" check
+# youtube_cookiefile = "/path/to/cookies.txt"   # alternative to the above
 
 # --- Logging ----------------------------------------------------------------
 # [logging]

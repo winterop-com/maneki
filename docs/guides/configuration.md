@@ -131,20 +131,31 @@ api_key = "..."
 
 ### `[media]`
 
-ffmpeg/ffprobe binaries + the H.264 hardware encoder. Useful to point maneki at
-a fuller ffmpeg (e.g. one with `zscale`/libzimg for HDR tonemapping) without
-touching your `PATH`.
+ffmpeg/ffprobe binaries, the H.264 hardware encoder, and YouTube playback.
+Useful to point maneki at a fuller ffmpeg (e.g. one with `zscale`/libzimg for
+HDR tonemapping) without touching your `PATH`.
 
 ```toml
 [media]
 ffmpeg = "/opt/homebrew/opt/ffmpeg-full/bin/ffmpeg"
 ffprobe = "/opt/homebrew/opt/ffmpeg-full/bin/ffprobe"
 hwenc = "auto"            # auto | vaapi | videotoolbox | none
-hwenc_bitrate = "6M"
+hwenc_bitrate = "6M"      # set to pin a fixed rate; unset = scales with height
 hwenc_maxrate = "8M"
 hwenc_bufsize = "12M"
 vaapi_device = "/dev/dri/renderD128"
+youtube_max_height = 1080            # default cap for YouTube playback quality
+youtube_cookies_from_browser = "chrome"   # chrome | safari | firefox | ...
+# youtube_cookiefile = "/path/to/cookies.txt"   # alternative to the above
 ```
+
+Leave `hwenc_bitrate` unset to let the encoder scale the bitrate with the
+output resolution (≈12M at 1080p, 6M at 720p, …); set it to pin a fixed rate.
+
+`youtube_cookies_from_browser` (or `youtube_cookiefile`) makes YouTube channel
+and stream resolution reliable: without logged-in cookies, repeated requests
+from one IP eventually trip YouTube's "Sign in to confirm you're not a bot".
+Point it at a browser you're signed into YouTube with.
 
 Run `maneki doctor` to see which encoder will actually be used.
 
@@ -168,8 +179,10 @@ underscore); a handful of common ones also have a short flat alias.
 | `MANEKI_SERVER__USERNAME` / `MANEKI_SERVER__PASSWORD` | `[server]` credentials |
 | `MANEKI_FFMPEG` / `MANEKI_FFPROBE` | `[media]` ffmpeg / ffprobe binary |
 | `MANEKI_HWENC` | `[media]` encoder: `auto` / `vaapi` / `videotoolbox` / `none` |
-| `MANEKI_HWENC_BITRATE` / `_MAXRATE` / `_BUFSIZE` | `[media]` hardware bitrate |
+| `MANEKI_HWENC_BITRATE` / `_MAXRATE` / `_BUFSIZE` | `[media]` hardware bitrate (override the height-scaled default) |
 | `MANEKI_VAAPI_DEVICE` | `[media]` VAAPI render node |
+| `MANEKI_YT_COOKIES_FROM_BROWSER` | `[media]` read YouTube cookies from a browser profile (`chrome` / `safari` / `firefox` / …) |
+| `MANEKI_YT_COOKIEFILE` | `[media]` path to an exported Netscape `cookies.txt` |
 | `MANEKI_ACOUSTID_KEY` | `[acoustid]` API key |
 | `MANEKI_LOG_LEVEL` / `MANEKI_LOG_FORMAT` | `[logging]` level / renderer |
 
