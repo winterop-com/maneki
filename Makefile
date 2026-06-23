@@ -252,5 +252,9 @@ clean:
 	@rm -rf .pyright
 	@rm -rf dist build *.egg-info
 	@rm -rf site
+	@# Desktop build outputs (deps in node_modules are left in place).
+	@rm -rf desktop/react/dist
+	@rm -rf desktop/electron/dist
+	@rm -rf desktop/tauri/src-tauri/target
 
 .DEFAULT_GOAL := help
