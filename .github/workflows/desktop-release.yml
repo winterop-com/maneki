@@ -46,7 +46,7 @@ jobs:
     timeout-minutes: 60
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           ref: ${{ github.event.inputs.tag || github.ref }}
 
@@ -75,7 +75,7 @@ jobs:
             patchelf libssl-dev build-essential file
 
       - name: Build Tauri bundles (+ sign/notarize on macOS)
-        uses: tauri-apps/tauri-action@v0
+        uses: tauri-apps/tauri-action@v1
         env:
           # Apple signing + notarization. macOS only; if these are unset the
           # build still runs and produces an UNSIGNED .app/.dmg.
@@ -112,7 +112,7 @@ jobs:
     timeout-minutes: 45
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           ref: ${{ github.event.inputs.tag || github.ref }}
 
