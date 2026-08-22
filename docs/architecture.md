@@ -234,8 +234,10 @@ on first connect.
 def artist_id(artist_dir: str) -> str:
     return "ar_" + hashlib.sha1(artist_dir.encode("utf-8")).hexdigest()[:16]
 
+
 def album_id(album: LibraryAlbum) -> str:
     return "al_" + hashlib.sha1(str(album.path).encode("utf-8")).hexdigest()[:16]
+
 
 def track_id(track: LibraryTrack) -> str:
     return "tr_" + hashlib.sha1(str(track.path).encode("utf-8")).hexdigest()[:16]
