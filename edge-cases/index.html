@@ -1864,6 +1864,7 @@
 <p>Two tracks with same track-no + title in one album → auto-suffix <code>(2)</code>, <code>(3)</code>. Reserves the FINAL filename, not just the planned one, so a third track titled <code>Same (2)</code> chains to <code>(3)</code> rather than colliding with the auto-renamed second.</p>
 <h2 id="output-dir-collisions">Output dir collisions<a class="headerlink" href="#output-dir-collisions" title="Permanent link">&para;</a></h2>
 <p>Two source albums normalising to the same output path → skip second + warn in the summary. Surfaces in <code>--dry-run</code> too. Reservation happens BEFORE encode so dry-run and real-run agree on what would happen.</p>
+<p>The reservation key is the whole output path <code>casefold()</code>ed, so <code>2010 - TRON - Legacy</code> and <code>2010 - Tron - Legacy</code> (and <code>Daft Punk/</code> vs <code>daft punk/</code>) collide on a case-sensitive volume too, where they would otherwise land side by side as two half-albums. Only the lookup key is folded — the directory that gets created keeps its original casing. Per-track filename reservation is unaffected and stays exact-match.</p>
 <h2 id="source-side-dedupe">Source-side dedupe<a class="headerlink" href="#source-side-dedupe" title="Permanent link">&para;</a></h2>
 <p>Some rip groups ship every track twice under different filename conventions:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>01. Artist - Title.flac
