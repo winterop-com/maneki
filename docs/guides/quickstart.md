@@ -218,6 +218,8 @@ Visit `/capabilities` and you should see a JSON probe response like:
   "version": "0.9.0",
   "audio": true,
   "video": true,
+  "youtube": true,
+  "radio": true,
   "auth_required": false,
   "endpoints": {
     "audio_subsonic": "/audio/rest",
@@ -227,7 +229,7 @@ Visit `/capabilities` and you should see a JSON probe response like:
 }
 ```
 
-The `audio` / `video` flags reflect what maneki found at the library root — only mounted kinds are reported.
+The `audio` / `video` flags reflect what maneki found at the library root; `radio` / `youtube` are the remote sources, which need nothing on disk and are available even on an empty root.
 
 If that loads, the iPhone can reach the server.
 

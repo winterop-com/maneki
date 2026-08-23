@@ -13,6 +13,7 @@ from pathlib import Path
 import pytest
 from fastapi.testclient import TestClient
 
+from maneki.audio.radio import DEFAULT_STATIONS
 from maneki.audio.serve.config import ServeConfig
 from maneki.serve_app import create_combined_app
 
@@ -64,7 +65,9 @@ def test_capabilities_video_only_when_no_audio(video_only_root: Path) -> None:
     data = client.get("/capabilities").json()
     assert data["audio"] is False
     assert data["video"] is True
-    assert data["endpoints"]["audio_subsonic"] is None
+    # No local audio library, but the Subsonic mount is still advertised —
+    # it hosts internet radio, which needs nothing on disk.
+    assert data["endpoints"]["audio_subsonic"] == "/audio/rest"
 
 
 def test_capabilities_audio_only_when_no_video(audio_only_root: Path) -> None:
@@ -79,13 +82,13 @@ def test_capabilities_audio_only_when_no_video(audio_only_root: Path) -> None:
 
 
 def test_capabilities_empty_root_still_offers_youtube(tmp_path: Path) -> None:
-    """A directory with no media still offers YouTube (audio/video both off)."""
+    """A directory with no media still offers the remote sources (radio + YouTube)."""
     client = TestClient(create_combined_app(root=tmp_path, audio_cfg=_TEST_AUDIO_CFG))
     data = client.get("/capabilities").json()
     assert data["audio"] is False
     assert data["video"] is False
     assert data["youtube"] is True
-    assert data["endpoints"]["audio_subsonic"] is None
+    assert data["endpoints"]["audio_subsonic"] == "/audio/rest"
     assert data["endpoints"]["video_api"] == "/video/api"
 
 
@@ -98,11 +101,19 @@ def test_local_video_list_empty_when_audio_only(audio_only_root: Path) -> None:
     assert resp.json() == []
 
 
-def test_audio_routes_absent_when_video_only(video_only_root: Path) -> None:
-    """Pointing at a video-only root means /audio/rest/ping.view must 404."""
+def test_audio_mount_present_but_empty_when_video_only(video_only_root: Path) -> None:
+    """Video-only root: the Subsonic app is mounted (for radio), the library is empty.
+
+    /audio/rest/ping.view used to 404 here; it answers now because the mount
+    hosts the radio endpoints. The browse surface stays empty, which is what
+    `capabilities.audio == False` tells clients up front.
+    """
     client = TestClient(create_combined_app(root=video_only_root, audio_cfg=_TEST_AUDIO_CFG))
     resp = client.get("/audio/rest/ping.view?u=admin&p=admin&v=1.16.1&c=test&f=json")
-    assert resp.status_code == 404
+    assert resp.status_code == 200
+    assert resp.json()["subsonic-response"]["status"] == "ok"
+    body = client.get("/audio/rest/getArtists?u=admin&p=admin&v=1.16.1&c=test&f=json").json()
+    assert body["subsonic-response"]["artists"]["index"] == []
 
 
 def test_video_endpoints_mounted_under_video_prefix(library_root: Path) -> None:
@@ -125,3 +136,78 @@ def test_audio_subsonic_mounted_under_audio_rest_prefix(library_root: Path) -> N
     payload = resp.json()
     assert payload["subsonic-response"]["status"] == "ok"
     assert payload["subsonic-response"]["type"] == "maneki"
+
+
+# --- internet radio: mounted independently of the local library --------------
+
+
+def _subsonic_params(**extra: str) -> dict[str, str]:
+    return {"u": "admin", "p": "admin", "v": "1.16.1", "c": "test", "f": "json", **extra}
+
+
+def test_capabilities_empty_root_still_offers_radio(tmp_path: Path) -> None:
+    """A directory with no media still offers internet radio.
+
+    `audio` stays False (there is no local library to browse) while the
+    Subsonic mount - which hosts the radio endpoints - is advertised.
+    """
+    client = TestClient(create_combined_app(root=tmp_path, audio_cfg=_TEST_AUDIO_CFG))
+    data = client.get("/capabilities").json()
+    assert data["audio"] is False
+    assert data["radio"] is True
+    assert data["endpoints"]["audio_subsonic"] == "/audio/rest"
+
+
+def test_radio_stations_served_from_empty_root(tmp_path: Path) -> None:
+    """`getInternetRadioStations` works with no audio file anywhere under root."""
+    client = TestClient(create_combined_app(root=tmp_path, audio_cfg=_TEST_AUDIO_CFG))
+    resp = client.get("/audio/rest/getInternetRadioStations", params=_subsonic_params())
+    assert resp.status_code == 200
+    inner = resp.json()["subsonic-response"]
+    assert inner["status"] == "ok"
+    assert len(inner["internetRadioStations"]["internetRadioStation"]) >= len(DEFAULT_STATIONS)
+
+
+def test_radio_stations_served_from_video_only_root(video_only_root: Path) -> None:
+    """A video-only library gets the radio endpoints too (mount is not gated on audio)."""
+    client = TestClient(create_combined_app(root=video_only_root, audio_cfg=_TEST_AUDIO_CFG))
+    resp = client.get("/audio/rest/getInternetRadioStations", params=_subsonic_params())
+    assert resp.status_code == 200
+    assert resp.json()["subsonic-response"]["status"] == "ok"
+
+
+def test_radio_only_mount_still_auth_gated(tmp_path: Path) -> None:
+    """The radio-only mount keeps Subsonic auth - no credentials, no stations."""
+    client = TestClient(create_combined_app(root=tmp_path, audio_cfg=_TEST_AUDIO_CFG))
+    body = client.get("/audio/rest/getInternetRadioStations", params={"f": "json"}).json()
+    assert body["subsonic-response"]["status"] == "failed"
+
+
+def test_radio_only_mount_browses_as_empty_library(tmp_path: Path) -> None:
+    """`audio: false` is honest: browsing the radio-only mount yields nothing.
+
+    Subsonic clients that ignore /capabilities still degrade sensibly - an
+    empty artist list rather than a 404 wall.
+    """
+    client = TestClient(create_combined_app(root=tmp_path, audio_cfg=_TEST_AUDIO_CFG))
+    inner = client.get("/audio/rest/getArtists", params=_subsonic_params()).json()["subsonic-response"]
+    assert inner["status"] == "ok"
+    assert inner["artists"]["index"] == []
+
+
+def test_radio_only_mount_skips_the_library_scan(tmp_path: Path) -> None:
+    """No audio under root means no index.db written into the user's library."""
+    create_combined_app(root=tmp_path, audio_cfg=_TEST_AUDIO_CFG)
+    assert not (tmp_path / ".maneki" / "index.db").exists()
+
+
+def test_audio_root_still_scans_and_reports_audio(audio_only_root: Path) -> None:
+    """A root WITH audio is unchanged: capability true, and radio alongside it."""
+    client = TestClient(create_combined_app(root=audio_only_root, audio_cfg=_TEST_AUDIO_CFG))
+    data = client.get("/capabilities").json()
+    assert data["audio"] is True
+    assert data["radio"] is True
+    assert data["endpoints"]["audio_subsonic"] == "/audio/rest"
+    assert (audio_only_root / ".maneki" / "index.db").exists()
+    resp = client.get("/audio/rest/getInternetRadioStations", params=_subsonic_params())
+    assert resp.json()["subsonic-response"]["status"] == "ok"

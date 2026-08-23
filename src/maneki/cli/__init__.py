@@ -137,11 +137,13 @@ def serve_cmd(
     """Start the Maneki server.
 
     Pass a single library root. The server scans the whole tree at startup
-    and mounts only the kinds that actually have content: a root with just
-    music gets no /video/* routes; a root with just movies gets no
-    /audio/rest/* routes; mixed roots mount both.
+    and reports what it found via /capabilities. Both mounts also host a
+    remote source that needs nothing on disk — internet radio on
+    /audio/rest/*, YouTube on /video/api/* — so both mounts exist even for
+    an empty root: point `maneki serve` at an empty directory and you get a
+    pure radio + YouTube player.
 
-    URL layout (per-kind paths exist only when the kind is mounted):
+    URL layout:
 
       /capabilities         server identity + what's mounted
       POST /auth/login      exchange credentials for a bearer token

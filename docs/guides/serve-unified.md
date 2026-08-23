@@ -29,6 +29,8 @@ curl -s http://127.0.0.1:8765/capabilities | jq
 #   "version": "0.9.0",
 #   "audio": true,
 #   "video": true,
+#   "youtube": true,
+#   "radio": true,
 #   "endpoints": {
 #     "audio_subsonic": "/audio/rest",
 #     "video_api": "/video/api"
@@ -59,12 +61,14 @@ External clients:
 
 | If `<root>` contains | Behaviour |
 |---|---|
-| Audio + video files | Both protocols mounted; SPA shows the AUDIO/VIDEO rail |
-| Only audio files | Only the Subsonic mount; `/video/*` returns 404; SPA hides the rail |
-| Only video files | Only the video mount; `/audio/*` returns 404; SPA hides the rail and auto-switches to video |
-| Neither | Empty server — `/capabilities` reports `audio: false, video: false` |
+| Audio + video files | Both libraries browsable; SPA shows the AUDIO/VIDEO rail |
+| Only audio files | `/capabilities` reports `audio: true, video: false`; the video list is empty |
+| Only video files | `/capabilities` reports `audio: false, video: true`; the audio library browses empty |
+| Neither | `audio: false, video: false` — a pure internet-radio + YouTube player |
 
-There is no kind-toggle flag: to serve only audio, point at an audio-only root; to serve only video, point at a video-only root. The single-library design is the whole point.
+Both mounts are always present, because each also hosts a remote source that needs nothing on disk: internet radio (`getInternetRadioStations`, the ICY proxy) on `/audio/rest/*`, YouTube on `/video/api/*`. What the scan decides is the *content* of the local half, reported by the `audio` / `video` flags — so a client can tell "nothing to browse here" from "this mount does not exist". The local library scan itself is still gated on finding files of that kind, so a radio-only root pays no walk and gets no `.maneki/index.db` written into it.
+
+There is no kind-toggle flag: to serve only audio, point at an audio-only root; to serve only video, point at a video-only root; to run Maneki as a pure radio player, point it at an empty directory. The single-library design is the whole point.
 
 ## Options
 

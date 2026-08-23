@@ -1,18 +1,19 @@
 """Combined audio + video FastAPI app for `maneki serve`.
 
-URL layout (each kind-prefix only exists when that kind has content):
+URL layout (each kind-prefix exists when that kind has content, or when a
+remote source hosted on that mount is available):
 
     GET  /capabilities         server identity + what's mounted
     POST /auth/login           exchange username + password for a bearer token
     GET  /auth/me              echo back the authed user (requires bearer)
-    /audio/rest/*              Subsonic (mounted when audio files are present)
-    /video/api/*               Maneki native video API (mounted when video files are present)
+    /audio/rest/*              Subsonic (local audio and/or internet radio)
+    /video/api/*               Maneki native video API (local video and/or YouTube)
     /video/                    throwaway demo HTML page (retired when SPA lands)
 
-The single library root is scanned for both kinds at startup. The Subsonic
-mount appears only if the scan finds audio files; the video mount appears
-only if it finds video files; pointing at an empty directory yields just
-`/capabilities` and the auth endpoints.
+The single library root is scanned for both kinds at startup. Both mounts
+also host a remote source that needs nothing on disk — internet radio on
+the Subsonic mount, YouTube on the native one — so both are present even
+for an empty root; only their local-library halves are empty there.
 
 Auth is opt-in: pass `enable_auth=True` (CLI: `maneki serve --auth`) to
 require a bearer token on /video/* (and future Maneki-native endpoints).
@@ -38,6 +39,7 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.responses import Response
 
 from maneki import __version__
+from maneki.audio.radio import load_stations
 from maneki.auth import Token, TokenStore
 from maneki.library import has_audio, has_video
 
@@ -90,8 +92,9 @@ def create_combined_app(
     The whole library lives under a single `root` directory. Audio and video
     are detected by file extension anywhere under that root — there is no
     `audio/`/`videos/` subdirectory convention. A kind with zero matching
-    files is simply not mounted (no Subsonic routes if no audio, no video
-    routes if no video files).
+    files still gets its mount when that mount hosts a remote source
+    (internet radio on /audio, YouTube on /video); only the local-library
+    half is empty then.
 
     Args:
         root: library root. Scanned recursively for both audio and video files.
@@ -139,6 +142,16 @@ def create_combined_app(
     # mounted whenever EITHER local video files exist OR YouTube is available
     # (i.e. always) — letting YouTube work on audio-only / empty libraries.
     youtube_present = True
+    # Internet radio is the audio-side equivalent: the station list is baked
+    # into the code (plus the user's ~/.config/maneki/radio.toml), so it needs
+    # nothing on disk either. The Subsonic (audio) app hosts
+    # getInternetRadioStations, radioStream and the ICY proxy, so that app is
+    # mounted whenever EITHER local audio files exist OR stations resolve
+    # (i.e. always, since DEFAULT_STATIONS is non-empty) — letting radio work
+    # on video-only / empty libraries. The local-library scan stays gated on
+    # `audio_present` (see `_mount_audio`), so a radio-only mount costs no
+    # walk and writes no index.db.
+    radio_present = bool(load_stations())
     cfg = _resolve_cfg(audio_cfg)
     token_store = TokenStore()
     # Accounts for the native (video) bearer login. Multi-user when [[users]]
@@ -326,15 +339,27 @@ def create_combined_app(
 
     @combined.get("/capabilities")
     def capabilities() -> dict[str, object]:
+        # `audio` / `video` describe the LOCAL LIBRARY; the `endpoints` map
+        # describes WHAT IS MOUNTED. Those are no longer the same question,
+        # because both mounts also host a remote source (radio on /audio,
+        # YouTube on /video). Keeping the two apart is what lets a
+        # radio-only server be honest: `audio: false` tells a client "do not
+        # bother browsing artists/albums, there are none", while a non-null
+        # `audio_subsonic` still points at the mount that serves the radio
+        # endpoints. Reporting `audio: true` instead would send every
+        # Subsonic client off to browse an empty library.
         return {
             "server": "maneki",
             "version": __version__,
             "audio": audio_present,
             "video": video_present,
             "youtube": youtube_present,
+            "radio": radio_present,
             "auth_required": enable_auth,
             "endpoints": {
-                "audio_subsonic": "/audio/rest" if audio_present else None,
+                # Mounted whenever local audio OR radio is on, so the Subsonic
+                # base is available in both cases (radio lives on it).
+                "audio_subsonic": "/audio/rest" if (audio_present or radio_present) else None,
                 # The native app is mounted whenever video OR YouTube is on, so
                 # its API base is available in both cases.
                 "video_api": "/video/api" if (video_present or youtube_present) else None,
@@ -366,8 +391,21 @@ def create_combined_app(
             protected_prefixes=("/video/",),
         )
 
-    if audio_present:
-        _mount_audio(combined, root, use_cache=audio_use_cache, cfg=cfg, users=users)
+    if audio_present or radio_present:
+        # Mounted even with no local audio so the internet-radio endpoints
+        # exist; `scan_library` keeps the (blocking) library scan gated on
+        # `audio_present`, so a video-only / empty library pays no scan cost
+        # and gets no `.maneki/index.db` written into it. Dropping audio into
+        # such a root later needs a restart (or a Subsonic `startScan`) to
+        # index it — same as before this mount existed.
+        _mount_audio(
+            combined,
+            root,
+            use_cache=audio_use_cache,
+            cfg=cfg,
+            users=users,
+            scan_library=audio_present,
+        )
 
     if video_present or youtube_present:
         # Mounted even with no local video so the YouTube endpoints exist; the
@@ -453,6 +491,7 @@ def _mount_audio(
     use_cache: bool,
     cfg: ServeConfig,
     users: UserRegistry,
+    scan_library: bool = True,
 ) -> None:
     """Mount the Subsonic app under /audio against the shared library root.
 
@@ -465,11 +504,20 @@ def _mount_audio(
     so passing the library root (rather than a subdirectory) is what makes
     single-library mode work — video subtrees are naturally skipped because
     they contain no audio files.
+
+    `scan_library=False` mounts the app but skips that rebuild: the caller
+    already knows the root holds no audio and the mount exists only to host
+    the internet-radio endpoints. A freshly constructed IndexCache is a valid
+    empty index (every lookup map starts empty), so browse endpoints return
+    empty lists rather than erroring — and skipping the rebuild avoids both a
+    pointless second walk of the tree and creating `<root>/.maneki/index.db`
+    in a library that has no audio to index.
     """
     from maneki.audio.serve import create_app as create_audio_app
 
     audio_app = create_audio_app(root=library_root, cfg=cfg, use_cache=use_cache, users=users)
-    audio_app.state.cache.rebuild()
+    if scan_library:
+        audio_app.state.cache.rebuild()
     combined.mount("/audio", audio_app)
 
 
