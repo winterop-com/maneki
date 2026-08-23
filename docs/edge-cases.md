@@ -138,6 +138,8 @@ Two tracks with same track-no + title in one album → auto-suffix `(2)`, `(3)`.
 
 Two source albums normalising to the same output path → skip second + warn in the summary. Surfaces in `--dry-run` too. Reservation happens BEFORE encode so dry-run and real-run agree on what would happen.
 
+The reservation key is the whole output path `casefold()`ed, so `2010 - TRON - Legacy` and `2010 - Tron - Legacy` (and `Daft Punk/` vs `daft punk/`) collide on a case-sensitive volume too, where they would otherwise land side by side as two half-albums. Only the lookup key is folded — the directory that gets created keeps its original casing. Per-track filename reservation is unaffected and stays exact-match.
+
 ## Source-side dedupe
 
 Some rip groups ship every track twice under different filename conventions:
