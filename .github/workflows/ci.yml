@@ -29,6 +29,28 @@ jobs:
       - name: Set up Python 3.13
         run: uv python install 3.13
 
+      - name: Install bun
+        uses: oven-sh/setup-bun@v2
+
+      # The SPA is a required check, not a nicety: scripts/copy_ui_static.py
+      # copies desktop/react/dist into src/maneki/_ui_static, so this build
+      # ships inside the published wheel. `make check` and `make coverage`
+      # are Python-only and cannot see it.
+      #
+      # `--frozen-lockfile` is the point of the step. Dependabot updates
+      # package.json but never bun.lock (GitHub does not parse that format),
+      # so a dependency PR arrives with the manifest and lockfile out of
+      # sync. That mismatch shipped once already: the react major bump in
+      # #84 passed this job, merged, and then broke every release build with
+      # "lockfile had changes, but lockfile is frozen". Failing here means a
+      # desynced lockfile can never reach main again - regenerate it with
+      # `cd desktop/react && bun install` and commit the result.
+      - name: Build the SPA (the wheel ships it)
+        run: |
+          cd desktop/react
+          bun install --frozen-lockfile
+          bun run build
+
       - name: Install ffmpeg + libportaudio
         run: |
           sudo apt-get update
@@ -51,8 +73,6 @@ jobs:
       # blocking unrelated PRs. Read the step output, don't trust the tick.
       - name: Audit JavaScript dependencies
         run: |
-          curl -fsSL https://bun.sh/install | bash
-          export PATH="$HOME/.bun/bin:$PATH"
           for dir in desktop/react desktop/electron; do
             echo "::group::bun audit $dir"
             (cd "$dir" && bun install --frozen-lockfile && bun audit) || true
