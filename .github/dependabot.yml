@@ -28,11 +28,24 @@ updates:
     groups:
       electron:
         patterns: ["*"]
+        update-types: ["minor", "patch"]
 
   # The React SPA is not just a desktop concern: scripts/copy_ui_static.py
   # copies desktop/react/dist into src/maneki/_ui_static, so this tree ships
   # inside the published wheel. It was previously unregistered here, meaning
   # no update PRs at all for the code served to every user.
+  #
+  # Majors are deliberately NOT grouped. The first run here opened a single
+  # PR carrying react 18 -> 19, react-router 6 -> 7 and vite 6 -> 8 at once
+  # (#84); five breaking upgrades in one diff is not reviewable, and if it
+  # regresses there is no way to tell which one did it. Minor and patch
+  # updates still batch into one PR; each major now arrives on its own.
+  #
+  # Note that Dependabot only rewrites package.json here - it does not
+  # understand bun.lock. Every PR from this ecosystem therefore needs a
+  # matching `cd desktop/react && bun install` commit before it can merge.
+  # CI enforces that: the SPA build step runs `bun install --frozen-lockfile`
+  # and fails on a desynced lockfile.
   - package-ecosystem: "npm"
     directory: "/desktop/react"
     schedule:
@@ -40,6 +53,7 @@ updates:
     groups:
       react:
         patterns: ["*"]
+        update-types: ["minor", "patch"]
 
   - package-ecosystem: "cargo"
     directory: "/desktop/tauri/src-tauri"
