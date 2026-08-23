@@ -6,8 +6,8 @@ repo_name: winterop-com/maneki
 
 theme:
   name: material
-  # Dark-only — claude-theme is a dark-mode overlay and looks broken
-  # under the light palette, so we drop the toggle entirely.
+  # Dark-only — the vendored claude.css is a dark-mode overlay and looks
+  # broken under the light palette, so we drop the toggle entirely.
   palette:
     scheme: slate
     primary: indigo
@@ -83,7 +83,6 @@ markdown_extensions:
 
 plugins:
   - search
-  - claude-theme
   - mkdocstrings:
       handlers:
         python:
@@ -96,3 +95,6 @@ plugins:
             show_category_heading: true
             members_order: source
             heading_level: 2
+
+extra_css:
+  - stylesheets/claude.css

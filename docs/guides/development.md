@@ -122,7 +122,8 @@ Top-level commands live on the root `app` Typer instance; audio-library ones liv
 2. Add a side-effect import in `cli/__init__.py`. `library` MUST be imported before any module that registers on `library_app`:
    ```python
    from maneki.audio.cli import library as _library_cmd  # noqa: E402
-   from maneki.audio.cli import my_cmd as _my_cmd_cmd    # noqa: E402
+   from maneki.audio.cli import my_cmd as _my_cmd_cmd  # noqa: E402
+
    _ = (..., _my_cmd_cmd)
    ```
 
