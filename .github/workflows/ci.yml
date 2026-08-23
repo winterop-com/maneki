@@ -43,6 +43,22 @@ jobs:
       - name: make coverage
         run: make coverage
 
+      # GitHub's dependency graph does not parse bun.lock, so the React
+      # SPA's resolved tree is invisible to Dependabot alerts even with the
+      # manifest registered in dependabot.yml. That tree ships inside the
+      # wheel (scripts/copy_ui_static.py), so audit it here instead.
+      # Advisory only: `|| true` keeps a fresh upstream advisory from
+      # blocking unrelated PRs. Read the step output, don't trust the tick.
+      - name: Audit JavaScript dependencies
+        run: |
+          curl -fsSL https://bun.sh/install | bash
+          export PATH="$HOME/.bun/bin:$PATH"
+          for dir in desktop/react desktop/electron; do
+            echo "::group::bun audit $dir"
+            (cd "$dir" && bun install --frozen-lockfile && bun audit) || true
+            echo "::endgroup::"
+          done
+
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v7
         with:

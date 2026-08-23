@@ -265,3 +265,84 @@ def test_youtube_manifest_stamps_quality_on_segments(
     seg_lines = [ln for ln in body.splitlines() if ln.startswith("seg-")]
     assert seg_lines, "manifest had no segment lines"
     assert all(ln.endswith(".ts?h=720") for ln in seg_lines), seg_lines
+
+
+@pytest.mark.parametrize(
+    "url",
+    [
+        "http://169.254.169.254/latest/meta-data/",
+        "https://youtube.com.evil.test/@x",
+        "https://evil.test/youtube.com/@x",
+        "https://youtube.com@evil.test/@x",
+        "file:///etc/passwd",
+        "ftp://evil.test/x",
+        "not a url",
+        "",
+    ],
+)
+def test_add_channel_rejects_non_youtube_url(
+    monkeypatch: pytest.MonkeyPatch, client_and_registry: tuple[TestClient, UserRegistry], url: str
+) -> None:
+    """A non-YouTube URL is refused with 422 and never reaches yt-dlp.
+
+    The route hands its URL to yt-dlp, whose generic extractor fetches
+    arbitrary hosts, so an unvalidated value is an SSRF primitive — and the
+    route is unauthenticated unless the server was started with --auth.
+    """
+    client, _ = client_and_registry
+    called = False
+
+    async def fake_list(
+        url: str, *, tab: str = "videos", limit: int = 60, force: bool = False
+    ) -> youtube.ChannelListing:
+        nonlocal called
+        called = True
+        return _LISTING
+
+    monkeypatch.setattr(youtube, "list_channel", fake_list)
+    assert client.post("/api/youtube/channels", json={"url": url}).status_code == 422
+    assert called is False, "extraction must not run for a rejected URL"
+
+
+@pytest.mark.parametrize(
+    "url",
+    [
+        "https://www.youtube.com/@RedLetterMedia",
+        "https://youtube.com/channel/UCrlm",
+        "https://m.youtube.com/@x/shorts",
+        "https://music.youtube.com/channel/UCrlm",
+        "https://youtu.be/@x",
+        "  https://www.youtube.com/@x  ",
+    ],
+)
+def test_add_channel_accepts_youtube_hosts(
+    monkeypatch: pytest.MonkeyPatch, client_and_registry: tuple[TestClient, UserRegistry], url: str
+) -> None:
+    """Real YouTube channel URLs still subscribe, whitespace included."""
+    client, _ = client_and_registry
+
+    async def fake_list(
+        url: str, *, tab: str = "videos", limit: int = 60, force: bool = False
+    ) -> youtube.ChannelListing:
+        return _LISTING
+
+    monkeypatch.setattr(youtube, "list_channel", fake_list)
+    assert client.post("/api/youtube/channels", json={"url": url}).status_code == 201
+
+
+async def test_list_channel_guards_the_sink() -> None:
+    """`list_channel` refuses a non-YouTube host even when called directly.
+
+    Defence in depth: the request boundary rejects first, but the sink is what
+    actually reaches yt-dlp, so it validates too.
+    """
+    with pytest.raises(youtube.YouTubeError, match="refusing to fetch non-YouTube URL"):
+        await youtube.list_channel("http://169.254.169.254/latest/meta-data/")
+
+
+def test_is_allowed_channel_url_matches_host_exactly() -> None:
+    """Host matching is exact — no substring or suffix passes."""
+    assert youtube.is_allowed_channel_url("https://www.youtube.com/@x")
+    assert not youtube.is_allowed_channel_url("https://notyoutube.com/@x")
+    assert not youtube.is_allowed_channel_url("https://youtube.com.evil.test/@x")
+    assert not youtube.is_allowed_channel_url("https://evil.test/?u=youtube.com")
