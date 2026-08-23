@@ -24,6 +24,23 @@ from maneki.audio.pipeline.report import AlbumReport
 from maneki.audio.pipeline.track import _planned_filename, _process_track, _resolve_track_metadata, _ResolvedTrack
 
 
+def _reservation_key(out_dir: Path) -> str:
+    """Return the case-folded lookup key for an output album directory.
+
+    Reservation is keyed on the folded path so two input albums whose
+    artist/album names differ only in case collide regardless of whether the
+    output volume is case-sensitive. The folded key is *only* a lookup key —
+    the directory that gets created keeps its original casing.
+
+    Args:
+        out_dir: Planned output album directory.
+
+    Returns:
+        The case-folded string form of ``out_dir``.
+    """
+    return str(out_dir).casefold()
+
+
 def _process_album(
     album_dir: AlbumDir,
     output_root: Path,
@@ -33,7 +50,7 @@ def _process_album(
     dry_run: bool,
     console: Console,
     ctx: ProgressContext,
-    written_dirs: set[Path],
+    written_dirs: set[str],
     allow_lossy_recompress: bool,
     workers: int,
     cover_max_edge: int,
@@ -207,10 +224,12 @@ def _process_album(
     # surfaces the same skip behaviour the real run would: two source albums
     # that normalise to the same output path would silently overlap, and the
     # user needs to see that in the plan before kicking off the convert.
-    if out_dir in written_dirs:
+    if _reservation_key(out_dir) in written_dirs:
         # A different input album already wrote (or planned to write) here in
         # this run — refusing to overwrite would lose data, so skip the
-        # second one and tell the user.
+        # second one and tell the user. The key is case-folded, so
+        # `2010 - TRON - Legacy` and `2010 - Tron - Legacy` collide even on a
+        # case-sensitive volume where both could otherwise land side by side.
         msg = f"output dir already produced by another input album: {out_dir}"
         warnings.append(msg)
         console.print(f"[yellow]⚠ skipping {artist_name} / {album_name}: {msg}[/yellow]")
@@ -235,7 +254,7 @@ def _process_album(
         msg = f"album already exists at {out_dir} — skipped (pass --overwrite to replace)"
         warnings.append(msg)
         console.print(f"[yellow]⚠ skipping {artist_name} / {album_name}: already in output[/yellow]")
-        written_dirs.add(out_dir)
+        written_dirs.add(_reservation_key(out_dir))
         return AlbumReport(
             input_dir=album_dir.path,
             output_dir=out_dir,
@@ -252,7 +271,7 @@ def _process_album(
     if dry_run:
         # Reserve the path so the next album in this dry-run sees it as taken
         # and produces the same collision warning the real run would.
-        written_dirs.add(out_dir)
+        written_dirs.add(_reservation_key(out_dir))
         console.print(f"[dim]dry-run[/dim] {artist_name} / {album_name} — {len(tracks)} tracks, cover: {cover_size}")
         return AlbumReport(
             input_dir=album_dir.path,
@@ -270,7 +289,7 @@ def _process_album(
     # If a later album normalises to the same path, it must hit the
     # collision branch above whether or not this album ultimately succeeds —
     # otherwise dry-run and real-run can disagree about what gets written.
-    written_dirs.add(out_dir)
+    written_dirs.add(_reservation_key(out_dir))
 
     # Encode tracks into a sibling staging dir; only swap into the final
     # `out_dir` once every track has succeeded. This keeps the previous

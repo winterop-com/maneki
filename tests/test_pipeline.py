@@ -728,3 +728,109 @@ def test_cover_discovery_matches_token_keywords(tmp_path: Path) -> None:
     assert back.name not in names
     # `frontiers` should not match the `front` token (negative-lookahead works).
     assert unrelated.name not in names
+
+
+def test_album_dir_collision_is_case_insensitive(silent_flac_template: Path, tmp_path: Path) -> None:
+    """Two albums differing only in title case collide; the winner keeps its casing."""
+    from mutagen.flac import FLAC
+
+    for name, album in (("Source A", "TRON Legacy"), ("Source B", "Tron Legacy")):
+        album_dir = tmp_path / "input" / name
+        album_dir.mkdir(parents=True)
+        dst = album_dir / "01 - Track.flac"
+        shutil.copy2(silent_flac_template, dst)
+        flac = FLAC(dst)
+        flac["TITLE"] = "Track"
+        flac["ARTIST"] = "Daft Punk"
+        flac["ALBUMARTIST"] = "Daft Punk"
+        flac["ALBUM"] = album
+        flac["DATE"] = "2010"
+        flac["TRACKNUMBER"] = "1"
+        flac.save()
+
+    out_root = tmp_path / "output"
+    reports = pipeline.run(
+        tmp_path / "input",
+        out_root,
+        fmt=OutputFormat.ALAC,
+        verbose=True,
+        console=Console(record=True, width=120),
+    )
+    assert len(reports) == 2
+    oks = [r for r in reports if r.ok]
+    failures = [r for r in reports if not r.ok]
+    assert len(oks) == 1
+    assert len(failures) == 1
+    # `Source A` sorts first, so the upper-cased spelling is the one that wins.
+    assert failures[0].input_dir == tmp_path / "input" / "Source B"
+    assert failures[0].error == "duplicate output dir"
+
+    # Exactly one album dir on disk, and it kept the original (unfolded) casing.
+    artist_dir = out_root / "Daft Punk"
+    assert {p.name for p in artist_dir.iterdir()} == {"2010 - TRON Legacy"}
+    assert len(list((artist_dir / "2010 - TRON Legacy").glob("*.m4a"))) == 1
+
+
+def test_album_dir_collision_folds_artist_dir_case(silent_flac_template: Path, tmp_path: Path) -> None:
+    """The fold covers the whole output path, so artist casing collides too."""
+    from mutagen.flac import FLAC
+
+    for name, artist in (("Source A", "Daft Punk"), ("Source B", "daft punk")):
+        album_dir = tmp_path / "input" / name
+        album_dir.mkdir(parents=True)
+        dst = album_dir / "01 - Track.flac"
+        shutil.copy2(silent_flac_template, dst)
+        flac = FLAC(dst)
+        flac["TITLE"] = "Track"
+        flac["ARTIST"] = artist
+        flac["ALBUMARTIST"] = artist
+        flac["ALBUM"] = "Discovery"
+        flac["DATE"] = "2001"
+        flac["TRACKNUMBER"] = "1"
+        flac.save()
+
+    out_root = tmp_path / "output"
+    reports = pipeline.run(
+        tmp_path / "input",
+        out_root,
+        fmt=OutputFormat.ALAC,
+        verbose=True,
+        console=Console(record=True, width=120),
+    )
+    assert [r.ok for r in reports] == [True, False]
+    assert reports[1].error == "duplicate output dir"
+    assert {p.name for p in out_root.iterdir()} == {"Daft Punk"}
+
+
+def test_case_insensitive_album_dedup_keeps_track_reservation_exact(silent_flac_template: Path, tmp_path: Path) -> None:
+    """Album-level folding must not leak into per-track collision handling."""
+    from mutagen.flac import FLAC
+
+    from tests.conftest import make_silent_flac
+
+    album_dir = tmp_path / "input" / "CaseAlbum"
+    album_dir.mkdir(parents=True)
+    # Distinct durations so the source-side dedupe keeps both tracks.
+    for i, (title, duration) in enumerate([("Same", 0.2), ("Other", 1.0)], start=1):
+        dst = album_dir / f"src{i}.flac"
+        make_silent_flac(dst, duration=duration)
+        flac = FLAC(dst)
+        flac["TITLE"] = title
+        flac["ARTIST"] = "Solo"
+        flac["ALBUMARTIST"] = "Solo"
+        flac["ALBUM"] = "Case Album"
+        flac["DATE"] = "2024"
+        flac["TRACKNUMBER"] = "1"  # both planned as `01 - …`, only titles differ
+        flac.save()
+
+    out_root = tmp_path / "output"
+    reports = pipeline.run(
+        tmp_path / "input",
+        out_root,
+        fmt=OutputFormat.ALAC,
+        verbose=True,
+        console=Console(record=True, width=120),
+    )
+    assert reports[0].ok is True
+    files = {p.name for p in (out_root / "Solo" / "2024 - Case Album").glob("*.m4a")}
+    assert files == {"01 - Same.m4a", "01 - Other.m4a"}

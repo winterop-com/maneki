@@ -89,7 +89,7 @@ def run(
         return []
 
     reports: list[AlbumReport] = []
-    written_dirs: set[Path] = set()
+    written_dirs: set[str] = set()  # case-folded output paths, see _reservation_key
     if verbose:
         ctx = ProgressContext(verbose=True)
         for album_dir in albums:
