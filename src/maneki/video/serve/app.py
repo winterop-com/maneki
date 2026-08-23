@@ -21,7 +21,7 @@ from typing import TYPE_CHECKING, Iterator
 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import FileResponse, HTMLResponse, Response, StreamingResponse
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 
 if TYPE_CHECKING:
     from maneki.audio.serve.users import UserRegistry
@@ -111,6 +111,21 @@ class AddChannelBody(BaseModel):
     """Body of POST /api/youtube/channels — the channel URL to subscribe to."""
 
     url: str
+
+    @field_validator("url")
+    @classmethod
+    def _must_be_youtube(cls, value: str) -> str:
+        """Reject anything that is not an http(s) URL on a known YouTube host.
+
+        The URL is handed to yt-dlp, whose generic extractor fetches arbitrary
+        hosts, so an unvalidated value here is a server-side request forgery
+        primitive — and this route is unauthenticated unless `--auth` is on.
+        Rejecting in the model turns a bad URL into a 422 before any request
+        is made.
+        """
+        if not youtube.is_allowed_channel_url(value):
+            raise ValueError("url must be an http(s) URL on a YouTube host")
+        return value.strip()
 
 
 def build_video_stats(hls_manager: HLSManager, budget: TranscodeBudget, *, now: float) -> VideoStatsResponse:

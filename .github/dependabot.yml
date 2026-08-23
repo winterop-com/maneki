@@ -1,7 +1,8 @@
 # Dependabot update PRs. Alerts are already on; this opens grouped update
 # PRs on a weekly cadence so deps don't drift. Keep ecosystems aligned with
-# the four manifests in the repo: Python (pyproject), the GitHub Actions
-# workflows, and the two desktop wrappers (Electron / Tauri).
+# every manifest in the repo: Python (pyproject), the GitHub Actions
+# workflows, the two desktop wrappers (Electron / Tauri), and the React SPA
+# that both wrappers embed and the wheel ships.
 version: 2
 updates:
   - package-ecosystem: "pip"
@@ -26,6 +27,18 @@ updates:
       interval: "weekly"
     groups:
       electron:
+        patterns: ["*"]
+
+  # The React SPA is not just a desktop concern: scripts/copy_ui_static.py
+  # copies desktop/react/dist into src/maneki/_ui_static, so this tree ships
+  # inside the published wheel. It was previously unregistered here, meaning
+  # no update PRs at all for the code served to every user.
+  - package-ecosystem: "npm"
+    directory: "/desktop/react"
+    schedule:
+      interval: "weekly"
+    groups:
+      react:
         patterns: ["*"]
 
   - package-ecosystem: "cargo"

@@ -32,6 +32,7 @@ import os
 import time
 from threading import RLock
 from typing import Any, Literal
+from urllib.parse import urlparse
 
 import yt_dlp
 from pydantic import BaseModel, ConfigDict
@@ -63,6 +64,47 @@ _TAB_KIND: dict[ChannelTab, str] = {"videos": "video", "shorts": "short", "strea
 # Channel sub-paths we strip to recover the bare channel URL before appending
 # the tab we actually want to list.
 _CHANNEL_SUBPATHS = ("/videos", "/shorts", "/streams", "/featured", "/playlists", "/community", "/podcasts")
+
+# Hosts a caller-supplied channel URL is allowed to name. `list_channel` hands
+# its argument to yt-dlp, whose generic extractor will happily fetch arbitrary
+# HTTP(S) hosts — so without this an unauthenticated POST to
+# /api/youtube/channels is a server-side request forgery primitive against
+# whatever the server can reach. Same shape as the station allowlist in
+# `audio/serve/radio_proxy.py`.
+#
+# Matching is exact against the parsed hostname, never a substring or suffix
+# test: `youtube.com.evil.test` and `evil.test/youtube.com` must not pass, and
+# a userinfo prefix (`https://youtube.com@evil.test/`) parses to hostname
+# `evil.test`, which is correctly rejected.
+_ALLOWED_CHANNEL_HOSTS = frozenset(
+    {
+        "youtube.com",
+        "www.youtube.com",
+        "m.youtube.com",
+        "music.youtube.com",
+        "youtu.be",
+    }
+)
+
+
+def is_allowed_channel_url(url: str) -> bool:
+    """True if `url` is an http(s) URL naming a known YouTube host.
+
+    Args:
+        url: Caller-supplied channel URL, as pasted by a user.
+
+    Returns:
+        True when the URL parses, uses http/https, and its hostname is exactly
+        one of the allowed YouTube hosts.
+    """
+    try:
+        parts = urlparse(url.strip())
+    except ValueError:
+        return False
+    if parts.scheme not in ("http", "https"):
+        return False
+    return (parts.hostname or "").lower() in _ALLOWED_CHANNEL_HOSTS
+
 
 # Cache TTLs (seconds). Channel listings change slowly (a new upload now and
 # then) so a short cache spares repeated multi-second extractions. Stream URLs
@@ -405,7 +447,15 @@ async def list_channel(
 
     `force=True` skips the cache read (but still refreshes it) — the refresh
     button uses this to look for new uploads without waiting out the TTL.
+
+    Raises:
+        YouTubeError: if `url` does not name an allowed YouTube host. This is
+            the sink `url` ultimately reaches yt-dlp through, so the check
+            lives here as well as at the request boundary — internal callers
+            pass `canonical_channel_url()` output and are unaffected.
     """
+    if not is_allowed_channel_url(url):
+        raise YouTubeError(f"refusing to fetch non-YouTube URL {url!r}")
     key = f"{_channel_base(url)}#{tab}#{limit}"
     if not force:
         cached = _channel_cache.get(key)
