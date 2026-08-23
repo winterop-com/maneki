@@ -1413,11 +1413,13 @@
 <a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a><span class="c1">#   "version": "0.9.0",</span>
 <a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a><span class="c1">#   "audio": true,</span>
 <a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a><span class="c1">#   "video": true,</span>
-<a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a><span class="c1">#   "endpoints": {</span>
-<a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a><span class="c1">#     "audio_subsonic": "/audio/rest",</span>
-<a id="__codelineno-1-9" name="__codelineno-1-9" href="#__codelineno-1-9"></a><span class="c1">#     "video_api": "/video/api"</span>
-<a id="__codelineno-1-10" name="__codelineno-1-10" href="#__codelineno-1-10"></a><span class="c1">#   }</span>
-<a id="__codelineno-1-11" name="__codelineno-1-11" href="#__codelineno-1-11"></a><span class="c1"># }</span>
+<a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a><span class="c1">#   "youtube": true,</span>
+<a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a><span class="c1">#   "radio": true,</span>
+<a id="__codelineno-1-9" name="__codelineno-1-9" href="#__codelineno-1-9"></a><span class="c1">#   "endpoints": {</span>
+<a id="__codelineno-1-10" name="__codelineno-1-10" href="#__codelineno-1-10"></a><span class="c1">#     "audio_subsonic": "/audio/rest",</span>
+<a id="__codelineno-1-11" name="__codelineno-1-11" href="#__codelineno-1-11"></a><span class="c1">#     "video_api": "/video/api"</span>
+<a id="__codelineno-1-12" name="__codelineno-1-12" href="#__codelineno-1-12"></a><span class="c1">#   }</span>
+<a id="__codelineno-1-13" name="__codelineno-1-13" href="#__codelineno-1-13"></a><span class="c1"># }</span>
 </code></pre></div>
 <h2 id="url-layout">URL layout<a class="headerlink" href="#url-layout" title="Permanent link">&para;</a></h2>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>host:port/capabilities          server identity + which kinds are mounted (public)
@@ -1445,23 +1447,24 @@
 <tbody>
 <tr>
 <td>Audio + video files</td>
-<td>Both protocols mounted; SPA shows the AUDIO/VIDEO rail</td>
+<td>Both libraries browsable; SPA shows the AUDIO/VIDEO rail</td>
 </tr>
 <tr>
 <td>Only audio files</td>
-<td>Only the Subsonic mount; <code>/video/*</code> returns 404; SPA hides the rail</td>
+<td><code>/capabilities</code> reports <code>audio: true, video: false</code>; the video list is empty</td>
 </tr>
 <tr>
 <td>Only video files</td>
-<td>Only the video mount; <code>/audio/*</code> returns 404; SPA hides the rail and auto-switches to video</td>
+<td><code>/capabilities</code> reports <code>audio: false, video: true</code>; the audio library browses empty</td>
 </tr>
 <tr>
 <td>Neither</td>
-<td>Empty server — <code>/capabilities</code> reports <code>audio: false, video: false</code></td>
+<td><code>audio: false, video: false</code> — a pure internet-radio + YouTube player</td>
 </tr>
 </tbody>
 </table>
-<p>There is no kind-toggle flag: to serve only audio, point at an audio-only root; to serve only video, point at a video-only root. The single-library design is the whole point.</p>
+<p>Both mounts are always present, because each also hosts a remote source that needs nothing on disk: internet radio (<code>getInternetRadioStations</code>, the ICY proxy) on <code>/audio/rest/*</code>, YouTube on <code>/video/api/*</code>. What the scan decides is the <em>content</em> of the local half, reported by the <code>audio</code> / <code>video</code> flags — so a client can tell "nothing to browse here" from "this mount does not exist". The local library scan itself is still gated on finding files of that kind, so a radio-only root pays no walk and gets no <code>.maneki/index.db</code> written into it.</p>
+<p>There is no kind-toggle flag: to serve only audio, point at an audio-only root; to serve only video, point at a video-only root; to run Maneki as a pure radio player, point it at an empty directory. The single-library design is the whole point.</p>
 <h2 id="options">Options<a class="headerlink" href="#options" title="Permanent link">&para;</a></h2>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>maneki serve &lt;root&gt; [--host HOST] [--port PORT] [--ui] [--auth] [--workers N]
 <a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>
