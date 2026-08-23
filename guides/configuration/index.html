@@ -23,7 +23,7 @@
       
       
       <link rel="icon" href="../../assets/images/favicon.png">
-      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.6">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
     
     
       
@@ -31,7 +31,7 @@
       
     
     
-      <link rel="stylesheet" href="../../assets/stylesheets/main.484c7ddc.min.css">
+      <link rel="stylesheet" href="../../assets/stylesheets/main.ec1eaa64.min.css">
       
         
         <link rel="stylesheet" href="../../assets/stylesheets/palette.ab4e12ef.min.css">
@@ -1525,18 +1525,18 @@ overrides <code>[media] hwenc</code>, and so on.</p>
 <p>The roots maneki scans (recursively, audio + video). Overridden by a <code>serve</code>
 positional or <code>MANEKI_LIBRARY</code>.</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="k">[libraries]</span>
-<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a><span class="n">locations</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">[</span><span class="s2">&quot;~/Music&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;/Volumes/NAS/media&quot;</span><span class="p">]</span>
+<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a><span class="n">locations</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">[</span><span class="s2">"~/Music"</span><span class="p">,</span><span class="w"> </span><span class="s2">"/Volumes/NAS/media"</span><span class="p">]</span>
 </code></pre></div>
 <h3 id="users">Users<a class="headerlink" href="#users" title="Permanent link">&para;</a></h3>
 <p>One <code>[[users]]</code> block per person. Each account is a separate login.</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="k">[[users]]</span>
-<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a><span class="n">name</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;alice&quot;</span>
-<a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a><span class="n">password</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;change-me&quot;</span>
+<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a><span class="n">name</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">"alice"</span>
+<a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a><span class="n">password</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">"change-me"</span>
 <a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a><span class="n">admin</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="kc">true</span><span class="w">            </span><span class="c1"># may manage other users</span>
 <a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a>
 <a id="__codelineno-4-6" name="__codelineno-4-6" href="#__codelineno-4-6"></a><span class="k">[[users]]</span>
-<a id="__codelineno-4-7" name="__codelineno-4-7" href="#__codelineno-4-7"></a><span class="n">name</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;bob&quot;</span>
-<a id="__codelineno-4-8" name="__codelineno-4-8" href="#__codelineno-4-8"></a><span class="n">password</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;change-me&quot;</span>
+<a id="__codelineno-4-7" name="__codelineno-4-7" href="#__codelineno-4-7"></a><span class="n">name</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">"bob"</span>
+<a id="__codelineno-4-8" name="__codelineno-4-8" href="#__codelineno-4-8"></a><span class="n">password</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">"change-me"</span>
 </code></pre></div>
 <ul>
 <li><strong>Passwords are plaintext, by necessity.</strong> Subsonic clients authenticate with
@@ -1568,36 +1568,36 @@ existing <code>[server]</code> account so it keeps working.</p>
 <p>Used <strong>only when no <code>[[users]]</code> are defined</strong>. Defaults to <code>admin</code>/<code>admin</code> with a
 startup warning, so set it (or add <code>[[users]]</code>) before exposing the server.</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="k">[server]</span>
-<a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a><span class="n">username</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;admin&quot;</span>
-<a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a><span class="n">password</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;admin&quot;</span>
+<a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a><span class="n">username</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">"admin"</span>
+<a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a><span class="n">password</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">"admin"</span>
 </code></pre></div>
 <p>Optional play-event forwarding (e.g. Home Assistant) nests under it:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="k">[server.scrobble.webhook]</span>
-<a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a><span class="n">url</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;https://example.invalid/hook&quot;</span>
+<a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a><span class="n">url</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">"https://example.invalid/hook"</span>
 <a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a><span class="k">[server.scrobble.mqtt]</span>
-<a id="__codelineno-7-4" name="__codelineno-7-4" href="#__codelineno-7-4"></a><span class="n">broker</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;mqtt://homeassistant:1883&quot;</span>
+<a id="__codelineno-7-4" name="__codelineno-7-4" href="#__codelineno-7-4"></a><span class="n">broker</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">"mqtt://homeassistant:1883"</span>
 </code></pre></div>
 <h3 id="acoustid"><code>[acoustid]</code><a class="headerlink" href="#acoustid" title="Permanent link">&para;</a></h3>
 <p>API key for <code>maneki audio convert --enrich</code> fingerprinting (free at
 <a href="https://acoustid.org/api-key">acoustid.org</a>).</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a><span class="k">[acoustid]</span>
-<a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a><span class="n">api_key</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;...&quot;</span>
+<a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a><span class="n">api_key</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">"..."</span>
 </code></pre></div>
 <h3 id="media"><code>[media]</code><a class="headerlink" href="#media" title="Permanent link">&para;</a></h3>
 <p>ffmpeg/ffprobe binaries, the H.264 hardware encoder, and YouTube playback.
 Useful to point maneki at a fuller ffmpeg (e.g. one with <code>zscale</code>/libzimg for
 HDR tonemapping) without touching your <code>PATH</code>.</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a><span class="k">[media]</span>
-<a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a><span class="n">ffmpeg</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;/opt/homebrew/opt/ffmpeg-full/bin/ffmpeg&quot;</span>
-<a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a><span class="n">ffprobe</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;/opt/homebrew/opt/ffmpeg-full/bin/ffprobe&quot;</span>
-<a id="__codelineno-9-4" name="__codelineno-9-4" href="#__codelineno-9-4"></a><span class="n">hwenc</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;auto&quot;</span><span class="w">            </span><span class="c1"># auto | vaapi | videotoolbox | none</span>
-<a id="__codelineno-9-5" name="__codelineno-9-5" href="#__codelineno-9-5"></a><span class="n">hwenc_bitrate</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;6M&quot;</span><span class="w">      </span><span class="c1"># set to pin a fixed rate; unset = scales with height</span>
-<a id="__codelineno-9-6" name="__codelineno-9-6" href="#__codelineno-9-6"></a><span class="n">hwenc_maxrate</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;8M&quot;</span>
-<a id="__codelineno-9-7" name="__codelineno-9-7" href="#__codelineno-9-7"></a><span class="n">hwenc_bufsize</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;12M&quot;</span>
-<a id="__codelineno-9-8" name="__codelineno-9-8" href="#__codelineno-9-8"></a><span class="n">vaapi_device</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;/dev/dri/renderD128&quot;</span>
+<a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a><span class="n">ffmpeg</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">"/opt/homebrew/opt/ffmpeg-full/bin/ffmpeg"</span>
+<a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a><span class="n">ffprobe</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">"/opt/homebrew/opt/ffmpeg-full/bin/ffprobe"</span>
+<a id="__codelineno-9-4" name="__codelineno-9-4" href="#__codelineno-9-4"></a><span class="n">hwenc</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">"auto"</span><span class="w">            </span><span class="c1"># auto | vaapi | videotoolbox | none</span>
+<a id="__codelineno-9-5" name="__codelineno-9-5" href="#__codelineno-9-5"></a><span class="n">hwenc_bitrate</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">"6M"</span><span class="w">      </span><span class="c1"># set to pin a fixed rate; unset = scales with height</span>
+<a id="__codelineno-9-6" name="__codelineno-9-6" href="#__codelineno-9-6"></a><span class="n">hwenc_maxrate</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">"8M"</span>
+<a id="__codelineno-9-7" name="__codelineno-9-7" href="#__codelineno-9-7"></a><span class="n">hwenc_bufsize</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">"12M"</span>
+<a id="__codelineno-9-8" name="__codelineno-9-8" href="#__codelineno-9-8"></a><span class="n">vaapi_device</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">"/dev/dri/renderD128"</span>
 <a id="__codelineno-9-9" name="__codelineno-9-9" href="#__codelineno-9-9"></a><span class="n">youtube_max_height</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">1080</span><span class="w">            </span><span class="c1"># default cap for YouTube playback quality</span>
-<a id="__codelineno-9-10" name="__codelineno-9-10" href="#__codelineno-9-10"></a><span class="n">youtube_cookies_from_browser</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;chrome&quot;</span><span class="w">   </span><span class="c1"># chrome | safari | firefox | ...</span>
-<a id="__codelineno-9-11" name="__codelineno-9-11" href="#__codelineno-9-11"></a><span class="c1"># youtube_cookiefile = &quot;/path/to/cookies.txt&quot;   # alternative to the above</span>
+<a id="__codelineno-9-10" name="__codelineno-9-10" href="#__codelineno-9-10"></a><span class="n">youtube_cookies_from_browser</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">"chrome"</span><span class="w">   </span><span class="c1"># chrome | safari | firefox | ...</span>
+<a id="__codelineno-9-11" name="__codelineno-9-11" href="#__codelineno-9-11"></a><span class="c1"># youtube_cookiefile = "/path/to/cookies.txt"   # alternative to the above</span>
 </code></pre></div>
 <p>Leave <code>hwenc_bitrate</code> unset to let the encoder scale the bitrate with the
 output resolution (≈12M at 1080p, 6M at 720p, …); set it to pin a fixed rate.</p>
@@ -1608,8 +1608,8 @@ Point it at a browser you're signed into YouTube with.</p>
 <p>Run <code>maneki doctor</code> to see which encoder will actually be used.</p>
 <h3 id="logging"><code>[logging]</code><a class="headerlink" href="#logging" title="Permanent link">&para;</a></h3>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a><span class="k">[logging]</span>
-<a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a><span class="n">level</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;INFO&quot;</span><span class="w">           </span><span class="c1"># DEBUG | INFO | WARNING | ERROR</span>
-<a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a><span class="n">format</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;pretty&quot;</span><span class="w">        </span><span class="c1"># pretty | json (json for shipping logs)</span>
+<a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a><span class="n">level</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">"INFO"</span><span class="w">           </span><span class="c1"># DEBUG | INFO | WARNING | ERROR</span>
+<a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a><span class="n">format</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">"pretty"</span><span class="w">        </span><span class="c1"># pretty | json (json for shipping logs)</span>
 </code></pre></div>
 <h2 id="environment-variables">Environment variables<a class="headerlink" href="#environment-variables" title="Permanent link">&para;</a></h2>
 <p>Every setting has a <code>MANEKI_*</code> override. Nested keys use <code>__</code> (double
@@ -1728,7 +1728,7 @@ masked) so you can see what's overriding the file.</p>
       <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["navigation.sections", "navigation.expand", "navigation.indexes", "navigation.top", "navigation.tracking", "toc.follow", "search.highlight", "search.share", "content.code.copy", "content.code.annotate"], "search": "../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
     
     
-      <script src="../../assets/javascripts/bundle.79ae519e.min.js"></script>
+      <script src="../../assets/javascripts/bundle.d7400e89.min.js"></script>
       
     
   </body>

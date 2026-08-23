@@ -21,7 +21,7 @@
       
       
       <link rel="icon" href="../assets/images/favicon.png">
-      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.6">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
     
     
       
@@ -29,7 +29,7 @@
       
     
     
-      <link rel="stylesheet" href="../assets/stylesheets/main.484c7ddc.min.css">
+      <link rel="stylesheet" href="../assets/stylesheets/main.ec1eaa64.min.css">
       
         
         <link rel="stylesheet" href="../assets/stylesheets/palette.ab4e12ef.min.css">
@@ -1234,6 +1234,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#packaging-distribution" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Packaging &amp; distribution
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#speculative" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1348,6 +1359,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#packaging-distribution" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Packaging &amp; distribution
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#speculative" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1428,7 +1450,14 @@
 <li><strong>AcoustID auto-enable</strong>: today you have to pass <code>--acoustid-key</code> per run. Read from <code>~/.config/maneki/maneki.toml</code> (<code>[acoustid].api_key</code>) and apply automatically when an album has tagless tracks.</li>
 <li><strong>Album merge tool</strong>: when the same album exists with different tags as two folders, an interactive merge.</li>
 <li><strong><code>--dry-run</code> with rich diff</strong>: show exactly what tags would change, what files would move.</li>
+<li><strong>Radio without a library</strong>: internet radio is fully implemented (<code>radio.py</code> defaults + <code>~/.config/maneki/radio.toml</code>, Subsonic <code>getInternetRadioStations</code>, the same-origin ICY proxy, SPA sidebar), but the routes live on the audio mount and <code>create_combined_app</code> only mounts audio when <code>has_audio(root)</code> finds at least one local audio file. Pointing <code>maneki serve</code> at an empty directory reports <code>"audio": false</code> and <code>getInternetRadioStations</code> 404s, so there is no way to run Maneki purely as a radio player. Radio is a network resource with no dependency on the library, so it should mount independently of the local scan - either by mounting audio whenever stations resolve, or a <code>--radio-only</code> mode that skips the scan entirely. Note the video app already does exactly this for YouTube: it mounts unconditionally so YouTube works on audio-only and empty libraries.</li>
+<li><strong>Case-insensitive album collision detection</strong>: <code>convert</code> refuses a second input album whose output path is already taken, but the check is exact-match. On a case-sensitive volume two rips whose titles differ only in case both convert and land side by side - a single run produced both <code>Daft Punk/2010 - TRON - Legacy</code> and <code>2010 - Tron - Legacy</code>, and both <code>Oasis/1995 - (What's The Story) Morning Glory</code> and <code>(What's the Story) Morning Glory</code>. Fold the reservation key to casefold() so the dedup fires regardless of the volume's case sensitivity. Overlaps with the album merge tool above.</li>
 </ul>
+<h2 id="packaging-distribution">Packaging &amp; distribution<a class="headerlink" href="#packaging-distribution" title="Permanent link">&para;</a></h2>
+<ul>
+<li><strong>Deno as a single-binary shell</strong>: <code>deno compile --target</code> cross-compiles to x86_64/aarch64 Linux, x86_64/aarch64 macOS, and x86_64 Windows from one toolchain, producing a self-contained executable with no runtime to install. That is attractive against what the desktop story costs today: two parallel shells (<code>desktop/tauri</code>, <code>desktop/electron</code>) sharing one React frontend, where Tauri needs a Rust toolchain plus per-platform system webviews and Electron ships an entire Chromium per build. Worth scoping as a third shell that serves the existing SPA and talks to the same HTTP API.</li>
+</ul>
+<p>The honest limit: this only replaces the <em>shell and distribution</em> layer, not the media pipeline. The backend is Python for real reasons - mutagen for tag round-tripping, yt-dlp, and the ffmpeg orchestration in the HLS and convert paths - and none of that ports cheaply. So the realistic shape is a Deno shell wrapping a Python server, which does not remove the Python runtime dependency, or a much larger rewrite that does. Evaluate before committing: whether the packaged binary can bundle or locate a Python runtime and ffmpeg, and whether that beats today's Tauri bundle size and build matrix.</p>
 <h2 id="speculative">Speculative<a class="headerlink" href="#speculative" title="Permanent link">&para;</a></h2>
 <p>Things that would be interesting if anyone ever asked, but not pursued speculatively:</p>
 <ul>
@@ -1500,7 +1529,7 @@
       <script id="__config" type="application/json">{"annotate": null, "base": "..", "features": ["navigation.sections", "navigation.expand", "navigation.indexes", "navigation.top", "navigation.tracking", "toc.follow", "search.highlight", "search.share", "content.code.copy", "content.code.annotate"], "search": "../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
     
     
-      <script src="../assets/javascripts/bundle.79ae519e.min.js"></script>
+      <script src="../assets/javascripts/bundle.d7400e89.min.js"></script>
       
     
   </body>

@@ -1,3 +1,10 @@
+/* Vendored from the former `mkdocs-claude-theme` plugin
+ * (github.com/mortenoh/mkdocs-claude-theme, since deleted). The plugin's
+ * only job was to inject this stylesheet; `extra_css` in mkdocs.yml does
+ * the same thing without an external git dependency. Recovered verbatim
+ * from the built site on the gh-pages branch.
+ */
+
 /* Claude Code docs colorscheme for Material for MkDocs
  *
  * Matches code.claude.com/docs:
