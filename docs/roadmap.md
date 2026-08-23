@@ -6,7 +6,7 @@ What's landed, what's open, what's speculative. Keep this in sync with code chan
 
 ### Landed
 
-- **Single library root**: `maneki serve <root>` walks one directory recursively and auto-mounts whichever kinds it finds — no `<root>/audio/` or `<root>/videos/` subdir convention. Empty roots mount neither kind; mixed roots mount both.
+- **Single library root**: `maneki serve <root>` walks one directory recursively and auto-mounts whichever kinds it finds — no `<root>/audio/` or `<root>/videos/` subdir convention. Mixed roots mount both. Each mount also hosts a remote source that needs nothing on disk (internet radio on `/audio`, YouTube on `/video`), so an empty root still gets both mounts — only their local halves are empty.
 - **`maneki info` / `list` / `inspect`**: cross-cutting top-level commands that take any library root - `info` for file counts per kind, `list` (alias `ls`) for a full inventory walk, `inspect` for a file's tags / cover (audio) or ffprobe streams + container info (video). Output is rich-formatted.
 - **Base scan + raw stream**: every video file under the library root is discovered recursively; flat list endpoint; HTTP Range stream (with RFC 7233 suffix-range support).
 - **Subtitle sidecars**: `.srt` discovery + on-the-fly conversion to WebVTT.
@@ -28,6 +28,7 @@ What's landed, what's open, what's speculative. Keep this in sync with code chan
 - **Kind-aware search**: in video mode the topbar search swaps the folder browser for a flat results pane of filename-substring matches across the whole library; debounced 200 ms; capped at 200 results.
 - **House auth**: `POST /auth/login` returns bearer; SPA same-origin login form (URL field hidden when SPA is co-hosted with the server).
 - **SPA served at `/`**: no `/ui/` prefix; API routes registered first so the StaticFiles mount at root doesn't shadow them.
+- **Radio without a library**: internet radio no longer depends on the local scan. The Subsonic app is mounted whenever local audio files exist **or** stations resolve (defaults in `radio.py` plus `~/.config/maneki/radio.toml`), mirroring what the video app already did for YouTube, so `maneki serve <empty-dir>` is a working radio player. `/capabilities` stays honest by splitting the two questions: `audio` still means "there is a local audio library to browse" (False on a radio-only server), a new `radio` flag reports station availability, and `endpoints.audio_subsonic` now describes the mount — non-null whenever either is on. The library scan stays gated on local audio, so a radio-only or video-only root pays no walk and gets no `.maneki/index.db` written into it. The SPA keeps its AUDIO tab (and therefore the Radio list) whenever `audio` or `radio` is on.
 
 ### Open
 
@@ -52,7 +53,6 @@ The Subsonic API is the only audio protocol today; the video API is Maneki-nativ
 - **AcoustID auto-enable**: today you have to pass `--acoustid-key` per run. Read from `~/.config/maneki/maneki.toml` (`[acoustid].api_key`) and apply automatically when an album has tagless tracks.
 - **Album merge tool**: when the same album exists with different tags as two folders, an interactive merge.
 - **`--dry-run` with rich diff**: show exactly what tags would change, what files would move.
-- **Radio without a library**: internet radio is fully implemented (`radio.py` defaults + `~/.config/maneki/radio.toml`, Subsonic `getInternetRadioStations`, the same-origin ICY proxy, SPA sidebar), but the routes live on the audio mount and `create_combined_app` only mounts audio when `has_audio(root)` finds at least one local audio file. Pointing `maneki serve` at an empty directory reports `"audio": false` and `getInternetRadioStations` 404s, so there is no way to run Maneki purely as a radio player. Radio is a network resource with no dependency on the library, so it should mount independently of the local scan - either by mounting audio whenever stations resolve, or a `--radio-only` mode that skips the scan entirely. Note the video app already does exactly this for YouTube: it mounts unconditionally so YouTube works on audio-only and empty libraries.
 
 ## Packaging & distribution
 

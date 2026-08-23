@@ -35,9 +35,12 @@ import { store } from "./store.js";
   // Decide whether the user's base URL is maneki (Subsonic mounted
   // under /audio) or a 3rd-party Subsonic server (REST at the root).
   // Probes <url>/capabilities once and returns { base, hasAudio }:
-  //   - maneki with audio  -> { base: <url>/audio, hasAudio: true }
-  //   - maneki video-only  -> { base: <url>,       hasAudio: false }
+  //   - maneki, /audio mounted -> { base: <url>/audio, hasAudio: true }
+  //   - maneki, no /audio mount -> { base: <url>,      hasAudio: false }
   //   - 3rd-party / error   -> { base: <url>,       hasAudio: true }
+  // `hasAudio` here means "the Subsonic mount exists", not "there is a
+  // local library": maneki mounts /audio for internet radio even when the
+  // library holds no audio files.
   // Fails-open (treats the URL as a plain Subsonic root with audio) on
   // any network error so the rest of the login flow can surface a
   // useful auth/connection error instead of a probe error. The
@@ -198,7 +201,16 @@ export function wiredMakeCover(kind, baseColor) {
       });
       if (capsResp.ok) {
         const caps = await capsResp.json();
-        if (caps && typeof caps.audio === "boolean") hasAudio = caps.audio;
+        // Key off the MOUNT, not `caps.audio`: a radio-only server reports
+        // `audio: false` (no local library to browse) but still mounts
+        // /audio/rest for the radio endpoints, and the Subsonic phase below
+        // is what loads STATIONS. `caps.audio` remains the fallback for
+        // older servers that don't report the endpoints map.
+        if (caps?.endpoints && "audio_subsonic" in caps.endpoints) {
+          hasAudio = Boolean(caps.endpoints.audio_subsonic);
+        } else if (caps && typeof caps.audio === "boolean") {
+          hasAudio = caps.audio;
+        }
       }
     } catch (_e) {
       // ignore - falls through to the audio path

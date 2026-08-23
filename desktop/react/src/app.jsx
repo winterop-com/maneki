@@ -165,7 +165,11 @@ function App() {
       if (cancelled) return;
       setHasVideo(caps?.video === true);
       setHasYoutube(caps?.youtube === true);
-      if (caps && typeof caps.audio === "boolean") setHasAudio(caps.audio);
+      // The AUDIO tab hosts internet radio as well as the local library, so
+      // it stays available on a radio-only server (`audio: false`, but
+      // `radio: true`) — otherwise the only way to reach the Radio list
+      // would be hidden exactly when it's the only thing to play.
+      if (caps && typeof caps.audio === "boolean") setHasAudio(caps.audio || caps.radio === true);
     });
     return () => { cancelled = true; };
   }, [authed]);
