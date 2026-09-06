@@ -465,20 +465,8 @@ body[data-platform="darwin"]:not([data-shell="browser"]) .mk-kind-rail {
 }
 
 .mk-vsplit {
-  width: 6px;
-  cursor: col-resize;
-  background: transparent;
+  width: 7px;
   border-left: 1px solid var(--line);
-  border-right: 1px solid transparent;
-  transition: background-color 120ms ease, border-color 120ms ease;
-  user-select: none;
-  touch-action: none;
-}
-.mk-vsplit:hover,
-.mk-vsplit:active {
-  background-color: var(--accent);
-  border-left-color: var(--accent);
-  border-right-color: var(--accent);
 }
 
 /* Pane scroll for the video browser - it's a single long list (current

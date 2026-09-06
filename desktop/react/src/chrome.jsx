@@ -10,6 +10,7 @@ import { VideosPane, VideoSearchPane, VideoPlayerPane, YouTubePane } from "./vid
 import { Visualizer } from "./visualizer.jsx";
 import { StarBtn } from "./views.jsx";
 import { wiredMakeCover as makeCover } from "./_wiring.jsx";
+import { useDragSize } from "./use-drag-size.js";
 
 const fmtDur_ch = (s) => fmtDur(s);
 // makeCover is declared globally by covers.jsx (function declaration)
@@ -92,50 +93,30 @@ function KindRail({ kind, setKind, hasAudio = true, hasVideo = true, hasYoutube 
 // movies / shows / continue-watching land later, a video sidebar with
 // real nav items can come back.
 // Draggable column divider between the video list and the player pane.
-// Lives inside the .mk-browse-video grid (column 2 of 3). On mousedown
-// it captures the initial pointer X and the current list-column width,
-// then on mousemove updates the --mk-video-list-w CSS variable on the
-// parent grid. Width is intentionally NOT persisted — starts fresh at
-// the CSS default (480px) on every page load.
+// Lives inside the .mk-browse-video grid (column 2 of 3) and writes the
+// --mk-video-list-w CSS variable on the parent grid. Width is
+// intentionally NOT persisted -- starts fresh at the CSS default (480px)
+// on every page load.
 function VideoSplitter() {
-  const { useCallback } = React;
-  const onMouseDown = useCallback((e) => {
-    e.preventDefault();
+  const { useCallback, useRef } = React;
+  const gridRef = useRef(null);
+  const start = useCallback((e) => {
     const grid = e.currentTarget.parentElement;
-    if (!grid) return;
-    const startX = e.clientX;
+    if (!grid) return null;
+    gridRef.current = grid;
     const computed = getComputedStyle(grid).getPropertyValue("--mk-video-list-w").trim();
-    const startW = parseFloat(computed) || grid.querySelector(".mk-albums-pane")?.getBoundingClientRect().width || 480;
+    const value = parseFloat(computed) || grid.querySelector(".mk-albums-pane")?.getBoundingClientRect().width || 480;
     const gridW = grid.getBoundingClientRect().width;
     // Hard floor so the list stays usable; hard ceiling that always
     // leaves at least 360px for the player and never exceeds 70% of
     // the grid width (whichever is stricter).
-    const minW = 280;
-    const maxW = Math.max(minW + 80, Math.min(Math.floor(gridW - 360), Math.floor(gridW * 0.7)));
-    document.body.style.cursor = "col-resize";
-    document.body.style.userSelect = "none";
-    const onMove = (ev) => {
-      const next = Math.min(maxW, Math.max(minW, startW + (ev.clientX - startX)));
-      grid.style.setProperty("--mk-video-list-w", next + "px");
-    };
-    const onUp = () => {
-      document.removeEventListener("mousemove", onMove);
-      document.removeEventListener("mouseup", onUp);
-      document.body.style.cursor = "";
-      document.body.style.userSelect = "";
-    };
-    document.addEventListener("mousemove", onMove);
-    document.addEventListener("mouseup", onUp);
+    const min = 280;
+    const max = Math.max(min + 80, Math.min(Math.floor(gridW - 360), Math.floor(gridW * 0.7)));
+    return { value, min, max };
   }, []);
-  return (
-    <div
-      className="mk-vsplit"
-      onMouseDown={onMouseDown}
-      role="separator"
-      aria-orientation="vertical"
-      title="Drag to resize"
-    />
-  );
+  const apply = useCallback((px) => { gridRef.current?.style.setProperty("--mk-video-list-w", px + "px"); }, []);
+  const { handleProps } = useDragSize({ axis: "x", start, apply });
+  return <div className="mk-resize-handle mk-vsplit" title="Drag to resize" aria-label="Resize video list" {...handleProps} />;
 }
 
 // Drag handle that resizes the topband spectrum canvas. Height is stored
@@ -160,37 +141,14 @@ function SpectrumResizer() {
   // Apply the persisted height once on mount so the canvas opens at the
   // last-used size instead of the CSS default.
   useEffect(() => { applyStoredSpectrumHeight(); }, []);
-  const onMouseDown = useCallback((e) => {
-    e.preventDefault();
-    const root = document.documentElement;
-    const startY = e.clientY;
-    const startH = parseInt(getComputedStyle(root).getPropertyValue("--mk-spectrum-h"), 10) || MK_SPECTRUM_H_DEFAULT;
-    document.body.style.cursor = "row-resize";
-    document.body.style.userSelect = "none";
-    const onMove = (ev) => {
-      const next = Math.min(MK_SPECTRUM_H_MAX, Math.max(MK_SPECTRUM_H_MIN, startH + (ev.clientY - startY)));
-      root.style.setProperty("--mk-spectrum-h", next + "px");
-    };
-    const onUp = () => {
-      document.removeEventListener("mousemove", onMove);
-      document.removeEventListener("mouseup", onUp);
-      document.body.style.cursor = "";
-      document.body.style.userSelect = "";
-      const h = parseInt(getComputedStyle(root).getPropertyValue("--mk-spectrum-h"), 10);
-      if (Number.isFinite(h)) window.localStorage.setItem(MK_SPECTRUM_H_KEY, String(h));
-    };
-    document.addEventListener("mousemove", onMove);
-    document.addEventListener("mouseup", onUp);
+  const start = useCallback(() => {
+    const value = parseInt(getComputedStyle(document.documentElement).getPropertyValue("--mk-spectrum-h"), 10) || MK_SPECTRUM_H_DEFAULT;
+    return { value, min: MK_SPECTRUM_H_MIN, max: MK_SPECTRUM_H_MAX };
   }, []);
-  return (
-    <div
-      className="mk-spectrum-resize"
-      onMouseDown={onMouseDown}
-      role="separator"
-      aria-orientation="horizontal"
-      title="Drag to resize spectrum"
-    />
-  );
+  const apply = useCallback((px) => { document.documentElement.style.setProperty("--mk-spectrum-h", px + "px"); }, []);
+  const commit = useCallback((px) => { window.localStorage.setItem(MK_SPECTRUM_H_KEY, String(px)); }, []);
+  const { handleProps } = useDragSize({ axis: "y", start, apply, commit });
+  return <div className="mk-resize-handle mk-spectrum-resize" title="Drag to resize spectrum" aria-label="Resize spectrum" {...handleProps} />;
 }
 
 // Resizable track-table columns. Widths live as CSS variables on the
@@ -248,35 +206,19 @@ function TrackColGroup() {
 // Drag grip on the right edge of a header cell. `col` names the column
 // whose width changes; `invert` flips the drag direction for the TITLE
 // handle, which sits to the LEFT of the artist column it controls.
+const MK_COL_LABELS = { n: "track number", artist: "artist", time: "time" };
+
 function ColResizer({ col, invert = false }) {
   const { useCallback } = React;
-  const onMouseDown = useCallback((e) => {
-    e.preventDefault();
-    e.stopPropagation();
+  const start = useCallback((e) => {
     const target = e.currentTarget.closest("tr")?.querySelector(`th.t-${col}`);
-    if (!target) return;
+    if (!target) return null;
     const { min, max } = MK_TRACK_COLS[col];
-    const startW = target.getBoundingClientRect().width;
-    const startX = e.clientX;
-    const sign = invert ? -1 : 1;
-    let last = Math.round(startW);
-    document.body.style.cursor = "col-resize";
-    document.body.style.userSelect = "none";
-    const onMove = (ev) => {
-      last = Math.round(Math.min(max, Math.max(min, startW + sign * (ev.clientX - startX))));
-      applyTrackCol(col, last);
-    };
-    const onUp = () => {
-      document.removeEventListener("mousemove", onMove);
-      document.removeEventListener("mouseup", onUp);
-      document.body.style.cursor = "";
-      document.body.style.userSelect = "";
-      applyTrackCol(col, last);
-      saveTrackCol(col, last);
-    };
-    document.addEventListener("mousemove", onMove);
-    document.addEventListener("mouseup", onUp);
-  }, [col, invert]);
+    return { value: target.getBoundingClientRect().width, min, max };
+  }, [col]);
+  const apply = useCallback((px) => applyTrackCol(col, px), [col]);
+  const commit = useCallback((px) => saveTrackCol(col, px), [col]);
+  const { handleProps } = useDragSize({ axis: "x", grows: invert ? -1 : 1, start, apply, commit });
   const onDoubleClick = useCallback((e) => {
     e.stopPropagation();
     applyTrackCol(col, null);
@@ -284,12 +226,11 @@ function ColResizer({ col, invert = false }) {
   }, [col]);
   return (
     <span
-      className="mk-col-resize"
-      onMouseDown={onMouseDown}
+      className="mk-resize-handle mk-col-resize"
       onDoubleClick={onDoubleClick}
-      role="separator"
-      aria-orientation="vertical"
       title="Drag to resize, double-click to reset"
+      aria-label={`Resize ${MK_COL_LABELS[col]} column`}
+      {...handleProps}
     />
   );
 }
