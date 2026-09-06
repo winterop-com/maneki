@@ -11,6 +11,19 @@ import pytest
 
 
 @pytest.fixture(autouse=True)
+def _no_forced_color(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Keep rich from injecting ANSI codes into captured CLI output.
+
+    Terminals such as Ghostty export `FORCE_COLOR`, which rich honours even
+    when stdout is not a TTY. Tests that assert on `result.stdout` substrings
+    (`config show` and friends) then fail on colour escapes wrapped around
+    the highlighted words. Strip the override for the whole session.
+    """
+    monkeypatch.delenv("FORCE_COLOR", raising=False)
+    monkeypatch.delenv("CLICOLOR_FORCE", raising=False)
+
+
+@pytest.fixture(autouse=True)
 def _isolate_settings(tmp_path_factory: pytest.TempPathFactory) -> Iterator[None]:
     """Point `get_settings()` at an empty per-test config.
 
