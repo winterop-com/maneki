@@ -363,15 +363,34 @@ body {
 .mk-album-header-sub { color: var(--text-soft); font-size: 12px; margin-top: 2px; }
 
 .mk-track-scroll { flex: 1; min-height: 0; overflow-y: auto; }
-.mk-track-table { width: 100%; border-collapse: collapse; }
+/* Fixed layout so the <colgroup> widths (driven by --mk-col-* from the
+   drag handles in chrome.jsx) are honoured exactly. TITLE has no width
+   and takes the remainder. */
+.mk-track-table { width: 100%; border-collapse: collapse; table-layout: fixed; }
+.mk-track-table col.c-n { width: var(--mk-col-n, 60px); }
+.mk-track-table col.c-artist { width: var(--mk-col-artist, 30%); }
+.mk-track-table col.c-time { width: var(--mk-col-time, 84px); }
+.mk-track-table col.c-star { width: 44px; }
 .mk-track-table thead th {
+  position: relative;
   font-family: var(--mk-mono); font-size: 10px;
   text-transform: uppercase; letter-spacing: 0.14em;
   color: var(--text-soft); text-align: left;
   padding: 8px var(--mk-pane-pad);
   border-bottom: 1px solid var(--line-soft);
   font-weight: 400;
+  white-space: nowrap;
 }
+.mk-col-resize {
+  position: absolute; top: 0; bottom: 0; right: -5px; width: 11px;
+  cursor: col-resize; z-index: 1; touch-action: none;
+}
+.mk-col-resize::after {
+  content: ""; position: absolute; top: 6px; bottom: 6px; left: 5px; width: 1px;
+  background: var(--line); opacity: 0; transition: opacity 0.12s;
+}
+.mk-track-table thead:hover .mk-col-resize::after { opacity: 1; }
+.mk-col-resize:hover::after { background: var(--highlight); }
 .mk-track-table thead th.t-time { text-align: right; }
 .mk-track-row { cursor: pointer; user-select: none; }
 .mk-track-row td {
@@ -383,10 +402,11 @@ body {
 .mk-track-row:hover { background: var(--row-hover); }
 .mk-track-row.now { background: var(--row-active); }
 .mk-track-row.now .t-title { color: var(--highlight); font-weight: 600; }
-.mk-track-row .t-n { color: var(--text-dim); width: 36px; text-align: right; padding-right: 12px; }
-.mk-track-row .t-artist { color: var(--accent); width: 30%; }
-.mk-track-row .t-time { color: var(--text-soft); width: 70px; text-align: right; }
-.mk-track-row .t-star { width: 32px; text-align: right; }
+.mk-track-row .t-n { color: var(--text-dim); text-align: right; padding-right: 12px; }
+.mk-track-row .t-artist { color: var(--accent); }
+.mk-track-row .t-time { color: var(--text-soft); text-align: right; }
+.mk-track-row .t-star { text-align: right; }
+.mk-track-row .t-title, .mk-track-row .t-artist { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 .mk-star { background: transparent; border: 0; color: var(--text-dim); cursor: pointer; padding: 4px; display: inline-flex; }
 .mk-star:hover { color: var(--highlight); }
@@ -998,7 +1018,7 @@ body {
 :root[data-preset="cassette"] .mk-track-row .t-title { text-transform: none; }
 :root[data-preset="cassette"] .mk-track-row .t-n::before { content: "["; color: var(--text-dim); }
 :root[data-preset="cassette"] .mk-track-row .t-n::after { content: "]"; color: var(--text-dim); }
-:root[data-preset="cassette"] .mk-track-row .t-n { width: 52px; }
+:root[data-preset="cassette"] .mk-track-table col.c-n { width: var(--mk-col-n, 76px); }
 :root[data-preset="cassette"] .mk-pane-label { color: var(--accent); }
 :root[data-preset="cassette"] .mk-nav-item.active,
 :root[data-preset="cassette"] .mk-artist-row.active { color: var(--accent); background: var(--row-active); }

@@ -193,6 +193,125 @@ function SpectrumResizer() {
   );
 }
 
+// Resizable track-table columns. Widths live as CSS variables on the
+// document root (--mk-col-n / --mk-col-artist / --mk-col-time) so every
+// .mk-track-table (album, up-next, starred) shares them, and persist to
+// localStorage as one JSON object. The table uses table-layout: fixed and
+// the TITLE column carries no width, so it absorbs whatever the others
+// leave; the TITLE handle therefore resizes ARTIST inversely. Double-click
+// any handle to reset that column to the stylesheet default.
+const MK_TRACK_COLS_KEY = "mk.trackCols";
+const MK_TRACK_COLS = {
+  n: { min: 40, max: 140 },
+  artist: { min: 70, max: 640 },
+  time: { min: 60, max: 180 },
+};
+
+function readStoredTrackCols() {
+  let raw;
+  try { raw = JSON.parse(window.localStorage.getItem(MK_TRACK_COLS_KEY) || "{}"); } catch { raw = {}; }
+  const out = {};
+  for (const [col, { min, max }] of Object.entries(MK_TRACK_COLS)) {
+    const v = Number(raw?.[col]);
+    if (Number.isFinite(v)) out[col] = Math.min(max, Math.max(min, v));
+  }
+  return out;
+}
+
+function applyTrackCol(col, px) {
+  const root = document.documentElement;
+  if (px == null) root.style.removeProperty(`--mk-col-${col}`);
+  else root.style.setProperty(`--mk-col-${col}`, px + "px");
+}
+
+function applyStoredTrackCols() {
+  const stored = readStoredTrackCols();
+  for (const col of Object.keys(MK_TRACK_COLS)) applyTrackCol(col, stored[col] ?? null);
+}
+
+function saveTrackCol(col, px) {
+  const stored = readStoredTrackCols();
+  if (px == null) delete stored[col]; else stored[col] = px;
+  try { window.localStorage.setItem(MK_TRACK_COLS_KEY, JSON.stringify(stored)); } catch { /* storage unavailable */ }
+}
+
+// Shared <colgroup> so the up-next table (no header) lines up with the
+// album table above it.
+function TrackColGroup() {
+  return (
+    <colgroup>
+      <col className="c-n" /><col className="c-title" /><col className="c-artist" /><col className="c-time" /><col className="c-star" />
+    </colgroup>
+  );
+}
+
+// Drag grip on the right edge of a header cell. `col` names the column
+// whose width changes; `invert` flips the drag direction for the TITLE
+// handle, which sits to the LEFT of the artist column it controls.
+function ColResizer({ col, invert = false }) {
+  const { useCallback } = React;
+  const onMouseDown = useCallback((e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const target = e.currentTarget.closest("tr")?.querySelector(`th.t-${col}`);
+    if (!target) return;
+    const { min, max } = MK_TRACK_COLS[col];
+    const startW = target.getBoundingClientRect().width;
+    const startX = e.clientX;
+    const sign = invert ? -1 : 1;
+    let last = Math.round(startW);
+    document.body.style.cursor = "col-resize";
+    document.body.style.userSelect = "none";
+    const onMove = (ev) => {
+      last = Math.round(Math.min(max, Math.max(min, startW + sign * (ev.clientX - startX))));
+      applyTrackCol(col, last);
+    };
+    const onUp = () => {
+      document.removeEventListener("mousemove", onMove);
+      document.removeEventListener("mouseup", onUp);
+      document.body.style.cursor = "";
+      document.body.style.userSelect = "";
+      applyTrackCol(col, last);
+      saveTrackCol(col, last);
+    };
+    document.addEventListener("mousemove", onMove);
+    document.addEventListener("mouseup", onUp);
+  }, [col, invert]);
+  const onDoubleClick = useCallback((e) => {
+    e.stopPropagation();
+    applyTrackCol(col, null);
+    saveTrackCol(col, null);
+  }, [col]);
+  return (
+    <span
+      className="mk-col-resize"
+      onMouseDown={onMouseDown}
+      onDoubleClick={onDoubleClick}
+      role="separator"
+      aria-orientation="vertical"
+      title="Drag to resize, double-click to reset"
+    />
+  );
+}
+
+function TrackTableHead() {
+  const { useEffect } = React;
+  // Apply persisted widths once on mount so the table opens at the
+  // last-used sizes instead of the stylesheet defaults.
+  useEffect(() => { applyStoredTrackCols(); }, []);
+  return (
+    <thead>
+      <tr>
+        <th className="t-n">#<ColResizer col="n" /></th>
+        <th className="t-title">TITLE<ColResizer col="artist" invert /></th>
+        <th className="t-artist">ARTIST<ColResizer col="artist" /></th>
+        <th className="t-time">TIME<ColResizer col="time" /></th>
+        <th className="t-star"></th>
+      </tr>
+    </thead>
+  );
+}
+
 function Sidebar({ kind, section, setSection, ARTISTS, artistId, setArtistId, loaded }) {
   if (kind !== "audio") return null;
   return (
@@ -326,9 +445,8 @@ function TracksPane({ artist, album, playTrack, now, nowAlbum, repeat, isStarred
       </div>
       <div className="mk-track-scroll">
         <table className="mk-track-table">
-          <thead>
-            <tr><th className="t-n">#</th><th className="t-title">TITLE</th><th className="t-artist">ARTIST</th><th className="t-time">TIME</th><th className="t-star"></th></tr>
-          </thead>
+          <TrackColGroup />
+          <TrackTableHead />
           <tbody>
             {!loaded && [0,1,2,3,4].map((i) => <tr key={i}><td colSpan="5"><div className="mk-skel" style={{height: 16, margin: "4px 0"}}/></td></tr>)}
             {loaded && album.tracks.map((tr) => {
@@ -361,6 +479,7 @@ function TracksPane({ artist, album, playTrack, now, nowAlbum, repeat, isStarred
           <div className="mk-upnext">
             <div className="mk-pane-label mk-upnext-label">Up Next</div>
             <table className="mk-track-table">
+              <TrackColGroup />
               <tbody>
                 {upNext.map((tr, i) => (
                   <tr
@@ -433,7 +552,8 @@ function StarredPane({ starredTracks, playTrack, toggleStar }) {
       ) : (
         <div className="mk-track-scroll">
           <table className="mk-track-table">
-            <thead><tr><th className="t-n">#</th><th className="t-title">TITLE</th><th className="t-artist">ARTIST</th><th className="t-time">TIME</th><th className="t-star"></th></tr></thead>
+            <TrackColGroup />
+            <TrackTableHead />
             <tbody>
               {starredTracks.map((tr, i) => (
                 <tr key={tr.key} className="mk-track-row" onClick={() => playTrack(tr.artistId, tr.albumId, tr.n, tr.trackId)}>
