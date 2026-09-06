@@ -1117,7 +1117,7 @@ function VideoPlayerPane({ session, video, onClose, showStats, onCloseStats }) {
           )}
         </div>
         <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
-          <button className="mk-signout" onClick={onClose} style={{ fontSize: 11 }}>Close</button>
+          <button className="mk-signout" onClick={onClose} style={{ fontSize: "var(--fs-xs)" }}>Close</button>
         </div>
       </div>
       <div className="mk-video-stage">

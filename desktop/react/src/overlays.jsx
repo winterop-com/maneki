@@ -44,7 +44,7 @@ function ShortcutsOverlay({ open, onClose, kind }) {
     <div className="mk-modal-scrim" onClick={onClose}>
       <div className="mk-modal" onClick={(e) => e.stopPropagation()}>
         <div className="mk-modal-title">
-          Keyboard shortcuts <span style={{ opacity: 0.5, fontSize: 12 }}>· {kind || "audio"}</span>
+          Keyboard shortcuts <span style={{ opacity: 0.5, fontSize: "var(--fs-xs)" }}>· {kind || "audio"}</span>
         </div>
         <div className="mk-shortcut-list">
           {list.map((s, i) => (

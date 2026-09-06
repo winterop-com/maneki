@@ -173,10 +173,10 @@ body[data-platform="darwin"] .mk-topbar input {
   color: var(--text, #c0caf5);
   border: 1px solid var(--line, #2a2e3f);
   font-family: var(--mk-mono, ui-monospace, monospace);
-  font-size: 11px;
+  font-size: var(--fs-xs);
   font-weight: 500;
   padding: 4px 8px;
-  border-radius: 4px;
+  border-radius: var(--r-md);
   white-space: nowrap;
   letter-spacing: 0.2px;
   box-shadow: 0 6px 16px rgba(0, 0, 0, 0.35);
@@ -243,7 +243,7 @@ body[data-platform="darwin"] .mk-topbar input {
    * across the viewport. Restore the original positioning. */
   position: absolute;
   padding: 0 8px;
-  border-radius: 6px;
+  border-radius: var(--r-md);
   transition: background 0.12s ease, color 0.12s ease;
 }
 .mk-fs-close:hover {
@@ -270,14 +270,14 @@ body[data-platform="darwin"] .mk-topbar input {
 }
 .mk-resume-brand {
   font-family: var(--mk-mono, ui-monospace, monospace);
-  font-size: 28px;
+  font-size: var(--fs-wordmark);
   font-weight: 600;
   color: var(--accent, #7aa2f7);
   letter-spacing: 0.5px;
 }
 .mk-resume-label {
   font-family: var(--mk-mono, ui-monospace, monospace);
-  font-size: 12px;
+  font-size: var(--fs-xs);
   color: var(--text-soft, #a9b1d6);
   letter-spacing: 0.4px;
 }
@@ -309,7 +309,7 @@ body[data-platform="darwin"] .mk-topbar input {
 }
 ::-webkit-scrollbar-thumb {
   background: var(--line, #2a2e3f);
-  border-radius: 6px;
+  border-radius: var(--r-md);
   /* Pad the thumb so it doesn't touch the track edges — softens it
    * against tight layout edges. */
   border: 2px solid transparent;
@@ -422,7 +422,7 @@ body[data-platform="darwin"]:not([data-shell="browser"]) .mk-kind-rail {
   writing-mode: vertical-rl;
   text-orientation: mixed;
   font-family: var(--mk-mono);
-  font-size: 13px;
+  font-size: var(--fs-sm);
   font-weight: 600;
   letter-spacing: 0.25em;
   text-transform: uppercase;
@@ -491,7 +491,7 @@ body[data-platform="darwin"]:not([data-shell="browser"]) .mk-kind-rail {
 }
 .mk-crumb {
   font-family: var(--mk-mono);
-  font-size: 11px;
+  font-size: var(--fs-xs);
   letter-spacing: 0.3px;
   text-transform: uppercase;
   color: var(--text-soft);
@@ -511,7 +511,7 @@ body[data-platform="darwin"]:not([data-shell="browser"]) .mk-kind-rail {
 }
 .mk-crumb-sep {
   color: var(--text-dim);
-  font-size: 11px;
+  font-size: var(--fs-xs);
 }
 
 /* ---- YouTube channels -------------------------------------------------- */
@@ -528,11 +528,11 @@ body[data-platform="darwin"]:not([data-shell="browser"]) .mk-kind-rail {
   border-bottom: 1px solid var(--line-soft);
 }
 .mk-yt-tab {
-  font-size: 12px;
+  font-size: var(--fs-xs);
   color: var(--text-soft);
   background: transparent;
   border: none;
-  border-radius: 4px;
+  border-radius: var(--r-sm);
   padding: 4px 10px;
   cursor: pointer;
 }
@@ -549,18 +549,18 @@ body[data-platform="darwin"]:not([data-shell="browser"]) .mk-kind-rail {
 .mk-yt-add-input {
   flex: 1;
   min-width: 0;
-  font-size: 12px;
+  font-size: var(--fs-xs);
   padding: 6px 8px;
-  border-radius: 4px;
+  border-radius: var(--r-sm);
   border: 1px solid var(--line);
   background: var(--bg-elev2);
   color: var(--text);
 }
 .mk-yt-add-input:focus { outline: none; border-color: var(--accent); }
 .mk-yt-add-btn {
-  font-size: 12px;
+  font-size: var(--fs-xs);
   padding: 6px 14px;
-  border-radius: 4px;
+  border-radius: var(--r-sm);
   border: 1px solid var(--accent);
   background: transparent;
   color: var(--accent);
@@ -569,7 +569,7 @@ body[data-platform="darwin"]:not([data-shell="browser"]) .mk-kind-rail {
 .mk-yt-add-btn:disabled { opacity: 0.4; cursor: default; }
 .mk-yt-add-err {
   padding: 6px 10px;
-  font-size: 12px;
+  font-size: var(--fs-xs);
   color: var(--danger, #e06c75);
 }
 
@@ -581,7 +581,7 @@ body[data-platform="darwin"]:not([data-shell="browser"]) .mk-kind-rail {
   background: transparent;
   border: none;
   color: var(--text-dim);
-  font-size: 18px;
+  font-size: var(--fs-md);
   line-height: 1;
   padding: 2px 8px;
   cursor: pointer;
@@ -599,11 +599,11 @@ body[data-platform="darwin"]:not([data-shell="browser"]) .mk-kind-rail {
   background: var(--danger, #e06c75);
   color: #fff;
   font-family: var(--mk-mono);
-  font-size: 9px;
+  font-size: var(--fs-xs);
   font-weight: 700;
   letter-spacing: 0.5px;
   padding: 1px 4px;
-  border-radius: 3px;
+  border-radius: var(--r-sm);
 }
 .mk-yt-unplayable { opacity: 0.55; cursor: default; }
 
@@ -619,7 +619,7 @@ body[data-platform="darwin"]:not([data-shell="browser"]) .mk-kind-rail {
   color: var(--text-soft);
   cursor: pointer;
   padding: 2px 4px;
-  border-radius: 4px;
+  border-radius: var(--r-sm);
 }
 .mk-yt-refresh:hover { color: var(--accent); background: var(--row-hover); }
 .mk-yt-refresh:disabled { cursor: default; }
