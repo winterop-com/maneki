@@ -308,6 +308,30 @@ body {
 .mk-fs-btn { background: transparent; border: 1px solid var(--line); border-radius: var(--r-sm); color: var(--text-soft); width: 20px; height: 20px; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; }
 .mk-fs-btn:hover { color: var(--text); border-color: var(--text-dim); }
 
+/* === Focus, hover and motion ============================================ */
+/* One focus ring, in the accent, on anything that takes focus. Rows pull
+   it inside their own edge so it never clips against the pane; a table
+   row cannot carry an outline across engines, so a focused track wears a
+   3px accent bar on its left edge instead. Every row-shaped thing eases
+   its hover wash over the same 120ms, and reduced motion stops all of
+   it -- transitions and animations alike -- in one place. */
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.mk-nav-item:focus-visible, .mk-artist-row:focus-visible, .mk-album-row:focus-visible,
+.mk-station-row:focus-visible, .mk-search-row:focus-visible, .mk-palette-row:focus-visible { outline-offset: -2px; }
+.mk-track-row:focus-visible { outline: none; background: var(--row-hover); }
+.mk-track-row:focus-visible td:first-child { box-shadow: inset 3px 0 0 var(--accent); }
+.mk-nav-item, .mk-artist-row, .mk-album-row, .mk-station-row, .mk-track-row, .mk-search-row, .mk-palette-row {
+  transition: background-color 120ms ease, color 120ms ease;
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+  }
+}
+
 /* === Resize handles ===================================================== */
 /* One look for every draggable edge (use-drag-size.js): a 7px strip with
    a resting grip mark, so the edge says it can be held before anyone

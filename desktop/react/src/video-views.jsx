@@ -13,6 +13,7 @@
 //   videojs    - video.js v10 (CDN script in index.html)
 
 import React from "react";
+import { chooses } from "./rows.js";
 
 import { MK_VIDEO } from "./_video.js";
 import { MK_AUDIO } from "./_audio.js";
@@ -382,6 +383,7 @@ function VideosPane({ session, selectedId, selectedRelPath, onSelect }) {
               key={v.id}
               className={"mk-album-row" + (selectedId === v.id ? " active" : "")}
               onClick={() => onSelect(v)}
+              {...chooses(() => onSelect(v), { current: selectedId === v.id })}
               title={v.name}
             >
               <img
@@ -1220,6 +1222,7 @@ function VideoSearchPane({ session, q, selectedId, onSelect }) {
               key={v.id}
               className={"mk-album-row" + (selectedId === v.id ? " active" : "")}
               onClick={() => onSelect(v)}
+              {...chooses(() => onSelect(v), { current: selectedId === v.id })}
               title={v.rel_path || v.name}
             >
               <img
@@ -1444,6 +1447,7 @@ function YouTubePane({ session, selectedId, onSelect }) {
                   key={v.id}
                   className={"mk-album-row" + (selectedId === v.id ? " active" : "") + (playable ? "" : " mk-yt-unplayable")}
                   onClick={() => playable && onSelect({ id: v.id, name: v.title, duration_s: v.duration_s, source: "youtube" })}
+                  {...chooses(() => playable && onSelect({ id: v.id, name: v.title, duration_s: v.duration_s, source: "youtube" }), { current: selectedId === v.id })}
                   title={v.is_live ? `${v.title} (live - not playable yet)` : v.title}
                 >
                   <div className="mk-yt-thumb-wrap">

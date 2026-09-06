@@ -684,6 +684,10 @@ function App() {
       // instead of the browser's find. Cmd+P (palette) is handled above.
       if (meta || e.altKey) return;
       if (isInput) return;
+      // A focused row answered Enter / Space itself (rows.js) and
+      // prevented the default; a second answer here would also toggle
+      // play/pause on top of the row's own action.
+      if (e.defaultPrevented) return;
       // In video mode the focal player is the video.js instance, not the
       // audio chrome. Route every audio-aware key (transport + arrows +
       // mute) to the video player and `return` so the audio switch below

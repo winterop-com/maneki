@@ -11,6 +11,7 @@ import { Visualizer } from "./visualizer.jsx";
 import { StarBtn } from "./views.jsx";
 import { wiredMakeCover as makeCover } from "./_wiring.jsx";
 import { useDragSize } from "./use-drag-size.js";
+import { chooses } from "./rows.js";
 
 const fmtDur_ch = (s) => fmtDur(s);
 // makeCover is declared globally by covers.jsx (function declaration)
@@ -262,6 +263,7 @@ function Sidebar({ kind, section, setSection, ARTISTS, artistId, setArtistId, lo
         <div
           className={"mk-nav-item" + (section === "stations" ? " active" : "")}
           onClick={() => setSection("stations")}
+          {...chooses(() => setSection("stations"), { current: section === "stations" })}
         >
           <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2">
             <path d="M4.93 19.07a10 10 0 010-14.14"/><path d="M19.07 4.93a10 10 0 010 14.14"/>
@@ -276,6 +278,7 @@ function Sidebar({ kind, section, setSection, ARTISTS, artistId, setArtistId, lo
         <div
           className={"mk-nav-item" + (section === "starred" ? " active" : "")}
           onClick={() => setSection("starred")}
+          {...chooses(() => setSection("starred"), { current: section === "starred" })}
         >
           <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><path d="M12 21s-7.5-4.5-9.5-9.5C1 7 4.5 4 8 4c2 0 3.5 1 4 2 .5-1 2-2 4-2 3.5 0 7 3 5.5 7.5C19.5 16.5 12 21 12 21z"/></svg>
           Tracks
@@ -293,6 +296,7 @@ function Sidebar({ kind, section, setSection, ARTISTS, artistId, setArtistId, lo
               key={a.id}
               className={"mk-artist-row" + (section === "library" && artistId === a.id ? " active" : "")}
               onClick={() => { setArtistId(a.id); }}
+              {...chooses(() => setArtistId(a.id), { current: section === "library" && artistId === a.id })}
             >
               {a.name}
             </div>
@@ -327,6 +331,7 @@ function AlbumsPane({ artist, albumId, setAlbumId, loaded }) {
               key={al.id}
               className={"mk-album-row" + (albumId === al.id ? " active" : "")}
               onClick={() => setAlbumId(al.id)}
+              {...chooses(() => setAlbumId(al.id), { current: albumId === al.id })}
             >
               <img src={makeCover(al.cover, al.color)} alt="" className="mk-album-cover-sm"/>
               <div className="mk-album-meta">
@@ -403,6 +408,7 @@ function TracksPane({ artist, album, playTrack, now, nowAlbum, repeat, isStarred
                   className={"mk-track-row" + (isNow ? " now" : "")}
                   onDoubleClick={() => playTrack(artist.id, album.id, tr.n, tr.trackId)}
                   onClick={() => playTrack(artist.id, album.id, tr.n, tr.trackId)}
+                  {...chooses(() => playTrack(artist.id, album.id, tr.n, tr.trackId), { current: isNow })}
                 >
                   <td className="t-n mono">{tr.n}</td>
                   <td className="t-title">{tr.title}</td>
@@ -427,6 +433,7 @@ function TracksPane({ artist, album, playTrack, now, nowAlbum, repeat, isStarred
                     key={tr.trackId}
                     className="mk-track-row mk-upnext-row"
                     onClick={() => playTrack(artist.id, album.id, tr.n, tr.trackId)}
+                    {...chooses(() => playTrack(artist.id, album.id, tr.n, tr.trackId))}
                   >
                     <td className="t-n mono">{i + 1}</td>
                     <td className="t-title">{tr.title}</td>
@@ -455,7 +462,7 @@ function StationsPane({ STATIONS, playStation, now, loaded }) {
           {STATIONS.map((s) => {
             const isNow = now?.stationId === s.id;
             return (
-              <div key={s.id} className={"mk-station-row" + (isNow ? " active" : "")} onClick={() => playStation(s.id)}>
+              <div key={s.id} className={"mk-station-row" + (isNow ? " active" : "")} onClick={() => playStation(s.id)} {...chooses(() => playStation(s.id), { current: isNow })}>
                 <div className="mk-station-icon">
                   <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2">
                     <path d="M4.93 19.07a10 10 0 010-14.14"/><path d="M19.07 4.93a10 10 0 010 14.14"/>
@@ -497,7 +504,7 @@ function StarredPane({ starredTracks, playTrack, toggleStar }) {
             <TrackTableHead />
             <tbody>
               {starredTracks.map((tr, i) => (
-                <tr key={tr.key} className="mk-track-row" onClick={() => playTrack(tr.artistId, tr.albumId, tr.n, tr.trackId)}>
+                <tr key={tr.key} className="mk-track-row" onClick={() => playTrack(tr.artistId, tr.albumId, tr.n, tr.trackId)} {...chooses(() => playTrack(tr.artistId, tr.albumId, tr.n, tr.trackId))}>
                   <td className="t-n mono">{i+1}</td>
                   <td className="t-title">{tr.title}</td>
                   <td className="t-artist">{tr.artistName}</td>
