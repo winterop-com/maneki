@@ -123,11 +123,11 @@ jobs:
             if [ -n "$PREV_TAG" ]; then
               echo "Commits since [\`${PREV_TAG}\`](https://github.com/${GITHUB_REPOSITORY}/releases/tag/${PREV_TAG}):"
               echo ""
-              git log --pretty=format:'- %s ([\`%h\`](https://github.com/${GITHUB_REPOSITORY}/commit/%H))' "${PREV_TAG}..HEAD"
+              git log --pretty=format:"- %s ([\`%h\`](https://github.com/${GITHUB_REPOSITORY}/commit/%H))" "${PREV_TAG}..HEAD"
             else
               echo "Initial release."
               echo ""
-              git log --pretty=format:'- %s ([\`%h\`](https://github.com/${GITHUB_REPOSITORY}/commit/%H))'
+              git log --pretty=format:"- %s ([\`%h\`](https://github.com/${GITHUB_REPOSITORY}/commit/%H))"
             fi
             echo ""
             echo ""
