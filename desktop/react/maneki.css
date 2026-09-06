@@ -450,13 +450,17 @@ body {
 .mk-track-table col.c-artist { width: var(--mk-col-artist, 30%); }
 .mk-track-table col.c-time { width: var(--mk-col-time, 84px); }
 .mk-track-table col.c-star { width: 44px; }
+/* The header sticks to the top of the scrolling pane. A collapsed
+   border does not travel with a sticky cell, so the rule under the
+   header is a box-shadow. */
 .mk-track-table thead th {
-  position: relative;
+  position: sticky; top: 0; z-index: 3;
+  background: var(--panel);
   font-family: var(--mk-mono); font-size: var(--fs-xs);
   text-transform: uppercase; letter-spacing: 0.14em;
   color: var(--text-soft); text-align: left;
   padding: 8px var(--mk-pane-pad);
-  border-bottom: 1px solid var(--line-soft);
+  box-shadow: 0 1px 0 var(--line-soft);
   font-weight: 400;
   white-space: nowrap;
 }

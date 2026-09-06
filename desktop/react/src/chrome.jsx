@@ -411,8 +411,8 @@ function TracksPane({ artist, album, playTrack, now, nowAlbum, repeat, isStarred
                   {...chooses(() => playTrack(artist.id, album.id, tr.n, tr.trackId), { current: isNow })}
                 >
                   <td className="t-n mono">{tr.n}</td>
-                  <td className="t-title">{tr.title}</td>
-                  <td className="t-artist">{artist.name}</td>
+                  <td className="t-title" title={tr.title}>{tr.title}</td>
+                  <td className="t-artist" title={artist.name}>{artist.name}</td>
                   <td className="t-time mono">{tr.time}</td>
                   <td className="t-star">
                     <StarBtn on={isStarred(key)} onToggle={() => toggleStar(key)} />
@@ -436,8 +436,8 @@ function TracksPane({ artist, album, playTrack, now, nowAlbum, repeat, isStarred
                     {...chooses(() => playTrack(artist.id, album.id, tr.n, tr.trackId))}
                   >
                     <td className="t-n mono">{i + 1}</td>
-                    <td className="t-title">{tr.title}</td>
-                    <td className="t-artist">{artist.name}</td>
+                    <td className="t-title" title={tr.title}>{tr.title}</td>
+                    <td className="t-artist" title={artist.name}>{artist.name}</td>
                     <td className="t-time mono">{tr.time}</td>
                     <td className="t-star"></td>
                   </tr>
@@ -506,8 +506,8 @@ function StarredPane({ starredTracks, playTrack, toggleStar }) {
               {starredTracks.map((tr, i) => (
                 <tr key={tr.key} className="mk-track-row" onClick={() => playTrack(tr.artistId, tr.albumId, tr.n, tr.trackId)} {...chooses(() => playTrack(tr.artistId, tr.albumId, tr.n, tr.trackId))}>
                   <td className="t-n mono">{i+1}</td>
-                  <td className="t-title">{tr.title}</td>
-                  <td className="t-artist">{tr.artistName}</td>
+                  <td className="t-title" title={tr.title}>{tr.title}</td>
+                  <td className="t-artist" title={tr.artistName}>{tr.artistName}</td>
                   <td className="t-time mono">{tr.time}</td>
                   <td className="t-star"><StarBtn on={true} onToggle={() => toggleStar(tr.key)} /></td>
                 </tr>
