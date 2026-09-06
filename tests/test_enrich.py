@@ -6,6 +6,7 @@ from collections.abc import Callable
 from pathlib import Path
 
 import httpx
+import pytest
 
 from maneki.audio.enrich.coverart import CoverArtArchiveProvider
 from maneki.audio.enrich.musicbrainz import MusicBrainzProvider
@@ -13,6 +14,17 @@ from maneki.audio.enrich.musichoarders import build_search_url
 from maneki.audio.metadata import AlbumSummary
 
 Handler = Callable[[httpx.Request], httpx.Response]
+
+
+@pytest.fixture(autouse=True)
+def _fast_http(monkeypatch: pytest.MonkeyPatch) -> None:
+    """No real throttling or backoff in unit tests; reset the per-host state each test."""
+    from maneki.audio.enrich import _http
+
+    monkeypatch.setattr(_http, "RATE_LIMIT_SECONDS", 0.0)
+    monkeypatch.setattr(_http, "RETRY_BACKOFF_SECONDS", (0.0, 0.0))
+    monkeypatch.setattr(_http, "_throttles", {})
+    monkeypatch.setattr(_http, "_exhausted_ladders", {})
 
 
 def _client_with(handler: Handler) -> httpx.Client:
@@ -216,6 +228,128 @@ def test_musicbrainz_skips_low_confidence_matches() -> None:
     result = MusicBrainzProvider(client=client).enrich(summary, [])
     assert result.musicbrainz is None
     assert any("no release matched" in n for n in result.notes)
+
+
+def test_musicbrainz_retries_without_edition_suffix() -> None:
+    """`Album (Deluxe Edition)` misses on MB (edition is a disambiguation there); retry bare."""
+    queries: list[str] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        query = request.url.params.get("query", "")
+        queries.append(query)
+        if "Deluxe" in query:
+            return httpx.Response(200, json={"releases": []})
+        return httpx.Response(200, json={"releases": [{"id": "akom-2011", "score": 100}]})
+
+    client = _client_with(handler)
+    summary = AlbumSummary(album="A Kind Of Magic (Deluxe Edition)", album_artist="Queen")
+    result = MusicBrainzProvider(client=client).enrich(summary, [])
+    assert result.musicbrainz is not None
+    assert result.musicbrainz.album_id == "akom-2011"
+    assert len(queries) == 2
+    assert 'release:"A Kind Of Magic"' in queries[1]
+
+
+def test_musicbrainz_does_not_retry_when_title_has_no_edition_suffix() -> None:
+    calls = 0
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        nonlocal calls
+        calls += 1
+        return httpx.Response(200, json={"releases": []})
+
+    client = _client_with(handler)
+    summary = AlbumSummary(album="The Works", album_artist="Queen")
+    result = MusicBrainzProvider(client=client).enrich(summary, [])
+    assert result.musicbrainz is None
+    assert calls == 1
+
+
+def test_throttled_get_retries_transient_503() -> None:
+    """MB's overload/rate-limit 503 is retried; the eventual 200 reaches the provider."""
+    calls = 0
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        nonlocal calls
+        calls += 1
+        if calls < 3:
+            return httpx.Response(503, text="Service Temporarily Unavailable")
+        return httpx.Response(200, json={"releases": [{"id": "rel-1", "score": 100}]})
+
+    client = _client_with(handler)
+    summary = AlbumSummary(album="Toxicity", album_artist="System Of A Down")
+    result = MusicBrainzProvider(client=client).enrich(summary, [])
+    assert calls == 3
+    assert result.musicbrainz is not None
+    assert result.musicbrainz.album_id == "rel-1"
+
+
+def test_throttled_get_gives_up_after_backoff_exhausted(monkeypatch: pytest.MonkeyPatch) -> None:
+    from maneki.audio.enrich import _http
+
+    monkeypatch.setattr(_http, "RETRY_BACKOFF_SECONDS", (0.0,))
+    calls = 0
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        nonlocal calls
+        calls += 1
+        return httpx.Response(503, text="Service Temporarily Unavailable")
+
+    client = _client_with(handler)
+    summary = AlbumSummary(album="Toxicity", album_artist="System Of A Down")
+    result = MusicBrainzProvider(client=client).enrich(summary, [])
+    assert calls == 2
+    assert result.musicbrainz is None
+    assert any("lookup failed" in n for n in result.notes)
+
+
+def test_throttled_get_breaker_stops_retrying_after_repeated_outage(monkeypatch: pytest.MonkeyPatch) -> None:
+    """After RETRY_BREAKER_THRESHOLD exhausted ladders the host is single-shot."""
+    from maneki.audio.enrich import _http
+
+    monkeypatch.setattr(_http, "RETRY_BACKOFF_SECONDS", (0.0,))
+    monkeypatch.setattr(_http, "RETRY_BREAKER_THRESHOLD", 2)
+    calls = 0
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        nonlocal calls
+        calls += 1
+        return httpx.Response(503, text="down")
+
+    client = _client_with(handler)
+    for _ in range(2):
+        _http.throttled_get(client, "https://musicbrainz.org/ws/2/release/", host_key="musicbrainz.org")
+    assert calls == 4  # two ladders of (attempt + 1 retry)
+    _http.throttled_get(client, "https://musicbrainz.org/ws/2/release/", host_key="musicbrainz.org")
+    assert calls == 5  # breaker tripped: single shot, no retry
+
+
+def test_retry_after_header_is_sanitised() -> None:
+    from maneki.audio.enrich import _http
+
+    def response_with(value: str) -> httpx.Response:
+        return httpx.Response(503, headers={"Retry-After": value})
+
+    assert _http._retry_delay(response_with("3"), 9.0) == 3.0
+    assert _http._retry_delay(response_with("nan"), 9.0) == 9.0
+    assert _http._retry_delay(response_with("inf"), 9.0) == 9.0
+    assert _http._retry_delay(response_with("-5"), 9.0) == 9.0
+    assert _http._retry_delay(response_with("Wed, 21 Oct 2015 07:28:00 GMT"), 9.0) == 9.0
+    assert _http._retry_delay(response_with("999"), 9.0) == _http.MAX_RETRY_AFTER_SECONDS
+
+
+def test_musicbrainz_no_edition_fallback_when_edition_title_scored_low() -> None:
+    """A low-confidence hit on the edition title must not fall through to the bare title."""
+    queries: list[str] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        queries.append(request.url.params.get("query", ""))
+        return httpx.Response(200, json={"releases": [{"id": "deluxe", "score": 85}]})
+
+    summary = AlbumSummary(album="Nevermind (Deluxe Edition)", album_artist="Nirvana")
+    result = MusicBrainzProvider(client=_client_with(handler)).enrich(summary, [])
+    assert result.musicbrainz is None
+    assert len(queries) == 1
 
 
 def test_musicbrainz_handles_va_compilations() -> None:

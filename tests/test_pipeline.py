@@ -125,8 +125,10 @@ def test_default_skips_when_album_already_exists_in_output(album_inputs: Path) -
     )
     report = reports[0]
     # Failed = "skipped because already exists" — surfaces in the summary as not-ok
-    # so the CLI exits non-zero (you'll know about it without grepping warnings).
+    # so the CLI exits non-zero (you'll know about it without grepping warnings),
+    # but flagged `skipped` so the summary table labels it "skip", not "fail".
     assert report.ok is False
+    assert report.skipped is True
     assert report.error == "album already exists"
     # Prior contents untouched.
     assert (prior_album / "EXISTING.m4a").exists()
@@ -419,6 +421,7 @@ def test_dry_run_surfaces_duplicate_output_dir_collision(silent_flac_template: P
     assert len(oks) == 1
     assert len(failures) == 1
     assert failures[0].error == "duplicate output dir"
+    assert failures[0].skipped is True
     # Dry-run wrote nothing to disk.
     assert not (tmp_path / "output").exists()
 

@@ -20,7 +20,7 @@ from maneki.audio.pipeline.disc import _maybe_apply_filename_disc_track, _maybe_
 from maneki.audio.pipeline.filenames import _parse_filename_for_va, _track_no_from_filename
 from maneki.audio.pipeline.footprint import _input_footprint
 from maneki.audio.pipeline.progress import ProgressContext
-from maneki.audio.pipeline.report import AlbumReport
+from maneki.audio.pipeline.report import ALREADY_EXISTS_ERROR, DUPLICATE_OUTPUT_ERROR, AlbumReport
 from maneki.audio.pipeline.track import _planned_filename, _process_track, _resolve_track_metadata, _ResolvedTrack
 
 
@@ -128,7 +128,7 @@ def _process_album(
             album=album_dir.path.name,
             track_count=0,
             cover_source=None,
-            cover_size="-",
+            cover_size="—",
             warnings=warnings,
             error="no readable tracks",
         )
@@ -184,6 +184,58 @@ def _process_album(
     if ctx.verbose:
         console.print(f"[cyan]→[/cyan] {artist_name} / {album_name} ({len(tracks)} tracks)")
 
+    # Collision + already-exists checks run BEFORE cover selection and online
+    # enrichment, so a skipped album costs no MusicBrainz / Cover Art Archive
+    # round trips (both throttled to 1 req/s). AcoustID necessarily runs
+    # earlier: `out_dir` derives from the tags it fills in. They also run
+    # BEFORE the dry-run early return so `--dry-run` surfaces the same skip
+    # behaviour the real run would: two source albums that normalise to the
+    # same output path would silently overlap, and the user needs to see that
+    # in the plan before kicking off the convert.
+    if _reservation_key(out_dir) in written_dirs:
+        # A different input album already wrote (or planned to write) here in
+        # this run — refusing to overwrite would lose data, so skip the
+        # second one and tell the user. The key is case-folded, so
+        # `2010 - TRON - Legacy` and `2010 - Tron - Legacy` collide even on a
+        # case-sensitive volume where both could otherwise land side by side.
+        msg = f"output dir already produced by another input album: {out_dir}"
+        warnings.append(msg)
+        console.print(f"[yellow]⚠ skipping {artist_name} / {album_name}: {msg}[/yellow]")
+        return AlbumReport(
+            input_dir=album_dir.path,
+            output_dir=out_dir,
+            artist=artist_name,
+            album=album_name,
+            track_count=len(tracks),
+            cover_source=None,
+            cover_size="—",
+            warnings=warnings,
+            error=DUPLICATE_OUTPUT_ERROR,
+            input_bytes=input_bytes,
+        )
+
+    # No-replace policy: if the album path already exists on disk from a prior
+    # run, skip rather than wiping it. Adding new albums to an existing artist
+    # folder is a *merge* — siblings stay untouched. To force a replacement,
+    # pass `--overwrite`.
+    if out_dir.exists() and not overwrite:
+        msg = f"album already exists at {out_dir} — skipped (pass --overwrite to replace)"
+        warnings.append(msg)
+        console.print(f"[yellow]⚠ skipping {artist_name} / {album_name}: already in output[/yellow]")
+        written_dirs.add(_reservation_key(out_dir))
+        return AlbumReport(
+            input_dir=album_dir.path,
+            output_dir=out_dir,
+            artist=artist_name,
+            album=album_name,
+            track_count=len(tracks),
+            cover_source=None,
+            cover_size="—",
+            warnings=warnings,
+            error=ALREADY_EXISTS_ERROR,
+            input_bytes=input_bytes,
+        )
+
     candidates = cover_mod.collect_candidates(album_dir.path, tracks)
     musicbrainz: MusicBrainzIds | None = None
     if enrich:
@@ -219,54 +271,6 @@ def _process_album(
         warnings.append("no cover art found")
         if ctx.verbose:
             console.print("    [yellow]no cover art found[/yellow]")
-
-    # Collision check runs BEFORE the dry-run early return so `--dry-run`
-    # surfaces the same skip behaviour the real run would: two source albums
-    # that normalise to the same output path would silently overlap, and the
-    # user needs to see that in the plan before kicking off the convert.
-    if _reservation_key(out_dir) in written_dirs:
-        # A different input album already wrote (or planned to write) here in
-        # this run — refusing to overwrite would lose data, so skip the
-        # second one and tell the user. The key is case-folded, so
-        # `2010 - TRON - Legacy` and `2010 - Tron - Legacy` collide even on a
-        # case-sensitive volume where both could otherwise land side by side.
-        msg = f"output dir already produced by another input album: {out_dir}"
-        warnings.append(msg)
-        console.print(f"[yellow]⚠ skipping {artist_name} / {album_name}: {msg}[/yellow]")
-        return AlbumReport(
-            input_dir=album_dir.path,
-            output_dir=out_dir,
-            artist=artist_name,
-            album=album_name,
-            track_count=len(tracks),
-            cover_source=cover.source if cover else None,
-            cover_size=cover_size,
-            warnings=warnings,
-            error="duplicate output dir",
-            input_bytes=input_bytes,
-        )
-
-    # No-replace policy: if the album path already exists on disk from a prior
-    # run, skip rather than wiping it. Adding new albums to an existing artist
-    # folder is a *merge* — siblings stay untouched. To force a replacement,
-    # pass `--overwrite`.
-    if out_dir.exists() and not overwrite:
-        msg = f"album already exists at {out_dir} — skipped (pass --overwrite to replace)"
-        warnings.append(msg)
-        console.print(f"[yellow]⚠ skipping {artist_name} / {album_name}: already in output[/yellow]")
-        written_dirs.add(_reservation_key(out_dir))
-        return AlbumReport(
-            input_dir=album_dir.path,
-            output_dir=out_dir,
-            artist=artist_name,
-            album=album_name,
-            track_count=len(tracks),
-            cover_source=cover.source if cover else None,
-            cover_size=cover_size,
-            warnings=warnings,
-            error="album already exists",
-            input_bytes=input_bytes,
-        )
 
     if dry_run:
         # Reserve the path so the next album in this dry-run sees it as taken

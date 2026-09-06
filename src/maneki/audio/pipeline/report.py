@@ -10,6 +10,11 @@ from rich.table import Table
 
 from maneki.audio.cover import CoverSource
 
+# Error strings the pipeline uses for "not converted on purpose" outcomes.
+ALREADY_EXISTS_ERROR = "album already exists"
+DUPLICATE_OUTPUT_ERROR = "duplicate output dir"
+SKIP_ERRORS = frozenset({ALREADY_EXISTS_ERROR, DUPLICATE_OUTPUT_ERROR})
+
 
 class AlbumReport(BaseModel):
     """Per-album outcome line shown at the end of a run."""
@@ -31,6 +36,15 @@ class AlbumReport(BaseModel):
     @property
     def ok(self) -> bool:
         return self.error is None
+
+    @property
+    def skipped(self) -> bool:
+        """True when the album was deliberately left alone rather than failing.
+
+        Derived from the error string so every skip branch in the pipeline
+        is labelled consistently without each having to remember a flag.
+        """
+        return self.error in SKIP_ERRORS
 
     @property
     def saved_ratio(self) -> float | None:
@@ -69,7 +83,15 @@ def _print_summary(console: Console, reports: list[AlbumReport]) -> None:
     total_input = 0
     total_output = 0
     for r in reports:
-        status = "[green]ok[/green]" if r.ok else "[red]fail[/red]"
+        if r.ok:
+            status = "[green]ok[/green]"
+        elif r.skipped:
+            # Intentional skip (already in the output, or a second input
+            # album mapping to the same path). Distinct from a real failure
+            # so the table doesn't scream "fail" at documented behaviour.
+            status = "[yellow]skip[/yellow]"
+        else:
+            status = "[red]fail[/red]"
         notes = "; ".join(r.warnings) or ("[red]" + r.error + "[/red]" if r.error else "")
         saved = f"{r.saved_ratio * 100:.0f}%" if r.saved_ratio is not None else "—"
         table.add_row(

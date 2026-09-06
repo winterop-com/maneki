@@ -14,7 +14,7 @@ import httpx
 from maneki.audio.enrich import EnrichmentResult
 from maneki.audio.enrich._http import get_client, throttled_get
 from maneki.audio.metadata import AlbumSummary, MusicBrainzIds, SourceTrack
-from maneki.audio.naming import is_various_artists
+from maneki.audio.naming import is_various_artists, strip_edition_annotations
 
 log = logging.getLogger(__name__)
 
@@ -46,7 +46,19 @@ class MusicBrainzProvider:
         client = self._client or get_client()
         notes: list[str] = []
         try:
-            ids = self._search_release(client, title, artist_query, len(tracks))
+            ids, had_hits = self._search_release(client, title, artist_query, len(tracks))
+            if ids is None and not had_hits:
+                # Tags often carry the edition as a bracketed suffix
+                # (`The Works (Deluxe Edition)`) while MB keeps the plain
+                # title and records the edition as a disambiguation. Retry
+                # with the annotation stripped; the track-count filter still
+                # steers the search towards the right edition. Only when the
+                # first query found nothing at all — a low-confidence hit on
+                # the edition title means MB knows the edition, and the bare
+                # query would happily bind us to a *different* edition.
+                bare_title = strip_edition_annotations(title)
+                if bare_title and bare_title.casefold() != title.casefold():
+                    ids, _ = self._search_release(client, bare_title, artist_query, len(tracks))
             if ids is not None and ids.album_id and tracks:
                 # Follow-up: per-track recording MBIDs aren't in the search
                 # response. Fetch the release with `inc=recordings`, map by
@@ -75,8 +87,15 @@ class MusicBrainzProvider:
 
         return EnrichmentResult(musicbrainz=ids, notes=notes)
 
-    def _search_release(self, client: httpx.Client, title: str, artist: str, track_count: int) -> MusicBrainzIds | None:
-        """Return the best-match release with album/artist/release-group MBIDs filled in.
+    def _search_release(
+        self, client: httpx.Client, title: str, artist: str, track_count: int
+    ) -> tuple[MusicBrainzIds | None, bool]:
+        """Return `(best_match, had_hits)` for the release search.
+
+        `best_match` carries album/artist/release-group MBIDs and is None when
+        nothing scored high enough; `had_hits` is True when the search
+        returned any release at all, so callers can tell "unknown to MB"
+        from "known but low confidence".
 
         MB's release search response includes `artist-credit` and
         `release-group` inline by default, so we can populate three of the
@@ -101,11 +120,11 @@ class MusicBrainzProvider:
         data = response.json()
         releases = data.get("releases") or []
         if not releases:
-            return None
+            return None, False
         # MB's `score` orders best matches first. Accept the first ≥ 90.
         best = releases[0]
         if int(best.get("score", 0)) < 90:
-            return None
+            return None, True
 
         album_id = str(best["id"])
         # `artist-credit` is a list of credit objects; we want the primary
@@ -127,7 +146,7 @@ class MusicBrainzProvider:
             album_id=album_id,
             artist_id=artist_id,
             release_group_id=release_group_id,
-        )
+        ), True
 
     def _apply_recording_ids(self, client: httpx.Client, release_mbid: str, tracks: list[SourceTrack]) -> None:
         """Fetch `release/<mbid>?inc=recordings` and set `mb_recording_id` per track.

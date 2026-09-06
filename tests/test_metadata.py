@@ -139,6 +139,31 @@ def test_summarize_album_majority_votes_and_detects_va() -> None:
     assert summary.track_total == 3
 
 
+def test_clean_album_title_keeps_bracket_when_disc_marker_is_inside_it() -> None:
+    """`(Japan CD1)` loses the marker but keeps a balanced `(Japan)`."""
+    assert clean_album_title("Hardwired ... To Self-Destruct (Japan CD1)") == "Hardwired ... To Self-Destruct (Japan)"
+    assert clean_album_title("Album [Deluxe Disc 2]") == "Album [Deluxe]"
+    assert clean_album_title("Album (Deluxe - CD2)") == "Album (Deluxe)"
+
+
+def test_clean_album_title_strips_rip_quality_brackets() -> None:
+    assert clean_album_title("Dookie [Hi-Res 24/48]") == "Dookie"
+    assert clean_album_title("Back In Black (FLAC 24-96)") == "Back In Black"
+    assert clean_album_title("Album [24bit]") == "Album"
+    assert clean_album_title("Album [FLAC16]") == "Album"
+    assert clean_album_title("Album [16bit44.1kHz]") == "Album"
+    assert clean_album_title("Album (44.1kHz)") == "Album"
+    # Quality words inside a real title are not tags.
+    assert clean_album_title("Album (16 Bit Nostalgia)") == "Album (16 Bit Nostalgia)"
+    assert clean_album_title("Live (Lossless Love)") == "Live (Lossless Love)"
+    assert clean_album_title("Album [Flac Attack]") == "Album [Flac Attack]"
+    # Year ranges and numeric titles are not quality tags.
+    assert clean_album_title("Best Of (1969-1972)") == "Best Of (1969-1972)"
+    assert clean_album_title("Album (2112)") == "Album (2112)"
+    assert clean_album_title("24 Nights") == "24 Nights"
+    assert clean_album_title("Softly (with Roberta Flack)") == "Softly (with Roberta Flack)"
+
+
 def test_clean_album_title_strips_disc_suffixes() -> None:
     assert clean_album_title("Are You Ready: Best Of AC/DC [CD1]") == "Are You Ready: Best Of AC/DC"
     assert clean_album_title("Some Album [CD 2]") == "Some Album"

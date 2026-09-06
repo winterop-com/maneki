@@ -252,3 +252,19 @@ def test_track_filename_includes_artist_for_compilations():
     )
     # Artist gets the same sanitization as title (slashes → dashes).
     assert track_filename(1, "Title", artist="A/C") == "01 - A-C - Title.m4a"
+
+
+def test_clean_folder_album_name_strips_whole_quality_bracket() -> None:
+    from maneki.audio.naming import clean_folder_album_name
+
+    assert clean_folder_album_name("Dookie [Hi-Res 24/48]") == ("Dookie", None)
+    assert clean_folder_album_name("Back In Black (2020) [FLAC 24-96]") == ("Back In Black", "2020")
+    assert clean_folder_album_name("Album [Hi-Res Audio]") == ("Album", None)
+
+
+def test_strip_quality_annotations_needs_keyword_or_depth_rate_pair() -> None:
+    from maneki.audio.naming import strip_quality_annotations
+
+    assert strip_quality_annotations("Album (24)") == "Album (24)"
+    assert strip_quality_annotations("Album (24/48)") == "Album"
+    assert strip_quality_annotations("Album [FLAC16]") == "Album"

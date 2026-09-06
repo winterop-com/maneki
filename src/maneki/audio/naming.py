@@ -92,9 +92,47 @@ _FOLDER_TAG_RE = re.compile(
     # `[nextorrent.com]`, `[example.org]`. Limited to known TLDs so we don't
     # strip catalog numbers or annotations like `[Live]` / `[Bonus]`.
     r"[a-z0-9-]+\.(?:com|org|net|to|is|cc|me|info|xyz|biz|uk|de|ru|tv|io)"
-    r")\s*[\]\)]?",
+    # The keyword anchors the bracket; the rest of the bracket goes with it
+    # (`[Hi-Res 24/48]`, `(FLAC 24-96)`) up to a mandatory closer, so no
+    # dangling `24/48]` survives.
+    r")\b[^\[\]\(\)]*[\]\)]",
     re.IGNORECASE,
 )
+# Bracketed rip-quality annotations that taggers copy from the folder name
+# into the album tag: `Dookie [Hi-Res 24/48]`, `Album (FLAC 24-96)`,
+# `[16bit44.1kHz]`, `[FLAC16]`. The whole bracket goes, but only when its
+# content is made of quality tokens alone — `(16 Bit Nostalgia)`,
+# `(Lossless Love)` and `(1969-1972)` are titles and stay.
+_QUALITY_TOKEN = (
+    r"(?:hi-?res|flac|alac|lossless|web|vinyl|cd\s*rip|"
+    r"\d{1,2}\s*-?\s*bits?|"  # 24bit, 16 Bit
+    r"\d{2,3}(?:\.\d)?\s*khz|"  # 44.1kHz, 96 kHz
+    r"(?:16|24|32)\s*[-/ ]\s*(?:44(?:\.1)?|48|88(?:\.2)?|96|176(?:\.4)?|192)|"  # 24/48, 16-44.1
+    r"16|24|32)"
+)
+_QUALITY_BRACKET_RE = re.compile(
+    rf"\s*[\[\(]\s*{_QUALITY_TOKEN}(?:[\s\-/,+]*{_QUALITY_TOKEN})*\s*[\]\)]",
+    re.IGNORECASE,
+)
+# A bare `(24)` is not a quality tag: require a keyword or a depth/rate pair.
+_QUALITY_EVIDENCE_RE = re.compile(r"[a-z]|(?:16|24|32)\s*[-/ ]\s*\d", re.IGNORECASE)
+
+
+def strip_quality_annotations(name: str) -> str:
+    """Drop bracketed rip-quality annotations (`[Hi-Res 24/48]`, `(FLAC)`) from `name`.
+
+    Returns the input (whitespace-collapsed) when nothing matches. Shared by
+    the album-tag cleanup and the folder-name fallback so both paths agree
+    on what a quality tag looks like.
+    """
+
+    def _drop(match: re.Match[str]) -> str:
+        return " " if _QUALITY_EVIDENCE_RE.search(match.group(0)) else match.group(0)
+
+    cleaned = _QUALITY_BRACKET_RE.sub(_drop, name)
+    return re.sub(r"\s+", " ", cleaned).strip(" -_")
+
+
 # Edition / remaster / reissue annotations that pollute folder names. Strip
 # these BEFORE year extraction so `(2018 Reissue)` doesn't leak `2018` into
 # the year pick. The pattern matches a complete bracketed expression
@@ -119,6 +157,19 @@ _FOLDER_YEAR_RE = re.compile(r"[\(\[]?((?:19|20)\d{2})[\)\]]?")
 # ships MP3s tagged `TDRC=2018`, but the user clearly intends 1983.
 _LEADING_FOLDER_YEAR_RE = re.compile(r"^\s*((?:19|20)\d{2})[\s.\-_]")
 _VA_PREFIX_RE = re.compile(r"^\s*(?:VA|Various)\s*-\s*", re.IGNORECASE)
+
+
+def strip_edition_annotations(name: str) -> str:
+    """Drop bracketed edition/remaster/reissue annotations from an album name.
+
+    `A Kind Of Magic (Deluxe Edition)` -> `A Kind Of Magic`. Returns the
+    input unchanged (modulo whitespace) when nothing matches. Used both by
+    folder-name cleanup and as a MusicBrainz search fallback: MB titles the
+    deluxe reissue `A Kind of Magic` with a *disambiguation* of "deluxe
+    edition", so the bracketed suffix in the tag never phrase-matches.
+    """
+    cleaned = _FOLDER_EDITION_RE.sub(" ", name)
+    return re.sub(r"\s+", " ", cleaned).strip(" -_")
 
 
 def clean_folder_album_name(name: str) -> tuple[str, str | None]:

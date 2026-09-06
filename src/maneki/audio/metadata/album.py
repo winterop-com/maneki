@@ -7,7 +7,7 @@ from collections import Counter
 from typing import Any
 
 from maneki.audio.metadata.models import AlbumSummary, SourceTrack
-from maneki.audio.naming import is_various_artists
+from maneki.audio.naming import is_various_artists, strip_quality_annotations
 
 # Disc/CD markers we strip from album titles so multi-disc rips collapse to
 # one clean name (`Album [CD1]` → `Album`). Three families:
@@ -31,6 +31,14 @@ _DISC_WORD_SUFFIX_RE = re.compile(
     r"\s*[\[\(\-/]?\s*(?:cd|disc|disk)\s+"
     r"(?:one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve)"
     r"\s*[\]\)]?\s*$",
+    re.IGNORECASE,
+)
+# Disc marker riding INSIDE an edition bracket, after other text:
+# `Hardwired... To Self-Destruct (Japan CD1)`. Strip just the marker and keep
+# the bracket balanced (`(Japan)`) — the plain suffix regex would otherwise
+# eat ` CD1)` and leave a dangling `(Japan`.
+_DISC_IN_BRACKET_RE = re.compile(
+    r"(?<=[^\s\[\(])\s*[-/:]?\s*(?:cd|disc|disk)[\s\-_.]*\d+(?=\s*[\]\)\}])",
     re.IGNORECASE,
 )
 _BARE_DISC_PAREN_RE = re.compile(r"\s*\(\s*\d{1,2}\s*\)\s*$")
@@ -103,9 +111,12 @@ def clean_album_title(album: str | None) -> str | None:
     cleaned = album
     # Repeatedly strip trailing disc markers (handles `Album [CD1] (Deluxe)`).
     while True:
+        # Marker inside a bracket (`(Japan CD1)`) first, so the suffix pass
+        # below doesn't strip the closing paren and leave `(Japan`.
+        stripped = _DISC_IN_BRACKET_RE.sub("", cleaned)
         # Both numeric (`Disc 2`) and word-form (`Disc Two`) suffixes — some
         # box sets ship the latter, e.g. Queen `Greatest Hits I / Disc One`.
-        stripped = _DISC_SUFFIX_RE.sub("", cleaned).strip(" -")
+        stripped = _DISC_SUFFIX_RE.sub("", stripped).strip(" -")
         stripped = _DISC_WORD_SUFFIX_RE.sub("", stripped).strip(" -")
         # Bare disc index riding on an edition bracket (`Album (Deluxe) 1`).
         stripped = _BARE_DISC_AFTER_BRACKET_RE.sub("", stripped).strip(" -")
@@ -124,6 +135,10 @@ def clean_album_title(album: str | None) -> str | None:
     bare = _BARE_DISC_PAREN_RE.sub("", cleaned).strip(" -")
     if bare:
         cleaned = bare
+    # Rip-quality brackets copied from the folder name (`[Hi-Res 24/48]`).
+    quality_free = strip_quality_annotations(cleaned)
+    if quality_free:
+        cleaned = quality_free
     # Dots/underscores as separator: replace between multi-letter chunks with space.
     cleaned = _SCENE_DOT_SEP_RE.sub(" ", cleaned)
     cleaned = _SCENE_USCORE_SEP_RE.sub(" ", cleaned)
