@@ -82,11 +82,16 @@ export async function connect(stored: StoredSession = read()): Promise<void> {
     setSession(stored)
     try {
         const caps = await capabilities()
-        if (caps.auth_required && !stored.token) {
+        const rest = restUrl(stored.baseUrl, caps)
+        // TWO WAYS TO BE SIGNED OUT. A server started with --auth wants a bearer token for its
+        // own endpoints; the Subsonic mount wants a salt and a token on every request whether
+        // or not the rest of the server asked for a password. A server that needs no login but
+        // serves music still needs credentials for that music, and without them this screen
+        // would say the server has no music library -- which is false, and offers no way in.
+        if ((caps.auth_required && !stored.token) || (rest !== null && !stored.subsonic)) {
             sessionStore.set({ phase: 'signed-out', baseUrl: stored.baseUrl, username: stored.username })
             return
         }
-        const rest = restUrl(stored.baseUrl, caps)
         const music = rest && stored.subsonic ? { restUrl: rest, ...stored.subsonic } : undefined
         write(stored)
         sessionStore.set({
