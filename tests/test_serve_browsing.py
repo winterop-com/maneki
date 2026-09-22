@@ -402,3 +402,142 @@ def test_get_album_list2_unknown_type_falls_back_to_alphabetical(tmp_path: Path)
     ).json()["subsonic-response"]
     assert body["status"] == "ok"
     assert len(body["albumList2"]["album"]) == 3
+
+
+# ---------------------------------------------------------------------------
+# getAlbumList / getSongsByGenre — what the folder-browsing clients ask for
+# ---------------------------------------------------------------------------
+
+
+def test_get_album_list_answers_the_directory_grammar(tmp_path: Path) -> None:
+    """play:Sub and DSub browse folders and call this, not getAlbumList2.
+
+    Regression: there was no handler at all, so those clients got a 404 on
+    their first screen and reported the server as unreachable.
+    """
+    client = _client_with_index(tmp_path, _two_artists(tmp_path))
+    body = client.get(
+        "/rest/getAlbumList",
+        params=_params(type="alphabeticalByName", size=10),
+    ).json()["subsonic-response"]
+    assert body["status"] == "ok"
+    albums = body["albumList"]["album"]
+    assert [a["title"] for a in albums] == ["Arrival", "Sea Change", "Super Trouper"]
+    # A directory child, not an AlbumID3: a client hands the id straight back
+    # to getMusicDirectory, and reads the name off `title`.
+    first = albums[0]
+    assert first["isDir"] is True
+    assert first["parent"] == artist_id("ABBA")
+    assert first["id"] == album_id(_two_artists(tmp_path)[0])
+    assert "name" not in first
+
+
+def test_get_album_list_makes_the_same_selection_as_the_id3_flavour(tmp_path: Path) -> None:
+    client = _client_with_index(tmp_path, _two_artists(tmp_path))
+    directory = client.get(
+        "/rest/getAlbumList",
+        params=_params(type="byYear", fromYear=1970, toYear=1990, size=10),
+    ).json()["subsonic-response"]["albumList"]["album"]
+    id3 = client.get(
+        "/rest/getAlbumList2",
+        params=_params(type="byYear", fromYear=1970, toYear=1990, size=10),
+    ).json()["subsonic-response"]["albumList2"]["album"]
+    assert [a["id"] for a in directory] == [a["id"] for a in id3]
+    assert [a["year"] for a in directory] == [1976, 1980]
+
+
+def test_get_album_list_carries_a_refusal_through(tmp_path: Path) -> None:
+    client = _client_with_index(tmp_path, _two_artists(tmp_path))
+    body = client.get("/rest/getAlbumList", params=_params(type="byGenre")).json()["subsonic-response"]
+    assert body["status"] == "failed"
+    assert body["error"]["code"] == 10
+
+
+def test_get_songs_by_genre_lists_the_tracks_of_one_genre(tmp_path: Path) -> None:
+    """getGenres draws a list; picking one sends the client here.
+
+    Regression: there was no handler, so a genre screen was a dead end.
+    """
+    cfg = ServeConfig(username="mort", password="secret")
+    app = create_app(root=tmp_path, cfg=cfg)
+    rock = LibraryAlbum(
+        path=tmp_path / "Beck" / "Sea Change",
+        artist_dir="Beck",
+        album_dir="Sea Change",
+        tag_album="Sea Change",
+        tag_genre="Rock",
+        track_count=2,
+        tracks=[
+            LibraryTrack(
+                path=tmp_path / "Beck" / "Sea Change" / "01.m4a",
+                title="Lost Cause",
+                artist="Beck",
+                album="Sea Change",
+                genre="Rock",
+                track_no=1,
+                duration_s=180.0,
+            ),
+            LibraryTrack(
+                path=tmp_path / "Beck" / "Sea Change" / "02.m4a",
+                title="The Golden Age",
+                artist="Beck",
+                album="Sea Change",
+                genres=["Folk", "Indie"],
+                track_no=2,
+                duration_s=200.0,
+            ),
+        ],
+    )
+    pop = LibraryAlbum(
+        path=tmp_path / "ABBA" / "Arrival",
+        artist_dir="ABBA",
+        album_dir="Arrival",
+        tag_album="Arrival",
+        tag_genre="Pop",
+        track_count=1,
+        tracks=[
+            LibraryTrack(
+                path=tmp_path / "ABBA" / "Arrival" / "01.m4a",
+                title="Dancing Queen",
+                artist="ABBA",
+                album="Arrival",
+                genre="Pop",
+                track_no=1,
+                duration_s=180.0,
+            )
+        ],
+    )
+    app.state.cache._reindex(LibraryIndex(root=tmp_path, albums=[rock, pop]))  # noqa: SLF001
+    client = TestClient(app)
+
+    rock_songs = client.get("/rest/getSongsByGenre", params=_params(genre="Rock")).json()["subsonic-response"]
+    assert [s["title"] for s in rock_songs["songsByGenre"]["song"]] == ["Lost Cause", "The Golden Age"]
+
+    # The second track carries no single genre, only `genres[]`, and is found by it.
+    indie = client.get("/rest/getSongsByGenre", params=_params(genre="Indie")).json()["subsonic-response"]
+    assert [s["title"] for s in indie["songsByGenre"]["song"]] == ["The Golden Age"]
+
+    # Case is not a filter anybody typed on purpose.
+    lower = client.get("/rest/getSongsByGenre", params=_params(genre="pop")).json()["subsonic-response"]
+    assert [s["title"] for s in lower["songsByGenre"]["song"]] == ["Dancing Queen"]
+
+    none = client.get("/rest/getSongsByGenre", params=_params(genre="Ambient")).json()["subsonic-response"]
+    assert none["songsByGenre"]["song"] == []
+
+
+def test_get_songs_by_genre_pages(tmp_path: Path) -> None:
+    client = _client_with_index(tmp_path, _two_artists(tmp_path))
+    body = client.get(
+        "/rest/getSongsByGenre",
+        params=_params(genre="Nothing", count=2, offset=1),
+    ).json()["subsonic-response"]
+    assert body["status"] == "ok"
+    assert body["songsByGenre"]["song"] == []
+
+
+def test_get_videos_is_empty_rather_than_absent(tmp_path: Path) -> None:
+    """A 404 reads as a broken server; an empty list is the honest answer."""
+    client = _client_with_index(tmp_path, _two_artists(tmp_path))
+    body = client.get("/rest/getVideos", params=_params()).json()["subsonic-response"]
+    assert body["status"] == "ok"
+    assert body["videos"]["video"] == []

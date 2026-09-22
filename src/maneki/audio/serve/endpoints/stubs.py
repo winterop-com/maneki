@@ -314,3 +314,29 @@ async def get_avatar(username: str = Query(default="")) -> dict:
     """Empty avatar — clients show a default placeholder when the body is empty."""
     del username
     return envelope()
+
+
+# ---------------------------------------------------------------------------
+# Video — maneki serves video over its own API, not over Subsonic
+# ---------------------------------------------------------------------------
+
+
+@router.api_route("/getVideos", methods=["GET", "POST", "HEAD"])
+@router.api_route("/getVideos.view", methods=["GET", "POST", "HEAD"], include_in_schema=False)
+async def get_videos() -> dict:
+    """An empty video list.
+
+    Films and series are served over `/video/api`, in a grammar that carries
+    what a video needs; a Subsonic client asking here gets the honest answer
+    that this mount has none. Empty rather than absent: a 404 is read as a
+    broken server, and some clients stop loading the rest of their library.
+    """
+    return envelope("videos", {"video": []})
+
+
+@router.api_route("/getVideoInfo", methods=["GET", "POST", "HEAD"])
+@router.api_route("/getVideoInfo.view", methods=["GET", "POST", "HEAD"], include_in_schema=False)
+async def get_video_info(id: str = Query(default="")) -> dict:
+    """No video has details here, because this mount serves none."""
+    del id
+    return envelope("videoInfo", {})

@@ -292,6 +292,103 @@ async def get_album_list2(  # noqa: PLR0912 — Subsonic's `type` enum has many 
     return envelope("albumList2", {"album": page})
 
 
+@router.api_route("/getAlbumList", methods=["GET", "POST", "HEAD"])
+@router.api_route("/getAlbumList.view", methods=["GET", "POST", "HEAD"], include_in_schema=False)
+async def get_album_list(
+    request: Request,
+    type: str = Query(default="alphabeticalByName", description="Same modes as `getAlbumList2`."),
+    size: int = Query(default=10, ge=1, le=500, description="Max albums to return (1-500)."),
+    offset: int = Query(default=0, ge=0, description="Skip this many albums (pagination)."),
+    fromYear: int | None = Query(default=None, description="`byYear` only: inclusive lower bound."),
+    toYear: int | None = Query(default=None, description="`byYear` only: inclusive upper bound."),
+    genre: str | None = Query(default=None, description="`byGenre` only: genre name to filter on."),
+    musicFolderId: int | None = Query(  # noqa: N803 - Subsonic spec uses camelCase
+        default=None, description="Limit to one folder from `getMusicFolders`."
+    ),
+) -> dict:
+    """The same list in the directory grammar, which is what the older clients ask for.
+
+    play:Sub and DSub browse folders rather than ID3 tags, and reach for this
+    rather than `getAlbumList2`; with no handler they get a 404 on their first
+    screen and report the server as broken. The selection is the one
+    `getAlbumList2` makes -- one list, one set of rules -- and only the shape
+    of each entry differs: a `Child` with a title and `isDir`, not an
+    `AlbumID3` with a name.
+    """
+    answered = await get_album_list2(
+        request,
+        type=type,
+        size=size,
+        offset=offset,
+        fromYear=fromYear,
+        toYear=toYear,
+        genre=genre,
+        musicFolderId=musicFolderId,
+    )
+    body = answered["subsonic-response"]
+    if body.get("status") != "ok":
+        return answered
+    albums = body.get("albumList2", {}).get("album", [])
+    return envelope("albumList", {"album": [_as_directory_album(a) for a in albums]})
+
+
+def _as_directory_album(album: dict[str, Any]) -> dict[str, Any]:
+    """One album as a directory child, which is how the pre-ID3 endpoints name it.
+
+    `title` rather than `name`, `parent` rather than `artistId`, and `isDir`,
+    because a client walking folders expects to be able to hand the id it was
+    given straight back to `getMusicDirectory`.
+    """
+    child: dict[str, Any] = {
+        "id": album["id"],
+        "parent": album.get("artistId", ""),
+        "isDir": True,
+        "title": album.get("name", ""),
+        "album": album.get("name", ""),
+        "artist": album.get("artist", ""),
+        "coverArt": album.get("coverArt", album["id"]),
+        "created": album.get("created", "1970-01-01T00:00:00.000Z"),
+    }
+    for carried in ("year", "genre", "duration", "songCount", "artistId", "starred"):
+        if carried in album:
+            child[carried] = album[carried]
+    return child
+
+
+@router.api_route("/getSongsByGenre", methods=["GET", "POST", "HEAD"])
+@router.api_route("/getSongsByGenre.view", methods=["GET", "POST", "HEAD"], include_in_schema=False)
+async def get_songs_by_genre(
+    request: Request,
+    genre: str = Query(..., description="Genre name, as `getGenres` spells it."),
+    count: int = Query(default=10, ge=1, le=500, description="Max songs to return (1-500)."),
+    offset: int = Query(default=0, ge=0, description="Skip this many songs (pagination)."),
+    musicFolderId: int | None = Query(  # noqa: N803 - Subsonic spec uses camelCase
+        default=None, description="Limit to one folder from `getMusicFolders`."
+    ),
+) -> dict:
+    """Every song of one genre.
+
+    `getGenres` already answers with counts, and a client that draws that list
+    sends somebody straight here when they pick one; without this the genre
+    screen is a dead end. A track matches on either its single genre or any of
+    its `genres[]`, which is the same rule `getAlbumList2?type=byGenre` uses.
+
+    Books carry one genre of their own and are not songs, so they are not here.
+    """
+    if not _wants(musicFolderId, MUSIC_FOLDER_ID):
+        return envelope("songsByGenre", {"song": []})
+    cache = _get_cache(request)
+    target = genre.casefold()
+    found: list[dict[str, Any]] = []
+    for album in cache.albums_by_id.values():
+        album_genre = (album.tag_genre or "").casefold()
+        for track in album.tracks:
+            if _track_has_genre(track, target) or album_genre == target:
+                found.append(song_payload(album, track))
+    page = found[offset : offset + count]
+    return envelope("songsByGenre", {"song": page})
+
+
 def _book_albums(
     request: Request,
     type: str,
