@@ -203,6 +203,21 @@ def create_combined_app(
         watcher: Any = None
         video_index: Any = None
 
+        # The audio index was built synchronously in `_mount_audio`; the
+        # watcher keeps it current from here on, so an album dropped into
+        # the library shows up without a `startScan` or a restart. Radio-only
+        # mounts (`audio_present` False) have no library to watch.
+        audio_watcher: Any = None
+        audio_sub_app: FastAPI | None = next(
+            (cast(FastAPI, r.app) for r in app.routes if isinstance(r, Mount) and r.path == "/audio"),
+            None,
+        )
+        if audio_present and audio_sub_app is not None:
+            from maneki.audio.serve.watcher import LibraryWatcher
+
+            audio_watcher = LibraryWatcher(audio_sub_app.state.cache)
+            audio_watcher.start()
+
         async def _do_scan(*, do_prewarm_cache: bool) -> None:
             """One pass of library scan + orphan sweep + optional image prewarm.
 
@@ -311,6 +326,9 @@ def create_combined_app(
             if watcher is not None:
                 with contextlib.suppress(Exception):
                     watcher.stop()
+            if audio_watcher is not None:
+                with contextlib.suppress(Exception):
+                    audio_watcher.stop()
             if video_index is not None:
                 with contextlib.suppress(Exception):
                     video_index.close()

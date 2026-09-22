@@ -75,7 +75,9 @@ class LibraryWatcher:
 
     def _rescan(self) -> None:
         log.info("library watcher: triggering background rescan")
-        self._cache.start_background_rescan()
+        # A delta validate, not a full rebuild: it stats the tree and rescans
+        # only the albums that were added, removed, or changed.
+        self._cache.start_background_rescan(force=False)
 
 
 class _Handler(FileSystemEventHandler):

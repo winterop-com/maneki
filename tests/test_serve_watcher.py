@@ -89,3 +89,10 @@ def test_watcher_skips_when_root_does_not_exist(tmp_path: Path) -> None:
     watcher = LibraryWatcher(cache)
     watcher.start()  # must not raise
     watcher.stop()
+
+
+def test_watcher_asks_for_a_delta_rescan() -> None:
+    """The watcher's rescan is the cheap validate pass, not `startScan`'s full rebuild."""
+    cache = MagicMock()
+    LibraryWatcher(cache)._rescan()
+    cache.start_background_rescan.assert_called_once_with(force=False)

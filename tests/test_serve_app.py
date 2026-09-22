@@ -211,3 +211,44 @@ def test_audio_root_still_scans_and_reports_audio(audio_only_root: Path) -> None
     assert (audio_only_root / ".maneki" / "index.db").exists()
     resp = client.get("/audio/rest/getInternetRadioStations", params=_subsonic_params())
     assert resp.json()["subsonic-response"]["status"] == "ok"
+
+
+# --- audio file watcher: started with the server -----------------------------
+
+
+class _FakeWatcher:
+    instances: list[_FakeWatcher] = []
+
+    def __init__(self, cache: object) -> None:
+        self.cache = cache
+        self.started = False
+        self.stopped = False
+        _FakeWatcher.instances.append(self)
+
+    def start(self) -> None:
+        self.started = True
+
+    def stop(self) -> None:
+        self.stopped = True
+
+
+def test_serve_watches_the_audio_library(audio_only_root: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """A library with audio starts the audio watcher with the server and stops it at shutdown."""
+    import maneki.audio.serve.watcher as watcher_mod
+
+    _FakeWatcher.instances = []
+    monkeypatch.setattr(watcher_mod, "LibraryWatcher", _FakeWatcher)
+    with TestClient(create_combined_app(root=audio_only_root, audio_cfg=_TEST_AUDIO_CFG)):
+        assert [w.started for w in _FakeWatcher.instances] == [True]
+    assert [w.stopped for w in _FakeWatcher.instances] == [True]
+
+
+def test_radio_only_serve_starts_no_audio_watcher(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """With no local audio there is nothing to watch; the radio mount alone starts no watcher."""
+    import maneki.audio.serve.watcher as watcher_mod
+
+    _FakeWatcher.instances = []
+    monkeypatch.setattr(watcher_mod, "LibraryWatcher", _FakeWatcher)
+    with TestClient(create_combined_app(root=tmp_path, audio_cfg=_TEST_AUDIO_CFG)):
+        pass
+    assert _FakeWatcher.instances == []

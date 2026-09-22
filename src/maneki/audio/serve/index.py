@@ -80,8 +80,9 @@ class IndexCache:
         intended active state. Without this the daemon thread could lose the
         race and the client would see `scanning=false` and stop polling.
 
-        `force` defaults to True because the user-triggered `startScan` and
-        watcher fallback both want a clean rebuild, not a delta-validate.
+        `force` defaults to True because the user-triggered `startScan` wants
+        a clean rebuild. The filesystem watcher passes `force=False` for a
+        delta validate, which rescans only the albums that changed.
         """
         with self._scan_lock:
             if self.scan_in_progress:

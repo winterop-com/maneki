@@ -169,9 +169,9 @@ which deletes the old album row (cascade-drops tracks + warnings) and inserts
 a fresh one. Whole-album deletions are detected when the DB has a row for a
 dir that no longer exists on disk.
 
-The `serve` watcher (`serve/watcher.py`) drives the same `rescan_albums`
-through `IndexCache.rescan_paths(paths)` whenever filesystem events fire
-during the debounce window.
+The `serve` watcher (`serve/watcher.py`) runs the same `validate()` pass in
+a background thread once filesystem events settle, so only the albums that
+changed go through `rescan_albums`.
 
 Schema bumps don't run migrations — `db.py` defines a `SCHEMA_VERSION`
 constant; mismatched DBs are unlinked and rebuilt from scratch. The
@@ -198,13 +198,13 @@ Single FastAPI process. Components:
 |      - LibraryIndex                             |
 |      - albums_by_id / tracks_by_id /            |
 |        artists_by_id (Subsonic-ID lookups)      |
-|      - rebuild() / rescan_paths()               |
+|      - rebuild() / start_background_rescan()    |
 |                                                 |
-|    app.state.watcher = LibraryWatcher(cache)    |
+|    LibraryWatcher(cache), started and stopped   |
+|    by the combined app's lifespan               |
 |      - watchdog Observer                        |
 |      - debounce timer (5s)                      |
-|      - dispatches changed paths to              |
-|        cache.rescan_paths(...)                  |
+|      - then a background delta validate         |
 |                                                 |
 |    mDNS service (Zeroconf) advertises           |
 |    `_subsonic._tcp.local` so clients on the     |
@@ -279,22 +279,30 @@ ever observe in real Subsonic-client traffic.
 
 ## The watcher (`src/maneki/audio/serve/watcher.py`)
 
-`watchdog` `Observer` watches the library root recursively. The handler
-filters by extension (audio files only — skip `.DS_Store`, `cover.jpg`)
-and pushes paths into a set during a debounce window (default 5 s). When
-no new event has arrived for the debounce period, the whole batch goes
-to `cache.rescan_paths(paths)`, which:
+`maneki serve` starts the watcher from the combined app's lifespan
+(`serve_app.py`) whenever the root holds audio, and stops it at shutdown.
+A `watchdog` `Observer` watches the library root recursively. The handler
+keeps only events that can change the music index:
 
-1. Resolves each path to its album dir (file → parent; existing dir →
-   self; vanished → both, since we can't tell file-vs-dir from a missing
-   path).
-2. Calls `library.rescan_albums` to delete + re-insert only those albums
-   in one transaction.
-3. Refreshes the in-memory `LibraryIndex` and the reverse-lookup dicts
-   from the new rows.
+- audio-extension files, but not dot-files such as AppleDouble
+  `._track.flac` sidecars, and not `.DS_Store` or `cover.jpg`;
+- directory creates, deletes and moves;
+- nothing under the server cache or the top-level `inbox/` and
+  `Audiobooks/` folders. A move out of `inbox/` into the library still
+  counts, because its destination is in the library.
 
-Dropping a brand-new album into the library directory therefore takes ~6 s
-to appear (5 s debounce + scan + rebuild dicts). A bulk copy of 100 files
+Each event resets a debounce timer (default 5 s). Once no event has arrived
+for that long, the watcher calls `cache.start_background_rescan(force=False)`,
+which runs the same `validate()` delta pass as a warm start:
+
+1. Stat-walks the library and diffs it against the DB rows by
+   `(file_mtime, file_size)`.
+2. Calls `library.rescan_albums` for the albums that were added, removed,
+   or changed, in one transaction.
+3. Refreshes the in-memory `LibraryIndex` and the reverse-lookup dicts.
+
+A brand-new album therefore appears a few seconds after it lands (the 5 s
+debounce, the stat walk, and that album's scan). A bulk copy of 100 files
 collapses to one rescan.
 
 ### Client-triggered rescan via the Subsonic API
