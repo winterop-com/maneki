@@ -1832,7 +1832,7 @@ the things to double-check are:</p>
 <h2 id="resuming-a-long-track">Resuming a long track<a class="headerlink" href="#resuming-a-long-track" title="Permanent link">&para;</a></h2>
 <p><code>createBookmark</code>, <code>getBookmarks</code> and <code>deleteBookmark</code> are implemented, so a client that saves a position on pause (Symfonium, Amperfy and play:Sub all do) offers to resume a long recording where you stopped. Bookmarks are per account, at <code>&lt;root&gt;/.maneki/users/&lt;name&gt;/bookmarks.db</code>, and a bookmark whose track has since left the library is dropped from the list rather than shown as a blank row.</p>
 <p>Cross-device queue sync (<code>savePlayQueue</code> / <code>getPlayQueue</code>) is still a no-op.</p>
-<p>Audiobooks have their own position, kept per book rather than per track; see <a href="../books/#resuming"><code>maneki books import</code></a>.</p>
+<p>Audiobooks are served in their own <code>Audiobooks</code> music folder, with a position kept per book rather than per track. A bookmark on a book file writes that position, so a phone and the web app resume at the same place. See <a href="../books/#in-subsonic-clients"><code>maneki books import</code></a>.</p>
 <h2 id="what-maneki-doesnt-do-yet">What Maneki doesn't do (yet)<a class="headerlink" href="#what-maneki-doesnt-do-yet" title="Permanent link">&para;</a></h2>
 <ul>
 <li><strong>No native iOS / Android app of its own.</strong> The Subsonic ecosystem

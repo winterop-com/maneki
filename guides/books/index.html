@@ -843,6 +843,17 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
+  <a href="#in-subsonic-clients" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        In Subsonic clients
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#resuming" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1471,6 +1482,17 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
+  <a href="#in-subsonic-clients" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        In Subsonic clients
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#resuming" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1639,6 +1661,11 @@
 </tr>
 </tbody>
 </table>
+<h3 id="in-subsonic-clients">In Subsonic clients<a class="headerlink" href="#in-subsonic-clients" title="Permanent link">&para;</a></h3>
+<p>Books are also served through the Subsonic API, in a music folder of their own called <code>Audiobooks</code> (<code>getMusicFolders</code> reports it beside <code>Music</code>). Pointing a client at that folder gives a shelf of books and nothing else; every browse endpoint honours <code>musicFolderId</code>.</p>
+<p>Inside it, an author reads as an artist, a book as an album, and a book's files as its songs, each typed <code>audiobook</code> so a client can treat them as spoken word. Book ids carry their own prefixes (<code>bka_</code>, <code>bkb_</code>, <code>bkt_</code>), so they can never be confused with music.</p>
+<p>The position is the same one the books API keeps. A client that bookmarks a book file writes the book's position, and a book with a position comes back from <code>getBookmarks</code> as a bookmark on the file it falls in, with <code>bookmarkPosition</code> on the song. Stopping on a phone and opening the web app resumes in the same place, and the other way round.</p>
+<p>A client that ignores music folders will list book authors among music artists. That is the trade for phone resume; the folder is there for clients that respect it.</p>
 <h3 id="resuming">Resuming<a class="headerlink" href="#resuming" title="Permanent link">&para;</a></h3>
 <p>An hour into a book, closing the app has to pick up where you left off, so the position is kept on the server rather than in one browser: it follows you between the web app, the desktop apps and any other client of the same account. Each account has its own, in <code>&lt;root&gt;/.maneki/users/&lt;name&gt;/books.db</code>, beside its favourites and play history, so an index rebuild never loses it.</p>
 <p>A position is one offset in seconds on the book's whole timeline. For a book split across files, the player maps the offset back to a file using the offsets in the book's detail. A player is expected to <code>PUT</code> it every few seconds and on pause; the write is a single row.</p>
