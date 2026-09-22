@@ -24,9 +24,20 @@ make test        # pytest -q
 make coverage    # pytest with coverage report
 make docs-serve  # mkdocs live-reload at http://127.0.0.1:8000
 make docs-build  # build static site to ./site
+make app         # build the new client -> desktop/app/dist/
+make app-dev     # serve the new client with hot reload
+make app-gate    # its format, lint, types and unit tests
 ```
 
-Both `make lint` and `make test` must pass before commit.
+Both `make lint` and `make test` must pass before commit, and `make app-gate` when the new client changed.
+
+### The two clients
+
+`desktop/react` is the client that ships today, in plain JSX with hand-written CSS. `desktop/app` is its replacement, on the shared UI template this family of apps uses (TypeScript, Tailwind, shadcn on Base UI, oxlint and oxfmt, vitest): see [dirigent's `docs/ui-conventions.md`][conventions], which is the design system both are built to.
+
+Screens move across one at a time. Until a section arrives, the new client says so and the old one serves it; only `desktop/react` is copied into the wheel, so what ships is unaffected until the swap. Both are hash-routed with relative asset URLs, because the desktop shells load the bundle from disk.
+
+[conventions]: https://github.com/winterop-com/dirigent/blob/main/docs/ui-conventions.md
 
 ## Project layout
 

@@ -51,6 +51,12 @@ jobs:
           bun install --frozen-lockfile
           bun run build
 
+      # The new client (desktop/app) is being moved onto the shared UI
+      # template one screen at a time. It does not ship in the wheel yet, so
+      # it is gated on its own: format, lint, types and unit tests.
+      - name: Check the new client
+        run: make app-gate
+
       - name: Install ffmpeg + libportaudio
         run: |
           sudo apt-get update

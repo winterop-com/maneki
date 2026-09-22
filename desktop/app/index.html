@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+        <link rel="icon" type="image/svg+xml" href="favicon.svg" />
+        <title>Maneki</title>
+        <script>
+            /*
+             * The palette, before the first paint.
+             *
+             * Applied here rather than in a React effect: an effect lands a frame after the
+             * document does, so every load would flash the default under whatever was chosen.
+             * The names are duplicated from lib/theme.ts, and a test asserts they match.
+             */
+            ;(function () {
+                try {
+                    var names = ['maneki', 'paper', 'contrast']
+                    var stored = localStorage.getItem('maneki.palette')
+                    document.documentElement.setAttribute(
+                        'data-theme',
+                        names.indexOf(stored) === -1 ? 'maneki' : stored,
+                    )
+                } catch (error) {
+                    document.documentElement.setAttribute('data-theme', 'maneki')
+                }
+            })()
+        </script>
+    </head>
+    <body>
+        <div id="root"></div>
+        <script type="module" src="/src/main.tsx"></script>
+    </body>
+</html>

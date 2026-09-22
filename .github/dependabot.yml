@@ -55,6 +55,18 @@ updates:
         patterns: ["*"]
         update-types: ["minor", "patch"]
 
+  # The new client, on the same terms as the SPA above: minor and patch
+  # updates batch, majors arrive one at a time, and bun.lock needs a matching
+  # `cd desktop/app && bun install` commit.
+  - package-ecosystem: "npm"
+    directory: "/desktop/app"
+    schedule:
+      interval: "weekly"
+    groups:
+      app:
+        patterns: ["*"]
+        update-types: ["minor", "patch"]
+
   - package-ecosystem: "cargo"
     directory: "/desktop/tauri/src-tauri"
     schedule:

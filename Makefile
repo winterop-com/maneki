@@ -1,4 +1,4 @@
-.PHONY: help install lint check test coverage docs docs-serve docs-build build build-python dist-collect desktop-build-frontend desktop-sync-frontend desktop-sync-version desktop-tauri desktop-tauri-dev desktop-tauri-build _wipe-tauri-userdata desktop-electron desktop-electron-dev desktop-electron-build _wipe-electron-userdata ui-static-sync clean
+.PHONY: help install lint check test app app-dev app-fmt app-gate coverage docs docs-serve docs-build build build-python dist-collect desktop-build-frontend desktop-sync-frontend desktop-sync-version desktop-tauri desktop-tauri-dev desktop-tauri-build _wipe-tauri-userdata desktop-electron desktop-electron-dev desktop-electron-build _wipe-electron-userdata ui-static-sync clean
 
 UV := $(shell command -v uv 2> /dev/null)
 
@@ -23,6 +23,9 @@ help:
 	@echo "  coverage     Run pytest with coverage"
 	@echo "  docs-serve   Serve documentation locally with live reload"
 	@echo "  docs-build   Build static documentation site to ./site"
+	@echo "  app          Build the new client (desktop/app)"
+	@echo "  app-dev      Serve the new client with hot reload"
+	@echo "  app-gate     Format, lint, typecheck and test the new client"
 	@echo "  docs         Alias for docs-serve"
 	@echo "  build        Build release versions of everything; collect into ./dist"
 	@echo "  build-python Build Python wheel + sdist via uv build (-> ./dist)"
@@ -122,6 +125,22 @@ build-python: ui-static-sync
 desktop-build-frontend:
 	@echo ">>> Building the React SPA with Vite -> desktop/react/dist/"
 	@cd desktop/react && (test -d node_modules || bun install --frozen-lockfile) && bun run build
+
+app:
+	@echo ">>> Building the new client -> desktop/app/dist/"
+	@cd desktop/app && (test -d node_modules || bun install --frozen-lockfile) && bun run build
+
+app-dev:
+	@echo ">>> Serving the new client with hot reload"
+	@cd desktop/app && (test -d node_modules || bun install) && bun run dev
+
+app-fmt:
+	@cd desktop/app && bun run fmt
+
+app-gate:
+	@echo ">>> Checking the new client (format, lint, types, tests)"
+	@cd desktop/app && (test -d node_modules || bun install --frozen-lockfile) \
+		&& bun run fmt:check && bun run lint && bun run typecheck && bun run test
 
 ui-static-sync: desktop-build-frontend
 	@$(UV) run python scripts/copy_ui_static.py

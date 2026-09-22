@@ -68,8 +68,13 @@ desktop/electron/bun.lock
 # node_modules + the built dist/ are not.
 desktop/react/node_modules/
 desktop/react/dist/
+desktop/app/node_modules/
+desktop/app/dist/
 
 # Generated bundle so `maneki ui` can serve the SPA from an installed
 # wheel. `scripts/copy_ui_static.py` mirrors `desktop/react/` into
 # here; the canonical source lives in `desktop/react/`.
 src/maneki/_ui_static/
+
+# Playwright MCP writes screenshots and snapshots here while driving the app.
+.playwright-mcp/
