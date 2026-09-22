@@ -280,3 +280,17 @@ def test_dated_folder_year() -> None:
     assert dated_folder_year("Album (2012) [FLAC]") is None
     assert dated_folder_year("Plain Folder") is None
     assert dated_folder_year(None) is None
+
+
+def test_folder_names_a_rip_actually_uses() -> None:
+    """Real folder names from a chart rip: a date, the codec, the group, a star."""
+    assert clean_folder_album_name("Chart (09-January-2025) Mp3 320kbps [PMEDIA] ⭐️") == (
+        "Chart (09-January-2025)",
+        "2025",
+    )
+    # A month written out is still the date that names the edition.
+    assert clean_folder_album_name("Chart (3 Feb 2024)") == ("Chart (3 Feb 2024)", "2024")
+    # Decoration after the group tag must not keep the tag alive.
+    assert clean_folder_album_name("VA - Top 100 (2022) Mp3 320kbps [PMEDIA] ⭐️") == ("Top 100", "2022")
+    # A plain year in brackets still goes, as before.
+    assert clean_folder_album_name("Album (2012) [FLAC] ⭐") == ("Album", "2012")

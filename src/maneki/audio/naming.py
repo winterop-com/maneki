@@ -159,7 +159,17 @@ _LEADING_FOLDER_YEAR_RE = re.compile(r"^\s*((?:19|20)\d{2})[\s.\-_]")
 # A release date written into the folder name (`(06.03.2026)`). The year alone
 # would leave `(06.03.` behind, and a weekly chart is told apart by its date, so
 # the whole group is kept and the year read out of it.
-_FOLDER_DATE_RE = re.compile(r"[\(\[]\s*\d{1,2}[.\-/]\d{1,2}[.\-/]((?:19|20)\d{2})\s*[\)\]]")
+_MONTHS = "jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec"
+_FOLDER_DATE_RE = re.compile(
+    r"[\(\[]\s*\d{1,2}[.\-/]\d{1,2}[.\-/]((?:19|20)\d{2})\s*[\)\]]"
+    # The same date written with the month's name: `(09-January-2025)`.
+    rf"|[\(\[]\s*\d{{1,2}}[\s.\-/](?:{_MONTHS})[a-z]*[\s.\-/]((?:19|20)\d{{2}})\s*[\)\]]",
+    re.IGNORECASE,
+)
+# Decoration a rip leaves at the end of a folder name: a star, a bullet, stray
+# punctuation. Stripped before and after the release group, so `[PMEDIA] ⭐️`
+# is seen for what it is.
+_TRAILING_DECOR_RE = re.compile(r"[^\w)\]]+$", re.UNICODE)
 # Codec and bit-rate words loose in a folder name, outside any bracket:
 # `... Mp3 (320kbps)`. Kept narrow: `web` and `cd` are words albums use.
 _BARE_QUALITY_RE = re.compile(r"\b(?:mp3|flac|aac|alac|ape|cbr|vbr|\d{2,4}\s*kbps)\b", re.IGNORECASE)
@@ -209,7 +219,7 @@ def clean_folder_album_name(name: str) -> tuple[str, str | None]:
     # A full date names the edition (a weekly chart), so it survives whole and
     # answers for the year.
     date_match = _FOLDER_DATE_RE.search(cleaned)
-    year = date_match.group(1) if date_match else None
+    year = next((g for g in date_match.groups() if g), None) if date_match else None
     if date_match is None:
         year_match = _FOLDER_YEAR_RE.search(cleaned)
         year = year_match.group(1) if year_match else None
@@ -217,7 +227,8 @@ def clean_folder_album_name(name: str) -> tuple[str, str | None]:
             cleaned = cleaned.replace(year_match.group(0), " ")
     cleaned = _FOLDER_TAG_RE.sub(" ", cleaned)
     cleaned = _BARE_QUALITY_RE.sub(" ", cleaned)
-    cleaned = _strip_release_group(cleaned)
+    cleaned = _strip_release_group(_TRAILING_DECOR_RE.sub("", cleaned.strip()))
+    cleaned = _TRAILING_DECOR_RE.sub("", cleaned.strip())
     cleaned = _VA_PREFIX_RE.sub("", cleaned)
     cleaned = re.sub(r"\s+", " ", cleaned)
     cleaned = re.sub(r"\(\s*\)|\[\s*\]", " ", cleaned)
