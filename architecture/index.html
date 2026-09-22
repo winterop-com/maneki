@@ -1749,9 +1749,9 @@ without re-reading every tag. Affected album dirs go through <code>rescan_albums
 which deletes the old album row (cascade-drops tracks + warnings) and inserts
 a fresh one. Whole-album deletions are detected when the DB has a row for a
 dir that no longer exists on disk.</p>
-<p>The <code>serve</code> watcher (<code>serve/watcher.py</code>) drives the same <code>rescan_albums</code>
-through <code>IndexCache.rescan_paths(paths)</code> whenever filesystem events fire
-during the debounce window.</p>
+<p>The <code>serve</code> watcher (<code>serve/watcher.py</code>) runs the same <code>validate()</code> pass in
+a background thread once filesystem events settle, so only the albums that
+changed go through <code>rescan_albums</code>.</p>
 <p>Schema bumps don't run migrations — <code>db.py</code> defines a <code>SCHEMA_VERSION</code>
 constant; mismatched DBs are unlinked and rebuilt from scratch. The
 filesystem is the source of truth so destructive rebuilds are always safe.</p>
@@ -1773,13 +1773,13 @@ filesystem is the source of truth so destructive rebuilds are always safe.</p>
 <a id="__codelineno-3-14" name="__codelineno-3-14" href="#__codelineno-3-14"></a>|      - LibraryIndex                             |
 <a id="__codelineno-3-15" name="__codelineno-3-15" href="#__codelineno-3-15"></a>|      - albums_by_id / tracks_by_id /            |
 <a id="__codelineno-3-16" name="__codelineno-3-16" href="#__codelineno-3-16"></a>|        artists_by_id (Subsonic-ID lookups)      |
-<a id="__codelineno-3-17" name="__codelineno-3-17" href="#__codelineno-3-17"></a>|      - rebuild() / rescan_paths()               |
+<a id="__codelineno-3-17" name="__codelineno-3-17" href="#__codelineno-3-17"></a>|      - rebuild() / start_background_rescan()    |
 <a id="__codelineno-3-18" name="__codelineno-3-18" href="#__codelineno-3-18"></a>|                                                 |
-<a id="__codelineno-3-19" name="__codelineno-3-19" href="#__codelineno-3-19"></a>|    app.state.watcher = LibraryWatcher(cache)    |
-<a id="__codelineno-3-20" name="__codelineno-3-20" href="#__codelineno-3-20"></a>|      - watchdog Observer                        |
-<a id="__codelineno-3-21" name="__codelineno-3-21" href="#__codelineno-3-21"></a>|      - debounce timer (5s)                      |
-<a id="__codelineno-3-22" name="__codelineno-3-22" href="#__codelineno-3-22"></a>|      - dispatches changed paths to              |
-<a id="__codelineno-3-23" name="__codelineno-3-23" href="#__codelineno-3-23"></a>|        cache.rescan_paths(...)                  |
+<a id="__codelineno-3-19" name="__codelineno-3-19" href="#__codelineno-3-19"></a>|    LibraryWatcher(cache), started and stopped   |
+<a id="__codelineno-3-20" name="__codelineno-3-20" href="#__codelineno-3-20"></a>|    by the combined app's lifespan               |
+<a id="__codelineno-3-21" name="__codelineno-3-21" href="#__codelineno-3-21"></a>|      - watchdog Observer                        |
+<a id="__codelineno-3-22" name="__codelineno-3-22" href="#__codelineno-3-22"></a>|      - debounce timer (5s)                      |
+<a id="__codelineno-3-23" name="__codelineno-3-23" href="#__codelineno-3-23"></a>|      - then a background delta validate         |
 <a id="__codelineno-3-24" name="__codelineno-3-24" href="#__codelineno-3-24"></a>|                                                 |
 <a id="__codelineno-3-25" name="__codelineno-3-25" href="#__codelineno-3-25"></a>|    mDNS service (Zeroconf) advertises           |
 <a id="__codelineno-3-26" name="__codelineno-3-26" href="#__codelineno-3-26"></a>|    `_subsonic._tcp.local` so clients on the     |
@@ -1841,22 +1841,30 @@ state object outside the lock and assign it via one rebind — but the
 current pattern is simpler and the inconsistency window is too short to
 ever observe in real Subsonic-client traffic.</p>
 <h2 id="the-watcher-srcmanekiaudioservewatcherpy">The watcher (<code>src/maneki/audio/serve/watcher.py</code>)<a class="headerlink" href="#the-watcher-srcmanekiaudioservewatcherpy" title="Permanent link">&para;</a></h2>
-<p><code>watchdog</code> <code>Observer</code> watches the library root recursively. The handler
-filters by extension (audio files only — skip <code>.DS_Store</code>, <code>cover.jpg</code>)
-and pushes paths into a set during a debounce window (default 5 s). When
-no new event has arrived for the debounce period, the whole batch goes
-to <code>cache.rescan_paths(paths)</code>, which:</p>
+<p><code>maneki serve</code> starts the watcher from the combined app's lifespan
+(<code>serve_app.py</code>) whenever the root holds audio, and stops it at shutdown.
+A <code>watchdog</code> <code>Observer</code> watches the library root recursively. The handler
+keeps only events that can change the music index:</p>
+<ul>
+<li>audio-extension files, but not dot-files such as AppleDouble
+  <code>._track.flac</code> sidecars, and not <code>.DS_Store</code> or <code>cover.jpg</code>;</li>
+<li>directory creates, deletes and moves;</li>
+<li>nothing under the server cache or the top-level <code>inbox/</code> and
+  <code>Audiobooks/</code> folders. A move out of <code>inbox/</code> into the library still
+  counts, because its destination is in the library.</li>
+</ul>
+<p>Each event resets a debounce timer (default 5 s). Once no event has arrived
+for that long, the watcher calls <code>cache.start_background_rescan(force=False)</code>,
+which runs the same <code>validate()</code> delta pass as a warm start:</p>
 <ol>
-<li>Resolves each path to its album dir (file → parent; existing dir →
-   self; vanished → both, since we can't tell file-vs-dir from a missing
-   path).</li>
-<li>Calls <code>library.rescan_albums</code> to delete + re-insert only those albums
-   in one transaction.</li>
-<li>Refreshes the in-memory <code>LibraryIndex</code> and the reverse-lookup dicts
-   from the new rows.</li>
+<li>Stat-walks the library and diffs it against the DB rows by
+   <code>(file_mtime, file_size)</code>.</li>
+<li>Calls <code>library.rescan_albums</code> for the albums that were added, removed,
+   or changed, in one transaction.</li>
+<li>Refreshes the in-memory <code>LibraryIndex</code> and the reverse-lookup dicts.</li>
 </ol>
-<p>Dropping a brand-new album into the library directory therefore takes ~6 s
-to appear (5 s debounce + scan + rebuild dicts). A bulk copy of 100 files
+<p>A brand-new album therefore appears a few seconds after it lands (the 5 s
+debounce, the stat walk, and that album's scan). A bulk copy of 100 files
 collapses to one rescan.</p>
 <h3 id="client-triggered-rescan-via-the-subsonic-api">Client-triggered rescan via the Subsonic API<a class="headerlink" href="#client-triggered-rescan-via-the-subsonic-api" title="Permanent link">&para;</a></h3>
 <p>Subsonic clients (Symfonium / Amperfy / Feishin) usually have a "refresh

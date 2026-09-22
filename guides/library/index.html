@@ -1440,7 +1440,7 @@
 <a id="__codelineno-5-21" name="__codelineno-5-21" href="#__codelineno-5-21"></a>  ...
 </code></pre></div>
 <h2 id="filesystem-layout">Filesystem layout<a class="headerlink" href="#filesystem-layout" title="Permanent link">&para;</a></h2>
-<p>There is no subdirectory convention. <code>maneki list</code> walks the root recursively and picks files up by extension.</p>
+<p>There is no subdirectory convention. <code>maneki list</code> walks the root recursively and picks files up by extension. The one exception is two top-level folders that hold no library content and are skipped: <code>inbox/</code> (raw rips awaiting <code>maneki audio convert</code>) and <code>Audiobooks/</code> (the audiobook section). Both names match in any case, and only directly under the root.</p>
 <ul>
 <li><strong>Audio</strong> — <code>.mp3</code>, <code>.m4a</code>, <code>.m4b</code>, <code>.flac</code>, <code>.wav</code>, <code>.aiff</code>, <code>.aif</code>, <code>.ogg</code>, <code>.opus</code>, <code>.aac</code>, <code>.wma</code>, <code>.ape</code>. (<code>.mp4</code> is intentionally not in the audio set — it would collide with movie files. Use <code>.m4a</code> for audio-in-mp4-container.)</li>
 <li><strong>Video</strong> — <code>.mkv</code>, <code>.mp4</code>, <code>.m4v</code>, <code>.webm</code>, <code>.mov</code>, <code>.avi</code>, <code>.ts</code>, <code>.m2ts</code>, <code>.mts</code>, <code>.wmv</code>, <code>.flv</code>, <code>.mpg</code>, <code>.mpeg</code>, <code>.vob</code>, <code>.ogv</code>, <code>.ogg</code>, <code>.3gp</code>, <code>.3g2</code>, <code>.asf</code>, <code>.divx</code>.</li>

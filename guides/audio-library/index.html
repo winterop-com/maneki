@@ -1696,7 +1696,7 @@
 <li>If the DB has no <code>albums</code> rows → <code>scan_full(root, conn)</code> runs a fresh filesystem walk + audit and writes everything.</li>
 <li>Otherwise → <code>load(root, conn)</code> hydrates the Pydantic graph, then <code>validate(root, conn)</code> walks the filesystem, compares per-album <code>dir_mtime</code> and per-file <code>(file_mtime, file_size)</code> to detect deltas, and re-scans only the affected album dirs via <code>rescan_albums</code>.</li>
 </ol>
-<p>For the <code>serve</code> watcher, <code>--full-rescan</code> is what the Subsonic <code>startScan</code> endpoint triggers (per-file incremental updates land in a follow-up).</p>
+<p><code>--full-rescan</code> is what the Subsonic <code>startScan</code> endpoint triggers. The <code>serve</code> filesystem watcher does not: it runs the cheaper delta pass, which rescans only the albums that changed.</p>
 
 
 
