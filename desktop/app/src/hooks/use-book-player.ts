@@ -23,6 +23,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import { books as booksApi } from '@/lib/api'
 import { chapterAt, fileAt, positionOf } from '@/lib/book-timeline'
+import { claimSound, registerSilencer } from '@/lib/sound'
 import type { BookDetail } from '@/lib/types'
 
 const SAVE_EVERY_S = 10
@@ -60,6 +61,15 @@ export function useBookPlayer(book: BookDetail | null): BookPlayer {
         audioRef.current = new Audio()
         audioRef.current.preload = 'metadata'
     }
+
+    // Only one thing makes sound at a time: opening a book and pressing play stops the album
+    // that was running, and starting an album stops the book. The callback is held in a ref so
+    // this player can name itself when it claims the sound -- claiming without naming yourself
+    // pauses your own element a moment before you start it.
+    const silence = useRef(() => {
+        audioRef.current?.pause()
+    })
+    useEffect(() => registerSilencer(silence.current), [])
 
     const save = useCallback(
         (at: number, finished?: boolean) => {
@@ -100,7 +110,10 @@ export function useBookPlayer(book: BookDetail | null): BookPlayer {
                 )
             }
             audio.playbackRate = speed
-            if (resume) void audio.play().catch(() => setPlaying(false))
+            if (resume) {
+                claimSound(silence.current)
+                void audio.play().catch(() => setPlaying(false))
+            }
         },
         [book, speed],
     )
@@ -168,6 +181,7 @@ export function useBookPlayer(book: BookDetail | null): BookPlayer {
         const audio = audioRef.current
         if (!audio || !book) return
         if (audio.paused) {
+            claimSound(silence.current)
             if (!audio.src) place(positionRef.current, true)
             else void audio.play().catch(() => setPlaying(false))
         } else {

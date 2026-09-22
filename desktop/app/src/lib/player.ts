@@ -12,12 +12,14 @@
 
 import {
     scrobble,
+    stationNowPlaying,
     stationStreamUrl,
     streamUrl,
     type Credentials,
     type Song,
     type Station,
 } from '@/lib/subsonic'
+import { claimSound, registerSilencer } from '@/lib/sound'
 import { createStore } from '@/lib/store'
 
 export interface PlayerState {
@@ -26,6 +28,14 @@ export interface PlayerState {
     index: number
     /** The station playing, when what is playing is a station rather than a queue. */
     station: Station | null
+    /**
+     * What the station says it is playing, as its own stream announces it.
+     *
+     * Empty until it says: the server reads the ICY frames off the stream it is proxying, so
+     * there is nothing to report until this listener has been connected long enough for one
+     * to arrive.
+     */
+    stationTitle: string
     playing: boolean
     positionS: number
     durationS: number
@@ -58,6 +68,7 @@ const EMPTY: PlayerState = {
     queue: [],
     index: -1,
     station: null,
+    stationTitle: '',
     playing: false,
     positionS: 0,
     durationS: 0,
@@ -73,6 +84,40 @@ let graph: AudioContext | null = null
 let credentials: Credentials | null = null
 /** The track we last told the server about, so a repeat does not scrobble twice. */
 let announced: string | null = null
+/** The poll that follows a station's own announcements, while one is playing. */
+let icy: ReturnType<typeof setInterval> | null = null
+/** Undoes this player's registration with the sound arbiter when the element goes. */
+let unregister: (() => void) | null = null
+
+/** How often a station is asked what it is playing. Its own frames arrive about this often. */
+const ICY_POLL_MS = 10_000
+
+function stopIcy(): void {
+    if (icy !== null) clearInterval(icy)
+    icy = null
+}
+
+/**
+ * Follow what a station announces, for as long as it is the thing playing.
+ *
+ * The title is read off the stream by the server as it proxies it, so it is asked for rather
+ * than pushed, and only while somebody is listening: a poll against a station nobody is
+ * connected to answers with nothing, forever.
+ */
+function followIcy(station: Station): void {
+    stopIcy()
+    const ask = () => {
+        if (!credentials || state().station?.id !== station.id) {
+            stopIcy()
+            return
+        }
+        void stationNowPlaying(credentials, station).then((title) => {
+            if (state().station?.id === station.id) patch({ stationTitle: title })
+        })
+    }
+    ask()
+    icy = setInterval(ask, ICY_POLL_MS)
+}
 
 function state(): PlayerState {
     return playerStore.get()
@@ -92,9 +137,17 @@ export function setPlayerCredentials(next: Credentials | undefined): void {
     credentials = next ?? null
 }
 
+/** How this player is asked to stop by whatever else wants the sound. */
+function silence(): void {
+    audio?.pause()
+}
+
 function element(): HTMLAudioElement {
     if (audio) return audio
     audio = new Audio()
+    // Only one thing makes sound at a time: a book started on its own screen stops this,
+    // and starting this stops the book.
+    unregister = registerSilencer(silence)
     audio.preload = 'metadata'
     audio.volume = state().volume
     audio.muted = state().muted
@@ -133,7 +186,9 @@ function load(index: number, autoplay: boolean): void {
 /** Play `songs`, starting at `startIndex`. */
 export function play(songs: Song[], startIndex = 0): void {
     if (!songs.length) return
-    patch({ queue: songs, station: null })
+    stopIcy()
+    claimSound(silence)
+    patch({ queue: songs, station: null, stationTitle: '' })
     load(Math.min(Math.max(0, startIndex), songs.length - 1), true)
 }
 
@@ -146,16 +201,20 @@ export function play(songs: Song[], startIndex = 0): void {
 export function playStation(station: Station): void {
     if (!credentials) return
     const player = element()
+    claimSound(silence)
     player.src = stationStreamUrl(credentials, station)
-    patch({ queue: [], index: -1, station, positionS: 0, durationS: 0 })
+    patch({ queue: [], index: -1, station, stationTitle: '', positionS: 0, durationS: 0 })
     void player.play().catch(() => patch({ playing: false }))
+    followIcy(station)
 }
 
 export function toggle(): void {
     const player = element()
     if (!currentSong() && !state().station) return
-    if (player.paused) void player.play().catch(() => patch({ playing: false }))
-    else player.pause()
+    if (player.paused) {
+        claimSound(silence)
+        void player.play().catch(() => patch({ playing: false }))
+    } else player.pause()
 }
 
 export function next(): void {
@@ -236,6 +295,9 @@ export function spectrum(): AnalyserNode | null {
 
 /** Stop, forget the queue, and let the element go. Used when the session goes away. */
 export function clear(): void {
+    stopIcy()
+    unregister?.()
+    unregister = null
     audio?.pause()
     if (audio) audio.src = ''
     audio = null

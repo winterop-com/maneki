@@ -50,11 +50,12 @@ export function PlayerBar() {
             data-shell-strip="player"
             className="relative flex h-shell-foot shrink-0 items-center gap-3 border-t border-border-strong bg-sidebar px-3"
         >
-            {/* The hairline, drawn under the top border so the bar's own rule stays the rule. */}
+            {/* The hairline stands in for the scrubber where the scrubber does not fit, and
+                nowhere else: both at once is the same fact drawn twice. */}
             {!station && (
                 <div
                     aria-hidden
-                    className="pointer-events-none absolute inset-x-0 top-0 h-0.5 bg-primary transition-[width] duration-200"
+                    className="pointer-events-none absolute inset-x-0 top-0 h-0.5 bg-primary transition-[width] duration-200 md:hidden"
                     style={{ width: `${String(through * 100)}%` }}
                 />
             )}
@@ -79,8 +80,13 @@ export function PlayerBar() {
                         station?.name
                     )}
                 </p>
-                <p className="truncate text-xs text-muted-foreground" title={song?.artist}>
-                    {station ? 'Live' : song?.artist}
+                {/* A station that has announced what it is playing says that; one that has
+                    not says it is live, which is the only other true thing about it. */}
+                <p
+                    className="truncate text-xs text-muted-foreground"
+                    title={station ? player.stationTitle || 'Live' : song?.artist}
+                >
+                    {station ? player.stationTitle || 'Live' : song?.artist}
                 </p>
             </div>
 
