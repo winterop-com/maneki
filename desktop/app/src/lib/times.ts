@@ -27,7 +27,7 @@ export const TIMES_LABELS: Record<TimesMode, string> = {
 export const DEFAULT_TIMES: TimesMode = 'local'
 
 /** Where the choice is kept between visits. */
-export const TIMES_STORAGE_KEY = 'dirigent.times'
+export const TIMES_STORAGE_KEY = 'maneki.times'
 
 /** Whether a string names a setting this build has. */
 export function isTimesMode(candidate: string | null): candidate is TimesMode {

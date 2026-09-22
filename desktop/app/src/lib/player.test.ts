@@ -2,6 +2,9 @@ import { beforeEach, describe, expect, test, vi } from 'vitest'
 
 import {
     clear,
+    setVolume,
+    storedVolume,
+    toggleMuted,
     currentSong,
     next,
     play,
@@ -144,5 +147,74 @@ describe('next', () => {
         play(songs, 0)
         next()
         expect(currentSong()?.title).toBe('Two')
+    })
+})
+
+/** Storage, in memory: the test runner has none, and every read here goes through it. */
+function fakeStorage(): Storage {
+    const held = new Map<string, string>()
+    return {
+        getItem: (key: string) => held.get(key) ?? null,
+        setItem: (key: string, value: string) => {
+            held.set(key, value)
+        },
+        removeItem: (key: string) => {
+            held.delete(key)
+        },
+        clear: () => {
+            held.clear()
+        },
+        key: () => null,
+        get length() {
+            return held.size
+        },
+    } as Storage
+}
+
+describe('the volume', () => {
+    beforeEach(() => {
+        vi.stubGlobal('localStorage', fakeStorage())
+    })
+
+    test('starts at full when nothing was stored, because Number(null) is 0 and 0 is silence', () => {
+        expect(storedVolume()).toBe(1)
+    })
+
+    test('comes back at the level this browser last set', () => {
+        setVolume(0.4)
+        expect(storedVolume()).toBeCloseTo(0.4)
+        expect(playerStore.get().volume).toBeCloseTo(0.4)
+    })
+
+    test('is held between silence and full, whatever it is handed', () => {
+        setVolume(4)
+        expect(playerStore.get().volume).toBe(1)
+        setVolume(-1)
+        expect(playerStore.get().volume).toBe(0)
+    })
+
+    test('a level nobody could have written is read as full rather than as silence', () => {
+        localStorage.setItem('maneki.volume', 'loud')
+        expect(storedVolume()).toBe(1)
+    })
+
+    test('storage that refuses to be read is full as well, not silent', () => {
+        vi.stubGlobal('localStorage', undefined)
+        expect(storedVolume()).toBe(1)
+    })
+
+    test('muting keeps the level, which is what unmuting puts back', () => {
+        setVolume(0.6)
+        toggleMuted()
+        expect(playerStore.get().muted).toBe(true)
+        expect(playerStore.get().volume).toBeCloseTo(0.6)
+        toggleMuted()
+        expect(playerStore.get().muted).toBe(false)
+    })
+
+    test('moving the slider is asking to hear it, so it unmutes', () => {
+        toggleMuted()
+        setVolume(0.8)
+        expect(playerStore.get().muted).toBe(false)
     })
 })

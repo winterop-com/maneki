@@ -10,23 +10,66 @@
  * plays that album from there, which is what a listener means by it.
  */
 
-import { scrobble, streamUrl, type Credentials, type Song } from '@/lib/subsonic'
+import {
+    scrobble,
+    stationStreamUrl,
+    streamUrl,
+    type Credentials,
+    type Song,
+    type Station,
+} from '@/lib/subsonic'
 import { createStore } from '@/lib/store'
 
 export interface PlayerState {
     queue: Song[]
     /** Where in the queue we are; -1 when nothing has been played yet. */
     index: number
+    /** The station playing, when what is playing is a station rather than a queue. */
+    station: Station | null
     playing: boolean
     positionS: number
     durationS: number
+    /** Between 0 and 1. Kept between visits, because it is a room rather than a track. */
+    volume: number
+    muted: boolean
 }
 
-const EMPTY: PlayerState = { queue: [], index: -1, playing: false, positionS: 0, durationS: 0 }
+/** Where the volume is kept between visits. */
+const VOLUME_KEY = 'maneki.volume'
+
+/**
+ * The level this browser last set, or full.
+ *
+ * The string is checked before it is a number, because `Number(null)` is 0 and a missing key
+ * would otherwise be read as "silent" -- an app that starts muted and shows no reason why.
+ */
+export function storedVolume(): number {
+    try {
+        const stored = localStorage.getItem(VOLUME_KEY)
+        if (stored === null) return 1
+        const level = Number(stored)
+        return Number.isFinite(level) && level >= 0 && level <= 1 ? level : 1
+    } catch {
+        return 1
+    }
+}
+
+const EMPTY: PlayerState = {
+    queue: [],
+    index: -1,
+    station: null,
+    playing: false,
+    positionS: 0,
+    durationS: 0,
+    volume: storedVolume(),
+    muted: false,
+}
 
 export const playerStore = createStore<PlayerState>(EMPTY)
 
 let audio: HTMLAudioElement | null = null
+let analyser: AnalyserNode | null = null
+let graph: AudioContext | null = null
 let credentials: Credentials | null = null
 /** The track we last told the server about, so a repeat does not scrobble twice. */
 let announced: string | null = null
@@ -53,6 +96,12 @@ function element(): HTMLAudioElement {
     if (audio) return audio
     audio = new Audio()
     audio.preload = 'metadata'
+    audio.volume = state().volume
+    audio.muted = state().muted
+    // The spectrum reads the audio through a WebAudio graph, and the browser
+    // only lets it read audio it is allowed to: without this, a stream from
+    // another origin is silently unreadable and the spectrum stays flat.
+    audio.crossOrigin = 'anonymous'
     audio.addEventListener('timeupdate', () => patch({ positionS: audio!.currentTime }))
     audio.addEventListener('durationchange', () => {
         patch({ durationS: Number.isFinite(audio!.duration) ? audio!.duration : 0 })
@@ -84,25 +133,41 @@ function load(index: number, autoplay: boolean): void {
 /** Play `songs`, starting at `startIndex`. */
 export function play(songs: Song[], startIndex = 0): void {
     if (!songs.length) return
-    patch({ queue: songs })
+    patch({ queue: songs, station: null })
     load(Math.min(Math.max(0, startIndex), songs.length - 1), true)
+}
+
+/**
+ * Play a station.
+ *
+ * A station is not a queue of one: it has no length, no end, and nothing to
+ * skip to, so it replaces whatever was playing and the transport says so.
+ */
+export function playStation(station: Station): void {
+    if (!credentials) return
+    const player = element()
+    player.src = stationStreamUrl(credentials, station)
+    patch({ queue: [], index: -1, station, positionS: 0, durationS: 0 })
+    void player.play().catch(() => patch({ playing: false }))
 }
 
 export function toggle(): void {
     const player = element()
-    if (!currentSong()) return
+    if (!currentSong() && !state().station) return
     if (player.paused) void player.play().catch(() => patch({ playing: false }))
     else player.pause()
 }
 
 export function next(): void {
-    const { index, queue } = state()
+    const { index, queue, station } = state()
+    if (station) return // a station has nothing to skip to
     if (index + 1 < queue.length) load(index + 1, true)
     else patch({ playing: false })
 }
 
 export function previous(): void {
-    const { index } = state()
+    const { index, station } = state()
+    if (station) return
     // Past the first few seconds, "previous" means "start this one again",
     // which is what every player does and what a listener expects.
     if (state().positionS > 3) {
@@ -113,10 +178,60 @@ export function previous(): void {
     else seek(0)
 }
 
+/** How loud, between 0 and 1. Setting it unmutes: moving the slider is asking to hear it. */
+export function setVolume(volume: number): void {
+    const held = Math.min(1, Math.max(0, volume))
+    if (audio) {
+        audio.volume = held
+        audio.muted = false
+    }
+    try {
+        localStorage.setItem(VOLUME_KEY, String(held))
+    } catch {
+        // Storage denied: the level holds for as long as this document is open.
+    }
+    patch({ volume: held, muted: false })
+}
+
+/** Silence without forgetting the level, which is what unmuting puts back. */
+export function toggleMuted(): void {
+    const muted = !state().muted
+    if (audio) audio.muted = muted
+    patch({ muted })
+}
+
 export function seek(positionS: number): void {
     const player = element()
     player.currentTime = Math.max(0, positionS)
     patch({ positionS: player.currentTime })
+}
+
+/**
+ * The spectrum's tap into what is playing, built on first use.
+ *
+ * A browser will not start an audio graph before someone has asked for sound,
+ * so this is built when playback starts rather than at load, and resumed each
+ * time in case the browser suspended it.
+ */
+export function spectrum(): AnalyserNode | null {
+    if (!audio) return null
+    if (analyser) {
+        if (graph?.state === 'suspended') void graph.resume()
+        return analyser
+    }
+    try {
+        graph = new AudioContext()
+        const source = graph.createMediaElementSource(audio)
+        analyser = graph.createAnalyser()
+        analyser.fftSize = 256
+        analyser.smoothingTimeConstant = 0.8
+        source.connect(analyser)
+        analyser.connect(graph.destination)
+    } catch {
+        // No graph means no spectrum; the audio still plays.
+        analyser = null
+    }
+    return analyser
 }
 
 /** Stop, forget the queue, and let the element go. Used when the session goes away. */
@@ -124,6 +239,9 @@ export function clear(): void {
     audio?.pause()
     if (audio) audio.src = ''
     audio = null
+    analyser = null
+    void graph?.close()
+    graph = null
     announced = null
-    playerStore.set(EMPTY)
+    playerStore.set({ ...EMPTY, volume: state().volume, muted: state().muted })
 }
