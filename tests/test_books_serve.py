@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import contextlib
+import io
 import time
 from collections.abc import Generator
 from pathlib import Path
@@ -152,6 +153,32 @@ def test_list_detail_stream_and_cover(tmp_path: Path) -> None:
         cover = client.get(f"/books/api/books/{summary['id']}/cover")
         assert cover.status_code == 200
         assert cover.headers["content-type"] == "image/jpeg"
+
+
+def test_a_cover_is_scaled_to_what_will_be_drawn(tmp_path: Path) -> None:
+    """A shelf draws two hundred covers at once.
+
+    Regression: the endpoint only ever served the full-resolution image, so a
+    shelf of 195 books pulled tens of megabytes and made the browser decode
+    195 full-size JPEGs -- felt as a window that stops answering the pointer.
+    """
+    _book(tmp_path)
+    with _served(tmp_path) as client:
+        [summary] = client.get("/books/api/books").json()
+        whole = client.get(f"/books/api/books/{summary['id']}/cover")
+        card = client.get(f"/books/api/books/{summary['id']}/cover", params={"size": 64})
+        assert card.status_code == 200
+        assert card.headers["content-type"] in ("image/jpeg", "image/png")
+        assert len(card.content) < len(whole.content)
+
+        from PIL import Image
+
+        with Image.open(io.BytesIO(card.content)) as image:
+            assert max(image.size) <= 64
+
+        # The second ask is the cache, and answers the same bytes.
+        again = client.get(f"/books/api/books/{summary['id']}/cover", params={"size": 64})
+        assert again.content == card.content
 
 
 def test_unknown_books_and_files_are_404(tmp_path: Path) -> None:

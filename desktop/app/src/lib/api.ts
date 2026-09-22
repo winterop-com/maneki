@@ -108,7 +108,16 @@ export const books = {
     clearProgress: (id: string): Promise<void> => send(`/books/api/books/${id}/progress`, 'DELETE'),
     /** Whether the server is still reading the books folder, and how many it has so far. */
     scanStatus: (): Promise<{ scanning: boolean; books: number }> => request('/books/api/scan'),
-    coverUrl: (id: string): string => url(`/books/api/books/${id}/cover`),
+    /**
+     * The book's cover, at the size it will be drawn.
+     *
+     * A shelf draws two hundred of these at once. At full resolution that is tens of megabytes
+     * over the wire and two hundred full-size JPEG decodes, which is felt as a window that
+     * stops answering the pointer -- so a card asks for a card-sized image and only the book's
+     * own screen asks for a large one.
+     */
+    coverUrl: (id: string, size?: number): string =>
+        url(`/books/api/books/${id}/cover${size === undefined ? '' : `?size=${String(size)}`}`),
     /** The stream URL of one file. `file.url` is relative to the books mount. */
     fileUrl: (path: string): string => url(`/books/${path}`),
 }

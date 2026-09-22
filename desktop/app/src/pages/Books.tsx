@@ -65,7 +65,7 @@ function Shelf() {
                         onClick={() => navigate(`/books/${book.id}`)}
                         className="row-hover w-full rounded-lg p-2 text-left"
                     >
-                        <Cover book={book} className="mb-2 w-full rounded-md" />
+                        <Cover book={book} size={CARD_COVER} className="mb-2 w-full rounded-md" />
                         <p className="truncate text-sm font-medium" title={book.title}>
                             {book.title}
                         </p>
@@ -117,7 +117,7 @@ function Book({ id }: { id: string }) {
                 >
                     <ChevronLeft className="size-4" aria-hidden />
                 </Button>
-                <Cover book={book} className="size-28 shrink-0 rounded-md sm:size-40" />
+                <Cover book={book} size={BOOK_COVER} className="size-28 shrink-0 rounded-md sm:size-40" />
                 <div className="min-w-0 flex-1">
                     <h1 className="truncate text-base">{book.title}</h1>
                     <p className="truncate text-sm text-muted-foreground">{book.author}</p>
@@ -245,15 +245,22 @@ function Meter({ ratio }: { ratio: number }) {
     )
 }
 
-function Cover({ book, className }: { book: BookSummary; className?: string }) {
+/** What a shelf card draws, and what a book's own screen draws. */
+const CARD_COVER = 320
+const BOOK_COVER = 640
+
+function Cover({ book, size, className }: { book: BookSummary; size: number; className?: string }) {
     if (!book.has_cover) {
         return <div className={cn('aspect-square bg-muted', className)} aria-hidden />
     }
     return (
         <img
-            src={booksApi.coverUrl(book.id)}
+            src={booksApi.coverUrl(book.id, size)}
             alt=""
             loading="lazy"
+            decoding="async"
+            width={size}
+            height={size}
             className={cn('aspect-square object-cover', className)}
         />
     )

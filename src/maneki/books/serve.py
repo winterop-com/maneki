@@ -9,10 +9,12 @@ from __future__ import annotations
 
 import mimetypes
 
-from fastapi import FastAPI, HTTPException, Request, Response
+from fastapi import FastAPI, HTTPException, Query, Request, Response
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 
+from maneki.audio.serve.cover_cache import CoverCache
+from maneki.audio.serve.covers import resize
 from maneki.audio.serve.users import UserRegistry
 from maneki.books.library import COVER_NAME, BooksIndex, LibraryBook
 from maneki.books.models import Chapter, ChapterSource
@@ -78,6 +80,10 @@ def create_books_app(index: BooksIndex, *, users: UserRegistry | None = None) ->
     """The books sub-app, reading from `index`. `users` scopes listening positions per account."""
     app = FastAPI(title="maneki books", docs_url=None, redoc_url=None, openapi_url=None)
     app.state.books_index = index
+    # Scaled covers, kept so a shelf of two hundred books is two hundred
+    # resizes once rather than on every visit.
+    _covers = CoverCache()
+    app.state.cover_cache = _covers
 
     def _book(book_id: str) -> LibraryBook:
         book = index.get(book_id)
@@ -142,21 +148,44 @@ def create_books_app(index: BooksIndex, *, users: UserRegistry | None = None) ->
         return FileResponse(path, media_type=media_type or "application/octet-stream")
 
     @app.get("/api/books/{book_id}/cover", response_model=None)
-    def cover(book_id: str) -> FileResponse | Response:
-        """The book's `cover.jpg`, else the picture embedded in its first file."""
+    def cover(book_id: str, size: int | None = Query(default=None, ge=1, le=2000)) -> FileResponse | Response:
+        """The book's `cover.jpg`, else the picture embedded in its first file.
+
+        `?size=N` fits the image inside an N-pixel box, cached per book and
+        size. A shelf draws two hundred of these at once: at full resolution
+        that is tens of megabytes to send and two hundred full-size JPEG
+        decodes for the browser, which is felt as a window that stops
+        answering the pointer. A card is 200px wide and asks for what it draws.
+        """
         book = _book(book_id)
+        cached = _covers.get((book_id, size))
+        if cached is not None:
+            return Response(content=cached[0], media_type=cached[1])
+
         folder_cover = index.file_path(f"{book.rel_path}/{COVER_NAME}")
         if folder_cover.is_file():
-            return FileResponse(folder_cover, media_type="image/jpeg")
-        from maneki.audio.metadata import read_source
+            if size is None:
+                return FileResponse(folder_cover, media_type="image/jpeg")
+            raw, mime = folder_cover.read_bytes(), "image/jpeg"
+        else:
+            from maneki.audio.metadata import read_source
+
+            try:
+                source = read_source(index.file_path(book.files[0].rel_path))
+            except Exception as exc:  # noqa: BLE001 - an unreadable tag is simply no cover
+                raise HTTPException(status_code=404, detail="no cover") from exc
+            if not source.embedded_picture:
+                raise HTTPException(status_code=404, detail="no cover")
+            raw, mime = source.embedded_picture, source.embedded_picture_mime or "image/jpeg"
+            if size is None:
+                return Response(raw, media_type=mime)
 
         try:
-            source = read_source(index.file_path(book.files[0].rel_path))
-        except Exception as exc:  # noqa: BLE001 - an unreadable tag is simply no cover
-            raise HTTPException(status_code=404, detail="no cover") from exc
-        if not source.embedded_picture:
-            raise HTTPException(status_code=404, detail="no cover")
-        return Response(source.embedded_picture, media_type=source.embedded_picture_mime or "image/jpeg")
+            data, mime = resize(raw, max_size=size)
+        except Exception:  # noqa: BLE001 - Pillow refused; the original is still a cover
+            return Response(raw, media_type=mime)
+        _covers.put((book_id, size), data, mime)
+        return Response(content=data, media_type=mime)
 
     @app.get("/api/progress")
     def list_progress(request: Request) -> list[BookProgress]:
