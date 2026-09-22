@@ -831,6 +831,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#serving" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Serving
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#all-flags" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1431,6 +1442,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#serving" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Serving
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#all-flags" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1543,6 +1565,39 @@
 </table>
 <p>These follow the conventions Audiobookshelf reads. A one-file book is named after its title (<code>Thinking, Fast and Slow.mp3</code>); the parts of a multi-file book are <code>NN - &lt;part&gt;.mp3</code>, without the rip's own numbering. mutagen cannot write new chapters into an m4b, so catalog chapters for one are reported and left out.</p>
 <p>The cover is the catalog's full-size art, else an image in the book's folder (<code>cover</code>, <code>folder</code> and <code>front</code> first), else one embedded in the audio, resized to <code>--cover-max-edge</code>.</p>
+<h2 id="serving">Serving<a class="headerlink" href="#serving" title="Permanent link">&para;</a></h2>
+<p><code>maneki serve &lt;root&gt;</code> mounts the books API when <code>&lt;root&gt;</code> has an <code>Audiobooks/</code> folder. It reads everything back from the files the import wrote: tags, chapters, lengths, <code>cover.jpg</code>.</p>
+<table>
+<thead>
+<tr>
+<th>Endpoint</th>
+<th>What it returns</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>GET /books/api/books</code></td>
+<td>Every book, by author then title: title, author, narrator, year, series, length, chapter count.</td>
+</tr>
+<tr>
+<td><code>GET /books/api/books/{id}</code></td>
+<td>One book with its description, its chapters on the book's timeline, and its files in order, each with its offset and a stream URL.</td>
+</tr>
+<tr>
+<td><code>GET /books/api/books/{id}/files/{n}</code></td>
+<td>The <code>n</code>th file as stored, with HTTP Range support, so a player can seek anywhere without the server decoding it.</td>
+</tr>
+<tr>
+<td><code>GET /books/api/books/{id}/cover</code></td>
+<td><code>cover.jpg</code>, else the picture embedded in the first file.</td>
+</tr>
+<tr>
+<td><code>GET</code> / <code>POST /books/api/scan</code></td>
+<td>Rescan status / start a rescan. Only books whose files changed are re-read.</td>
+</tr>
+</tbody>
+</table>
+<p>A book's id comes from its folder's path, so it stays the same across restarts and rescans until the folder moves. Under <code>--auth</code> the endpoints need the same bearer token as <code>/video/*</code>.</p>
 <h2 id="all-flags">All flags<a class="headerlink" href="#all-flags" title="Permanent link">&para;</a></h2>
 <table>
 <thead>

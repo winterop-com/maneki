@@ -1484,7 +1484,7 @@
 
 
 <h1 id="maneki-serve">maneki serve<a class="headerlink" href="#maneki-serve" title="Permanent link">&para;</a></h1>
-<p><code>maneki serve &lt;root&gt;</code> is the only serve command. It scans <code>&lt;root&gt;</code> recursively and auto-mounts whichever kinds have content: the Subsonic API at <code>/audio/rest/*</code> when audio is present, the Maneki-native video API at <code>/video/api/*</code> when video is present, the web SPA at <code>/</code> with <code>--ui</code>.</p>
+<p><code>maneki serve &lt;root&gt;</code> is the only serve command. It scans <code>&lt;root&gt;</code> recursively and auto-mounts whichever kinds have content: the Subsonic API at <code>/audio/rest/*</code> when audio is present, the Maneki-native video API at <code>/video/api/*</code> when video is present, the audiobook API at <code>/books/api/*</code> when <code>&lt;root&gt;</code> has an <code>Audiobooks/</code> folder, the web SPA at <code>/</code> with <code>--ui</code>.</p>
 <p>There is no <code>&lt;root&gt;/audio/</code> or <code>&lt;root&gt;/videos/</code> subdirectory convention. You can have everything flat under one root, or nested in any layout — the audio scanner picks up dirs containing audio files (treating the dir-above as the artist) and the video scanner picks up matching files at any depth. The SPA's AUDIO/VIDEO rail self-hides when only one kind is mounted.</p>
 <h2 id="quick-start">Quick start<a class="headerlink" href="#quick-start" title="Permanent link">&para;</a></h2>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>maneki<span class="w"> </span>serve<span class="w"> </span>~/Downloads/library
@@ -1508,11 +1508,13 @@
 <a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a><span class="c1">#   "video": true,</span>
 <a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a><span class="c1">#   "youtube": true,</span>
 <a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a><span class="c1">#   "radio": true,</span>
-<a id="__codelineno-1-9" name="__codelineno-1-9" href="#__codelineno-1-9"></a><span class="c1">#   "endpoints": {</span>
-<a id="__codelineno-1-10" name="__codelineno-1-10" href="#__codelineno-1-10"></a><span class="c1">#     "audio_subsonic": "/audio/rest",</span>
-<a id="__codelineno-1-11" name="__codelineno-1-11" href="#__codelineno-1-11"></a><span class="c1">#     "video_api": "/video/api"</span>
-<a id="__codelineno-1-12" name="__codelineno-1-12" href="#__codelineno-1-12"></a><span class="c1">#   }</span>
-<a id="__codelineno-1-13" name="__codelineno-1-13" href="#__codelineno-1-13"></a><span class="c1"># }</span>
+<a id="__codelineno-1-9" name="__codelineno-1-9" href="#__codelineno-1-9"></a><span class="c1">#   "books": true,</span>
+<a id="__codelineno-1-10" name="__codelineno-1-10" href="#__codelineno-1-10"></a><span class="c1">#   "endpoints": {</span>
+<a id="__codelineno-1-11" name="__codelineno-1-11" href="#__codelineno-1-11"></a><span class="c1">#     "audio_subsonic": "/audio/rest",</span>
+<a id="__codelineno-1-12" name="__codelineno-1-12" href="#__codelineno-1-12"></a><span class="c1">#     "video_api": "/video/api",</span>
+<a id="__codelineno-1-13" name="__codelineno-1-13" href="#__codelineno-1-13"></a><span class="c1">#     "books_api": "/books/api"</span>
+<a id="__codelineno-1-14" name="__codelineno-1-14" href="#__codelineno-1-14"></a><span class="c1">#   }</span>
+<a id="__codelineno-1-15" name="__codelineno-1-15" href="#__codelineno-1-15"></a><span class="c1"># }</span>
 </code></pre></div>
 <h2 id="url-layout">URL layout<a class="headerlink" href="#url-layout" title="Permanent link">&para;</a></h2>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>host:port/capabilities          server identity + which kinds are mounted (public)
@@ -1520,7 +1522,8 @@
 <a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>host:port/auth/me               GET /me with Bearer header -&gt; who you are
 <a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a>host:port/audio/rest/*          Subsonic API (its own auth grammar; unaffected by --auth)
 <a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a>host:port/video/api/*           Maneki-native video JSON API
-<a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a>host:port/video/                throwaway demo HTML page (retired when SPA lands)
+<a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a>host:port/books/api/*           Maneki-native audiobook JSON API (when &lt;root&gt;/Audiobooks/ exists)
+<a id="__codelineno-2-7" name="__codelineno-2-7" href="#__codelineno-2-7"></a>host:port/video/                throwaway demo HTML page (retired when SPA lands)
 </code></pre></div>
 <p>External clients:</p>
 <ul>
@@ -1556,7 +1559,8 @@
 </tr>
 </tbody>
 </table>
-<p>Two top-level folders are never part of either library, whatever they hold: <code>inbox/</code>, where raw rips wait for <code>maneki audio convert</code>, and <code>Audiobooks/</code>, reserved for the audiobook section. The names match in any case, and only directly under <code>&lt;root&gt;</code>, so an album folder called <code>Music/Inbox/</code> is still music. The file watchers ignore both folders too, so copying a batch into <code>inbox/</code> triggers no rescan.</p>
+<p>Two top-level folders are never part of either library, whatever they hold: <code>inbox/</code>, where raw rips wait for <code>maneki audio convert</code> and <code>maneki books import</code>, and <code>Audiobooks/</code>, the audiobook section. The names match in any case, and only directly under <code>&lt;root&gt;</code>, so an album folder called <code>Music/Inbox/</code> is still music. The music and video watchers ignore both folders too, so copying a batch into <code>inbox/</code> triggers no rescan.</p>
+<p>When <code>Audiobooks/</code> exists, <code>/capabilities</code> reports <code>books: true</code> and the books API is mounted at <code>/books/api/*</code>. The books index fills from a background scan after startup (warm starts reuse the rows in <code>.maneki/index.db</code>), and a watcher on <code>Audiobooks/</code> picks up newly imported books a few seconds after they land. See <a href="../books/#serving"><code>maneki books import</code></a>.</p>
 <p>Both mounts are always present, because each also hosts a remote source that needs nothing on disk: internet radio (<code>getInternetRadioStations</code>, the ICY proxy) on <code>/audio/rest/*</code>, YouTube on <code>/video/api/*</code>. What the scan decides is the <em>content</em> of the local half, reported by the <code>audio</code> / <code>video</code> flags — so a client can tell "nothing to browse here" from "this mount does not exist". The local library scan itself is still gated on finding files of that kind, so a radio-only root pays no walk and gets no <code>.maneki/index.db</code> written into it.</p>
 <p>There is no kind-toggle flag: to serve only audio, point at an audio-only root; to serve only video, point at a video-only root; to run Maneki as a pure radio player, point it at an empty directory. The single-library design is the whole point.</p>
 <h2 id="options">Options<a class="headerlink" href="#options" title="Permanent link">&para;</a></h2>
@@ -1572,7 +1576,7 @@
 <p>The defaults bind to localhost on port 8765. To expose on the LAN or Tailscale, pass <code>--host 0.0.0.0</code>.</p>
 <h2 id="auth">Auth<a class="headerlink" href="#auth" title="Permanent link">&para;</a></h2>
 <p><strong>The audio (Subsonic) mount</strong> keeps its own auth grammar (salt + token query params per the Subsonic spec). Credentials resolve from <code>~/.config/maneki/maneki.toml</code> <code>[server]</code> section, falling back to <code>admin</code>/<code>admin</code> with a yellow warning at startup. This is unchanged by <code>--auth</code>.</p>
-<p><strong>The Maneki-native endpoints</strong> (<code>/video/*</code> today, more later) optionally require a bearer token. Auth is off by default so the demo page keeps working. Enable with <code>--auth</code>:</p>
+<p><strong>The Maneki-native endpoints</strong> (<code>/video/*</code> and <code>/books/*</code>) optionally require a bearer token. Auth is off by default so the demo page keeps working. Enable with <code>--auth</code>:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>maneki<span class="w"> </span>serve<span class="w"> </span>~/Downloads/library<span class="w"> </span>--auth
 </code></pre></div>
 <p>When auth is on:</p>
