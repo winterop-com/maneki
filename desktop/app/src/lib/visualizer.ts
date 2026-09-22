@@ -52,6 +52,27 @@ export function toggleVisualizer(): void {
 }
 
 /**
+ * Whether the spectrum is over the whole screen.
+ *
+ * NOT KEPT BETWEEN VISITS, unlike whether the strip is drawn. The stage is something somebody
+ * puts on for as long as they are looking at it, and an app that opened behind a full-screen
+ * canvas because of what happened yesterday is an app somebody has to escape before using.
+ */
+export const stageOpen = createStore(false)
+
+export function openStage(): void {
+    stageOpen.set(true)
+}
+
+export function closeStage(): void {
+    stageOpen.set(false)
+}
+
+export function toggleStage(): void {
+    stageOpen.update((open) => !open)
+}
+
+/**
  * One frame, as heights between 0 and 1.
  *
  * Each band averages the bins it covers rather than taking their peak: a peak makes every band

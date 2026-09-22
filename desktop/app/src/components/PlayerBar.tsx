@@ -10,9 +10,11 @@ import { currentSong, next, playerStore, previous, seek, setVolume, toggle, togg
 import { panelOpen, panelTabs, togglePanel } from '@/lib/panels'
 import { sessionStore } from '@/lib/session'
 import { coverUrl } from '@/lib/subsonic'
+import { openStage } from '@/lib/visualizer'
 import { cn } from '@/lib/utils'
 
 export const QUEUE_LABEL = 'Up next'
+export const STAGE_LABEL = 'Put the spectrum over the whole screen'
 
 /**
  * What is playing, along the foot of every screen.
@@ -130,7 +132,15 @@ export function PlayerBar() {
                 </span>
             </div>
 
-            <Visualizer className="hidden h-7 w-28 shrink-0 text-primary/70 lg:block" />
+            {/* The strip is the way to the stage with a pointer, as the F key is without one. */}
+            <button
+                type="button"
+                aria-label={STAGE_LABEL}
+                onClick={openStage}
+                className="hidden shrink-0 rounded-sm focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none lg:block"
+            >
+                <Visualizer className="h-7 w-28 text-primary/70" />
+            </button>
 
             <div className="hidden shrink-0 items-center gap-1 md:flex">
                 <Button

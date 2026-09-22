@@ -5,6 +5,7 @@ import {
     isTypingField,
     opensPalette,
     opensShortcuts,
+    opensStage,
     shortcuts,
     togglesPanel,
     togglesPlayback,
@@ -118,8 +119,16 @@ describe('the transport keys', () => {
         expect(togglesVisualizer(press('v', { ctrlKey: true }), null)).toBe(false)
     })
 
+    test('f puts the spectrum over the whole screen, bare and outside a box', () => {
+        expect(opensStage(press('f'), null)).toBe(true)
+        expect(opensStage(press('F'), null)).toBe(true)
+        expect(opensStage(press('f'), TEXT_BOX)).toBe(false)
+        // Cmd+F is the browser's find, and taking it would be taking that away.
+        expect(opensStage(press('f', { metaKey: true }), null)).toBe(false)
+    })
+
     test('none of them is claimed by anything else this app binds', () => {
-        for (const key of [' ', 'n', 'p', 'v']) {
+        for (const key of [' ', 'n', 'p', 'v', 'f']) {
             expect(opensPalette(press(key))).toBe(false)
             expect(togglesRail(press(key), null, true)).toBe(false)
             expect(opensShortcuts(press(key), null)).toBe(false)

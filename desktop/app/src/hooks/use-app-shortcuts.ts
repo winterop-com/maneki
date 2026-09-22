@@ -7,6 +7,7 @@ import {
     applePlatform,
     opensPalette,
     opensShortcuts,
+    opensStage,
     steps,
     togglesPanel,
     togglesPlayback,
@@ -14,7 +15,7 @@ import {
     togglesVisualizer,
     type FocusedField,
 } from '@/lib/shortcuts'
-import { toggleVisualizer } from '@/lib/visualizer'
+import { toggleStage, toggleVisualizer } from '@/lib/visualizer'
 
 /**
  * The one place a real `KeyboardEvent` is read.
@@ -77,6 +78,11 @@ export function useAppShortcuts(onShortcuts: () => void): void {
             if (togglesVisualizer(press, focused())) {
                 event.preventDefault()
                 toggleVisualizer()
+                return
+            }
+            if (opensStage(press, focused())) {
+                event.preventDefault()
+                toggleStage()
                 return
             }
             if (opensShortcuts(press, focused())) {

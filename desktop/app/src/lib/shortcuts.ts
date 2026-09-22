@@ -37,6 +37,9 @@ export const PREVIOUS_KEY = 'p'
 /** The letter that shows and hides the spectrum, pressed bare. */
 export const VISUALIZER_KEY = 'v'
 
+/** The letter that puts the spectrum over the whole screen, pressed bare. */
+export const STAGE_KEY = 'f'
+
 /**
  * The tags a bare press activates rather than reaches this app.
  *
@@ -152,6 +155,18 @@ export function steps(press: KeyPress, focused: FocusedField | null): 'next' | '
 }
 
 /**
+ * Whether this press puts the spectrum over the whole screen.
+ *
+ * `f` for full screen, bare, beside the other listening letters. It is not the browser's own
+ * full screen and does not ask for it: this is the app's own stage, and Escape leaves it.
+ */
+export function opensStage(press: KeyPress, focused: FocusedField | null): boolean {
+    if (press.key.toLowerCase() !== STAGE_KEY) return false
+    if (press.ctrlKey || press.metaKey || press.altKey) return false
+    return !isTypingField(focused)
+}
+
+/**
  * Whether this press shows or hides the spectrum.
  *
  * A bare letter, the way the transport keys are: the visualizer is something somebody turns on
@@ -193,6 +208,7 @@ export function shortcuts(apple: boolean): Shortcut[] {
         { id: 'next', action: 'Move to the next track', keys: ['N'] },
         { id: 'previous', action: 'Move to the previous track', keys: ['P'] },
         { id: 'visualizer', action: 'Show or hide the spectrum', keys: ['V'] },
+        { id: 'stage', action: 'Put the spectrum over the whole screen', keys: ['F'] },
         { id: 'shortcuts', action: 'Open this list', keys: [SHORTCUTS_KEY] },
         { id: 'dismiss', action: 'Close a dialog, a menu, or the palette', keys: ['Esc'] },
         { id: 'choose', action: 'Open the row that has focus', keys: ['Enter'] },

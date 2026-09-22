@@ -9,6 +9,7 @@ import {
     PanelLeft,
     PanelRight,
     Play,
+    Maximize2,
     Search,
     Settings,
     SkipBack,
@@ -20,6 +21,7 @@ import { useNavigate } from 'react-router'
 import { useTheme } from 'next-themes'
 
 import { CommandPalette } from '@/components/CommandPalette'
+import { FullscreenVisualizer } from '@/components/FullscreenVisualizer'
 import { NavDrawer, OPEN_NAV_LABEL } from '@/components/NavDrawer'
 import { PanelSheet } from '@/components/PanelSheet'
 import { PlayerBar, QUEUE_LABEL } from '@/components/PlayerBar'
@@ -48,7 +50,7 @@ import { fillPanel, railCollapsed, togglePanel, toggleRail } from '@/lib/panels'
 import { next, playerStore, previous, toggle } from '@/lib/player'
 import { sessionStore, signOut } from '@/lib/session'
 import { applePlatform, modifierLabel } from '@/lib/shortcuts'
-import { toggleVisualizer, visualizerShown } from '@/lib/visualizer'
+import { openStage, toggleVisualizer, visualizerShown } from '@/lib/visualizer'
 
 export const SIGN_OUT_LABEL = 'Sign out'
 export const TOGGLE_PANEL_LABEL = 'Show or hide the side panel'
@@ -205,6 +207,14 @@ export function AppShell({ children }: { children: ReactNode }) {
                 run: toggleVisualizer,
             },
             {
+                id: 'view:stage',
+                title: 'Put the spectrum over the whole screen',
+                group: VIEW_GROUP,
+                icon: Maximize2,
+                keywords: ['fullscreen', 'full screen', 'stage', 'visualiser', 'visualizer'],
+                run: openStage,
+            },
+            {
                 id: 'view:settings',
                 title: 'Open settings',
                 group: VIEW_GROUP,
@@ -347,6 +357,8 @@ export function AppShell({ children }: { children: ReactNode }) {
             <StatusBar onSettings={openSettings} />
 
             <NavDrawer open={drawerOpen} onClose={closeDrawer} onSettings={openSettings} />
+
+            <FullscreenVisualizer />
 
             <CommandPalette />
             <ShortcutsDialog open={shortcutsOpen} onOpenChange={setShortcutsOpen} />
