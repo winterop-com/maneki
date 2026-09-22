@@ -142,7 +142,9 @@ app-gate:
 	@cd desktop/app && (test -d node_modules || bun install --frozen-lockfile) \
 		&& bun run fmt:check && bun run lint && bun run typecheck && bun run test
 
-ui-static-sync: desktop-build-frontend
+# Both clients go into the wheel: the current one is served at "/", the one it
+# replaces stays at "/classic" for the video screens it still owns.
+ui-static-sync: app desktop-build-frontend
 	@$(UV) run python scripts/copy_ui_static.py
 
 # Copy desktop artifacts into ./dist alongside the Python wheel + sdist

@@ -622,43 +622,56 @@ class _SPAStaticFiles(StaticFiles):
 
 
 def _mount_ui(combined: FastAPI, ui_dir: Path | None) -> None:
-    """Mount the React SPA (desktop/react/) at the application root.
+    """Mount the built clients: the current one at "/", the one it replaces at "/classic".
 
     Must be the LAST mount registered - StaticFiles at "/" catches every
     path not already claimed by a higher-priority route (/capabilities,
     /auth/*, /audio/*, /video/*), so those must be in place before this
     runs. `html=True` serves index.html for "/" and the matching file
-    for asset paths like "/src/app.jsx".
+    for asset paths.
 
-    Looks for desktop/react/ relative to this file's repo location, or
-    accepts an explicit ui_dir override. Raises at startup so a missing
-    tree is surfaced immediately rather than as a 404 wall later.
+    TWO CLIENTS, BECAUSE ONE OF THEM CAN STILL DO SOMETHING THE OTHER CANNOT.
+    The current client has the library, the radio and the books; the one it
+    replaces still has the video and YouTube screens. Serving both costs one
+    mount and means the newer client can land before it has grown everything,
+    without anybody losing a screen they were using.
     """
-    chosen = ui_dir if ui_dir is not None else _discover_react_dir()
+    chosen = ui_dir if ui_dir is not None else _discover_ui_dir()
     if chosen is None or not (chosen / "index.html").is_file():
         raise RuntimeError(
-            "--ui requested but no built SPA found. The SPA is a Vite build now — "
-            "build it first: `make desktop-build-frontend` (or "
-            "`cd desktop/react && bun install && bun run build`), which produces "
-            "desktop/react/dist/. (Installed wheels bundle it automatically.)"
+            "--ui requested but no built client found. Build it first: `make app` "
+            "(or `cd desktop/app && bun install && bun run build`), which produces "
+            "desktop/app/dist/. (Installed wheels bundle it automatically.)"
         )
+    classic = _discover_classic_dir()
+    if classic is not None:
+        combined.mount("/classic", _SPAStaticFiles(directory=classic, html=True), name="spa-classic")
     combined.mount("/", _SPAStaticFiles(directory=chosen, html=True), name="spa")
 
 
-def _discover_react_dir() -> Path | None:
-    """Locate the built SPA, preferring the wheel-bundled copy.
+def _discover_ui_dir() -> Path | None:
+    """Locate the built client, preferring the wheel-bundled copy.
 
     Two layouts must work:
 
-    - Installed wheel: `scripts/copy_ui_static.py` copies the Vite build
-      into `maneki/_ui_static/` at build time, so it sits right next to
-      this module. This is the only copy that exists in a PyPI/uv install.
+    - Installed wheel: `scripts/copy_ui_static.py` copies the build into
+      `maneki/_ui_static/` at build time, so it sits right next to this
+      module. This is the only copy that exists in a PyPI/uv install.
     - Dev checkout: `_ui_static` is gitignored and may be stale or absent,
-      so fall back to `desktop/react/dist/` relative to the repo root.
+      so fall back to `desktop/app/dist/` relative to the repo root.
     """
-    bundled = Path(__file__).resolve().parent / "_ui_static"
+    return _bundled_or_built("_ui_static", ("desktop", "app", "dist"))
+
+
+def _discover_classic_dir() -> Path | None:
+    """The client this one replaces, which still carries the video screens."""
+    return _bundled_or_built("_ui_static_classic", ("desktop", "react", "dist"))
+
+
+def _bundled_or_built(bundled_name: str, built: tuple[str, ...]) -> Path | None:
+    """The wheel's copy of one client, else the repo's own build of it, else nothing."""
+    bundled = Path(__file__).resolve().parent / bundled_name
     if (bundled / "index.html").is_file():
         return bundled
-    repo_root = Path(__file__).resolve().parents[2]
-    candidate = repo_root / "desktop" / "react" / "dist"
-    return candidate if candidate.exists() else None
+    candidate = Path(__file__).resolve().parents[2].joinpath(*built)
+    return candidate if (candidate / "index.html").is_file() else None

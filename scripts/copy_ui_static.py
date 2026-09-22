@@ -1,17 +1,20 @@
-"""Copy `desktop/react/` → `src/maneki/audio/_ui_static/` so the wheel bundles it.
+"""Copy the built clients into `src/maneki/` so the wheel bundles them.
 
-`maneki ui` discovers the SPA static files via
-`importlib.resources.files("maneki") / "_ui_static"`. The same React
-client also runs inside the Tauri and Electron wrappers, which load
-`desktop/react/index.html` directly from disk — so this script is only
-necessary for the PyPI distribution case.
+TWO CLIENTS SHIP, AND BOTH ARE REACHABLE. `desktop/app/` is the current
+client -- the one on the shared template, with music, radio, audiobooks and
+the command palette -- and it is what `/` serves. `desktop/react/` is the
+client it replaces, which still carries the video and YouTube screens the new
+one has not grown yet, and it stays served at `/classic` until it has.
 
-Wired into `make build` so every wheel ships with the SPA bundled. The
-destination is gitignored — it's a regenerated build artifact, not a
-hand-edited source tree.
+`maneki serve --ui` discovers them next to `maneki/`, which is the only copy
+that exists in a PyPI/uv install; a dev checkout falls back to the `dist/`
+trees in the repo.
 
-Idempotent; safe to run multiple times. Wipes the destination first so
-a removed source file doesn't linger in the bundle.
+Wired into `make build` so every wheel ships both. The destinations are
+gitignored -- regenerated build artifacts, not hand-edited source trees.
+
+Idempotent; safe to run repeatedly. Each destination is wiped first so a
+removed source file does not linger in the bundle.
 """
 
 from __future__ import annotations
@@ -21,20 +24,31 @@ import sys
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-SOURCE = REPO_ROOT / "desktop" / "react" / "dist"
-DEST = REPO_ROOT / "src" / "maneki" / "_ui_static"
+
+#: Each (source, destination) the wheel carries. The first is what `/` serves.
+BUNDLES: list[tuple[Path, Path]] = [
+    (REPO_ROOT / "desktop" / "app" / "dist", REPO_ROOT / "src" / "maneki" / "_ui_static"),
+    (REPO_ROOT / "desktop" / "react" / "dist", REPO_ROOT / "src" / "maneki" / "_ui_static_classic"),
+]
+
+
+def copy(source: Path, dest: Path, *, required: bool) -> None:
+    """Replace `dest` with `source`, or say why it could not be."""
+    if not (source / "index.html").is_file():
+        if required:
+            sys.exit(f"copy_ui_static: no built client at {source} (run `make app` first)")
+        print(f">>> No build at {source.relative_to(REPO_ROOT)}; skipping")
+        return
+    if dest.exists():
+        shutil.rmtree(dest)
+    shutil.copytree(source, dest)
+    print(f">>> Bundled {source.relative_to(REPO_ROOT)} -> {dest.relative_to(REPO_ROOT)}")
 
 
 def main() -> None:
-    """Run the copy; exit non-zero with a clear message on failure."""
-    if not SOURCE.is_dir():
-        sys.exit(f"copy_ui_static: source not found: {SOURCE}")
-    if not (SOURCE / "index.html").exists():
-        sys.exit(f"copy_ui_static: source is missing index.html: {SOURCE}")
-    if DEST.exists():
-        shutil.rmtree(DEST)
-    shutil.copytree(SOURCE, DEST)
-    print(f">>> Bundled UI static files {SOURCE.relative_to(REPO_ROOT)} -> {DEST.relative_to(REPO_ROOT)}")
+    """Run the copies; exit non-zero with a clear message when the main client is missing."""
+    for index, (source, dest) in enumerate(BUNDLES):
+        copy(source, dest, required=index == 0)
 
 
 if __name__ == "__main__":
