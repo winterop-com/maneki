@@ -29,9 +29,7 @@ STUB_ENDPOINTS: list[tuple[str, str | None]] = [
     ("/deletePodcastChannel", None),
     ("/deletePodcastEpisode", None),
     ("/downloadPodcastEpisode", None),
-    ("/getBookmarks", "bookmarks"),
-    ("/createBookmark", None),
-    ("/deleteBookmark", None),
+    # Bookmarks are no longer stubs — see test_serve_bookmarks.py.
     ("/getPlayQueue", None),
     ("/savePlayQueue", None),
     ("/getShares", "shares"),

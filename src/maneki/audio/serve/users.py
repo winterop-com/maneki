@@ -22,6 +22,7 @@ from typing import TYPE_CHECKING
 
 from pydantic import BaseModel, ConfigDict
 
+from maneki.audio.serve.bookmarks import BookmarkStore
 from maneki.audio.serve.config import ServeConfig
 from maneki.audio.serve.history import HistoryStore
 from maneki.audio.serve.playlists import PlaylistStore
@@ -77,6 +78,7 @@ class UserRegistry:
         # video module (and yt-dlp) at import time.
         self._subscriptions: dict[str, SubscriptionStore] = {}
         self._progress: dict[str, ProgressStore] = {}
+        self._bookmarks: dict[str, BookmarkStore] = {}
 
     @classmethod
     def from_settings(cls, root: Path) -> UserRegistry:
@@ -132,6 +134,15 @@ class UserRegistry:
             if store is None:
                 store = HistoryStore(self.user_dir(name) / "history.db")
                 self._history[name] = store
+            return store
+
+    def bookmarks_for(self, name: str) -> BookmarkStore:
+        """The account's Subsonic `BookmarkStore`, built once and cached."""
+        with self._lock:
+            store = self._bookmarks.get(name)
+            if store is None:
+                store = BookmarkStore(self.user_dir(name) / "bookmarks.db")
+                self._bookmarks[name] = store
             return store
 
     def progress_for(self, name: str) -> ProgressStore:

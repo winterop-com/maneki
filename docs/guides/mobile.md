@@ -122,6 +122,14 @@ Free, open source, works on phone + Android Auto.
   small embeds, the upscale is what the app sees. Embed at 1000×1000
   via [convert](convert.md) for crisp art.
 
+## Resuming a long track
+
+`createBookmark`, `getBookmarks` and `deleteBookmark` are implemented, so a client that saves a position on pause (Symfonium, Amperfy and play:Sub all do) offers to resume a long recording where you stopped. Bookmarks are per account, at `<root>/.maneki/users/<name>/bookmarks.db`, and a bookmark whose track has since left the library is dropped from the list rather than shown as a blank row.
+
+Cross-device queue sync (`savePlayQueue` / `getPlayQueue`) is still a no-op.
+
+Audiobooks have their own position, kept per book rather than per track; see [`maneki books import`](books.md#resuming).
+
 ## What Maneki doesn't do (yet)
 
 - **No native iOS / Android app of its own.** The Subsonic ecosystem

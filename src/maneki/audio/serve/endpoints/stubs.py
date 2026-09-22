@@ -2,7 +2,7 @@
 
 Every Subsonic client (Symfonium, Amperfy, Feishin, play:Sub, DSub) probes
 a long tail of endpoints whether the user uses the feature or not — most
-notably podcasts, bookmarks, play-queue sync, shares, and similar-track
+notably podcasts, play-queue sync, shares, and similar-track
 discovery. With no handler the endpoint 404s, the client logs the error,
 some clients retry persistently, and a few even refuse to load other
 parts of the UI until "their" endpoint stops failing.
@@ -79,32 +79,6 @@ async def delete_podcast_episode() -> dict:
 @router.api_route("/downloadPodcastEpisode.view", methods=["GET", "POST", "HEAD"], include_in_schema=False)
 async def download_podcast_episode() -> dict:
     """No-op — we don't fetch podcast media."""
-    return envelope()
-
-
-# ---------------------------------------------------------------------------
-# Bookmarks (mid-track resume position)
-# ---------------------------------------------------------------------------
-
-
-@router.api_route("/getBookmarks", methods=["GET", "POST", "HEAD"])
-@router.api_route("/getBookmarks.view", methods=["GET", "POST", "HEAD"], include_in_schema=False)
-async def get_bookmarks() -> dict:
-    """Empty bookmark list."""
-    return envelope("bookmarks", {"bookmark": []})
-
-
-@router.api_route("/createBookmark", methods=["GET", "POST", "HEAD"])
-@router.api_route("/createBookmark.view", methods=["GET", "POST", "HEAD"], include_in_schema=False)
-async def create_bookmark() -> dict:
-    """Accept-and-discard — bookmarks aren't persisted server-side."""
-    return envelope()
-
-
-@router.api_route("/deleteBookmark", methods=["GET", "POST", "HEAD"])
-@router.api_route("/deleteBookmark.view", methods=["GET", "POST", "HEAD"], include_in_schema=False)
-async def delete_bookmark() -> dict:
-    """No-op — bookmarks aren't persisted server-side."""
     return envelope()
 
 

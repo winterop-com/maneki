@@ -234,6 +234,7 @@ def create_app(
         request.state.stars = app.state.users.stars_for(account.name)
         request.state.playlists = app.state.users.playlists_for(account.name)
         request.state.history = app.state.users.history_for(account.name)
+        request.state.bookmarks = app.state.users.bookmarks_for(account.name)
 
     app.state.require_auth = require_auth
 
@@ -243,6 +244,7 @@ def create_app(
 
     # Mount endpoint groups. Imports happen lazily to keep the module graph
     # shallow and to avoid pulling FastAPI into pure-data modules.
+    from maneki.audio.serve.endpoints.bookmarks import router as bookmarks_router
     from maneki.audio.serve.endpoints.browsing import router as browsing_router
     from maneki.audio.serve.endpoints.extras import router as extras_router
     from maneki.audio.serve.endpoints.lyrics import router as lyrics_router
@@ -268,6 +270,7 @@ def create_app(
     app.include_router(playlists_router, prefix="/rest", dependencies=auth_dep, tags=["playlists"])
     app.include_router(lyrics_router, prefix="/rest", dependencies=auth_dep, tags=["lyrics"])
     app.include_router(radio_router, prefix="/rest", dependencies=auth_dep, tags=["radio"])
+    app.include_router(bookmarks_router, prefix="/rest", dependencies=auth_dep, tags=["bookmarks"])
     app.include_router(stubs_router, prefix="/rest", dependencies=auth_dep, tags=["stubs"])
 
     # Root probe — JSON only. Browsers visiting `/` get the same
