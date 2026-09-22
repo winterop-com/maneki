@@ -69,15 +69,15 @@ def get_client() -> httpx.Client:
     )
 
 
-def is_online(timeout: float = 0.5) -> bool:
-    """Return True when MusicBrainz is reachable (TCP-level check, no HTTP).
+def is_online(timeout: float = 0.5, *, host: str = "musicbrainz.org") -> bool:
+    """Return True when `host` (MusicBrainz by default) is reachable (TCP-level check, no HTTP).
 
     Short timeout (500 ms) — a real handshake completes in well under 100 ms;
     blocking longer just adds latency to offline runs. On flaky networks where
     the probe is unreliable, pass `--enrich` to bypass it entirely.
     """
     try:
-        with socket.create_connection(("musicbrainz.org", 443), timeout=timeout):
+        with socket.create_connection((host, 443), timeout=timeout):
             return True
     except OSError:
         return False

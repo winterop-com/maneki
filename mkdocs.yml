@@ -41,6 +41,8 @@ nav:
       - audio inspect: guides/inspect.md
       - audio ui: guides/ui.md
       - audio playlist: guides/playlist.md
+  - Audiobooks:
+      - books import: guides/books.md
   - Video:
       - Video pipeline: guides/video.md
   - Clients:

@@ -14,6 +14,7 @@ import typer
 
 from maneki import __version__
 from maneki.audio.cli import app as audio_app
+from maneki.books.cli import app as books_app
 from maneki.cli.config_cmd import config_app
 from maneki.cli.doctor import doctor_cmd
 from maneki.cli.ui import ui_cmd
@@ -39,6 +40,7 @@ _APP_HELP = (
 
   [cyan]maneki config[/]   Inspect / scaffold settings (`config init`, `show`, `path`)
   [cyan]maneki audio[/]    Music: convert, audit, retag, playlist tools
+  [cyan]maneki books[/]    Audiobooks: import rips with chapters, tags and a cover
 
 Pass [cyan]--help[/] after the group for its commands.
 
@@ -335,3 +337,4 @@ app.add_typer(
     name="audio",
     help="Music library: convert / audit / retag, stream via Subsonic server.",
 )
+app.add_typer(books_app, name="books")
