@@ -1587,8 +1587,8 @@
 <li><strong>Python 3.13</strong>, <code>from __future__ import annotations</code> everywhere, explicit type annotations.</li>
 <li><strong>Line length 120</strong>. ruff-formatted.</li>
 <li><strong>Docstrings</strong>: one-line module docstring at the top of every file. One-line docstring on every public class / function / method. Triple quotes always.</li>
-<li><strong>Pydantic for data classes</strong> — <code>BaseModel</code> (or <code>dataclass(frozen=True)</code> for immutables that don't need pydantic features).</li>
-<li><strong>Async/await</strong> where the framework demands it (FastAPI endpoints, Textual lifecycle hooks, pyatv); synchronous everywhere else.</li>
+<li><strong>Pydantic for data classes</strong> — <code>BaseModel</code> always, never <code>@dataclass</code>. For an immutable, <code>model_config = ConfigDict(frozen=True)</code>.</li>
+<li><strong>Async/await</strong> where the framework demands it (FastAPI endpoints, the video scan and watcher); synchronous everywhere else.</li>
 <li><strong>No emojis</strong> in code, comments, commit messages, PR titles, docs. Plain text only — <code>[x]</code> not <code>✓</code>, <code>WARNING:</code> not warning glyph. Codified in <code>CLAUDE.md</code>.</li>
 </ul>
 <p>Ruff config (in <code>pyproject.toml</code>): <code>E/W/F/I/D</code>, google docstrings, <code>py313</code>, <code>line-length 120</code>.</p>
