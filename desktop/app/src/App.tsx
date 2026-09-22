@@ -7,6 +7,7 @@ import { connect, sessionStore } from '@/lib/session'
 import { setPlayerCredentials } from '@/lib/player'
 import { BooksPage } from '@/pages/Books'
 import { MusicPage } from '@/pages/Music'
+import { RadioPage } from '@/pages/Radio'
 import { SignIn } from '@/pages/SignIn'
 import { Soon } from '@/pages/Soon'
 
@@ -33,6 +34,8 @@ export default function App() {
                 <Route path="/music" element={<MusicPage />} />
                 <Route path="/music/artist/:artistId" element={<MusicPage />} />
                 <Route path="/music/album/:albumId" element={<MusicPage />} />
+                <Route path="/music/starred" element={<MusicPage view="starred" />} />
+                <Route path="/radio" element={<RadioPage />} />
                 <Route path="/video/*" element={<Soon section="Video" />} />
                 <Route
                     path="*"

@@ -1,4 +1,4 @@
-import { ChevronLeft, Play } from 'lucide-react'
+import { ChevronLeft, Play, Star } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router'
 
@@ -7,11 +7,15 @@ import { useStore } from '@/hooks/use-store'
 import { clock } from '@/lib/format'
 import { play } from '@/lib/player'
 import { sessionStore } from '@/lib/session'
+import { Input } from '@/components/ui/input'
 import {
     coverUrl,
     getAlbum,
     getArtist,
     getArtists,
+    getStarred,
+    search as searchLibrary,
+    setStarred,
     type Album,
     type Artist,
     type Credentials,
@@ -19,20 +23,110 @@ import {
 } from '@/lib/subsonic'
 import { cn } from '@/lib/utils'
 
-export function MusicPage() {
+/** How much has to be typed before the server is asked, and how long to wait after typing. */
+const SEARCH_MIN = 2
+const SEARCH_DEBOUNCE_MS = 250
+
+export function MusicPage({ view }: { view?: 'starred' } = {}) {
     const { artistId, albumId } = useParams()
     const session = useStore(sessionStore)
     if (!session.music) return <Notice>This server has no music library.</Notice>
+    if (view === 'starred') return <Favourites credentials={session.music} />
     if (albumId) return <AlbumScreen credentials={session.music} id={albumId} />
     if (artistId) return <ArtistScreen credentials={session.music} id={artistId} />
     return <Artists credentials={session.music} />
 }
 
+/** Everything this account starred, across artists, albums and tracks. */
+function Favourites({ credentials }: { credentials: Credentials }) {
+    const [starred, setStarredList] = useState<Awaited<ReturnType<typeof getStarred>> | null>(null)
+    const [refusal, setRefusal] = useState<string | null>(null)
+    const navigate = useNavigate()
+
+    useEffect(() => {
+        getStarred(credentials)
+            .then(setStarredList)
+            .catch((error: Error) => setRefusal(error.message))
+    }, [credentials])
+
+    if (refusal) return <Notice>{refusal}</Notice>
+    if (!starred) return <Notice>Reading your favourites.</Notice>
+    const empty = !starred.albums.length && !starred.songs.length && !starred.artists.length
+    if (empty) return <Notice>Nothing starred yet.</Notice>
+
+    return (
+        <div className="p-4">
+            <h1 className="mb-4 text-base">Favourites</h1>
+            {starred.albums.length > 0 && (
+                <ul className="mb-6 grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+                    {starred.albums.map((album) => (
+                        <li key={album.id}>
+                            <button
+                                type="button"
+                                onClick={() => navigate(`/music/album/${album.id}`)}
+                                className="row-hover w-full rounded-lg p-2 text-left"
+                            >
+                                <Cover
+                                    credentials={credentials}
+                                    art={album.coverArt}
+                                    className="mb-2 w-full rounded-md"
+                                />
+                                <p className="truncate text-sm font-medium">{album.name}</p>
+                                <p className="truncate text-xs text-muted-foreground">{album.artist}</p>
+                            </button>
+                        </li>
+                    ))}
+                </ul>
+            )}
+            {starred.songs.length > 0 && (
+                <ol className="rounded-lg border">
+                    {starred.songs.map((song, index) => (
+                        <li key={song.id}>
+                            <button
+                                type="button"
+                                onClick={() => play(starred.songs, index)}
+                                className="row-hover flex min-h-finger w-full items-center gap-3 px-3 text-left text-sm"
+                            >
+                                <span className="min-w-0 flex-1 truncate">{song.title}</span>
+                                <span className="shrink-0 truncate text-xs text-muted-foreground">
+                                    {song.artist}
+                                </span>
+                                <span className="shrink-0 font-mono text-xs text-muted-foreground">
+                                    {clock(song.duration ?? 0)}
+                                </span>
+                            </button>
+                        </li>
+                    ))}
+                </ol>
+            )}
+        </div>
+    )
+}
+
 /** Everyone in the library, by name. */
 function Artists({ credentials }: { credentials: Credentials }) {
     const [artists, setArtists] = useState<Artist[] | null>(null)
+    const [query, setQuery] = useState('')
+    const [found, setFound] = useState<Awaited<ReturnType<typeof searchLibrary>> | null>(null)
     const [refusal, setRefusal] = useState<string | null>(null)
     const navigate = useNavigate()
+
+    /**
+     * The typed name filters the artists straight away, and the server is
+     * asked as well: it searches albums and tracks, which the names on this
+     * screen cannot answer for. A pause before asking keeps a burst of
+     * keystrokes down to one search.
+     */
+    useEffect(() => {
+        const text = query.trim()
+        if (text.length < SEARCH_MIN) return
+        const timer = setTimeout(() => {
+            searchLibrary(credentials, text)
+                .then(setFound)
+                .catch(() => setFound(null))
+        }, SEARCH_DEBOUNCE_MS)
+        return () => clearTimeout(timer)
+    }, [credentials, query])
 
     useEffect(() => {
         getArtists(credentials)
@@ -44,23 +138,73 @@ function Artists({ credentials }: { credentials: Credentials }) {
     if (!artists) return <Notice>Reading the library.</Notice>
     if (!artists.length) return <Notice>No artists.</Notice>
 
+    const typed = query.trim()
+    const shown = typed
+        ? artists.filter((artist) => artist.name.toLowerCase().includes(typed.toLowerCase()))
+        : artists
+    // What the server last found belongs to the last search worth making; a
+    // query shorter than that is not one, so the results are simply not shown.
+    const results = typed.length >= SEARCH_MIN ? found : null
+
     return (
-        <ul className="p-2">
-            {artists.map((artist) => (
-                <li key={artist.id}>
-                    <button
-                        type="button"
-                        onClick={() => navigate(`/music/artist/${artist.id}`)}
-                        className="row-hover flex min-h-finger w-full items-center gap-3 rounded-md px-3 text-left text-sm"
-                    >
-                        <span className="min-w-0 flex-1 truncate">{artist.name}</span>
-                        <span className="shrink-0 text-xs text-muted-foreground">
-                            {artist.albumCount ?? 0} {artist.albumCount === 1 ? 'album' : 'albums'}
-                        </span>
-                    </button>
-                </li>
-            ))}
-        </ul>
+        <div className="p-2">
+            <Input
+                value={query}
+                onChange={(event) => setQuery(event.target.value)}
+                aria-label="Search the library"
+                placeholder="Search"
+                className="mb-2"
+            />
+            {results && (
+                <div className="mb-4 rounded-lg border p-2">
+                    <p className="mb-1 px-1 text-xs text-muted-foreground">
+                        {results.albums.length} albums, {results.songs.length} tracks
+                    </p>
+                    {results.albums.slice(0, 8).map((album) => (
+                        <button
+                            key={album.id}
+                            type="button"
+                            onClick={() => navigate(`/music/album/${album.id}`)}
+                            className="row-hover flex min-h-finger w-full items-center gap-3 rounded-md px-3 text-left text-sm"
+                        >
+                            <span className="min-w-0 flex-1 truncate">{album.name}</span>
+                            <span className="shrink-0 truncate text-xs text-muted-foreground">
+                                {album.artist}
+                            </span>
+                        </button>
+                    ))}
+                    {results.songs.slice(0, 8).map((song, index) => (
+                        <button
+                            key={song.id}
+                            type="button"
+                            onClick={() => play(results.songs, index)}
+                            className="row-hover flex min-h-finger w-full items-center gap-3 rounded-md px-3 text-left text-sm"
+                        >
+                            <span className="min-w-0 flex-1 truncate">{song.title}</span>
+                            <span className="shrink-0 truncate text-xs text-muted-foreground">
+                                {song.artist}
+                            </span>
+                        </button>
+                    ))}
+                </div>
+            )}
+            <ul>
+                {shown.map((artist) => (
+                    <li key={artist.id}>
+                        <button
+                            type="button"
+                            onClick={() => navigate(`/music/artist/${artist.id}`)}
+                            className="row-hover flex min-h-finger w-full items-center gap-3 rounded-md px-3 text-left text-sm"
+                        >
+                            <span className="min-w-0 flex-1 truncate">{artist.name}</span>
+                            <span className="shrink-0 text-xs text-muted-foreground">
+                                {artist.albumCount ?? 0} {artist.albumCount === 1 ? 'album' : 'albums'}
+                            </span>
+                        </button>
+                    </li>
+                ))}
+            </ul>
+        </div>
     )
 }
 
@@ -147,7 +291,7 @@ function AlbumScreen({ credentials, id }: { credentials: Credentials; id: string
                 />
                 <ol className="min-w-0 flex-1 rounded-lg border">
                     {songs.map((song, index) => (
-                        <li key={song.id}>
+                        <li key={song.id} className="flex items-center">
                             <button
                                 type="button"
                                 onClick={() => play(songs, index)}
@@ -165,11 +309,32 @@ function AlbumScreen({ credentials, id }: { credentials: Credentials; id: string
                                     {clock(song.duration ?? 0)}
                                 </span>
                             </button>
+                            <StarButton credentials={credentials} song={song} />
                         </li>
                     ))}
                 </ol>
             </div>
         </div>
+    )
+}
+
+/** The star on a track. Its own state, because the server answers with nothing to redraw from. */
+function StarButton({ credentials, song }: { credentials: Credentials; song: Song }) {
+    const [starred, setStarredState] = useState(Boolean(song.starred))
+    return (
+        <Button
+            variant="ghost"
+            size="sm"
+            aria-label={starred ? `Unstar ${song.title}` : `Star ${song.title}`}
+            aria-pressed={starred}
+            onClick={() => {
+                const next = !starred
+                setStarredState(next)
+                void setStarred(credentials, song.id, next).catch(() => setStarredState(!next))
+            }}
+        >
+            <Star className={cn('size-4', starred && 'fill-primary text-primary')} aria-hidden />
+        </Button>
     )
 }
 

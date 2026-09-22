@@ -235,6 +235,62 @@ export async function search(credentials: Credentials, query: string, size = 20)
     return { artists: found.artist ?? [], albums: found.album ?? [], songs: found.song ?? [] }
 }
 
+export interface Station {
+    id: string
+    name: string
+    streamUrl: string
+    homePageUrl?: string
+}
+
+/** The stations this server carries. */
+export async function getStations(credentials: Credentials): Promise<Station[]> {
+    const inner = await call<{ internetRadioStations?: { internetRadioStation?: Station[] } }>(
+        credentials,
+        'getInternetRadioStations',
+    )
+    return inner.internetRadioStations?.internetRadioStation ?? []
+}
+
+/**
+ * A station played through the server rather than straight from the source.
+ *
+ * Public stations routinely answer without the headers a browser needs to
+ * play them cross-origin, and their redirects drop them too. The server
+ * follows the station itself and re-serves it, so the browser only ever
+ * talks to one origin.
+ */
+export function stationStreamUrl(credentials: Credentials, station: Station): string {
+    return assetUrl(credentials, 'radioStream', { url: station.streamUrl })
+}
+
+/** What a station says it is playing, as its stream announces it. Empty until it says. */
+export async function stationNowPlaying(credentials: Credentials, station: Station): Promise<string> {
+    try {
+        const response = await fetch(assetUrl(credentials, 'radioMeta', { url: station.streamUrl }))
+        if (!response.ok) return ''
+        const body = (await response.json()) as { title?: string }
+        return body.title ?? ''
+    } catch {
+        return ''
+    }
+}
+
+export interface Starred {
+    artists: Artist[]
+    albums: Album[]
+    songs: Song[]
+}
+
+/** Everything this account marked as a favourite. */
+export async function getStarred(credentials: Credentials): Promise<Starred> {
+    const inner = await call<{ starred2?: { artist?: Artist[]; album?: Album[]; song?: Song[] } }>(
+        credentials,
+        'getStarred2',
+    )
+    const found = inner.starred2 ?? {}
+    return { artists: found.artist ?? [], albums: found.album ?? [], songs: found.song ?? [] }
+}
+
 /** Mark a track, album or artist as a favourite, or take the mark off. */
 export async function setStarred(credentials: Credentials, id: string, starred: boolean): Promise<void> {
     await call(credentials, starred ? 'star' : 'unstar', { id })
