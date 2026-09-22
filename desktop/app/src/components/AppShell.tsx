@@ -34,7 +34,7 @@ import { MODES, MODE_LABELS, ThemeToggle } from '@/components/ThemeToggle'
 import { Button } from '@/components/ui/button'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { useAppShortcuts } from '@/hooks/use-app-shortcuts'
-import { useStore } from '@/hooks/use-store'
+import { useStore, useStoreValue } from '@/hooks/use-store'
 import { entriesFor, homePath } from '@/lib/nav'
 import {
     APPEARANCE_GROUP,
@@ -51,6 +51,11 @@ import { next, playerStore, previous, toggle } from '@/lib/player'
 import { sessionStore, signOut } from '@/lib/session'
 import { applePlatform, modifierLabel } from '@/lib/shortcuts'
 import { openStage, toggleVisualizer, visualizerShown } from '@/lib/visualizer'
+
+/** The three facts the shell reads off the player. Module scope, so each is one stable function. */
+const selectPlaying = (state: { playing: boolean }) => state.playing
+const selectQueueLength = (state: { queue: unknown[] }) => state.queue.length
+const selectStation = (state: { station: unknown }) => state.station
 
 export const SIGN_OUT_LABEL = 'Sign out'
 export const TOGGLE_PANEL_LABEL = 'Show or hide the side panel'
@@ -86,7 +91,11 @@ const SettingsDialog = lazy(() =>
 export function AppShell({ children }: { children: ReactNode }) {
     const session = useStore(sessionStore)
     const collapsed = useStore(railCollapsed)
-    const player = useStore(playerStore)
+    // One fact each, not the whole player: its store publishes four times a second while a
+    // track plays, and the shell has no business re-rendering the screen under it that often.
+    const playing = useStoreValue(playerStore, selectPlaying)
+    const queuedCount = useStoreValue(playerStore, selectQueueLength)
+    const station = useStoreValue(playerStore, selectStation)
     const spectrum = useStore(visualizerShown)
     const navigate = useNavigate()
     const { setTheme } = useTheme()
@@ -97,7 +106,7 @@ export function AppShell({ children }: { children: ReactNode }) {
     const menu = useRef<HTMLButtonElement | null>(null)
     const wasOpen = useRef(false)
     const caps = session.capabilities ?? null
-    const queued = player.queue.length > 0
+    const queued = queuedCount > 0
 
     useEffect(() => {
         wasOpen.current = drawerOpen
@@ -145,9 +154,8 @@ export function AppShell({ children }: { children: ReactNode }) {
                 void navigate(entry.path)
             },
         }))
-        const playing = player.playing
         const transport: PaletteAction[] =
-            player.queue.length > 0 || player.station !== null
+            queuedCount > 0 || station !== null
                 ? [
                       {
                           id: 'play:toggle',
@@ -157,7 +165,7 @@ export function AppShell({ children }: { children: ReactNode }) {
                           keywords: ['stop', 'resume', 'transport'],
                           run: toggle,
                       },
-                      ...(player.station === null
+                      ...(station === null
                           ? [
                                 {
                                     id: 'play:next',
@@ -251,17 +259,7 @@ export function AppShell({ children }: { children: ReactNode }) {
                 run: signOut,
             },
         ]
-    }, [
-        caps,
-        collapsed,
-        navigate,
-        openSettings,
-        player.playing,
-        player.queue.length,
-        player.station,
-        setTheme,
-        spectrum,
-    ])
+    }, [caps, collapsed, navigate, openSettings, playing, queuedCount, station, setTheme, spectrum])
 
     useEffect(() => registerActions(actions), [actions])
 

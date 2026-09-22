@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react'
 
 import { usePrefersReducedMotion } from '@/hooks/use-reduced-motion'
-import { useStore } from '@/hooks/use-store'
+import { useStore, useStoreValue } from '@/hooks/use-store'
 import { playerStore, spectrum } from '@/lib/player'
 import { bars, BAND_COUNT, visualizerShown } from '@/lib/visualizer'
 
@@ -24,12 +24,15 @@ import { bars, BAND_COUNT, visualizerShown } from '@/lib/visualizer'
  * spectrum is painted in whatever the palette in force says, including one chosen after this
  * component mounted.
  */
+const selectPlaying = (state: { playing: boolean }) => state.playing
+
 export function Visualizer({ className }: { className?: string }) {
     const shown = useStore(visualizerShown)
-    const player = useStore(playerStore)
+    // Only whether it is playing: the position changes four times a second and means nothing
+    // to a canvas that reads the analyser itself.
+    const playing = useStoreValue(playerStore, selectPlaying)
     const still = usePrefersReducedMotion()
     const canvas = useRef<HTMLCanvasElement | null>(null)
-    const playing = player.playing
 
     useEffect(() => {
         const element = canvas.current
@@ -41,22 +44,40 @@ export function Visualizer({ className }: { className?: string }) {
         const frequencies = new Uint8Array(analyser.frequencyBinCount)
         let frame = 0
 
+        // MEASURED ON RESIZE, NOT PER FRAME. Reading `clientWidth` forces the browser to lay
+        // the page out, and `getComputedStyle` forces it to recalculate style; doing both
+        // sixty times a second on a page with a long list in it is felt as a pointer that
+        // will not keep up. Both are read when the box actually changes, and cached.
+        let width = element.clientWidth
+        let height = element.clientHeight
+        let ink = getComputedStyle(element).color
+        const measure = () => {
+            width = element.clientWidth
+            height = element.clientHeight
+            ink = getComputedStyle(element).color
+            const ratio = window.devicePixelRatio || 1
+            element.width = Math.round(width * ratio)
+            element.height = Math.round(height * ratio)
+            context.setTransform(ratio, 0, 0, ratio, 0, 0)
+        }
+        measure()
+        const watcher = new ResizeObserver(measure)
+        watcher.observe(element)
+        // The palette and the mode are written onto <html>, and the ink is one of their tokens.
+        const painted = new MutationObserver(measure)
+        painted.observe(document.documentElement, {
+            attributes: true,
+            attributeFilter: ['class', 'data-theme'],
+        })
+
         const draw = () => {
             frame = requestAnimationFrame(draw)
-            // The canvas follows its box: a bar that changed width with the window would
-            // otherwise be drawn stretched until something else forced a resize.
-            const ratio = window.devicePixelRatio || 1
-            const width = element.clientWidth
-            const height = element.clientHeight
-            if (element.width !== Math.round(width * ratio)) element.width = Math.round(width * ratio)
-            if (element.height !== Math.round(height * ratio)) element.height = Math.round(height * ratio)
-            context.setTransform(ratio, 0, 0, ratio, 0, 0)
             context.clearRect(0, 0, width, height)
             analyser.getByteFrequencyData(frequencies)
             const heights = bars(frequencies, BAND_COUNT)
             const gap = 2
             const bar = Math.max(1, (width - gap * (heights.length - 1)) / heights.length)
-            context.fillStyle = getComputedStyle(element).color
+            context.fillStyle = ink
             heights.forEach((level, index) => {
                 const tall = Math.max(1, level * height)
                 context.fillRect(index * (bar + gap), height - tall, bar, tall)
@@ -66,7 +87,9 @@ export function Visualizer({ className }: { className?: string }) {
         frame = requestAnimationFrame(draw)
         return () => {
             cancelAnimationFrame(frame)
-            context.clearRect(0, 0, element.clientWidth, element.clientHeight)
+            watcher.disconnect()
+            painted.disconnect()
+            context.clearRect(0, 0, width, height)
         }
     }, [playing, shown, still])
 

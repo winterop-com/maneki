@@ -62,21 +62,32 @@ export function FullscreenVisualizer() {
         const frequencies = new Uint8Array(analyser.frequencyBinCount)
         let frame = 0
 
+        // Measured when the box changes rather than every frame: see `Visualizer` for why.
+        let width = element.clientWidth
+        let height = element.clientHeight
+        let ink = getComputedStyle(element).color
+        const measure = () => {
+            width = element.clientWidth
+            height = element.clientHeight
+            ink = getComputedStyle(element).color
+            const ratio = window.devicePixelRatio || 1
+            element.width = Math.round(width * ratio)
+            element.height = Math.round(height * ratio)
+            context.setTransform(ratio, 0, 0, ratio, 0, 0)
+        }
+        measure()
+        const watcher = new ResizeObserver(measure)
+        watcher.observe(element)
+
         const draw = () => {
             frame = requestAnimationFrame(draw)
-            const ratio = window.devicePixelRatio || 1
-            const width = element.clientWidth
-            const height = element.clientHeight
-            if (element.width !== Math.round(width * ratio)) element.width = Math.round(width * ratio)
-            if (element.height !== Math.round(height * ratio)) element.height = Math.round(height * ratio)
-            context.setTransform(ratio, 0, 0, ratio, 0, 0)
             context.clearRect(0, 0, width, height)
             analyser.getByteFrequencyData(frequencies)
             const heights = bars(frequencies, STAGE_BANDS)
             const gap = Math.max(2, width / 400)
             const bar = Math.max(1, (width - gap * (heights.length - 1)) / heights.length)
             const middle = height / 2
-            context.fillStyle = getComputedStyle(element).color
+            context.fillStyle = ink
             heights.forEach((level, index) => {
                 // Half the height each way, so a full-scale band fills the screen and a quiet
                 // one is a line through the middle rather than a stub on the floor.
@@ -88,6 +99,7 @@ export function FullscreenVisualizer() {
         frame = requestAnimationFrame(draw)
         return () => {
             cancelAnimationFrame(frame)
+            watcher.disconnect()
         }
     }, [open, playing, still])
 
@@ -119,7 +131,7 @@ export function FullscreenVisualizer() {
                         {song?.title ?? player.station?.name}
                     </p>
                     <p className="mt-2 truncate text-base text-muted-foreground md:text-lg">
-                        {player.station ? 'Live' : (song?.artist ?? '')}
+                        {player.station ? player.stationTitle || 'Live' : (song?.artist ?? '')}
                     </p>
                     {player.station === null && duration > 0 && (
                         <p className="mt-4 font-mono text-sm text-muted-foreground tabular-nums">
