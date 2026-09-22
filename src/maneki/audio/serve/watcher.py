@@ -16,13 +16,12 @@ import logging
 import threading
 from collections.abc import Callable
 from pathlib import Path
-from typing import Any
+from typing import Any, Protocol
 
 from watchdog.events import FileSystemEvent, FileSystemEventHandler
 from watchdog.observers import Observer
 
 from maneki.audio.metadata import SUPPORTED_AUDIO_EXTS
-from maneki.audio.serve.index import IndexCache
 from maneki.library import is_media_path
 
 log = logging.getLogger(__name__)
@@ -30,10 +29,19 @@ log = logging.getLogger(__name__)
 DEFAULT_DEBOUNCE_S = 5.0
 
 
-class LibraryWatcher:
-    """Watch the library root and trigger debounced rescans on FS changes."""
+class Rescannable(Protocol):
+    """An index the watcher can keep current: the music index, or the books index."""
 
-    def __init__(self, cache: IndexCache, *, debounce_s: float = DEFAULT_DEBOUNCE_S) -> None:
+    @property
+    def root(self) -> Path: ...
+
+    def start_background_rescan(self, *, force: bool = ...) -> bool: ...
+
+
+class LibraryWatcher:
+    """Watch an index's root and trigger debounced rescans on FS changes."""
+
+    def __init__(self, cache: Rescannable, *, debounce_s: float = DEFAULT_DEBOUNCE_S) -> None:
         self._cache = cache
         self._debounce_s = debounce_s
         self._observer: Any = None  # watchdog's Observer is a factory; runtime type

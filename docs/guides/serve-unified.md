@@ -1,6 +1,6 @@
 # maneki serve
 
-`maneki serve <root>` is the only serve command. It scans `<root>` recursively and auto-mounts whichever kinds have content: the Subsonic API at `/audio/rest/*` when audio is present, the Maneki-native video API at `/video/api/*` when video is present, the web SPA at `/` with `--ui`.
+`maneki serve <root>` is the only serve command. It scans `<root>` recursively and auto-mounts whichever kinds have content: the Subsonic API at `/audio/rest/*` when audio is present, the Maneki-native video API at `/video/api/*` when video is present, the audiobook API at `/books/api/*` when `<root>` has an `Audiobooks/` folder, the web SPA at `/` with `--ui`.
 
 There is no `<root>/audio/` or `<root>/videos/` subdirectory convention. You can have everything flat under one root, or nested in any layout — the audio scanner picks up dirs containing audio files (treating the dir-above as the artist) and the video scanner picks up matching files at any depth. The SPA's AUDIO/VIDEO rail self-hides when only one kind is mounted.
 
@@ -31,9 +31,11 @@ curl -s http://127.0.0.1:8765/capabilities | jq
 #   "video": true,
 #   "youtube": true,
 #   "radio": true,
+#   "books": true,
 #   "endpoints": {
 #     "audio_subsonic": "/audio/rest",
-#     "video_api": "/video/api"
+#     "video_api": "/video/api",
+#     "books_api": "/books/api"
 #   }
 # }
 ```
@@ -46,6 +48,7 @@ host:port/auth/login            POST username + password -> bearer token
 host:port/auth/me               GET /me with Bearer header -> who you are
 host:port/audio/rest/*          Subsonic API (its own auth grammar; unaffected by --auth)
 host:port/video/api/*           Maneki-native video JSON API
+host:port/books/api/*           Maneki-native audiobook JSON API (when <root>/Audiobooks/ exists)
 host:port/video/                throwaway demo HTML page (retired when SPA lands)
 ```
 
@@ -66,7 +69,9 @@ External clients:
 | Only video files | `/capabilities` reports `audio: false, video: true`; the audio library browses empty |
 | Neither | `audio: false, video: false` — a pure internet-radio + YouTube player |
 
-Two top-level folders are never part of either library, whatever they hold: `inbox/`, where raw rips wait for `maneki audio convert`, and `Audiobooks/`, reserved for the audiobook section. The names match in any case, and only directly under `<root>`, so an album folder called `Music/Inbox/` is still music. The file watchers ignore both folders too, so copying a batch into `inbox/` triggers no rescan.
+Two top-level folders are never part of either library, whatever they hold: `inbox/`, where raw rips wait for `maneki audio convert` and `maneki books import`, and `Audiobooks/`, the audiobook section. The names match in any case, and only directly under `<root>`, so an album folder called `Music/Inbox/` is still music. The music and video watchers ignore both folders too, so copying a batch into `inbox/` triggers no rescan.
+
+When `Audiobooks/` exists, `/capabilities` reports `books: true` and the books API is mounted at `/books/api/*`. The books index fills from a background scan after startup (warm starts reuse the rows in `.maneki/index.db`), and a watcher on `Audiobooks/` picks up newly imported books a few seconds after they land. See [`maneki books import`](books.md#serving).
 
 Both mounts are always present, because each also hosts a remote source that needs nothing on disk: internet radio (`getInternetRadioStations`, the ICY proxy) on `/audio/rest/*`, YouTube on `/video/api/*`. What the scan decides is the *content* of the local half, reported by the `audio` / `video` flags — so a client can tell "nothing to browse here" from "this mount does not exist". The local library scan itself is still gated on finding files of that kind, so a radio-only root pays no walk and gets no `.maneki/index.db` written into it.
 
@@ -91,7 +96,7 @@ The defaults bind to localhost on port 8765. To expose on the LAN or Tailscale, 
 
 **The audio (Subsonic) mount** keeps its own auth grammar (salt + token query params per the Subsonic spec). Credentials resolve from `~/.config/maneki/maneki.toml` `[server]` section, falling back to `admin`/`admin` with a yellow warning at startup. This is unchanged by `--auth`.
 
-**The Maneki-native endpoints** (`/video/*` today, more later) optionally require a bearer token. Auth is off by default so the demo page keeps working. Enable with `--auth`:
+**The Maneki-native endpoints** (`/video/*` and `/books/*`) optionally require a bearer token. Auth is off by default so the demo page keeps working. Enable with `--auth`:
 
 ```bash
 maneki serve ~/Downloads/library --auth

@@ -152,6 +152,11 @@ def create_combined_app(
     # `audio_present` (see `_mount_audio`), so a radio-only mount costs no
     # walk and writes no index.db.
     radio_present = bool(load_stations())
+    # Audiobooks: the root's top-level `Audiobooks/` folder, which the music
+    # and video walks skip (`maneki.library`), gets its own `/books` mount.
+    from maneki.books.library import books_dir
+
+    books_present = books_dir(root) is not None
     cfg = _resolve_cfg(audio_cfg)
     token_store = TokenStore()
     # Accounts for the native (video) bearer login. Multi-user when [[users]]
@@ -217,6 +222,21 @@ def create_combined_app(
 
             audio_watcher = LibraryWatcher(audio_sub_app.state.cache)
             audio_watcher.start()
+
+        # Books: scan in the background (warm starts reuse the index rows),
+        # then watch the folder so an imported book appears on its own.
+        books_watcher: Any = None
+        books_sub_app: FastAPI | None = next(
+            (cast(FastAPI, r.app) for r in app.routes if isinstance(r, Mount) and r.path == "/books"),
+            None,
+        )
+        if books_sub_app is not None:
+            from maneki.audio.serve.watcher import LibraryWatcher
+
+            books_index = books_sub_app.state.books_index
+            books_index.start_background_rescan()
+            books_watcher = LibraryWatcher(books_index)
+            books_watcher.start()
 
         async def _do_scan(*, do_prewarm_cache: bool) -> None:
             """One pass of library scan + orphan sweep + optional image prewarm.
@@ -329,6 +349,9 @@ def create_combined_app(
             if audio_watcher is not None:
                 with contextlib.suppress(Exception):
                     audio_watcher.stop()
+            if books_watcher is not None:
+                with contextlib.suppress(Exception):
+                    books_watcher.stop()
             if video_index is not None:
                 with contextlib.suppress(Exception):
                     video_index.close()
@@ -373,6 +396,7 @@ def create_combined_app(
             "video": video_present,
             "youtube": youtube_present,
             "radio": radio_present,
+            "books": books_present,
             "auth_required": enable_auth,
             "endpoints": {
                 # Mounted whenever local audio OR radio is on, so the Subsonic
@@ -381,6 +405,7 @@ def create_combined_app(
                 # The native app is mounted whenever video OR YouTube is on, so
                 # its API base is available in both cases.
                 "video_api": "/video/api" if (video_present or youtube_present) else None,
+                "books_api": "/books/api" if books_present else None,
                 "auth_login": "/auth/login",
             },
         }
@@ -406,7 +431,7 @@ def create_combined_app(
         combined.add_middleware(
             BearerAuthMiddleware,
             token_store=token_store,
-            protected_prefixes=("/video/",),
+            protected_prefixes=("/video/", "/books/"),
         )
 
     if audio_present or radio_present:
@@ -430,6 +455,14 @@ def create_combined_app(
         # local-library scan/prewarm/watcher in the lifespan stays gated on
         # `video_present`, so an audio-only library pays no scan cost.
         _mount_video(combined, root, workers=transcode_workers, no_cover_images=no_cover_images, users=users)
+
+    if books_present:
+        from maneki.books.library import BooksIndex
+        from maneki.books.serve import create_books_app
+
+        # The index starts empty and fills from a background scan in the
+        # lifespan, so a large book library never delays startup.
+        combined.mount("/books", create_books_app(BooksIndex(root, use_cache=audio_use_cache)))
 
     if enable_ui:
         # Mount the SPA at "/" LAST. FastAPI/Starlette match routes in

@@ -58,6 +58,20 @@ These follow the conventions Audiobookshelf reads. A one-file book is named afte
 
 The cover is the catalog's full-size art, else an image in the book's folder (`cover`, `folder` and `front` first), else one embedded in the audio, resized to `--cover-max-edge`.
 
+## Serving
+
+`maneki serve <root>` mounts the books API when `<root>` has an `Audiobooks/` folder. It reads everything back from the files the import wrote: tags, chapters, lengths, `cover.jpg`.
+
+| Endpoint | What it returns |
+|---|---|
+| `GET /books/api/books` | Every book, by author then title: title, author, narrator, year, series, length, chapter count. |
+| `GET /books/api/books/{id}` | One book with its description, its chapters on the book's timeline, and its files in order, each with its offset and a stream URL. |
+| `GET /books/api/books/{id}/files/{n}` | The `n`th file as stored, with HTTP Range support, so a player can seek anywhere without the server decoding it. |
+| `GET /books/api/books/{id}/cover` | `cover.jpg`, else the picture embedded in the first file. |
+| `GET` / `POST /books/api/scan` | Rescan status / start a rescan. Only books whose files changed are re-read. |
+
+A book's id comes from its folder's path, so it stays the same across restarts and rescans until the folder moves. Under `--auth` the endpoints need the same bearer token as `/video/*`.
+
 ## All flags
 
 | Flag | Default | What it does |

@@ -17,8 +17,7 @@ from __future__ import annotations
 
 import io
 import shutil
-from collections import Counter
-from collections.abc import Callable, Iterable
+from collections.abc import Callable
 from pathlib import Path
 
 from PIL import Image
@@ -26,10 +25,11 @@ from pydantic import BaseModel
 
 from maneki.audio.cover import DEFAULT_MAX_EDGE, CoverCandidate, CoverSource, normalize
 from maneki.books.catalog import BookCatalog, align_chapters, choose, runtime_matches
+from maneki.books.library import file_chapters, majority
 from maneki.books.models import CatalogBook, Chapter, ChapterSource, NameGuess, SourceBook
 from maneki.books.names import clean_title, guess_from_name
 from maneki.books.probe import ProbeError, discover, load_book
-from maneki.books.write import BookTags, book_dir, file_names, part_title, write_book, writes_chapters
+from maneki.books.write import BookTags, book_dir, write_book, writes_chapters
 
 UNKNOWN_AUTHOR = "Unknown Author"
 # Editions whose chapter lists are fetched when looking for one that lines up.
@@ -165,39 +165,19 @@ def plan_book(book: SourceBook, library: Path, *, catalog: BookCatalog | None) -
 
 def guess_book(book: SourceBook) -> NameGuess:
     """The book's own tags when every file agrees on a title and an author, else its name."""
-    album = _majority(f.tags.get("album") for f in book.files)
-    author = _majority(f.tags.get("album_artist") or f.tags.get("artist") for f in book.files)
+    album = majority(f.tags.get("album") for f in book.files)
+    author = majority(f.tags.get("album_artist") or f.tags.get("artist") for f in book.files)
     if album and author:
         title = clean_title(album)
-        date = _majority(f.tags.get("date") for f in book.files)
+        date = majority(f.tags.get("date") for f in book.files)
         return NameGuess(
             terms=f"{author} {title}",
             title=title,
             author=author,
-            narrator=_majority(f.tags.get("composer") for f in book.files),
+            narrator=majority(f.tags.get("composer") for f in book.files),
             year=date[:4] if date and date[:4].isdigit() else None,
         )
     return guess_from_name(book.name)
-
-
-def file_chapters(book: SourceBook) -> tuple[list[Chapter], ChapterSource]:
-    """Chapters the files already carry, or one per file for a multi-file book."""
-    if len(book.files) == 1:
-        embedded = book.files[0].chapters
-        return (embedded, ChapterSource.FILE) if len(embedded) >= 2 else ([], ChapterSource.NONE)
-    chapters: list[Chapter] = []
-    offset = 0.0
-    embedded_any = any(f.chapters for f in book.files)
-    names = file_names("", [f.path for f in book.files])
-    for source, name in zip(book.files, names, strict=True):
-        if embedded_any and source.chapters:
-            chapters.extend(
-                Chapter(title=c.title, start_s=offset + c.start_s, end_s=offset + c.end_s) for c in source.chapters
-            )
-        else:
-            chapters.append(Chapter(title=part_title(name), start_s=offset, end_s=offset + source.duration_s))
-        offset += source.duration_s
-    return chapters, ChapterSource.FILE if embedded_any else ChapterSource.FILES
 
 
 def format_duration(seconds: float) -> str:
@@ -353,8 +333,3 @@ def _to_jpeg(data: bytes) -> bytes:
     buffer = io.BytesIO()
     image.convert("RGB").save(buffer, format="JPEG", quality=92)
     return buffer.getvalue()
-
-
-def _majority(values: Iterable[str | None]) -> str | None:
-    counts = Counter(v.strip() for v in values if v and v.strip())
-    return counts.most_common(1)[0][0] if counts else None

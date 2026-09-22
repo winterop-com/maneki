@@ -2,14 +2,10 @@
 
 from __future__ import annotations
 
-import io
-import shutil
-import subprocess
 from pathlib import Path
 
 import pytest
 from mutagen.id3 import ID3
-from PIL import Image
 from typer.testing import CliRunner
 
 from maneki.books.catalog import BookCatalog
@@ -18,38 +14,12 @@ from maneki.books.pipeline import format_duration, import_books
 from maneki.books.probe import discover, natural_key, probe_file
 from maneki.books.write import BookTags, file_names, write_book
 from maneki.cli import app
+from tests.conftest import audio_md5, jpeg_bytes, make_silent_mp3, require_ffmpeg
 
 
 @pytest.fixture(autouse=True)
 def _need_ffmpeg() -> None:
-    if shutil.which("ffmpeg") is None or shutil.which("ffprobe") is None:
-        pytest.skip("ffmpeg / ffprobe not on PATH")
-
-
-def _mp3(path: Path, seconds: float, *, title: str | None = None) -> Path:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    cmd = ["ffmpeg", "-y", "-nostdin", "-loglevel", "error", "-f", "lavfi", "-i", "anullsrc=r=22050:cl=mono"]
-    cmd += ["-t", str(seconds), "-c:a", "libmp3lame", "-b:a", "32k"]
-    if title:
-        cmd += ["-metadata", f"title={title}"]
-    subprocess.run([*cmd, str(path)], check=True)
-    return path
-
-
-def _audio_md5(path: Path) -> str:
-    out = subprocess.run(
-        ["ffmpeg", "-nostdin", "-loglevel", "error", "-i", str(path), "-map", "0:a", "-c", "copy", "-f", "md5", "-"],
-        capture_output=True,
-        text=True,
-        check=True,
-    )
-    return out.stdout.strip()
-
-
-def _jpeg() -> bytes:
-    buffer = io.BytesIO()
-    Image.new("RGB", (1200, 1200), (200, 40, 40)).save(buffer, format="JPEG")
-    return buffer.getvalue()
+    require_ffmpeg()
 
 
 class _FakeCatalog(BookCatalog):
@@ -58,7 +28,7 @@ class _FakeCatalog(BookCatalog):
     def __init__(self, editions: list[CatalogBook], chapters: dict[str, CatalogChapters]) -> None:
         self.editions = editions
         self.listings = chapters
-        self.image = _jpeg()
+        self.image = jpeg_bytes()
 
     def audible_search(self, terms: str) -> list[CatalogBook]:
         return list(self.editions)
@@ -83,8 +53,8 @@ class _FakeCatalog(BookCatalog):
 
 
 def test_discover_finds_folders_and_loose_files_and_skips_dot_files(tmp_path: Path) -> None:
-    _mp3(tmp_path / "Book A" / "01.mp3", 0.5)
-    _mp3(tmp_path / "Book B.mp3", 0.5)
+    make_silent_mp3(tmp_path / "Book A" / "01.mp3", 0.5)
+    make_silent_mp3(tmp_path / "Book B.mp3", 0.5)
     (tmp_path / "notes").mkdir()
     (tmp_path / "._Book C.mp3").write_bytes(b"\x00" * 16)
     assert [p.name for p in discover(tmp_path)] == ["Book A", "Book B.mp3"]
@@ -96,7 +66,7 @@ def test_natural_order_puts_part_2_before_part_10() -> None:
 
 
 def test_probe_reads_length_and_tags(tmp_path: Path) -> None:
-    probed = probe_file(_mp3(tmp_path / "a.mp3", 2.0, title="Hello"))
+    probed = probe_file(make_silent_mp3(tmp_path / "a.mp3", 2.0, title="Hello"))
     assert probed.duration_s == pytest.approx(2.0, abs=0.1)
     assert probed.tags["title"] == "Hello"
     assert probed.chapters == []
@@ -106,8 +76,8 @@ def test_probe_reads_length_and_tags(tmp_path: Path) -> None:
 
 
 def test_write_book_tags_and_chapters_without_touching_the_audio(tmp_path: Path) -> None:
-    src = _mp3(tmp_path / "in" / "rip.mp3", 6.0, title="junk")
-    before = _audio_md5(src)
+    src = make_silent_mp3(tmp_path / "in" / "rip.mp3", 6.0, title="junk")
+    before = audio_md5(src)
     chapters = [
         Chapter(title="Opening Credits", start_s=0.0, end_s=2.0),
         Chapter(title="1. The Characters of the Story", start_s=2.0, end_s=6.0),
@@ -118,12 +88,12 @@ def test_write_book_tags_and_chapters_without_touching_the_audio(tmp_path: Path)
         narrator="Patrick Egan",
         year="2011",
         asin="B005TKKCWC",
-        cover_jpeg=_jpeg(),
+        cover_jpeg=jpeg_bytes(),
     )
     [out] = write_book(tmp_path / "lib" / "Daniel Kahneman" / "Thinking, Fast and Slow", [src], tags, chapters)
 
     assert out.name == "Thinking, Fast and Slow.mp3"
-    assert _audio_md5(out) == before
+    assert audio_md5(out) == before
     probed = probe_file(out)
     assert [(c.title, c.start_s) for c in probed.chapters] == [
         ("Opening Credits", 0.0),
@@ -137,7 +107,7 @@ def test_write_book_tags_and_chapters_without_touching_the_audio(tmp_path: Path)
     assert str(id3["TXXX:ASIN"]) == "B005TKKCWC"
     assert id3.getall("APIC")
     assert (out.parent / "cover.jpg").exists()
-    assert _audio_md5(src) == before  # the source is only read
+    assert audio_md5(src) == before  # the source is only read
 
 
 def test_multi_file_names_drop_the_rip_numbering() -> None:
@@ -173,8 +143,8 @@ def _listing(runtime_s: float) -> CatalogChapters:
 
 def test_the_copy_matching_the_edition_wins_and_gets_its_chapters(tmp_path: Path) -> None:
     inbox, library = tmp_path / "inbox", tmp_path / "Audiobooks"
-    _mp3(inbox / "Kahneman Daniel - Thinking, Fast and Slow(Egan Patrick) - 2011(80bps).mp3", 6.0)
-    _mp3(inbox / "Thinking, Fast and Slow - Daniel Kahneman.mp3", 9.0)
+    make_silent_mp3(inbox / "Kahneman Daniel - Thinking, Fast and Slow(Egan Patrick) - 2011(80bps).mp3", 6.0)
+    make_silent_mp3(inbox / "Thinking, Fast and Slow - Daniel Kahneman.mp3", 9.0)
     duration = probe_file(next(inbox.glob("Kahneman*"))).duration_s
     catalog = _FakeCatalog([_edition("B005TKKCWC", duration)], {"B005TKKCWC": _listing(duration)})
 
@@ -196,7 +166,7 @@ def test_the_copy_matching_the_edition_wins_and_gets_its_chapters(tmp_path: Path
 
 def test_a_recording_no_edition_matches_keeps_the_book_but_not_the_edition(tmp_path: Path) -> None:
     inbox, library = tmp_path / "inbox", tmp_path / "Audiobooks"
-    _mp3(inbox / "Thinking, Fast and Slow - Daniel Kahneman.mp3", 3.0)
+    make_silent_mp3(inbox / "Thinking, Fast and Slow - Daniel Kahneman.mp3", 3.0)
     catalog = _FakeCatalog([_edition("B005TKKCWC", 1000.0)], {"B005TKKCWC": _listing(1000.0)})
 
     [report] = import_books(inbox, library, catalog=catalog)
@@ -212,7 +182,7 @@ def test_a_recording_no_edition_matches_keeps_the_book_but_not_the_edition(tmp_p
 
 def test_offline_import_names_the_book_from_its_file(tmp_path: Path) -> None:
     inbox, library = tmp_path / "inbox", tmp_path / "Audiobooks"
-    _mp3(inbox / "Stephen King - It (Unabridged) [MP3 64kbps].mp3", 1.0)
+    make_silent_mp3(inbox / "Stephen King - It (Unabridged) [MP3 64kbps].mp3", 1.0)
     [report] = import_books(inbox, library, catalog=None)
     assert report.status == "ok"
     assert report.dest == library / "Stephen King" / "It"
@@ -221,7 +191,7 @@ def test_offline_import_names_the_book_from_its_file(tmp_path: Path) -> None:
 def test_a_folder_of_parts_gets_one_chapter_per_file(tmp_path: Path) -> None:
     inbox, library = tmp_path / "inbox", tmp_path / "Audiobooks"
     for n in (1, 2, 10):
-        _mp3(inbox / "Andy Weir - Project Hail Mary" / f"Part {n}.mp3", 1.0)
+        make_silent_mp3(inbox / "Andy Weir - Project Hail Mary" / f"Part {n}.mp3", 1.0)
     [report] = import_books(inbox, library, catalog=None)
     assert (report.chapters, report.chapter_source) == (3, ChapterSource.FILES)
     names = sorted(p.name for p in (library / "Andy Weir" / "Project Hail Mary").iterdir())
@@ -230,7 +200,7 @@ def test_a_folder_of_parts_gets_one_chapter_per_file(tmp_path: Path) -> None:
 
 def test_dry_run_writes_nothing(tmp_path: Path) -> None:
     inbox, library = tmp_path / "inbox", tmp_path / "Audiobooks"
-    _mp3(inbox / "Stephen King - It.mp3", 1.0)
+    make_silent_mp3(inbox / "Stephen King - It.mp3", 1.0)
     [report] = import_books(inbox, library, catalog=None, dry_run=True)
     assert report.status == "plan"
     assert not library.exists()
@@ -238,7 +208,7 @@ def test_dry_run_writes_nothing(tmp_path: Path) -> None:
 
 def test_a_book_already_in_the_library_is_left_alone(tmp_path: Path) -> None:
     inbox, library = tmp_path / "inbox", tmp_path / "Audiobooks"
-    _mp3(inbox / "Stephen King - It.mp3", 1.0)
+    make_silent_mp3(inbox / "Stephen King - It.mp3", 1.0)
     (library / "Stephen King" / "It").mkdir(parents=True)
     [report] = import_books(inbox, library, catalog=None)
     assert report.status == "skip"
@@ -247,7 +217,7 @@ def test_a_book_already_in_the_library_is_left_alone(tmp_path: Path) -> None:
 
 def test_remove_source_deletes_an_imported_book(tmp_path: Path) -> None:
     inbox, library = tmp_path / "inbox", tmp_path / "Audiobooks"
-    src = _mp3(inbox / "Stephen King - It.mp3", 1.0)
+    src = make_silent_mp3(inbox / "Stephen King - It.mp3", 1.0)
     [report] = import_books(inbox, library, catalog=None, remove_source=True)
     assert report.status == "ok"
     assert not src.exists()
@@ -256,7 +226,7 @@ def test_remove_source_deletes_an_imported_book(tmp_path: Path) -> None:
 
 def test_cli_dry_run_offline(tmp_path: Path) -> None:
     inbox = tmp_path / "inbox"
-    _mp3(inbox / "Stephen King - It.mp3", 1.0)
+    make_silent_mp3(inbox / "Stephen King - It.mp3", 1.0)
     result = CliRunner().invoke(
         app, ["books", "import", str(inbox), str(tmp_path / "Audiobooks"), "--dry-run", "--no-enrich"]
     )

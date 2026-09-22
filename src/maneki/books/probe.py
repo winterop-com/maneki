@@ -16,7 +16,20 @@ from maneki.books.models import Chapter, SourceBook, SourceFile
 from maneki.ffmpeg import ffprobe_path
 
 _DIGITS_RE = re.compile(r"(\d+)")
-_TAG_KEYS = ("title", "album", "artist", "album_artist", "composer", "date", "genre")
+_TAG_KEYS = (
+    "title",
+    "album",
+    "artist",
+    "album_artist",
+    "composer",
+    "date",
+    "genre",
+    "comment",
+    "description",
+    "asin",
+    "series",
+    "series-part",
+)
 
 
 class ProbeError(RuntimeError):

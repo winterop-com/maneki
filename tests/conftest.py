@@ -129,3 +129,43 @@ def make_silent_flac(dst: Path, *, duration: float = 0.2) -> Path:
         check=True,
     )
     return dst
+
+
+def require_ffmpeg() -> None:
+    """Skip the calling test when ffmpeg or ffprobe is missing."""
+    if shutil.which("ffmpeg") is None or shutil.which("ffprobe") is None:
+        pytest.skip("ffmpeg / ffprobe not on PATH")
+
+
+def make_silent_mp3(dst: Path, seconds: float, *, title: str | None = None) -> Path:
+    """Encode a small silent mono MP3 of `seconds` at `dst`, optionally with a title tag."""
+    require_ffmpeg()
+    dst.parent.mkdir(parents=True, exist_ok=True)
+    cmd = ["ffmpeg", "-y", "-nostdin", "-loglevel", "error", "-f", "lavfi", "-i", "anullsrc=r=22050:cl=mono"]
+    cmd += ["-t", str(seconds), "-c:a", "libmp3lame", "-b:a", "32k"]
+    if title:
+        cmd += ["-metadata", f"title={title}"]
+    subprocess.run([*cmd, str(dst)], check=True)
+    return dst
+
+
+def audio_md5(path: Path) -> str:
+    """MD5 of the audio stream alone, so a tag rewrite leaves it unchanged."""
+    out = subprocess.run(
+        ["ffmpeg", "-nostdin", "-loglevel", "error", "-i", str(path), "-map", "0:a", "-c", "copy", "-f", "md5", "-"],
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    return out.stdout.strip()
+
+
+def jpeg_bytes(size: int = 1200) -> bytes:
+    """A plain square JPEG, larger than the default cover edge so resizing is exercised."""
+    import io
+
+    from PIL import Image
+
+    buffer = io.BytesIO()
+    Image.new("RGB", (size, size), (200, 40, 40)).save(buffer, format="JPEG")
+    return buffer.getvalue()

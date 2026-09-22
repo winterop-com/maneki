@@ -36,7 +36,8 @@ class SourceFile(BaseModel):
     duration_s: float
     bit_rate: int | None = None
     chapters: list[Chapter] = []
-    # Lower-cased container tags: title, album, artist, album_artist, composer, date, genre.
+    # Lower-cased container tags: title, album, artist, album_artist, composer, date,
+    # genre, comment, description, asin, series, series-part (whichever are set).
     tags: dict[str, str] = {}
 
 
