@@ -10,7 +10,9 @@ look it up in the catalog, pick its chapters, then copy and tag it into
 
 Two inbox copies of the same book import once: the copy whose chapters are
 known wins, so a rip that matches the Audible edition beats one that does
-not. A book already in the library is left alone unless `overwrite` is set.
+not. A book already in the library is left alone unless `overwrite` is set; a
+destination holding no audio is wreckage from a failed write, not a book,
+and is written over.
 """
 
 from __future__ import annotations
@@ -325,8 +327,15 @@ def _run(
     inbox: Path,
     cover_max_edge: int,
 ) -> BookReport:
-    if plan.dest.exists() and not overwrite:
+    if _holds_audio(plan.dest) and not overwrite:
         return _report(plan, "skip", [f"already in the library at {plan.dest}"])
+    if plan.dest.exists():
+        # A folder with no audio in it is the wreckage of a write that failed
+        # part way (a drive that went away mid-copy leaves one behind, since
+        # the cleanup cannot reach it either). Treating that as "already
+        # imported" is how a book gets skipped for good and then dropped with
+        # its source, so it is cleared and the book written again.
+        shutil.rmtree(plan.dest, ignore_errors=True)
     if dry_run:
         cover = "online" if plan.match and plan.match.cover_url else _local_cover_label(plan.book)
         return _report(plan, "plan", [], cover=cover)
@@ -345,6 +354,11 @@ def _run(
             plan.book.path.unlink()
         _prune(plan.book.path.parent, inbox)
     return _report(plan, "ok", [], cover=cover_label)
+
+
+def _holds_audio(folder: Path) -> bool:
+    """True when `folder` actually has a book in it, not just a cover or nothing."""
+    return folder.is_dir() and any(is_audio(p) for p in folder.rglob("*"))
 
 
 def _prune(folder: Path, inbox: Path) -> None:

@@ -209,10 +209,11 @@ def test_dry_run_writes_nothing(tmp_path: Path) -> None:
 def test_a_book_already_in_the_library_is_left_alone(tmp_path: Path) -> None:
     inbox, library = tmp_path / "inbox", tmp_path / "Audiobooks"
     make_silent_mp3(inbox / "Stephen King - It.mp3", 1.0)
-    (library / "Stephen King" / "It").mkdir(parents=True)
-    [report] = import_books(inbox, library, catalog=None)
+    make_silent_mp3(library / "Stephen King" / "It" / "It.mp3", 1.0)
+    [report] = import_books(inbox, library, catalog=None, remove_source=True)
     assert report.status == "skip"
     assert "already in the library" in report.notes[-1]
+    assert (inbox / "Stephen King - It.mp3").exists()  # a skip never costs the source
 
 
 def test_remove_source_deletes_an_imported_book(tmp_path: Path) -> None:
@@ -319,7 +320,8 @@ def test_remove_source_keeps_a_collection_with_books_still_in_it(tmp_path: Path)
     inbox, library = tmp_path / "inbox", tmp_path / "Audiobooks"
     make_silent_mp3(inbox / "Orwell Collection" / "Animal Farm" / "01.mp3", 1.0)
     make_silent_mp3(inbox / "Orwell Collection" / "1984" / "01.mp3", 1.0)
-    (library / "Unknown Author" / "1984").mkdir(parents=True)  # already imported, so it will be skipped
+    # Already imported, so this one is skipped and its source stays.
+    make_silent_mp3(library / "Unknown Author" / "1984" / "1984.mp3", 1.0)
 
     import_books(inbox, library, catalog=None, remove_source=True)
 
@@ -367,3 +369,23 @@ def test_an_m4b_that_already_has_tags_can_be_written(tmp_path: Path) -> None:
     assert written.tags is not None
     assert written.tags["\xa9alb"] == ["Atomic Habits"]
     assert written.tags["stik"] == [2]  # marked as an audiobook
+
+
+def test_a_destination_with_no_audio_is_not_a_book(tmp_path: Path) -> None:
+    """A failed write leaves an empty folder; skipping on it loses the book for good.
+
+    A drive that goes away mid-copy leaves the destination behind and takes
+    the cleanup with it. Every later run then read that folder as "already in
+    the library", and a source deleted on that word is gone.
+    """
+    inbox, library = tmp_path / "inbox", tmp_path / "Audiobooks"
+    make_silent_mp3(inbox / "Stephen King - It.mp3", 1.0)
+    wreckage = library / "Stephen King" / "It"
+    wreckage.mkdir(parents=True)
+    (wreckage / "cover.jpg").write_bytes(jpeg_bytes(80))
+
+    [report] = import_books(inbox, library, catalog=None, remove_source=True)
+
+    assert report.status == "ok"
+    assert any(p.suffix == ".mp3" for p in wreckage.iterdir())
+    assert not (inbox / "Stephen King - It.mp3").exists()
