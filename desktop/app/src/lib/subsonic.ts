@@ -161,12 +161,49 @@ export async function ping(credentials: Credentials): Promise<void> {
     await call(credentials, 'ping')
 }
 
-/** Every artist, flattened out of the server's A-Z grouping. */
-export async function getArtists(credentials: Credentials, musicFolderId?: number): Promise<Artist[]> {
-    const inner = await call<{ artists?: { index?: { artist?: Artist[] }[] } }>(credentials, 'getArtists', {
-        musicFolderId,
-    })
-    return (inner.artists?.index ?? []).flatMap((group) => group.artist ?? [])
+/** One library folder this server serves: music and audiobooks are two of them. */
+export interface MusicFolder {
+    id: number
+    name: string
+}
+
+/**
+ * The folders this server keeps its media in.
+ *
+ * maneki serves audiobooks as a folder of their own so a phone client can browse books without
+ * the music, which means the music screens have to say which folder they mean: without it the
+ * artist list is every musician plus every author of an audiobook.
+ */
+export async function getMusicFolders(credentials: Credentials): Promise<MusicFolder[]> {
+    const inner = await call<{ musicFolders?: { musicFolder?: MusicFolder[] } }>(
+        credentials,
+        'getMusicFolders',
+    )
+    return inner.musicFolders?.musicFolder ?? []
+}
+
+/** The name maneki gives the folder holding books, which is the one the music screens leave out. */
+export const BOOKS_FOLDER_NAME = 'Audiobooks'
+
+/** The folder a music screen should ask about, or undefined when this server keeps only one. */
+export function musicFolderOf(folders: readonly MusicFolder[]): number | undefined {
+    if (folders.length < 2) return undefined
+    const music = folders.find((folder) => folder.name !== BOOKS_FOLDER_NAME)
+    return music?.id
+}
+
+/** Every artist, flattened out of the server's A-Z grouping, with the articles it files them by. */
+export async function getArtists(
+    credentials: Credentials,
+    musicFolderId?: number,
+): Promise<{ artists: Artist[]; ignoredArticles?: string }> {
+    const inner = await call<{
+        artists?: { index?: { artist?: Artist[] }[]; ignoredArticles?: string }
+    }>(credentials, 'getArtists', { musicFolderId })
+    return {
+        artists: (inner.artists?.index ?? []).flatMap((group) => group.artist ?? []),
+        ignoredArticles: inner.artists?.ignoredArticles,
+    }
 }
 
 /** One artist's albums. */

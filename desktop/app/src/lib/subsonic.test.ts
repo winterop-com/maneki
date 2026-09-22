@@ -2,6 +2,7 @@ import { afterEach, describe, expect, test, vi } from 'vitest'
 
 import {
     getAlbum,
+    musicFolderOf,
     getArtists,
     makeCredentials,
     SubsonicError,
@@ -70,6 +71,12 @@ describe('requests', () => {
         expect(lastUrl().searchParams.has('musicFolderId')).toBe(false)
     })
 
+    test('ask about one folder when the library has more than music in it', async () => {
+        answer({ 'subsonic-response': { status: 'ok', artists: { index: [] } } })
+        await getArtists(credentials, 1)
+        expect(lastUrl().searchParams.get('musicFolderId')).toBe('1')
+    })
+
     test('raise what the server refused, with its own code', async () => {
         answer({
             'subsonic-response': {
@@ -105,7 +112,8 @@ describe('reading the library', () => {
                 },
             },
         })
-        expect((await getArtists(credentials)).map((a) => a.name)).toEqual(['ABBA', 'Röyksopp'])
+        const { artists } = await getArtists(credentials)
+        expect(artists.map((a) => a.name)).toEqual(['ABBA', 'Röyksopp'])
     })
 
     test('an album carries its songs', async () => {
@@ -142,5 +150,31 @@ describe('asset urls', () => {
 
     test('no cover art means no url to ask for', () => {
         expect(coverUrl(credentials, undefined)).toBeNull()
+    })
+})
+
+describe('which folder the music screens mean', () => {
+    test('is the one that is not the books, when a server serves both', () => {
+        expect(
+            musicFolderOf([
+                { id: 1, name: 'Music' },
+                { id: 2, name: 'Audiobooks' },
+            ]),
+        ).toBe(1)
+    })
+
+    test('is left unsaid on a server with one folder, which needs no filter', () => {
+        expect(musicFolderOf([{ id: 1, name: 'Music' }])).toBeUndefined()
+        expect(musicFolderOf([])).toBeUndefined()
+    })
+
+    test('carries the articles the server files names by', async () => {
+        answer({
+            'subsonic-response': {
+                status: 'ok',
+                artists: { ignoredArticles: 'The El La', index: [] },
+            },
+        })
+        expect((await getArtists(credentials)).ignoredArticles).toBe('The El La')
     })
 })

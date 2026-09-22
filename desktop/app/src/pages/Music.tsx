@@ -1,5 +1,5 @@
 import { ChevronLeft, Play, Star } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useNavigate, useParams } from 'react-router'
 
 import { Button } from '@/components/ui/button'
@@ -8,12 +8,16 @@ import { clock } from '@/lib/format'
 import { play } from '@/lib/player'
 import { sessionStore } from '@/lib/session'
 import { Input } from '@/components/ui/input'
+import { Segmented } from '@/components/Segmented'
+import { articlesOf, SORT_LABELS, SORT_MODES, sortArtists, type SortMode } from '@/lib/sorting'
 import {
     coverUrl,
     getAlbum,
     getArtist,
     getArtists,
+    getMusicFolders,
     getStarred,
+    musicFolderOf,
     search as searchLibrary,
     setStarred,
     type Album,
@@ -26,6 +30,18 @@ import { cn } from '@/lib/utils'
 /** How much has to be typed before the server is asked, and how long to wait after typing. */
 const SEARCH_MIN = 2
 const SEARCH_DEBOUNCE_MS = 250
+
+/** Where the chosen order is kept, because it is a way of reading rather than a search. */
+const SORT_KEY = 'maneki.artistSort'
+
+function storedSort(): SortMode {
+    try {
+        const held = localStorage.getItem(SORT_KEY)
+        return (SORT_MODES as readonly string[]).includes(held ?? '') ? (held as SortMode) : 'name'
+    } catch {
+        return 'name'
+    }
+}
 
 export function MusicPage({ view }: { view?: 'starred' } = {}) {
     const { artistId, albumId } = useParams()
@@ -103,9 +119,20 @@ function Favourites({ credentials }: { credentials: Credentials }) {
     )
 }
 
-/** Everyone in the library, by name. */
+/**
+ * Everyone in the library.
+ *
+ * THE MUSIC FOLDER ONLY. maneki serves audiobooks as a second folder, and their authors are
+ * artists to the Subsonic grammar: without saying which folder this screen means, a library
+ * with 195 books lists sixty authors among the musicians.
+ *
+ * ORDERED BY THE NAME MINUS ITS ARTICLE, which is what the server's `ignoredArticles` is for.
+ * The order itself is a choice somebody makes once and keeps.
+ */
 function Artists({ credentials }: { credentials: Credentials }) {
     const [artists, setArtists] = useState<Artist[] | null>(null)
+    const [articles, setArticles] = useState<string[]>(() => articlesOf(undefined))
+    const [sort, setSort] = useState<SortMode>(storedSort)
     const [query, setQuery] = useState('')
     const [found, setFound] = useState<Awaited<ReturnType<typeof searchLibrary>> | null>(null)
     const [refusal, setRefusal] = useState<string | null>(null)
@@ -129,32 +156,60 @@ function Artists({ credentials }: { credentials: Credentials }) {
     }, [credentials, query])
 
     useEffect(() => {
-        getArtists(credentials)
-            .then(setArtists)
-            .catch((error: Error) => setRefusal(error.message))
+        let live = true
+        const read = async () => {
+            const folders = await getMusicFolders(credentials).catch(() => [])
+            const answered = await getArtists(credentials, musicFolderOf(folders))
+            if (!live) return
+            setArtists(answered.artists)
+            setArticles(articlesOf(answered.ignoredArticles))
+        }
+        read().catch((error: Error) => {
+            if (live) setRefusal(error.message)
+        })
+        return () => {
+            live = false
+        }
     }, [credentials])
+
+    const typed = query.trim()
+    const ordered = useMemo(() => sortArtists(artists ?? [], sort, articles), [articles, artists, sort])
 
     if (refusal) return <Notice>{refusal}</Notice>
     if (!artists) return <Notice>Reading the library.</Notice>
     if (!artists.length) return <Notice>No artists.</Notice>
 
-    const typed = query.trim()
     const shown = typed
-        ? artists.filter((artist) => artist.name.toLowerCase().includes(typed.toLowerCase()))
-        : artists
+        ? ordered.filter((artist) => artist.name.toLowerCase().includes(typed.toLowerCase()))
+        : ordered
     // What the server last found belongs to the last search worth making; a
     // query shorter than that is not one, so the results are simply not shown.
     const results = typed.length >= SEARCH_MIN ? found : null
 
     return (
         <div className="p-2">
-            <Input
-                value={query}
-                onChange={(event) => setQuery(event.target.value)}
-                aria-label="Search the library"
-                placeholder="Search"
-                className="mb-2"
-            />
+            <div className="mb-2 flex items-center gap-2">
+                <Input
+                    value={query}
+                    onChange={(event) => setQuery(event.target.value)}
+                    aria-label="Search the library"
+                    placeholder="Search"
+                    className="min-w-0 flex-1"
+                />
+                <Segmented
+                    label="Order"
+                    value={sort}
+                    options={SORT_MODES.map((mode) => ({ value: mode, label: SORT_LABELS[mode] }))}
+                    onChoose={(chosen) => {
+                        setSort(chosen as SortMode)
+                        try {
+                            localStorage.setItem(SORT_KEY, chosen)
+                        } catch {
+                            // Storage denied: the order holds while this document is open.
+                        }
+                    }}
+                />
+            </div>
             {results && (
                 <div className="mb-4 rounded-lg border p-2">
                     <p className="mb-1 px-1 text-xs text-muted-foreground">
@@ -305,6 +360,16 @@ function AlbumScreen({ credentials, id }: { credentials: Credentials; id: string
                                 <span className="min-w-0 flex-1 truncate" title={song.title}>
                                     {song.title}
                                 </span>
+                                {/* On a compilation every row is a different artist, and a
+                                    list of titles alone says nothing about what they are. */}
+                                {song.artist && song.artist !== album.artist && (
+                                    <span
+                                        className="hidden max-w-48 min-w-0 shrink truncate text-xs text-muted-foreground sm:block"
+                                        title={song.artist}
+                                    >
+                                        {song.artist}
+                                    </span>
+                                )}
                                 <span className="shrink-0 font-mono text-xs text-muted-foreground">
                                     {clock(song.duration ?? 0)}
                                 </span>
