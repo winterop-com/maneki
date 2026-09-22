@@ -839,6 +839,23 @@
     </span>
   </a>
   
+    <nav class="md-nav" aria-label="Serving">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#resuming" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Resuming
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
       
         <li class="md-nav__item">
@@ -1450,6 +1467,23 @@
     </span>
   </a>
   
+    <nav class="md-nav" aria-label="Serving">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#resuming" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Resuming
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
       
         <li class="md-nav__item">
@@ -1595,8 +1629,20 @@
 <td><code>GET</code> / <code>POST /books/api/scan</code></td>
 <td>Rescan status / start a rescan. Only books whose files changed are re-read.</td>
 </tr>
+<tr>
+<td><code>GET /books/api/progress</code></td>
+<td>Every book this account has started, most recently played first.</td>
+</tr>
+<tr>
+<td><code>GET</code> / <code>PUT</code> / <code>DELETE /books/api/books/{id}/progress</code></td>
+<td>Where this account stopped: read it, record it, or forget it.</td>
+</tr>
 </tbody>
 </table>
+<h3 id="resuming">Resuming<a class="headerlink" href="#resuming" title="Permanent link">&para;</a></h3>
+<p>An hour into a book, closing the app has to pick up where you left off, so the position is kept on the server rather than in one browser: it follows you between the web app, the desktop apps and any other client of the same account. Each account has its own, in <code>&lt;root&gt;/.maneki/users/&lt;name&gt;/books.db</code>, beside its favourites and play history, so an index rebuild never loses it.</p>
+<p>A position is one offset in seconds on the book's whole timeline. For a book split across files, the player maps the offset back to a file using the offsets in the book's detail. A player is expected to <code>PUT</code> it every few seconds and on pause; the write is a single row.</p>
+<p>The book list carries each book's position and whether it is finished, so a shelf renders from one request. A book counts as finished once the position reaches its last minute (or the last 2% of a book shorter than fifty minutes), since most books end in credits. A player that knows better can say so outright, in either direction.</p>
 <p>A book's id comes from its folder's path, so it stays the same across restarts and rescans until the folder moves. Under <code>--auth</code> the endpoints need the same bearer token as <code>/video/*</code>.</p>
 <h2 id="all-flags">All flags<a class="headerlink" href="#all-flags" title="Permanent link">&para;</a></h2>
 <table>
