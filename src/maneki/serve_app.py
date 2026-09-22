@@ -48,6 +48,7 @@ if TYPE_CHECKING:
 
     from maneki.audio.serve.config import ServeConfig
     from maneki.audio.serve.users import UserRegistry
+    from maneki.books.library import BooksIndex
 
 _log = logging.getLogger(__name__)
 
@@ -154,9 +155,12 @@ def create_combined_app(
     radio_present = bool(load_stations())
     # Audiobooks: the root's top-level `Audiobooks/` folder, which the music
     # and video walks skip (`maneki.library`), gets its own `/books` mount.
-    from maneki.books.library import books_dir
+    from maneki.books.library import BooksIndex, books_dir
 
     books_present = books_dir(root) is not None
+    # One index, shared by the /books API and the Subsonic mount that browses
+    # books as their own music folder.
+    books_index = BooksIndex(root, use_cache=audio_use_cache) if books_present else None
     cfg = _resolve_cfg(audio_cfg)
     token_store = TokenStore()
     # Accounts for the native (video) bearer login. Multi-user when [[users]]
@@ -448,6 +452,7 @@ def create_combined_app(
             cfg=cfg,
             users=users,
             scan_library=audio_present,
+            books=books_index,
         )
 
     if video_present or youtube_present:
@@ -456,13 +461,12 @@ def create_combined_app(
         # `video_present`, so an audio-only library pays no scan cost.
         _mount_video(combined, root, workers=transcode_workers, no_cover_images=no_cover_images, users=users)
 
-    if books_present:
-        from maneki.books.library import BooksIndex
+    if books_index is not None:
         from maneki.books.serve import create_books_app
 
         # The index starts empty and fills from a background scan in the
         # lifespan, so a large book library never delays startup.
-        combined.mount("/books", create_books_app(BooksIndex(root, use_cache=audio_use_cache), users=users))
+        combined.mount("/books", create_books_app(books_index, users=users))
 
     if enable_ui:
         # Mount the SPA at "/" LAST. FastAPI/Starlette match routes in
@@ -543,6 +547,7 @@ def _mount_audio(
     cfg: ServeConfig,
     users: UserRegistry,
     scan_library: bool = True,
+    books: BooksIndex | None = None,
 ) -> None:
     """Mount the Subsonic app under /audio against the shared library root.
 
@@ -566,7 +571,7 @@ def _mount_audio(
     """
     from maneki.audio.serve import create_app as create_audio_app
 
-    audio_app = create_audio_app(root=library_root, cfg=cfg, use_cache=use_cache, users=users)
+    audio_app = create_audio_app(root=library_root, cfg=cfg, use_cache=use_cache, users=users, books=books)
     if scan_library:
         audio_app.state.cache.rebuild()
     combined.mount("/audio", audio_app)

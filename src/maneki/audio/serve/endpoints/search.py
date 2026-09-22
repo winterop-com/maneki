@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import Any
+
 from fastapi import APIRouter, Query, Request
 
 from maneki.audio.serve import search_index
@@ -9,6 +11,7 @@ from maneki.audio.serve.app import envelope
 from maneki.audio.serve.index import IndexCache
 from maneki.audio.serve.payloads import album_payload, artist_summary, song_payload
 from maneki.audio.serve.stars import StarStore
+from maneki.books.subsonic import author_summary, book_payload, file_payload
 
 router = APIRouter()
 
@@ -124,7 +127,54 @@ async def search3(
         stars.enrich(entry)
     for entry in result.get("song", []):
         stars.enrich(entry)
+    _add_books(request, result, query=query, artist_count=artistCount, album_count=albumCount, song_count=songCount)
     return envelope("searchResult3", result)
+
+
+def _add_books(
+    request: Request,
+    result: dict[str, Any],
+    *,
+    query: str,
+    artist_count: int,
+    album_count: int,
+    song_count: int,
+) -> None:
+    """Add matching authors, books and book files to a search result, after the music.
+
+    Matching is the same shape as the music search: every token of the query
+    has to appear somewhere in the author, the title or the narrator.
+    """
+    books = getattr(request.app.state, "books", None)
+    if books is None:
+        return
+    tokens = [t for t in query.casefold().split() if t]
+    if not tokens:
+        return
+
+    def matches(*fields: str | None) -> bool:
+        haystack = " ".join(f.casefold() for f in fields if f)
+        return all(token in haystack for token in tokens)
+
+    found = [b for b in books.books if matches(b.author, b.title, b.narrator, b.series)]
+    if album_count:
+        result.setdefault("album", []).extend(book_payload(b, with_songs=False) for b in found[:album_count])
+    if artist_count:
+        # An author counts when their own name matches, and when one of their
+        # books does: "kahneman thinking" is about that author too.
+        names = sorted(
+            {b.author for b in found} | {b.author for b in books.books if matches(b.author)},
+            key=str.casefold,
+        )
+        result.setdefault("artist", []).extend(author_summary(books, name) for name in names[:artist_count])
+    if song_count:
+        songs: list[dict[str, Any]] = []
+        for book in found:
+            for number in range(len(book.files)):
+                if len(songs) >= song_count:
+                    break
+                songs.append(file_payload(book, number))
+        result.setdefault("song", []).extend(songs)
 
 
 @router.api_route("/search2", methods=["GET", "POST", "HEAD"])

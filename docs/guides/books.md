@@ -72,6 +72,16 @@ The cover is the catalog's full-size art, else an image in the book's folder (`c
 | `GET /books/api/progress` | Every book this account has started, most recently played first. |
 | `GET` / `PUT` / `DELETE /books/api/books/{id}/progress` | Where this account stopped: read it, record it, or forget it. |
 
+### In Subsonic clients
+
+Books are also served through the Subsonic API, in a music folder of their own called `Audiobooks` (`getMusicFolders` reports it beside `Music`). Pointing a client at that folder gives a shelf of books and nothing else; every browse endpoint honours `musicFolderId`.
+
+Inside it, an author reads as an artist, a book as an album, and a book's files as its songs, each typed `audiobook` so a client can treat them as spoken word. Book ids carry their own prefixes (`bka_`, `bkb_`, `bkt_`), so they can never be confused with music.
+
+The position is the same one the books API keeps. A client that bookmarks a book file writes the book's position, and a book with a position comes back from `getBookmarks` as a bookmark on the file it falls in, with `bookmarkPosition` on the song. Stopping on a phone and opening the web app resumes in the same place, and the other way round.
+
+A client that ignores music folders will list book authors among music artists. That is the trade for phone resume; the folder is there for clients that respect it.
+
 ### Resuming
 
 An hour into a book, closing the app has to pick up where you left off, so the position is kept on the server rather than in one browser: it follows you between the web app, the desktop apps and any other client of the same account. Each account has its own, in `<root>/.maneki/users/<name>/books.db`, beside its favourites and play history, so an index rebuild never loses it.

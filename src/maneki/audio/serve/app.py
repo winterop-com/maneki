@@ -16,7 +16,6 @@ from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from maneki.audio.serve.users import UserRegistry
-
 from fastapi import Depends, FastAPI, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, JSONResponse, Response
@@ -28,6 +27,7 @@ from maneki.audio.serve.auth import AuthError, verify
 from maneki.audio.serve.config import ServeConfig
 from maneki.audio.serve.index import IndexCache
 from maneki.audio.serve.xml import to_xml
+from maneki.books.library import BooksIndex
 
 # FastAPI generates OpenAPI `operationId` from `function_name + path` without
 # including the HTTP method, so the same handler registered with three
@@ -100,6 +100,7 @@ def create_app(
     cfg: ServeConfig,
     use_cache: bool = True,
     users: UserRegistry | None = None,
+    books: BooksIndex | None = None,
 ) -> FastAPI:
     """Build the FastAPI app for `root` with the given credentials.
 
@@ -131,6 +132,9 @@ def create_app(
     app.state.root = root
     app.state.cfg = cfg
     app.state.cache = IndexCache(root, use_cache=use_cache)
+    # The audiobook library, when the root has one: books browse as their own
+    # Subsonic music folder (see `maneki.books.subsonic`).
+    app.state.books = books
     # User accounts + per-user data. One registry serves the whole app;
     # require_auth resolves each request to its account and hands the
     # endpoints that user's stores via request.state. Per-user data (stars,
@@ -235,6 +239,7 @@ def create_app(
         request.state.playlists = app.state.users.playlists_for(account.name)
         request.state.history = app.state.users.history_for(account.name)
         request.state.bookmarks = app.state.users.bookmarks_for(account.name)
+        request.state.progress = app.state.users.progress_for(account.name)
 
     app.state.require_auth = require_auth
 

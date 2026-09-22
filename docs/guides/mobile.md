@@ -128,7 +128,7 @@ Free, open source, works on phone + Android Auto.
 
 Cross-device queue sync (`savePlayQueue` / `getPlayQueue`) is still a no-op.
 
-Audiobooks have their own position, kept per book rather than per track; see [`maneki books import`](books.md#resuming).
+Audiobooks are served in their own `Audiobooks` music folder, with a position kept per book rather than per track. A bookmark on a book file writes that position, so a phone and the web app resume at the same place. See [`maneki books import`](books.md#in-subsonic-clients).
 
 ## What Maneki doesn't do (yet)
 

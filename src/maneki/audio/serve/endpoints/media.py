@@ -14,6 +14,8 @@ from maneki.audio.serve.app import error_envelope
 from maneki.audio.serve.covers import load_album_cover, resize
 from maneki.audio.serve.index import IndexCache
 from maneki.audio.serve.payloads import content_type
+from maneki.books.library import COVER_NAME, BooksIndex
+from maneki.books.subsonic import find_author, find_book, find_file
 
 router = APIRouter()
 
@@ -63,6 +65,43 @@ def _safe_path_under_root(cache: IndexCache, path_id: str) -> JSONResponse | Non
     if not track.path.exists():
         return JSONResponse(error_envelope(70, f"Song file not found: {path_id}"))
     return None
+
+
+def _books(request: Request) -> BooksIndex | None:
+    """The audiobook index, when this root has one."""
+    return getattr(request.app.state, "books", None)
+
+
+def _book_file(request: Request, id: str) -> Path | None:
+    """The file an audiobook `bkt_` id names, if it is still on disk."""
+    books = _books(request)
+    if books is None:
+        return None
+    found = find_file(books, id)
+    if found is None:
+        return None
+    book, number = found
+    path = books.file_path(book.files[number].rel_path)
+    return path if path.is_file() else None
+
+
+def _book_cover(request: Request, id: str) -> Path | None:
+    """The cover.jpg of the book an author, book or file id points at."""
+    books = _books(request)
+    if books is None:
+        return None
+    book = find_book(books, id)
+    if book is None:
+        found = find_file(books, id)
+        book = found[0] if found is not None else None
+    if book is None:
+        author = find_author(books, id)
+        written = [b for b in books.books if author is not None and b.author == author]
+        book = written[0] if written else None
+    if book is None or not book.has_cover:
+        return None
+    cover = books.file_path(f"{book.rel_path}/{COVER_NAME}")
+    return cover if cover.is_file() else None
 
 
 def _resolve_transcode(
@@ -158,7 +197,20 @@ async def stream(
         description="OpenSubsonic transcodeOffset — start the transcode N seconds in.",
     ),
 ) -> Response:
-    """Audio bytes for a track. Transcodes to MP3 when the client asks; otherwise raw with Range."""
+    """Audio bytes for a track or a book's file. Transcodes to MP3 when asked; otherwise raw with Range."""
+    book_path = _book_file(request, id)
+    if book_path is not None:
+        # A book is played as stored: Range lets the client seek a twenty-hour
+        # file, and a transcode only happens when the client explicitly asks.
+        if (format or "").lower() == "mp3" and book_path.suffix.lower() != ".mp3":
+            return _transcode_response(
+                book_path,
+                bitrate_kbps=maxBitRate or _DEFAULT_TRANSCODE_BITRATE_KBPS,
+                time_offset_s=timeOffset or 0,
+            )
+        if maxBitRate:
+            return _transcode_response(book_path, bitrate_kbps=maxBitRate, time_offset_s=timeOffset or 0)
+        return FileResponse(book_path, headers={"Accept-Ranges": "bytes"})
     cache = _get_cache(request)
     err = _safe_path_under_root(cache, id)
     if err is not None:
@@ -187,6 +239,9 @@ async def stream(
 @router.api_route("/download.view", methods=["GET", "POST", "HEAD"], include_in_schema=False)
 async def download(request: Request, id: str = Query(...)) -> Response:
     """Always raw bytes — `download` skips transcoding by spec."""
+    book_path = _book_file(request, id)
+    if book_path is not None:
+        return FileResponse(book_path, headers={"Accept-Ranges": "bytes"})
     cache = _get_cache(request)
     err = _safe_path_under_root(cache, id)
     if err is not None:
@@ -209,6 +264,19 @@ async def get_cover_art(
 ) -> Response:
     """Cover image for an album/song/artist ID. Optional `?size=N` resize via Pillow."""
     cache = _get_cache(request)
+    book_cover = _book_cover(request, id)
+    if book_cover is not None:
+        if size is None:
+            return FileResponse(book_cover, media_type="image/jpeg")
+        cached = cache.cover_cache.get((id, size))
+        if cached is not None:
+            return Response(content=cached[0], media_type=cached[1])
+        try:
+            data, mime = resize(book_cover.read_bytes(), max_size=size)
+        except Exception:  # pragma: no cover — Pillow refused; serve the original file
+            return FileResponse(book_cover, media_type="image/jpeg")
+        cache.cover_cache.put((id, size), data, mime)
+        return Response(content=data, media_type=mime)
     if id.startswith("al_"):
         album = cache.albums_by_id.get(id)
     elif id.startswith("tr_"):

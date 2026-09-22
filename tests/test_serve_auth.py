@@ -117,13 +117,12 @@ def test_get_license_returns_valid(tmp_path: Path) -> None:
     assert body["license"]["valid"] is True
 
 
-def test_get_music_folders_returns_one_library(tmp_path: Path) -> None:
+def test_get_music_folders_returns_music_alone_without_books(tmp_path: Path) -> None:
+    """A root with no audiobooks reports one folder, on the id it always used."""
     response = _client(tmp_path).get("/rest/getMusicFolders", params={"u": "mort", "p": "secret", "f": "json"})
     body = response.json()["subsonic-response"]
     assert body["status"] == "ok"
-    folders = body["musicFolders"]["musicFolder"]
-    assert len(folders) == 1
-    assert folders[0]["name"] == "Library"
+    assert body["musicFolders"]["musicFolder"] == [{"id": 1, "name": "Music"}]
 
 
 def test_root_returns_200_with_server_info(tmp_path: Path) -> None:
