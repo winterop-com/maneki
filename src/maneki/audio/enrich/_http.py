@@ -7,7 +7,7 @@ import socket
 import threading
 import time
 
-import httpx
+import httpx2 as httpx
 
 from maneki import __version__
 

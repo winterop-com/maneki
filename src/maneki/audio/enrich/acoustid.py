@@ -19,7 +19,7 @@ import shutil
 import subprocess
 from pathlib import Path
 
-import httpx
+import httpx2 as httpx
 from pydantic import BaseModel, ConfigDict
 
 from maneki.audio.enrich._http import get_client, throttled_get

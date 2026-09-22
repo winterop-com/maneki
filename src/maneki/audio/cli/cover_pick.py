@@ -18,7 +18,7 @@ import webbrowser
 from pathlib import Path
 from typing import Annotated
 
-import httpx
+import httpx2 as httpx
 import typer
 from PIL import Image
 from rich.console import Console

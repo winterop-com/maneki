@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 from unittest.mock import MagicMock
 
-import httpx
+import httpx2 as httpx
 import pytest
 from fastapi.testclient import TestClient
 

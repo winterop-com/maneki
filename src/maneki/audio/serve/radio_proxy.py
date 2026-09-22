@@ -21,7 +21,7 @@ from __future__ import annotations
 import re
 from collections.abc import AsyncIterator
 
-import httpx
+import httpx2 as httpx
 from fastapi import Response
 from fastapi.responses import StreamingResponse
 

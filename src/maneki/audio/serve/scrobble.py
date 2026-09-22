@@ -27,7 +27,7 @@ from concurrent.futures import ThreadPoolExecutor
 from typing import TYPE_CHECKING, Any
 from urllib.parse import urlparse
 
-import httpx
+import httpx2 as httpx
 from pydantic import BaseModel, ConfigDict
 
 if TYPE_CHECKING:

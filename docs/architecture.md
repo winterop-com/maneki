@@ -405,7 +405,7 @@ the cached poster + thumbnail for that id so the next `/poster` /
 | `typer` | `cli/` | CLI plumbing (subcommands, options, autocompletion). |
 | `mutagen` | `metadata/`, `pipeline/` | Read/write tags for FLAC, MP3, MP4, WAV, OGG, OPUS. |
 | `Pillow` | `cover.py`, `pipeline/`, `video/serve/poster.py` | Decode + resize cover images, compose contact-sheet posters. |
-| `httpx` | `enrich/` | MusicBrainz / Cover Art Archive / AcoustID HTTP. |
+| `httpx2` | `enrich/`, `lyrics/`, `serve/radio_proxy.py`, `serve/scrobble.py` | HTTP client (the httpx API, imported as `httpx`): MusicBrainz, Cover Art Archive, AcoustID, LRCLIB, the radio proxy, scrobbling. |
 | `pydantic` | `library/`, `metadata/`, `video/serve/` | Data models with type-checking and round-trippable JSON. |
 | `rich` | `cli/`, `library/` | Terminal tables, trees, progress bars. |
 | `zeroconf` | `serve/discovery.py` | mDNS/Bonjour: server advertises so LAN clients can find it. |

@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections.abc import Callable
 from pathlib import Path
 
-import httpx
+import httpx2 as httpx
 import pytest
 
 from maneki.audio.enrich.coverart import CoverArtArchiveProvider

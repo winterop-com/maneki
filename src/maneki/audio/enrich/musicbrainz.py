@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import logging
 
-import httpx
+import httpx2 as httpx
 
 from maneki.audio.enrich import EnrichmentResult
 from maneki.audio.enrich._http import get_client, throttled_get

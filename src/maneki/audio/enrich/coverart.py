@@ -10,7 +10,7 @@ from __future__ import annotations
 import io
 import logging
 
-import httpx
+import httpx2 as httpx
 
 from maneki.audio.cover import CoverCandidate, CoverSource
 from maneki.audio.enrich import EnrichmentResult
