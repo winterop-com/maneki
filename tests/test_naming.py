@@ -270,3 +270,13 @@ def test_strip_quality_annotations_needs_keyword_or_depth_rate_pair() -> None:
     assert strip_quality_annotations("Album (24)") == "Album (24)"
     assert strip_quality_annotations("Album (24/48)") == "Album"
     assert strip_quality_annotations("Album [FLAC16]") == "Album"
+
+
+def test_dated_folder_year() -> None:
+    """A weekly chart is named by its date, and that date is the year it belongs to."""
+    from maneki.audio.naming import dated_folder_year
+
+    assert dated_folder_year("The Official UK Top 100 Singles Chart (06.03.2026) Mp3") == "2026"
+    assert dated_folder_year("Album (2012) [FLAC]") is None
+    assert dated_folder_year("Plain Folder") is None
+    assert dated_folder_year(None) is None

@@ -156,6 +156,11 @@ def _process_album(
     leading_year = naming.leading_year_from_folder(album_dir.path.name)
     if leading_year and leading_year != summary.year:
         summary.year = leading_year
+    # A folder named by a release date says which edition this is; its tracks
+    # carry the years their songs came out, which is a different question.
+    dated_year = naming.dated_folder_year(album_dir.path.name)
+    if dated_year and dated_year != summary.year:
+        summary.year = dated_year
     if not summary.year:
         # Last-ditch: try pulling a year out of the input folder name.
         _, folder_year = naming.clean_folder_album_name(album_dir.path.name)

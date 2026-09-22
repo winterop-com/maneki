@@ -236,6 +236,18 @@ def _strip_release_group(name: str) -> str:
     return name[: match.start()]
 
 
+def dated_folder_year(name: str | None) -> str | None:
+    """The year of a full release date in a folder name (`(06.03.2026)`), else None.
+
+    A weekly chart is named by its date, and its tracks carry the years the
+    songs came out, so the date is what says which edition this is.
+    """
+    if not name:
+        return None
+    match = _FOLDER_DATE_RE.search(name)
+    return match.group(1) if match else None
+
+
 def leading_year_from_folder(name: str | None) -> str | None:
     """Return the 4-digit year iff `name` starts with one followed by a separator.
 
