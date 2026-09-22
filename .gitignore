@@ -75,6 +75,7 @@ desktop/app/dist/
 # wheel. `scripts/copy_ui_static.py` mirrors `desktop/react/` into
 # here; the canonical source lives in `desktop/react/`.
 src/maneki/_ui_static/
+src/maneki/_ui_static_classic/
 
 # Playwright MCP writes screenshots and snapshots here while driving the app.
 .playwright-mcp/
