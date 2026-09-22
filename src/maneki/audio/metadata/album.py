@@ -149,6 +149,13 @@ def clean_album_title(album: str | None) -> str | None:
     return cleaned or album
 
 
+# How many distinct album artists make a record a compilation, and how large a
+# share of its tracks they have to cover. Five on a ten-track record is a
+# compilation; two guests on a ten-track record is not.
+_COMPILATION_MIN_ARTISTS = 5
+_COMPILATION_ARTIST_RATIO = 0.5
+
+
 def summarize_album(tracks: list[SourceTrack]) -> AlbumSummary:
     """Build an album-level summary by majority-vote across `tracks`.
 
@@ -182,12 +189,24 @@ def summarize_album(tracks: list[SourceTrack]) -> AlbumSummary:
 
     # Compilation if: album_artist is a VA alias, the per-track artist majority
     # is itself a VA alias (rips that leave album_artist empty but stamp every
-    # track artist as `VA`), or there's no album_artist + tracks span multiple
-    # different artists.
+    # track artist as `VA`), there's no album_artist + tracks span multiple
+    # different artists, or the album artists themselves are many.
+    #
+    # That last one is what a chart rip looks like: a hundred singles, each
+    # tagged with its own artist as its own album artist, so nothing is blank
+    # and nothing says "Various". Counting album artists rather than track
+    # artists is what keeps a record with guests on half its tracks out of
+    # this: those share one album artist.
+    distinct_album_artists = len({(t.album_artist or "").strip() for t in tracks if (t.album_artist or "").strip()})
+    many_album_artists = (
+        distinct_album_artists >= _COMPILATION_MIN_ARTISTS
+        and distinct_album_artists >= len(tracks) * _COMPILATION_ARTIST_RATIO
+    )
     is_compilation = (
         is_various_artists(album_artist)
         or is_various_artists(artist_fallback)
         or (album_artist is None and distinct_artists > 1)
+        or many_album_artists
     )
 
     return AlbumSummary(

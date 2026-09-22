@@ -156,6 +156,21 @@ _FOLDER_YEAR_RE = re.compile(r"[\(\[]?((?:19|20)\d{2})[\)\]]?")
 # track tags. Real example: `1983. Now That's What I Call Music! [2018 Reissue]`
 # ships MP3s tagged `TDRC=2018`, but the user clearly intends 1983.
 _LEADING_FOLDER_YEAR_RE = re.compile(r"^\s*((?:19|20)\d{2})[\s.\-_]")
+# A release date written into the folder name (`(06.03.2026)`). The year alone
+# would leave `(06.03.` behind, and a weekly chart is told apart by its date, so
+# the whole group is kept and the year read out of it.
+_FOLDER_DATE_RE = re.compile(r"[\(\[]\s*\d{1,2}[.\-/]\d{1,2}[.\-/]((?:19|20)\d{2})\s*[\)\]]")
+# Codec and bit-rate words loose in a folder name, outside any bracket:
+# `... Mp3 (320kbps)`. Kept narrow: `web` and `cd` are words albums use.
+_BARE_QUALITY_RE = re.compile(r"\b(?:mp3|flac|aac|alac|ape|cbr|vbr|\d{2,4}\s*kbps)\b", re.IGNORECASE)
+# A release group signing the folder (`[Hunter]`). Anything that says something
+# about the music itself stays.
+_TRAILING_GROUP_RE = re.compile(r"\s*\[[A-Za-z0-9_.\- ]{2,24}\]\s*$")
+_GROUP_KEEP = frozenset(
+    "live acoustic remix remixes remastered deluxe explicit clean instrumental demo bonus ep single "
+    "soundtrack ost mono stereo".split()
+)
+
 _VA_PREFIX_RE = re.compile(r"^\s*(?:VA|Various)\s*-\s*", re.IGNORECASE)
 
 
@@ -191,14 +206,34 @@ def clean_folder_album_name(name: str) -> tuple[str, str | None]:
     expects to see it labeled.
     """
     cleaned = _FOLDER_EDITION_RE.sub(" ", name)
-    year_match = _FOLDER_YEAR_RE.search(cleaned)
-    year = year_match.group(1) if year_match else None
-    if year_match:
-        cleaned = cleaned.replace(year_match.group(0), " ")
+    # A full date names the edition (a weekly chart), so it survives whole and
+    # answers for the year.
+    date_match = _FOLDER_DATE_RE.search(cleaned)
+    year = date_match.group(1) if date_match else None
+    if date_match is None:
+        year_match = _FOLDER_YEAR_RE.search(cleaned)
+        year = year_match.group(1) if year_match else None
+        if year_match:
+            cleaned = cleaned.replace(year_match.group(0), " ")
     cleaned = _FOLDER_TAG_RE.sub(" ", cleaned)
+    cleaned = _BARE_QUALITY_RE.sub(" ", cleaned)
+    cleaned = _strip_release_group(cleaned)
     cleaned = _VA_PREFIX_RE.sub("", cleaned)
+    cleaned = re.sub(r"\s+", " ", cleaned)
+    cleaned = re.sub(r"\(\s*\)|\[\s*\]", " ", cleaned)
     cleaned = re.sub(r"\s+", " ", cleaned).strip(" -_")
     return cleaned or name, year
+
+
+def _strip_release_group(name: str) -> str:
+    """Drop a trailing `[Group]` that signs the rip rather than describing the music."""
+    match = _TRAILING_GROUP_RE.search(name)
+    if match is None:
+        return name
+    inside = match.group(0).strip(" []").casefold()
+    if any(word in _GROUP_KEEP for word in inside.split()):
+        return name
+    return name[: match.start()]
 
 
 def leading_year_from_folder(name: str | None) -> str | None:

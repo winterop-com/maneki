@@ -16,6 +16,12 @@ from maneki.books.models import Chapter, SourceBook, SourceFile
 from maneki.ffmpeg import ffprobe_path
 
 _DIGITS_RE = re.compile(r"(\d+)")
+# How deep a dropped folder is followed looking for books. A collection of
+# collections ("Top 100 Sci-Fi Books - 1-25" holding a folder per book) is two,
+# and a disc folder inside one of those is the third.
+_MAX_SHELF_DEPTH = 3
+# A subfolder that names a disc of one recording rather than a book of its own.
+_DISC_NAME_RE = re.compile(r"^(?:cd|disc|disk|part|side|vol(?:ume)?)[\s._-]*\d+$|^\d{1,2}$", re.I)
 _TAG_KEYS = (
     "title",
     "album",
@@ -41,6 +47,11 @@ def is_audio(path: Path) -> bool:
     return path.is_file() and not path.name.startswith(".") and path.suffix.lower() in SUPPORTED_AUDIO_EXTS
 
 
+def _is_disc_name(name: str) -> bool:
+    """True for a folder that names a disc of one recording: `CD1`, `Disc 2`, `Part 3`."""
+    return bool(_DISC_NAME_RE.match(name.strip()))
+
+
 def natural_key(path: Path) -> list[object]:
     """Sort `Part 2` before `Part 10`, part by part along the path."""
     key: list[object] = []
@@ -49,17 +60,47 @@ def natural_key(path: Path) -> list[object]:
     return key
 
 
-def discover(inbox: Path) -> list[Path]:
-    """Every book waiting in `inbox`: each folder holding audio, and each loose audio file."""
-    books: list[Path] = []
+def discover(inbox: Path, *, max_depth: int = _MAX_SHELF_DEPTH) -> list[Path]:
+    """Every book waiting in `inbox`, however the rip arranged them.
+
+    A folder is one book when it holds audio of its own, or when its
+    subfolders are the discs of one recording. A folder of folders is a
+    collection ("Harry Potter 1-7", "Top 100 Sci-Fi Books"), so each one
+    inside is looked at the same way, down to `max_depth`.
+
+    Whether one folder's own files are one book or several is not a question
+    its shape can answer, so that is decided after probing; see
+    `maneki.books.pipeline.separate_books`.
+    """
+    found: list[Path] = []
     for child in sorted(inbox.iterdir(), key=natural_key):
         if child.name.startswith("."):
             continue
-        if child.is_dir() and any(is_audio(p) for p in child.rglob("*")):
-            books.append(child)
-        elif is_audio(child):
-            books.append(child)
-    return books
+        if is_audio(child):
+            found.append(child)
+        elif child.is_dir():
+            found.extend(_books_in(child, depth=max_depth))
+    return found
+
+
+def _books_in(folder: Path, *, depth: int) -> list[Path]:
+    """The books inside one dropped folder."""
+    direct = sorted((p for p in folder.iterdir() if is_audio(p)), key=natural_key)
+    subdirs = [p for p in sorted(folder.iterdir(), key=natural_key) if p.is_dir() and not p.name.startswith(".")]
+
+    if direct:
+        # Files of its own. Whether they are one book or several is decided
+        # once their lengths are known.
+        return [folder]
+    if not subdirs or depth <= 0:
+        return [folder] if any(is_audio(p) for p in folder.rglob("*")) else []
+    if all(_is_disc_name(p.name) for p in subdirs):
+        # `CD1`, `CD2`: the discs of one recording, which `audio_files` walks in order.
+        return [folder]
+    found: list[Path] = []
+    for subdir in subdirs:
+        found.extend(_books_in(subdir, depth=depth - 1))
+    return found
 
 
 def audio_files(book: Path) -> list[Path]:

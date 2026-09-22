@@ -10,8 +10,8 @@ from typer.testing import CliRunner
 
 from maneki.books.catalog import BookCatalog
 from maneki.books.models import CatalogBook, CatalogChapters, Chapter, ChapterSource
-from maneki.books.pipeline import format_duration, import_books
-from maneki.books.probe import discover, natural_key, probe_file
+from maneki.books.pipeline import format_duration, import_books, separate_books
+from maneki.books.probe import discover, load_book, natural_key, probe_file
 from maneki.books.write import BookTags, file_names, write_book
 from maneki.cli import app
 from tests.conftest import audio_md5, jpeg_bytes, make_silent_mp3, require_ffmpeg
@@ -238,3 +238,107 @@ def test_cli_dry_run_offline(tmp_path: Path) -> None:
 def test_format_duration() -> None:
     assert format_duration(72130.09) == "20h 02m"
     assert format_duration(42 * 60) == "42m"
+
+
+# --- collections: one folder is not always one book ----------------------------
+
+
+def _folder(root: Path, name: str, files: dict[str, float]) -> Path:
+    for filename, seconds in files.items():
+        make_silent_mp3(root / name / filename, seconds)
+    return root / name
+
+
+def test_a_collection_of_folders_yields_a_book_each(tmp_path: Path) -> None:
+    """`Harry Potter 1-7/Book 01 .../*.mp3`: each folder inside is its own book."""
+    for book in ("Book 01 - Philosopher's Stone", "Book 02 - Chamber of Secrets"):
+        make_silent_mp3(tmp_path / "Harry Potter 1-7" / book / "01.mp3", 0.5)
+    (tmp_path / "Harry Potter 1-7" / "Info.txt").write_text("rip notes")
+    assert [p.name for p in discover(tmp_path)] == ["Book 01 - Philosopher's Stone", "Book 02 - Chamber of Secrets"]
+
+
+def test_a_collection_of_collections_is_followed_down(tmp_path: Path) -> None:
+    """`Dune Collection/07 - Great Schools/01. Sisterhood/` is still one book."""
+    make_silent_mp3(tmp_path / "Dune Collection" / "07 - Great Schools" / "01. Sisterhood" / "01.mp3", 0.5)
+    assert [p.name for p in discover(tmp_path)] == ["01. Sisterhood"]
+
+
+def test_disc_folders_stay_one_book(tmp_path: Path) -> None:
+    for disc in ("CD1", "CD2"):
+        make_silent_mp3(tmp_path / "The Martian" / disc / "01.mp3", 0.5)
+    assert [p.name for p in discover(tmp_path)] == ["The Martian"]
+
+
+def test_parts_of_one_recording_stay_one_book(tmp_path: Path) -> None:
+    """`Pt 01 Of 66` beside `Pt 02 Of 66`: one name, one book."""
+    folder = _folder(
+        tmp_path,
+        "Hitchhikers Guide",
+        {"001 - Hitchhikers Guide Pt 01 Of 66.mp3": 1.0, "002 - Hitchhikers Guide Pt 02 Of 66.mp3": 1.0},
+    )
+    assert [b.path for b in separate_books(load_book(folder))] == [folder]
+
+
+def test_files_named_only_by_number_stay_one_book(tmp_path: Path) -> None:
+    """`1-01 1a` beside `1-02 1b`: numbering, not titles."""
+    folder = _folder(tmp_path, "Foundation", {"1-01 1a.mp3": 1.0, "1-02 1b.mp3": 1.0})
+    assert [b.path for b in separate_books(load_book(folder))] == [folder]
+
+
+def test_short_files_with_different_names_stay_one_book(tmp_path: Path) -> None:
+    """Chapters titled by name are still one book: they run minutes, not hours."""
+    folder = _folder(tmp_path, "Some Book", {"01 - The Beginning.mp3": 1.0, "02 - The Middle.mp3": 1.0})
+    assert [b.path for b in separate_books(load_book(folder))] == [folder]
+
+
+def test_book_length_files_with_different_names_are_separate_books(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """`01. Dune.m4b` beside `02. Dune Messiah.m4b`: six novels in one folder, not one book."""
+    folder = _folder(tmp_path, "Dune Saga", {"01. Dune.mp3": 1.0, "02. Dune Messiah.mp3": 1.0})
+    book = load_book(folder)
+    # Stand the test files in for book-length recordings.
+    long_files = [f.model_copy(update={"duration_s": 8 * 3600}) for f in book.files]
+    separated = separate_books(book.model_copy(update={"files": long_files}))
+    assert [b.path.name for b in separated] == ["01. Dune.mp3", "02. Dune Messiah.mp3"]
+
+
+def test_remove_source_takes_the_emptied_collection_folder_with_it(tmp_path: Path) -> None:
+    inbox, library = tmp_path / "inbox", tmp_path / "Audiobooks"
+    make_silent_mp3(inbox / "Orwell Collection" / "Animal Farm" / "01.mp3", 1.0)
+    (inbox / "Orwell Collection" / "cover.jpg").write_bytes(jpeg_bytes(80))
+
+    [report] = import_books(inbox, library, catalog=None, remove_source=True)
+
+    assert report.status == "ok"
+    assert not (inbox / "Orwell Collection").exists()  # the rip's leftovers went with it
+    assert inbox.is_dir()
+
+
+def test_remove_source_keeps_a_collection_with_books_still_in_it(tmp_path: Path) -> None:
+    inbox, library = tmp_path / "inbox", tmp_path / "Audiobooks"
+    make_silent_mp3(inbox / "Orwell Collection" / "Animal Farm" / "01.mp3", 1.0)
+    make_silent_mp3(inbox / "Orwell Collection" / "1984" / "01.mp3", 1.0)
+    (library / "Unknown Author" / "1984").mkdir(parents=True)  # already imported, so it will be skipped
+
+    import_books(inbox, library, catalog=None, remove_source=True)
+
+    assert (inbox / "Orwell Collection" / "1984").exists()
+    assert not (inbox / "Orwell Collection" / "Animal Farm").exists()
+
+
+def test_a_chapterised_book_stays_one_book(tmp_path: Path) -> None:
+    """Harry Potter 5 arrives as 38 chapter files, some of them long. Still one book."""
+    files = {f"Chapter {n:02d} - Something Happens.mp3": 1.0 for n in range(1, 39)}
+    folder = _folder(tmp_path, "Order of the Phoenix", files)
+    book = load_book(folder)
+    long_files = [f.model_copy(update={"duration_s": 50 * 60}) for f in book.files]
+    assert [b.path for b in separate_books(book.model_copy(update={"files": long_files}))] == [folder]
+
+
+def test_a_few_long_differently_named_files_still_split(tmp_path: Path) -> None:
+    """Six novels in one folder are six books; the chapter rules must not swallow them."""
+    folder = _folder(tmp_path, "Dune Saga", {"01. Dune.mp3": 1.0, "02. Dune Messiah.mp3": 1.0})
+    book = load_book(folder)
+    long_files = [f.model_copy(update={"duration_s": 8 * 3600}) for f in book.files]
+    assert len(separate_books(book.model_copy(update={"files": long_files}))) == 2

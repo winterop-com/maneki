@@ -22,9 +22,11 @@ def test_clean_folder_album_name_strips_codec_and_year():
     # Scene-site tags get stripped.
     assert clean_folder_album_name("[nextorrent.com] 7Os8Os9Os") == ("7Os8Os9Os", None)
     assert clean_folder_album_name("[example.org] Some Album (2020)") == ("Some Album", "2020")
-    # Non-domain bracketed annotations are preserved (might be meaningful).
+    # A bracket that says something about the music is preserved.
     assert clean_folder_album_name("Album [Live]") == ("Album [Live]", None)
-    assert clean_folder_album_name("Album [PMEDIA]") == ("Album [PMEDIA]", None)
+    # A release group signing the rip is not: it names the ripper, not the record.
+    assert clean_folder_album_name("Album [PMEDIA]") == ("Album", None)
+    assert clean_folder_album_name("Chart (06.03.2026) Mp3 (320kbps) [Hunter]") == ("Chart (06.03.2026)", "2026")
 
 
 def test_clean_folder_album_name_strips_edition_annotations():

@@ -16,6 +16,7 @@ not. A book already in the library is left alone unless `overwrite` is set.
 from __future__ import annotations
 
 import io
+import re
 import shutil
 from collections.abc import Callable
 from pathlib import Path
@@ -28,10 +29,24 @@ from maneki.books.catalog import BookCatalog, align_chapters, choose, runtime_ma
 from maneki.books.library import file_chapters, majority
 from maneki.books.models import CatalogBook, Chapter, ChapterSource, NameGuess, SourceBook
 from maneki.books.names import clean_title, guess_from_name
-from maneki.books.probe import ProbeError, discover, load_book
-from maneki.books.write import BookTags, book_dir, write_book, writes_chapters
+from maneki.books.probe import ProbeError, discover, is_audio, load_book
+from maneki.books.write import BookTags, book_dir, part_title, write_book, writes_chapters
 
 UNKNOWN_AUTHOR = "Unknown Author"
+# A file at least this long, in a folder of files with unrelated names, is a
+# book of its own rather than a part: chapters run minutes, books run hours.
+SPLIT_MIN_DURATION_S = 45 * 60
+# A flat folder holding more files than this is a book in pieces, not that many
+# whole books side by side. A chapterised book runs to dozens of files, each
+# named for its chapter and some of them long.
+SPLIT_MAX_FILES = 12
+# Names that say "part of something" outright.
+_CHAPTER_NAME_RE = re.compile(r"\b(?:chapter|chap|part|pt|track|disc|cd|side)\b[\s._-]*\d+", re.IGNORECASE)
+_CHAPTER_NAME_SHARE = 0.8
+# A name that is nothing but numbering once the digits come off ("1-01 1a").
+_NAME_RESIDUE_MIN = 3
+_NUMBERS_RE = re.compile(r"\d+")
+_NOT_WORD_RE = re.compile(r"[^a-z]+")
 # Editions whose chapter lists are fetched when looking for one that lines up.
 _MAX_CHAPTER_LOOKUPS = 3
 _FOLDER_COVER_NAMES = ("cover", "folder", "front")
@@ -93,7 +108,10 @@ def import_books(
         except ProbeError as exc:
             reports[path] = BookReport(source=path, status="fail", notes=[str(exc)])
             continue
-        plans.append(plan_book(book, library, catalog=catalog))
+        for one in separate_books(book):
+            order.append(one.path)
+            plans.append(plan_book(one, library, catalog=catalog))
+        order.remove(path)
 
     kept, dropped = _resolve_duplicates(plans)
     for plan, winner in dropped:
@@ -163,8 +181,52 @@ def plan_book(book: SourceBook, library: Path, *, catalog: BookCatalog | None) -
     )
 
 
+def separate_books(book: SourceBook) -> list[SourceBook]:
+    """`book`, or one book per file when a folder turned out to hold several.
+
+    A collection sometimes arrives as one folder of whole books
+    (`01. Dune.m4b` beside `02. Dune Messiah.m4b`) rather than as a folder
+    per book. Everything has to point that way before they are split: a
+    handful of files rather than dozens, no name saying "chapter" or "part",
+    names that differ once their numbering is stripped, and files that run
+    as long as books do. A chapterised book fails the first two, a book in
+    numbered parts the third, and a folder of short pieces the fourth.
+    """
+    if book.path.is_file() or len(book.files) < 2:
+        return [book]
+    # Files spread across subfolders are the discs of one recording.
+    if any(f.path.parent != book.path for f in book.files):
+        return [book]
+    if len(book.files) > SPLIT_MAX_FILES:
+        return [book]
+    named_parts = sum(bool(_CHAPTER_NAME_RE.search(f.path.stem)) for f in book.files)
+    if named_parts >= len(book.files) * _CHAPTER_NAME_SHARE:
+        return [book]
+    residues = [_name_residue(f.path.stem) for f in book.files]
+    if len(set(residues)) == 1 or all(len(r) < _NAME_RESIDUE_MIN for r in residues):
+        return [book]
+    lengths = sorted(f.duration_s for f in book.files)
+    median = lengths[len(lengths) // 2]
+    if median < SPLIT_MIN_DURATION_S:
+        return [book]
+    return [SourceBook(path=f.path, files=[f]) for f in book.files]
+
+
+def _name_residue(stem: str) -> str:
+    """What is left of a file name once its numbering and punctuation come off."""
+    return _NOT_WORD_RE.sub("", _NUMBERS_RE.sub("", stem).casefold())
+
+
 def guess_book(book: SourceBook) -> NameGuess:
-    """The book's own tags when every file agrees on a title and an author, else its name."""
+    """What this book is, from its tags and its name.
+
+    A book that is one file says what it is in that file's title tag. Its
+    album tag often names the collection it was ripped from ("The New Dune
+    Chronicles" across nine novels), so a differing title tag wins: without
+    that, nine books identify as one and eight are dropped as copies.
+    """
+    if book.path.is_file():
+        return _guess_one_file(book)
     album = majority(f.tags.get("album") for f in book.files)
     author = majority(f.tags.get("album_artist") or f.tags.get("artist") for f in book.files)
     if album and author:
@@ -178,6 +240,28 @@ def guess_book(book: SourceBook) -> NameGuess:
             year=date[:4] if date and date[:4].isdigit() else None,
         )
     return guess_from_name(book.name)
+
+
+def _guess_one_file(book: SourceBook) -> NameGuess:
+    """Identify a book that arrived as a single file."""
+    tags = book.files[0].tags
+    from_name = guess_from_name(part_title(book.path.name))
+    title_tag = clean_title(tags.get("title", ""))
+    album_tag = clean_title(tags.get("album", ""))
+    # The album names the collection when the title disagrees with it.
+    title = (title_tag if title_tag and title_tag != album_tag else album_tag) or from_name.title or book.name
+    author = tags.get("album_artist") or tags.get("artist") or from_name.author
+    if not author:
+        # The folder a loose file sits in usually names its author.
+        author = guess_from_name(book.path.parent.name).author
+    date = tags.get("date")
+    return NameGuess(
+        terms=" ".join(p for p in (author, title) if p) or book.name,
+        title=title,
+        author=author,
+        narrator=tags.get("composer") or from_name.narrator,
+        year=(date[:4] if date and date[:4].isdigit() else None) or from_name.year,
+    )
 
 
 def format_duration(seconds: float) -> str:
@@ -259,7 +343,23 @@ def _run(
             shutil.rmtree(plan.book.path)
         else:
             plan.book.path.unlink()
+        _prune(plan.book.path.parent, inbox)
     return _report(plan, "ok", [], cover=cover_label)
+
+
+def _prune(folder: Path, inbox: Path) -> None:
+    """Drop a collection folder the imported books have emptied.
+
+    A collection arrives as one folder of books; taking its books leaves the
+    folder behind with the rip's cover scan and notes in it. A folder with no
+    audio left anywhere beneath it holds nothing worth keeping, so it goes,
+    and its parent is considered in turn. The inbox itself always stays.
+    """
+    while folder != inbox and inbox in folder.parents:
+        if any(is_audio(p) for p in folder.rglob("*")):
+            return
+        shutil.rmtree(folder, ignore_errors=True)
+        folder = folder.parent
 
 
 def _report(plan: BookPlan, status: str, extra: list[str], *, cover: str = "none") -> BookReport:
