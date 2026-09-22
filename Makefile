@@ -1,4 +1,4 @@
-.PHONY: help install lint check test coverage docs docs-serve docs-build docs-screenshots build build-python dist-collect desktop-build-frontend desktop-sync-frontend desktop-sync-version desktop-tauri desktop-tauri-dev desktop-tauri-build _wipe-tauri-userdata desktop-electron desktop-electron-dev desktop-electron-build _wipe-electron-userdata ui-static-sync clean
+.PHONY: help install lint check test coverage docs docs-serve docs-build build build-python dist-collect desktop-build-frontend desktop-sync-frontend desktop-sync-version desktop-tauri desktop-tauri-dev desktop-tauri-build _wipe-tauri-userdata desktop-electron desktop-electron-dev desktop-electron-build _wipe-electron-userdata ui-static-sync clean
 
 UV := $(shell command -v uv 2> /dev/null)
 
@@ -23,7 +23,6 @@ help:
 	@echo "  coverage     Run pytest with coverage"
 	@echo "  docs-serve   Serve documentation locally with live reload"
 	@echo "  docs-build   Build static documentation site to ./site"
-	@echo "  docs-screenshots  Regenerate the TUI SVG screenshots in docs/screenshots/"
 	@echo "  docs         Alias for docs-serve"
 	@echo "  build        Build release versions of everything; collect into ./dist"
 	@echo "  build-python Build Python wheel + sdist via uv build (-> ./dist)"
@@ -74,10 +73,6 @@ docs-serve:
 docs-build:
 	@echo ">>> Building documentation site"
 	@$(UV) run mkdocs build
-
-docs-screenshots:
-	@echo ">>> Regenerating TUI SVG screenshots"
-	@$(UV) run python scripts/gen_screenshots.py
 
 docs: docs-serve
 

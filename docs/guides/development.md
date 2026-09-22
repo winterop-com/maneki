@@ -71,8 +71,8 @@ The major modules went through a 7-wave refactor early on — every package abov
 - **Python 3.13**, `from __future__ import annotations` everywhere, explicit type annotations.
 - **Line length 120**. ruff-formatted.
 - **Docstrings**: one-line module docstring at the top of every file. One-line docstring on every public class / function / method. Triple quotes always.
-- **Pydantic for data classes** — `BaseModel` (or `dataclass(frozen=True)` for immutables that don't need pydantic features).
-- **Async/await** where the framework demands it (FastAPI endpoints, Textual lifecycle hooks, pyatv); synchronous everywhere else.
+- **Pydantic for data classes** — `BaseModel` always, never `@dataclass`. For an immutable, `model_config = ConfigDict(frozen=True)`.
+- **Async/await** where the framework demands it (FastAPI endpoints, the video scan and watcher); synchronous everywhere else.
 - **No emojis** in code, comments, commit messages, PR titles, docs. Plain text only — `[x]` not `✓`, `WARNING:` not warning glyph. Codified in `CLAUDE.md`.
 
 Ruff config (in `pyproject.toml`): `E/W/F/I/D`, google docstrings, `py313`, `line-length 120`.
