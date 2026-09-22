@@ -462,7 +462,7 @@ def create_combined_app(
 
         # The index starts empty and fills from a background scan in the
         # lifespan, so a large book library never delays startup.
-        combined.mount("/books", create_books_app(BooksIndex(root, use_cache=audio_use_cache)))
+        combined.mount("/books", create_books_app(BooksIndex(root, use_cache=audio_use_cache), users=users))
 
     if enable_ui:
         # Mount the SPA at "/" LAST. FastAPI/Starlette match routes in

@@ -69,6 +69,16 @@ The cover is the catalog's full-size art, else an image in the book's folder (`c
 | `GET /books/api/books/{id}/files/{n}` | The `n`th file as stored, with HTTP Range support, so a player can seek anywhere without the server decoding it. |
 | `GET /books/api/books/{id}/cover` | `cover.jpg`, else the picture embedded in the first file. |
 | `GET` / `POST /books/api/scan` | Rescan status / start a rescan. Only books whose files changed are re-read. |
+| `GET /books/api/progress` | Every book this account has started, most recently played first. |
+| `GET` / `PUT` / `DELETE /books/api/books/{id}/progress` | Where this account stopped: read it, record it, or forget it. |
+
+### Resuming
+
+An hour into a book, closing the app has to pick up where you left off, so the position is kept on the server rather than in one browser: it follows you between the web app, the desktop apps and any other client of the same account. Each account has its own, in `<root>/.maneki/users/<name>/books.db`, beside its favourites and play history, so an index rebuild never loses it.
+
+A position is one offset in seconds on the book's whole timeline. For a book split across files, the player maps the offset back to a file using the offsets in the book's detail. A player is expected to `PUT` it every few seconds and on pause; the write is a single row.
+
+The book list carries each book's position and whether it is finished, so a shelf renders from one request. A book counts as finished once the position reaches its last minute (or the last 2% of a book shorter than fifty minutes), since most books end in credits. A player that knows better can say so outright, in either direction.
 
 A book's id comes from its folder's path, so it stays the same across restarts and rescans until the folder moves. Under `--auth` the endpoints need the same bearer token as `/video/*`.
 

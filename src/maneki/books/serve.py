@@ -9,12 +9,14 @@ from __future__ import annotations
 
 import mimetypes
 
-from fastapi import FastAPI, HTTPException, Response
+from fastapi import FastAPI, HTTPException, Request, Response
 from fastapi.responses import FileResponse
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
+from maneki.audio.serve.users import UserRegistry
 from maneki.books.library import COVER_NAME, BooksIndex, LibraryBook
 from maneki.books.models import Chapter, ChapterSource
+from maneki.books.progress import BookProgress, ProgressStore
 
 _AUDIO_TYPES = {".mp3": "audio/mpeg", ".m4b": "audio/mp4", ".m4a": "audio/mp4", ".flac": "audio/flac"}
 
@@ -32,6 +34,9 @@ class BookSummary(BaseModel):
     duration_s: float
     chapters: int
     has_cover: bool
+    # Where this user stopped, so one request fills a shelf with resume points.
+    position_s: float = 0.0
+    finished: bool = False
 
 
 class BookFile(BaseModel):
@@ -54,6 +59,14 @@ class BookDetail(BookSummary):
     files: list[BookFile]
 
 
+class ProgressUpdate(BaseModel):
+    """A player reporting where it is in a book."""
+
+    position_s: float = Field(ge=0)
+    # Left unset, a position in the book's last minute counts as finished.
+    finished: bool | None = None
+
+
 class ScanStatus(BaseModel):
     """Whether a rescan is running, and how many books the library holds."""
 
@@ -61,8 +74,8 @@ class ScanStatus(BaseModel):
     books: int
 
 
-def create_books_app(index: BooksIndex) -> FastAPI:
-    """The books sub-app, reading from `index`."""
+def create_books_app(index: BooksIndex, *, users: UserRegistry | None = None) -> FastAPI:
+    """The books sub-app, reading from `index`. `users` scopes listening positions per account."""
     app = FastAPI(title="maneki books", docs_url=None, redoc_url=None, openapi_url=None)
     app.state.books_index = index
 
@@ -72,17 +85,34 @@ def create_books_app(index: BooksIndex) -> FastAPI:
             raise HTTPException(status_code=404, detail=f"no book {book_id!r}")
         return book
 
+    def _progress(request: Request) -> ProgressStore:
+        """The listening positions of whoever is asking.
+
+        `BearerAuthMiddleware` stamps the account on the request under
+        `--auth`. Without it there is one implicit account, the admin, and
+        every position lands there — the same fallback the video API uses.
+        """
+        if users is None:
+            raise HTTPException(status_code=503, detail="user registry unavailable; positions are not saved")
+        name = getattr(request.state, "username", None)
+        if not name:
+            accounts = users.all()
+            admin = next((u for u in accounts if u.admin), None) or (accounts[0] if accounts else None)
+            name = admin.name if admin else "default"
+        return users.progress_for(str(name))
+
     @app.get("/api/books")
-    def list_books() -> list[BookSummary]:
-        """Every book, by author then title."""
-        return [_summary(b) for b in index.books]
+    def list_books(request: Request) -> list[BookSummary]:
+        """Every book, by author then title, each with this user's position in it."""
+        saved = {p.book_id: p for p in _progress(request).all()}
+        return [_summary(b, saved.get(b.id)) for b in index.books]
 
     @app.get("/api/books/{book_id}")
-    def get_book(book_id: str) -> BookDetail:
-        """One book with its files and chapters."""
+    def get_book(book_id: str, request: Request) -> BookDetail:
+        """One book with its files, chapters and this user's position."""
         book = _book(book_id)
         return BookDetail(
-            **_summary(book).model_dump(),
+            **_summary(book, _progress(request).get(book_id)).model_dump(),
             description=book.description,
             asin=book.asin,
             chapter_source=book.chapter_source,
@@ -128,6 +158,35 @@ def create_books_app(index: BooksIndex) -> FastAPI:
             raise HTTPException(status_code=404, detail="no cover")
         return Response(source.embedded_picture, media_type=source.embedded_picture_mime or "image/jpeg")
 
+    @app.get("/api/progress")
+    def list_progress(request: Request) -> list[BookProgress]:
+        """Every book this user has started, most recent first. Books no longer in the library are left out."""
+        return [p for p in _progress(request).all() if index.get(p.book_id) is not None]
+
+    @app.get("/api/books/{book_id}/progress")
+    def get_progress(book_id: str, request: Request) -> BookProgress:
+        """Where this user stopped. A book never started reads as position 0."""
+        _book(book_id)
+        saved = _progress(request).get(book_id)
+        return saved or BookProgress(book_id=book_id, position_s=0.0, finished=False, updated_at=0.0)
+
+    @app.put("/api/books/{book_id}/progress")
+    def save_progress(book_id: str, update: ProgressUpdate, request: Request) -> BookProgress:
+        """Record where this user is in the book. Safe to call every few seconds."""
+        book = _book(book_id)
+        return _progress(request).save(
+            book_id,
+            update.position_s,
+            duration_s=book.duration_s,
+            finished=update.finished,
+        )
+
+    @app.delete("/api/books/{book_id}/progress", status_code=204)
+    def clear_progress(book_id: str, request: Request) -> None:
+        """Forget the position, so the book starts from the beginning."""
+        _book(book_id)
+        _progress(request).delete(book_id)
+
     @app.get("/api/scan")
     def scan_status() -> ScanStatus:
         """Whether a rescan is running."""
@@ -142,7 +201,7 @@ def create_books_app(index: BooksIndex) -> FastAPI:
     return app
 
 
-def _summary(book: LibraryBook) -> BookSummary:
+def _summary(book: LibraryBook, progress: BookProgress | None = None) -> BookSummary:
     return BookSummary(
         id=book.id,
         title=book.title,
@@ -154,4 +213,6 @@ def _summary(book: LibraryBook) -> BookSummary:
         duration_s=book.duration_s,
         chapters=len(book.chapters),
         has_cover=book.has_cover,
+        position_s=progress.position_s if progress else 0.0,
+        finished=progress.finished if progress else False,
     )

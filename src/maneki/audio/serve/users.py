@@ -28,6 +28,7 @@ from maneki.audio.serve.playlists import PlaylistStore
 from maneki.audio.serve.stars import StarStore
 
 if TYPE_CHECKING:
+    from maneki.books.progress import ProgressStore
     from maneki.video.serve.subscriptions import SubscriptionStore
 
 log = logging.getLogger(__name__)
@@ -75,6 +76,7 @@ class UserRegistry:
         # lazily in `subscriptions_for` so the audio package doesn't pull the
         # video module (and yt-dlp) at import time.
         self._subscriptions: dict[str, SubscriptionStore] = {}
+        self._progress: dict[str, ProgressStore] = {}
 
     @classmethod
     def from_settings(cls, root: Path) -> UserRegistry:
@@ -130,6 +132,17 @@ class UserRegistry:
             if store is None:
                 store = HistoryStore(self.user_dir(name) / "history.db")
                 self._history[name] = store
+            return store
+
+    def progress_for(self, name: str) -> ProgressStore:
+        """The account's audiobook `ProgressStore`, built once and cached."""
+        from maneki.books.progress import ProgressStore
+
+        with self._lock:
+            store = self._progress.get(name)
+            if store is None:
+                store = ProgressStore(self.user_dir(name) / "books.db")
+                self._progress[name] = store
             return store
 
     def subscriptions_for(self, name: str) -> SubscriptionStore:
