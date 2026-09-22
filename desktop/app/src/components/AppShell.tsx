@@ -2,6 +2,7 @@ import { BookAudio, Clapperboard, Music, type LucideIcon } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { NavLink } from 'react-router'
 
+import { PlayerBar } from '@/components/PlayerBar'
 import { ThemeToggle } from '@/components/ThemeToggle'
 import { useStore } from '@/hooks/use-store'
 import { cn } from '@/lib/utils'
@@ -74,6 +75,7 @@ export function AppShell({ children }: { children: ReactNode }) {
                     </div>
                 </header>
                 <main className="min-h-0 flex-1 overflow-y-auto">{children}</main>
+                <PlayerBar />
             </div>
         </div>
     )

@@ -9,6 +9,9 @@ import { clock, duration, progressRatio, remaining } from '@/lib/format'
 import type { BookDetail, BookSummary } from '@/lib/types'
 import { cn } from '@/lib/utils'
 
+/** How often to look again while the server is still reading the books folder. */
+const SCAN_POLL_MS = 2000
+
 export function BooksPage() {
     const { bookId } = useParams()
     return bookId ? <Book id={bookId} /> : <Shelf />
@@ -17,19 +20,41 @@ export function BooksPage() {
 /** Every book, with how far through each one this account is. */
 function Shelf() {
     const [books, setBooks] = useState<BookSummary[] | null>(null)
+    const [scanning, setScanning] = useState(false)
     const [refusal, setRefusal] = useState<string | null>(null)
     const navigate = useNavigate()
 
+    /**
+     * A first scan of a large folder takes a while, and an empty list during
+     * one is not an empty shelf. Ask what the server is doing, and look again
+     * while it is still reading.
+     */
     useEffect(() => {
-        booksApi
-            .list()
-            .then(setBooks)
-            .catch((error: Error) => setRefusal(error.message))
+        let live = true
+        let timer: ReturnType<typeof setTimeout>
+
+        const load = async (): Promise<void> => {
+            try {
+                const [listed, status] = await Promise.all([booksApi.list(), booksApi.scanStatus()])
+                if (!live) return
+                setBooks(listed)
+                setScanning(status.scanning)
+                if (status.scanning) timer = setTimeout(() => void load(), SCAN_POLL_MS)
+            } catch (error) {
+                if (live) setRefusal(error instanceof Error ? error.message : 'the server did not answer')
+            }
+        }
+
+        void load()
+        return () => {
+            live = false
+            clearTimeout(timer)
+        }
     }, [])
 
     if (refusal) return <Notice>{refusal}</Notice>
     if (!books) return <Notice>Reading the shelf.</Notice>
-    if (!books.length) return <Notice>No audiobooks.</Notice>
+    if (!books.length) return <Notice>{scanning ? 'Reading the shelf.' : 'No audiobooks.'}</Notice>
 
     return (
         <ul className="grid grid-cols-2 gap-4 p-4 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">

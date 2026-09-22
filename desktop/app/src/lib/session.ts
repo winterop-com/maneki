@@ -3,13 +3,18 @@
  *
  * Three states, kept apart so a screen never guesses: `unknown` while the
  * server is being asked what it has, `ready` once it answered, and
- * `signed-out` when it wants credentials this app does not hold. The server
- * URL and any bearer token survive a reload in localStorage; nothing else
- * about a session is worth keeping.
+ * `signed-out` when it wants credentials this app does not hold.
+ *
+ * TWO GRAMMARS, ONE SIGN-IN. The native endpoints (books, video) take a
+ * bearer token when the server was started with `--auth`; the Subsonic mount
+ * takes a salt and a token on every request. One form fills both, and what
+ * is kept is the bearer token and the salt/token pair. The password is used
+ * once and dropped.
  */
 
 import { capabilities, defaultBaseUrl, setSession, signIn } from '@/lib/api'
 import { createStore } from '@/lib/store'
+import { type Credentials, makeCredentials, ping } from '@/lib/subsonic'
 import type { Capabilities } from '@/lib/types'
 
 const STORAGE_KEY = 'maneki.session'
@@ -21,14 +26,23 @@ export interface SessionState {
     baseUrl: string
     username?: string
     capabilities?: Capabilities
+    /** Present when this server has a Subsonic mount and we are signed in to it. */
+    music?: Credentials
     /** Why the last attempt failed, for the sign-in screen to draw. */
     refusal?: string
+}
+
+interface StoredSubsonic {
+    username: string
+    salt: string
+    token: string
 }
 
 interface StoredSession {
     baseUrl: string
     username?: string
     token?: string
+    subsonic?: StoredSubsonic
 }
 
 export const sessionStore = createStore<SessionState>({ phase: 'unknown', baseUrl: defaultBaseUrl() })
@@ -51,6 +65,12 @@ function write(stored: StoredSession): void {
     }
 }
 
+/** The `/rest` base this server serves Subsonic on, if it serves one. */
+function restUrl(baseUrl: string, caps: Capabilities): string | null {
+    const path = caps.endpoints.audio_subsonic
+    return path ? `${baseUrl}${path}` : null
+}
+
 /**
  * Point at a server and find out what it has.
  *
@@ -66,12 +86,15 @@ export async function connect(stored: StoredSession = read()): Promise<void> {
             sessionStore.set({ phase: 'signed-out', baseUrl: stored.baseUrl, username: stored.username })
             return
         }
+        const rest = restUrl(stored.baseUrl, caps)
+        const music = rest && stored.subsonic ? { restUrl: rest, ...stored.subsonic } : undefined
         write(stored)
         sessionStore.set({
             phase: 'ready',
             baseUrl: stored.baseUrl,
             username: stored.username,
             capabilities: caps,
+            music,
         })
     } catch (error) {
         sessionStore.set({
@@ -83,12 +106,26 @@ export async function connect(stored: StoredSession = read()): Promise<void> {
     }
 }
 
-/** Sign in against `baseUrl` and connect with the token it hands back. */
+/** Sign in against `baseUrl`, to both grammars, and connect with what it hands back. */
 export async function signInTo(baseUrl: string, username: string, password: string): Promise<void> {
     setSession({ baseUrl })
     try {
-        const token = await signIn(username, password)
-        await connect({ baseUrl, username: token.username, token: token.token })
+        const caps = await capabilities()
+        const stored: StoredSession = { baseUrl, username }
+        if (caps.auth_required) {
+            const token = await signIn(username, password)
+            stored.token = token.token
+            stored.username = token.username
+        }
+        const rest = restUrl(baseUrl, caps)
+        if (rest) {
+            // Check the pair against the server before keeping it, so a typo
+            // is a sentence on this screen rather than an empty library.
+            const credentials = makeCredentials(rest, username, password)
+            await ping(credentials)
+            stored.subsonic = { username, salt: credentials.salt, token: credentials.token }
+        }
+        await connect(stored)
     } catch (error) {
         sessionStore.set({
             phase: 'signed-out',
@@ -99,7 +136,7 @@ export async function signInTo(baseUrl: string, username: string, password: stri
     }
 }
 
-/** Forget the token, keeping the server so the next sign-in is one field shorter. */
+/** Forget the credentials, keeping the server so the next sign-in is one field shorter. */
 export function signOut(): void {
     const { baseUrl, username } = sessionStore.get()
     write({ baseUrl, username })

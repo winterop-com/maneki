@@ -106,6 +106,8 @@ export const books = {
     saveProgress: (id: string, positionS: number, finished?: boolean): Promise<BookProgress> =>
         send(`/books/api/books/${id}/progress`, 'PUT', { position_s: positionS, finished }),
     clearProgress: (id: string): Promise<void> => send(`/books/api/books/${id}/progress`, 'DELETE'),
+    /** Whether the server is still reading the books folder, and how many it has so far. */
+    scanStatus: (): Promise<{ scanning: boolean; books: number }> => request('/books/api/scan'),
     coverUrl: (id: string): string => url(`/books/api/books/${id}/cover`),
     /** The stream URL of one file. `file.url` is relative to the books mount. */
     fileUrl: (path: string): string => url(`/books/${path}`),
