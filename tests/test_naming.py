@@ -294,3 +294,11 @@ def test_folder_names_a_rip_actually_uses() -> None:
     assert clean_folder_album_name("VA - Top 100 (2022) Mp3 320kbps [PMEDIA] ⭐️") == ("Top 100", "2022")
     # A plain year in brackets still goes, as before.
     assert clean_folder_album_name("Album (2012) [FLAC] ⭐") == ("Album", "2012")
+
+
+def test_dated_folder_year_reads_a_written_month() -> None:
+    from maneki.audio.naming import dated_folder_year
+
+    assert dated_folder_year("Chart (06.03.2026) Mp3") == "2026"
+    assert dated_folder_year("Chart (09-January-2025) Mp3 320kbps [PMEDIA]") == "2025"
+    assert dated_folder_year("Chart (3 Feb 2024)") == "2024"

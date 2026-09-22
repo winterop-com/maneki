@@ -256,7 +256,11 @@ def dated_folder_year(name: str | None) -> str | None:
     if not name:
         return None
     match = _FOLDER_DATE_RE.search(name)
-    return match.group(1) if match else None
+    if match is None:
+        return None
+    # The pattern has one group per way of writing a date; the one that
+    # matched is the one that is set.
+    return next((group for group in match.groups() if group), None)
 
 
 def leading_year_from_folder(name: str | None) -> str | None:
