@@ -1164,6 +1164,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#resuming-a-long-track" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Resuming a long track
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#what-maneki-doesnt-do-yet" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1665,6 +1676,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#resuming-a-long-track" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Resuming a long track
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#what-maneki-doesnt-do-yet" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1807,6 +1829,10 @@ the things to double-check are:</p>
   small embeds, the upscale is what the app sees. Embed at 1000×1000
   via <a href="../convert/">convert</a> for crisp art.</li>
 </ul>
+<h2 id="resuming-a-long-track">Resuming a long track<a class="headerlink" href="#resuming-a-long-track" title="Permanent link">&para;</a></h2>
+<p><code>createBookmark</code>, <code>getBookmarks</code> and <code>deleteBookmark</code> are implemented, so a client that saves a position on pause (Symfonium, Amperfy and play:Sub all do) offers to resume a long recording where you stopped. Bookmarks are per account, at <code>&lt;root&gt;/.maneki/users/&lt;name&gt;/bookmarks.db</code>, and a bookmark whose track has since left the library is dropped from the list rather than shown as a blank row.</p>
+<p>Cross-device queue sync (<code>savePlayQueue</code> / <code>getPlayQueue</code>) is still a no-op.</p>
+<p>Audiobooks have their own position, kept per book rather than per track; see <a href="../books/#resuming"><code>maneki books import</code></a>.</p>
 <h2 id="what-maneki-doesnt-do-yet">What Maneki doesn't do (yet)<a class="headerlink" href="#what-maneki-doesnt-do-yet" title="Permanent link">&para;</a></h2>
 <ul>
 <li><strong>No native iOS / Android app of its own.</strong> The Subsonic ecosystem
