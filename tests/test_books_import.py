@@ -342,3 +342,28 @@ def test_a_few_long_differently_named_files_still_split(tmp_path: Path) -> None:
     book = load_book(folder)
     long_files = [f.model_copy(update={"duration_s": 8 * 3600}) for f in book.files]
     assert len(separate_books(book.model_copy(update={"files": long_files}))) == 2
+
+
+def test_an_m4b_that_already_has_tags_can_be_written(tmp_path: Path) -> None:
+    """Every m4b from a shop arrives tagged; adding a second tag set is an error."""
+    import subprocess
+
+    from mutagen.mp4 import MP4
+
+    src = tmp_path / "in" / "book.m4a"
+    src.parent.mkdir(parents=True)
+    make_silent_mp3(tmp_path / "in" / "seed.mp3", 1.0)
+    subprocess.run(
+        ["ffmpeg", "-y", "-nostdin", "-loglevel", "error", "-i", str(tmp_path / "in" / "seed.mp3")]
+        + ["-c:a", "aac", "-metadata", "album=Old Album", str(src)],
+        check=True,
+    )
+    assert MP4(src).tags is not None  # the fixture really is tagged
+
+    tags = BookTags(title="Atomic Habits", author="James Clear", narrator="James Clear")
+    [out] = write_book(tmp_path / "lib" / "James Clear" / "Atomic Habits", [src], tags, [])
+
+    written = MP4(out)
+    assert written.tags is not None
+    assert written.tags["\xa9alb"] == ["Atomic Habits"]
+    assert written.tags["stik"] == [2]  # marked as an audiobook

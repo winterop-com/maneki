@@ -230,3 +230,43 @@ def test_a_position_saved_elsewhere_shows_up_as_a_bookmark(tmp_path: Path) -> No
     [bookmark] = _inner(client, "getBookmarks")["bookmarks"]["bookmark"]
     assert bookmark["entry"]["id"] == file_id(book, 1)
     assert bookmark["entry"]["type"] == "audiobook"
+
+
+# --- the folder browse (play:Sub walks the library this way) --------------------
+
+
+def test_folder_browse_walks_author_then_book(tmp_path: Path) -> None:
+    client, books = _client(tmp_path, parts=2)
+    book = books.books[0]
+
+    author = _inner(client, "getMusicDirectory", id=author_id(AUTHOR))["directory"]
+    assert author["name"] == AUTHOR
+    [entry] = author["child"]
+    assert entry["id"] == book_subsonic_id(book)
+    assert entry["isDir"] is True
+
+    listing = _inner(client, "getMusicDirectory", id=book_subsonic_id(book))["directory"]
+    assert listing["name"] == TITLE
+    assert listing["parent"] == author_id(AUTHOR)
+    assert [c["id"] for c in listing["child"]] == [file_id(book, 0), file_id(book, 1)]
+    assert all(c["type"] == "audiobook" for c in listing["child"])
+
+
+def test_folder_browse_carries_the_saved_position(tmp_path: Path) -> None:
+    client, books = _client(tmp_path, parts=2)
+    book = books.books[0]
+    client.app.state.users.progress_for("mort").save(book.id, 8.0, duration_s=book.duration_s)  # type: ignore[attr-defined]
+    listing = _inner(client, "getMusicDirectory", id=book_subsonic_id(book))["directory"]
+    assert "bookmarkPosition" in listing["child"][1]
+
+
+def test_folder_browse_refuses_an_unknown_book(tmp_path: Path) -> None:
+    client, _ = _client(tmp_path)
+    assert _inner(client, "getMusicDirectory", id="bkb_deadbeef")["status"] == "failed"
+
+
+def test_scrobbling_a_book_file_is_accepted(tmp_path: Path) -> None:
+    """Amperfy scrobbles every play; a book file must not come back an error."""
+    client, books = _client(tmp_path)
+    inner = _inner(client, "scrobble", id=file_id(books.books[0], 0))
+    assert inner["status"] == "ok"

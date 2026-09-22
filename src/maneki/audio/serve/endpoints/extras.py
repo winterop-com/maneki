@@ -25,6 +25,16 @@ from maneki.audio.serve.index import IndexCache
 from maneki.audio.serve.payloads import album_payload, artist_summary, song_payload
 from maneki.audio.serve.scrobble import ScrobbleDispatcher, ScrobbleEvent
 from maneki.audio.serve.stars import StarStore
+from maneki.books.library import BooksIndex
+from maneki.books.subsonic import (
+    author_id,
+    book_payload,
+    books_by,
+    file_payload,
+    find_author,
+    find_book,
+    is_book_id,
+)
 
 router = APIRouter()
 
@@ -137,8 +147,16 @@ async def get_artist_info2(id: str = Query(...)) -> dict:
 @router.api_route("/getMusicDirectory", methods=["GET", "POST", "HEAD"])
 @router.api_route("/getMusicDirectory.view", methods=["GET", "POST", "HEAD"], include_in_schema=False)
 async def get_music_directory(request: Request, id: str = Query(...)) -> dict:
-    """Legacy folder browse. `ar_*` → albums; `al_*` → tracks."""
+    """Legacy folder browse. `ar_*` → albums; `al_*` → tracks; books the same way.
+
+    This is how a folder-browsing client (play:Sub) walks the library, so an
+    audiobook author and an audiobook have to answer it as an artist and an
+    album do. Without it, books are reachable by ID3 browse alone.
+    """
     cache = _get_cache(request)
+    books = _books(request)
+    if books is not None and is_book_id(id):
+        return _book_directory(request, books, id)
     if id.startswith("ar_"):
         albums = cache.artists_by_id.get(id)
         if albums is None:
@@ -166,6 +184,39 @@ async def get_music_directory(request: Request, id: str = Query(...)) -> dict:
             },
         )
     return error_envelope(70, f"Unknown directory id format: {id}")
+
+
+def _books(request: Request) -> BooksIndex | None:
+    """The audiobook index, when this root has one."""
+    return getattr(request.app.state, "books", None)
+
+
+def _book_directory(request: Request, books: BooksIndex, id: str) -> dict:
+    """One audiobook author or book, as a legacy directory listing."""
+    author = find_author(books, id)
+    if author is not None:
+        return envelope(
+            "directory",
+            {
+                "id": id,
+                "name": author,
+                "child": [{**book_payload(b, with_songs=False), "isDir": True} for b in books_by(books, author)],
+            },
+        )
+    book = find_book(books, id)
+    if book is None:
+        return error_envelope(70, f"Directory not found: {id}")
+    saved = request.state.progress.get(book.id)
+    position = saved.position_s if saved else 0.0
+    return envelope(
+        "directory",
+        {
+            "id": id,
+            "name": book.title,
+            "parent": author_id(book.author),
+            "child": [file_payload(book, i, position_s=position) for i in range(len(book.files))],
+        },
+    )
 
 
 # ---------------------------------------------------------------------------

@@ -197,10 +197,15 @@ def _tag_mp3(path: Path, tags: BookTags, *, part: str, track: tuple[int, int], c
 
 def _tag_mp4(path: Path, tags: BookTags, *, part: str, track: tuple[int, int]) -> None:
     mp4 = MP4(path)
+    # `delete()` clears the file's tags but leaves the tag object in place, and
+    # `add_tags()` refuses when one already exists — which is every m4b that
+    # arrived tagged. Add one only when the file truly has none.
     mp4.delete()
-    mp4.add_tags()
+    if mp4.tags is None:
+        mp4.add_tags()
     atoms = mp4.tags
     assert atoms is not None
+    atoms.clear()
     atoms["\xa9nam"] = [part]
     atoms["\xa9alb"] = [tags.title]
     atoms["\xa9ART"] = [tags.author]
