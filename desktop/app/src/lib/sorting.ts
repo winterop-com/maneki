@@ -12,6 +12,21 @@
  * scrambles. All three are checked in Node, and the screen only draws the answer.
  */
 
+/**
+ * A string as a search matches it: lower case, and without the marks over its letters.
+ *
+ * "royk" has to find "Röyksopp". The ö is not on a Norwegian keyboard, half the tags in a real
+ * library spell a name without its marks anyway, and the server already answers this way -- its
+ * index is built with `remove_diacritics`, so a client filter that did not fold would disagree
+ * with the results printed underneath it.
+ */
+export function fold(text: string): string {
+    return text
+        .normalize('NFD')
+        .replace(/\p{Diacritic}/gu, '')
+        .toLocaleLowerCase()
+}
+
 /** How a list of artists is ordered. */
 export type SortMode = 'name' | 'name-desc' | 'albums'
 

@@ -9,7 +9,7 @@ import { play } from '@/lib/player'
 import { sessionStore } from '@/lib/session'
 import { Input } from '@/components/ui/input'
 import { Segmented } from '@/components/Segmented'
-import { articlesOf, SORT_LABELS, SORT_MODES, sortArtists, type SortMode } from '@/lib/sorting'
+import { articlesOf, fold, SORT_LABELS, SORT_MODES, sortArtists, type SortMode } from '@/lib/sorting'
 import {
     coverUrl,
     getAlbum,
@@ -179,9 +179,9 @@ function Artists({ credentials }: { credentials: Credentials }) {
     if (!artists) return <Notice>Reading the library.</Notice>
     if (!artists.length) return <Notice>No artists.</Notice>
 
-    const shown = typed
-        ? ordered.filter((artist) => artist.name.toLowerCase().includes(typed.toLowerCase()))
-        : ordered
+    // Folded on both sides, so "royk" finds Röyksopp the way the server's own index does.
+    const needle = fold(typed)
+    const shown = typed ? ordered.filter((artist) => fold(artist.name).includes(needle)) : ordered
     // What the server last found belongs to the last search worth making; a
     // query shorter than that is not one, so the results are simply not shown.
     const results = typed.length >= SEARCH_MIN ? found : null
@@ -338,11 +338,15 @@ function AlbumScreen({ credentials, id }: { credentials: Credentials; id: string
                     </Button>
                 }
             />
-            <div className="flex items-start gap-4">
+            {/* A CONTAINER, NOT THE VIEWPORT. What this screen has room for is decided by the
+                rail and the side panel as much as by the window, so the cover is sized against
+                the pane it is in: drag the rail and the art follows, instead of a fixed square
+                sliding sideways with a growing gap beside it. */}
+            <div className="@container flex items-start gap-4">
                 <Cover
                     credentials={credentials}
                     art={album.coverArt}
-                    className="hidden size-40 rounded-md sm:block"
+                    className="hidden size-40 rounded-md sm:block @2xl:size-56 @5xl:size-72"
                 />
                 <ol className="min-w-0 flex-1 rounded-lg border">
                     {songs.map((song, index) => (
@@ -357,20 +361,25 @@ function AlbumScreen({ credentials, id }: { credentials: Credentials; id: string
                                 <span className="w-6 shrink-0 text-right text-xs text-muted-foreground">
                                     {song.track ?? index + 1}
                                 </span>
-                                <span className="min-w-0 flex-1 truncate" title={song.title}>
-                                    {song.title}
-                                </span>
-                                {/* On a compilation every row is a different artist, and a
-                                    list of titles alone says nothing about what they are. */}
-                                {song.artist && song.artist !== album.artist && (
-                                    <span
-                                        className="hidden max-w-48 min-w-0 shrink truncate text-xs text-muted-foreground sm:block"
-                                        title={song.artist}
-                                    >
-                                        {song.artist}
+                                {/* ON A COMPILATION THE ARTIST IS PART OF WHAT THE ROW IS, so
+                                    it sits under the title where a reader is already looking,
+                                    not in a column against the far edge beside the clock. An
+                                    album whose tracks are all the same artist says it once, in
+                                    the heading, and the rows stay one line. */}
+                                <span className="min-w-0 flex-1">
+                                    <span className="block truncate" title={song.title}>
+                                        {song.title}
                                     </span>
-                                )}
-                                <span className="shrink-0 font-mono text-xs text-muted-foreground">
+                                    {song.artist && song.artist !== album.artist && (
+                                        <span
+                                            className="block truncate text-xs text-muted-foreground"
+                                            title={song.artist}
+                                        >
+                                            {song.artist}
+                                        </span>
+                                    )}
+                                </span>
+                                <span className="shrink-0 font-mono text-xs text-muted-foreground tabular-nums">
                                     {clock(song.duration ?? 0)}
                                 </span>
                             </button>

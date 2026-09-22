@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'vitest'
 
-import { articlesOf, DEFAULT_ARTICLES, initialOf, sortArtists, sortName } from '@/lib/sorting'
+import { articlesOf, DEFAULT_ARTICLES, fold, initialOf, sortArtists, sortName } from '@/lib/sorting'
 
 const artists = [
     { name: 'The Beatles', albumCount: 12 },
@@ -107,5 +107,25 @@ describe('the letter a name is filed under', () => {
         expect(initialOf('50 Cent')).toBe('#')
         expect(initialOf('[dunkelbunt]')).toBe('#')
         expect(initialOf('')).toBe('#')
+    })
+})
+
+describe('folding a name for a search', () => {
+    test('finds Röyksopp from royk, which is what a keyboard without an umlaut types', () => {
+        expect(fold('Röyksopp').includes(fold('royk'))).toBe(true)
+        expect(fold('Motörhead').includes(fold('motorhead'))).toBe(true)
+        expect(fold('Sigur Rós').includes(fold('sigur ros'))).toBe(true)
+    })
+
+    test('still finds a name typed with its marks', () => {
+        expect(fold('Röyksopp').includes(fold('röyk'))).toBe(true)
+    })
+
+    test('does not make two different names the same', () => {
+        expect(fold('Beck')).not.toBe(fold('Bach'))
+    })
+
+    test('case is not a filter anybody typed on purpose', () => {
+        expect(fold('ABBA')).toBe(fold('abba'))
     })
 })
