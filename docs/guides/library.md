@@ -80,7 +80,7 @@ maneki inspect ~/Downloads/library/tv/ch01.mkv
 
 ## Filesystem layout
 
-There is no subdirectory convention. `maneki list` walks the root recursively and picks files up by extension.
+There is no subdirectory convention. `maneki list` walks the root recursively and picks files up by extension. The one exception is two top-level folders that hold no library content and are skipped: `inbox/` (raw rips awaiting `maneki audio convert`) and `Audiobooks/` (the audiobook section). Both names match in any case, and only directly under the root.
 
 - **Audio** — `.mp3`, `.m4a`, `.m4b`, `.flac`, `.wav`, `.aiff`, `.aif`, `.ogg`, `.opus`, `.aac`, `.wma`, `.ape`. (`.mp4` is intentionally not in the audio set — it would collide with movie files. Use `.m4a` for audio-in-mp4-container.)
 - **Video** — `.mkv`, `.mp4`, `.m4v`, `.webm`, `.mov`, `.avi`, `.ts`, `.m2ts`, `.mts`, `.wmv`, `.flv`, `.mpg`, `.mpeg`, `.vob`, `.ogv`, `.ogg`, `.3gp`, `.3g2`, `.asf`, `.divx`.

@@ -66,6 +66,8 @@ External clients:
 | Only video files | `/capabilities` reports `audio: false, video: true`; the audio library browses empty |
 | Neither | `audio: false, video: false` — a pure internet-radio + YouTube player |
 
+Two top-level folders are never part of either library, whatever they hold: `inbox/`, where raw rips wait for `maneki audio convert`, and `Audiobooks/`, reserved for the audiobook section. The names match in any case, and only directly under `<root>`, so an album folder called `Music/Inbox/` is still music. The file watchers ignore both folders too, so copying a batch into `inbox/` triggers no rescan.
+
 Both mounts are always present, because each also hosts a remote source that needs nothing on disk: internet radio (`getInternetRadioStations`, the ICY proxy) on `/audio/rest/*`, YouTube on `/video/api/*`. What the scan decides is the *content* of the local half, reported by the `audio` / `video` flags — so a client can tell "nothing to browse here" from "this mount does not exist". The local library scan itself is still gated on finding files of that kind, so a radio-only root pays no walk and gets no `.maneki/index.db` written into it.
 
 There is no kind-toggle flag: to serve only audio, point at an audio-only root; to serve only video, point at a video-only root; to run Maneki as a pure radio player, point it at an empty directory. The single-library design is the whole point.

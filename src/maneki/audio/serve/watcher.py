@@ -23,6 +23,7 @@ from watchdog.observers import Observer
 
 from maneki.audio.metadata import SUPPORTED_AUDIO_EXTS
 from maneki.audio.serve.index import IndexCache
+from maneki.library import is_media_path
 
 log = logging.getLogger(__name__)
 
@@ -46,7 +47,7 @@ class LibraryWatcher:
         if not self._cache.root.exists():
             log.warning("library watcher: %s does not exist; not starting", self._cache.root)
             return
-        handler = _Handler(self._on_event)
+        handler = _Handler(self._on_event, root=self._cache.root)
         self._observer = Observer()
         self._observer.schedule(handler, str(self._cache.root), recursive=True)
         self._observer.start()
@@ -78,13 +79,22 @@ class LibraryWatcher:
 
 
 class _Handler(FileSystemEventHandler):
-    """Forward only audio-file-relevant events to the debounce timer."""
+    """Forward only audio-file-relevant events to the debounce timer.
 
-    def __init__(self, on_event_cb: Callable[[Path], None]) -> None:
+    With `root` set, events under a folder the music walk skips (the server
+    cache, the top-level inbox and books folders) are dropped too.
+    """
+
+    def __init__(self, on_event_cb: Callable[[Path], None], *, root: Path | None = None) -> None:
         super().__init__()
         self._cb = on_event_cb
+        self._root = root
 
     def on_any_event(self, event: FileSystemEvent) -> None:
+        if self._root is not None and not is_media_path(self._root, Path(str(event.src_path))):
+            dest = getattr(event, "dest_path", None)
+            if not dest or not is_media_path(self._root, Path(str(dest))):
+                return
         # Directories: only act on create/delete/move. A "modified" event on a
         # dir fires whenever ANY file inside changes (including .DS_Store
         # writes), which would defeat the audio-extension filter below.
@@ -102,6 +112,8 @@ class _Handler(FileSystemEventHandler):
         if dest_path:
             candidates.append(Path(str(dest_path)))
         for path in candidates:
-            if path.suffix.lower() in SUPPORTED_AUDIO_EXTS:
+            # Dot-files never count: macOS AppleDouble `._track.flac` sidecars
+            # carry the real extension but hold no audio (see the video handler).
+            if not path.name.startswith(".") and path.suffix.lower() in SUPPORTED_AUDIO_EXTS:
                 self._cb(path)
                 return

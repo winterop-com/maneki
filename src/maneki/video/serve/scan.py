@@ -25,6 +25,7 @@ from typing import TYPE_CHECKING
 from pydantic import BaseModel
 
 from maneki.ffmpeg import ffprobe_path
+from maneki.library import is_media_path, skips_dir
 
 if TYPE_CHECKING:
     from maneki.video.serve.scan_cache import VideoIndex
@@ -61,12 +62,6 @@ VIDEO_EXTENSIONS = frozenset(
         ".divx",
     }
 )
-
-# Directories we never descend into when scanning. `.maneki` is the
-# server's own cache (poster art, SQLite index, HLS segments — none
-# are library content). Dotfiles and the audio app's expected
-# `.musickit` legacy location are also skipped.
-_SCAN_SKIP_DIR_NAMES = frozenset({".maneki", ".musickit", ".git", "__pycache__"})
 
 # Cap on the in-memory duration cache. A 20k-entry LRU keeps the
 # steady-state library probe O(1) without growing unbounded on a
@@ -112,10 +107,15 @@ class BrowseResponse(BaseModel):
     videos: list[VideoEntry]
 
 
-def _iter_video_files(root: Path) -> Iterator[Path]:
-    """Yield every video file under root, skipping internal cache dirs."""
+def _iter_video_files(root: Path, *, library_root: Path | None = None) -> Iterator[Path]:
+    """Yield every video file under root, skipping the folders no media walk enters.
+
+    `library_root` is the served root when `root` is a folder inside it, so
+    the top-level inbox and books folders are only recognised at the top.
+    """
     if not root.is_dir():
         return
+    top = root if library_root is None else library_root
     stack = [root]
     while stack:
         current = stack.pop()
@@ -125,7 +125,7 @@ def _iter_video_files(root: Path) -> Iterator[Path]:
             continue
         for child in entries:
             if child.is_dir():
-                if child.name in _SCAN_SKIP_DIR_NAMES:
+                if skips_dir(child, at_root=current == top):
                     continue
                 stack.append(child)
             elif child.is_file() and not child.name.startswith(".") and child.suffix.lower() in VIDEO_EXTENSIONS:
@@ -418,7 +418,7 @@ def browse_dir(root: Path, rel_path: str = "") -> BrowseResponse | None:
     # the library root tree.
     if target != base and base not in target.parents:
         return None
-    if not target.is_dir():
+    if not target.is_dir() or not is_media_path(base, target):
         return None
 
     from maneki.video.serve.subtitles import discover_sidecars
@@ -428,9 +428,9 @@ def browse_dir(root: Path, rel_path: str = "") -> BrowseResponse | None:
     for child in sorted(target.iterdir(), key=lambda p: p.name.lower()):
         child_rel = child.relative_to(root)
         if child.is_dir():
-            if child.name in _SCAN_SKIP_DIR_NAMES:
+            if skips_dir(child, at_root=target == base):
                 continue
-            count = _count_videos(child)
+            count = _count_videos(child, library_root=base)
             if count == 0:
                 # Hide empty subdirs (e.g. proof / nfo dirs, or audio-only
                 # folders when scanning a mixed library) from the browser.
@@ -473,10 +473,10 @@ def browse_dir(root: Path, rel_path: str = "") -> BrowseResponse | None:
     )
 
 
-def _count_videos(dir_path: Path) -> int:
+def _count_videos(dir_path: Path, *, library_root: Path) -> int:
     """Count video files at every depth under `dir_path`. Cheap stat-only walk."""
     count = 0
-    for _ in _iter_video_files(dir_path):
+    for _ in _iter_video_files(dir_path, library_root=library_root):
         count += 1
     return count
 

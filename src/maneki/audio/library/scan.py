@@ -14,6 +14,7 @@ from maneki.audio import naming
 from maneki.audio.library.models import LibraryAlbum, LibraryIndex, LibraryTrack
 from maneki.audio.lyrics import read_sidecar
 from maneki.audio.metadata import SUPPORTED_AUDIO_EXTS, read_source
+from maneki.library import skips_dir
 
 _ALBUM_DIR_YEAR_RE = re.compile(r"^(\d{4})\s*-\s*(.+)$")
 
@@ -56,21 +57,32 @@ def scan(
 
 
 def _iter_album_dirs(root: Path) -> list[Path]:
-    """Return every directory under `root` containing ≥1 supported audio file."""
+    """Return every directory under `root` directly holding ≥1 supported audio file.
+
+    Prunes the folders no music walk enters (`maneki.library.skips_dir`:
+    the server cache, and the top-level inbox and books folders).
+    """
     if not root.is_dir():
         return []
     seen: set[Path] = set()
-    for path in sorted(root.rglob("*")):
-        if not path.is_file():
-            continue
-        if path.suffix.lower() not in SUPPORTED_AUDIO_EXTS:
-            continue
-        seen.add(path.parent)
+    for dirpath, dirnames, filenames in root.walk():
+        dirnames[:] = [d for d in dirnames if not skips_dir(dirpath / d, at_root=dirpath == root)]
+        if any(_is_audio_name(name) for name in filenames):
+            seen.add(dirpath)
     return sorted(seen)
 
 
+def _is_audio_name(name: str) -> bool:
+    """A supported audio file, not a dot-file such as an AppleDouble `._track.flac` sidecar."""
+    return not name.startswith(".") and Path(name).suffix.lower() in SUPPORTED_AUDIO_EXTS
+
+
+def _album_audio_files(album_dir: Path) -> list[Path]:
+    return sorted(p for p in album_dir.iterdir() if p.is_file() and _is_audio_name(p.name))
+
+
 def _scan_album(album_dir: Path, *, measure_pictures: bool = False) -> LibraryAlbum:
-    audio_files = sorted(p for p in album_dir.iterdir() if p.is_file() and p.suffix.lower() in SUPPORTED_AUDIO_EXTS)
+    audio_files = _album_audio_files(album_dir)
     tracks: list[LibraryTrack] = []
     for audio_path in audio_files:
         try:
@@ -214,9 +226,7 @@ def validate(
     fs_audio_by_dir: dict[Path, set[Path]] = {}
     for fs_dir in fs_album_dirs & set(db_album_dirs):
         try:
-            fs_audio_by_dir[fs_dir] = {
-                p.resolve() for p in fs_dir.iterdir() if p.is_file() and p.suffix.lower() in SUPPORTED_AUDIO_EXTS
-            }
+            fs_audio_by_dir[fs_dir] = {p.resolve() for p in _album_audio_files(fs_dir)}
         except OSError:
             affected.add(fs_dir)
             continue

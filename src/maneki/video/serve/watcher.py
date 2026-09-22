@@ -28,6 +28,7 @@ from typing import Any
 from watchdog.events import FileSystemEvent, FileSystemEventHandler
 from watchdog.observers import Observer
 
+from maneki.library import is_media_path
 from maneki.video.serve.scan import VIDEO_EXTENSIONS
 
 log = logging.getLogger(__name__)
@@ -68,7 +69,7 @@ class VideoLibraryWatcher:
             log.warning("video watcher: %s does not exist; not starting", self._root)
             return
         self._loop = loop
-        handler = _Handler(self._on_event)
+        handler = _Handler(self._on_event, root=self._root)
         self._observer = Observer()
         self._observer.schedule(handler, str(self._root), recursive=True)
         self._observer.start()
@@ -112,13 +113,22 @@ class VideoLibraryWatcher:
 
 
 class _Handler(FileSystemEventHandler):
-    """Forward only video-file-relevant events to the debounce timer."""
+    """Forward only video-file-relevant events to the debounce timer.
 
-    def __init__(self, on_event_cb: Callable[[Path], None]) -> None:
+    With `root` set, events under a folder the video walk skips (the server
+    cache, the top-level inbox and books folders) are dropped too.
+    """
+
+    def __init__(self, on_event_cb: Callable[[Path], None], *, root: Path | None = None) -> None:
         super().__init__()
         self._cb = on_event_cb
+        self._root = root
 
     def on_any_event(self, event: FileSystemEvent) -> None:
+        if self._root is not None and not is_media_path(self._root, Path(str(event.src_path))):
+            dest = getattr(event, "dest_path", None)
+            if not dest or not is_media_path(self._root, Path(str(dest))):
+                return
         # Directories: only act on create/delete/move. A "modified" event on
         # a dir fires whenever ANY file inside changes (including .DS_Store
         # writes), which would defeat the video-extension filter below.

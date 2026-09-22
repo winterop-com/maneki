@@ -4,7 +4,9 @@
 single directory — the same root is scanned for both audio and video files
 (by extension). There is no `audio/`/`videos/` subdirectory convention;
 users point at one directory and the scanner finds what's there at any
-depth.
+depth. The one convention is two top-level folders no music or video walk
+enters: `inbox/` (raw rips awaiting conversion) and `Audiobooks/` (the
+books section).
 
 The shape stays small for the base layer: count audio + video files under
 one root. Richer indexing (SQLite cache, audit, fix, retag) stays under
@@ -27,10 +29,46 @@ from maneki.audio.metadata import SUPPORTED_AUDIO_EXTS
 # then the Subsonic library scan found zero tracks.
 AUDIO_EXTENSIONS = SUPPORTED_AUDIO_EXTS
 
-# Directory names we never descend into. Mirrors the video scanner's
-# skip list so summarise / scan_files don't walk the server's own
-# caches or git internals.
-_SCAN_SKIP_DIR_NAMES = frozenset({".maneki", ".musickit", ".git", "__pycache__"})
+# Directory names no library walk descends into, at any depth: the
+# server's own cache and VCS internals hold no library content. The audio
+# and video scanners import this set rather than keeping copies.
+SCAN_SKIP_DIR_NAMES = frozenset({".maneki", ".musickit", ".git", "__pycache__"})
+
+# Folders directly under a served root that hold no music or video,
+# matched case-insensitively and only at that top level:
+# - `inbox/` is where raw rips wait for `maneki audio convert`. They are
+#   not library content until converted.
+# - `Audiobooks/` is the books section. Its files are audio, but a book is
+#   not an album, so the music index leaves it alone.
+INBOX_DIR_NAME = "inbox"
+BOOKS_DIR_NAME = "audiobooks"
+_NON_MEDIA_TOP_DIR_NAMES = frozenset({INBOX_DIR_NAME, BOOKS_DIR_NAME})
+
+
+def skips_dir(child: Path, *, at_root: bool) -> bool:
+    """True for a directory the music and video walks never enter.
+
+    `at_root` says `child` sits directly under the served root, the only
+    level where the inbox and books folders are recognised.
+    """
+    if child.name in SCAN_SKIP_DIR_NAMES:
+        return True
+    return at_root and child.name.casefold() in _NON_MEDIA_TOP_DIR_NAMES
+
+
+def is_media_path(root: Path, path: Path) -> bool:
+    """False when `path` lies under a folder the music and video walks skip.
+
+    The watchers use this: their events arrive as absolute paths, not from
+    a walk. A path outside `root` is left to the caller's own checks.
+    """
+    try:
+        parts = path.relative_to(root).parts
+    except ValueError:
+        return True
+    if parts and parts[0].casefold() in _NON_MEDIA_TOP_DIR_NAMES:
+        return False
+    return not any(part in SCAN_SKIP_DIR_NAMES for part in parts)
 
 
 def _is_hidden(name: str) -> bool:
@@ -84,7 +122,8 @@ def _iter_files(root: Path, extensions: frozenset[str]) -> Iterator[Path]:
     """Yield every file under root whose suffix is in `extensions`.
 
     Skips cache / VCS directories so a library walk never trips into
-    `.maneki/` (server-managed cache) or `.git/`.
+    `.maneki/` (server-managed cache) or `.git/`, and the top-level inbox
+    and books folders (see `skips_dir`).
     """
     if not root.is_dir():
         return
@@ -97,7 +136,7 @@ def _iter_files(root: Path, extensions: frozenset[str]) -> Iterator[Path]:
             continue
         for child in entries:
             if child.is_dir():
-                if child.name in _SCAN_SKIP_DIR_NAMES:
+                if skips_dir(child, at_root=current == root):
                     continue
                 stack.append(child)
             elif child.is_file() and not _is_hidden(child.name) and child.suffix.lower() in extensions:
