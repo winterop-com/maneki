@@ -2000,13 +2000,21 @@ synced lyrics.)</p>
 <h3 id="connect-amperfy-to-maneki-serve">Connect Amperfy to maneki serve<a class="headerlink" href="#connect-amperfy-to-maneki-serve" title="Permanent link">&para;</a></h3>
 <p>Open Amperfy → first-launch screen prompts for a server. Fill in:</p>
 <ul>
-<li><strong>Server URL</strong>: <code>http://mlaptop.tail4a4b9a.ts.net:8765</code> (your Mac's
-  Tailscale URL — no trailing slash, no <code>/rest</code>).</li>
-<li><strong>Username</strong>: <code>admin</code> (or whatever you put in <code>maneki.toml</code>).</li>
-<li><strong>Password</strong>: <code>admin</code> (or whatever you put in <code>maneki.toml</code>).</li>
+<li>
+<p><strong>Server URL</strong>: <code>http://mlaptop.tail4a4b9a.ts.net:8765/audio</code> (your
+  Mac's Tailscale URL, plus <code>/audio</code> — and nothing after it).</p>
+<p><code>maneki serve</code> mounts Subsonic under <code>/audio</code>, beside the video and
+books APIs, so the address ends there and the app appends its own
+<code>/rest/...</code>. Leave <code>/audio</code> off and every call 404s, which Amperfy
+reports as a server it cannot reach rather than as a wrong address.
+<code>/capabilities</code> names the mount, under <code>audio_subsonic</code>.
+- <strong>Username</strong>: <code>admin</code> (or whatever you put in <code>maneki.toml</code>).
+- <strong>Password</strong>: <code>admin</code> (or whatever you put in <code>maneki.toml</code>).</p>
+</li>
 </ul>
-<p>Tap <strong>Login</strong>. Amperfy probes <code>/rest/ping</code>, then <code>/rest/getMusicFolders</code>
-and <code>/rest/getArtists</code> to populate the library. On first connect with a
+<p>Tap <strong>Login</strong>. Amperfy probes <code>/audio/rest/ping</code>, then
+<code>/audio/rest/getMusicFolders</code> and <code>/audio/rest/getArtists</code> to populate
+the library. On first connect with a
 ~300-album library this takes 2-5 seconds.</p>
 <p>If login fails, the most common causes are:</p>
 <ul>
@@ -2030,7 +2038,7 @@ local file (HTTP buffer fill), then steady-state is real-time.</p>
 <li><strong>Lock-screen controls</strong> — pause / next / prev work.</li>
 <li><strong>Seek scrubber</strong> — Amperfy uses the Subsonic <code>transcodeOffset</code>
   extension (which maneki advertises) for accurate mid-track resume.</li>
-<li><strong>Search</strong> — <code>/rest/search3</code> matches against artist, album, and track
+<li><strong>Search</strong> — <code>/audio/rest/search3</code> matches against artist, album, and track
   titles.</li>
 </ul>
 <h2 id="6-optional-browse-play-locally-on-the-mac">6. Optional: browse + play locally on the Mac<a class="headerlink" href="#6-optional-browse-play-locally-on-the-mac" title="Permanent link">&para;</a></h2>
@@ -2066,7 +2074,8 @@ audio + video UI with the same login (admin / admin by default).</p>
 <li>Is Tailscale connected on the iPhone? Open the app and confirm.</li>
 <li>Can you load the JSON probe URL in Mobile Safari? If yes, the
    transport works — the issue is in Amperfy's auth / URL setup.</li>
-<li>Did you put the URL in correctly (no trailing slash, no <code>/rest</code>)?</li>
+<li>Did you put the URL in correctly — ending in <code>/audio</code>, with no
+   trailing slash and no <code>/rest</code>?</li>
 </ol>
 <h3 id="symfonium-playsub-feishin-instead-of-amperfy">Symfonium / play:Sub / Feishin instead of Amperfy<a class="headerlink" href="#symfonium-playsub-feishin-instead-of-amperfy" title="Permanent link">&para;</a></h3>
 <p>The Subsonic API is identical — only the client UI changes. URL +

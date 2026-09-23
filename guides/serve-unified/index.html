@@ -497,6 +497,45 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#keeping-it-running" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Keeping it running
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Keeping it running">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#macos-launchd" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        macOS (launchd)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#linux-systemd" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Linux (systemd)
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#multiple-libraries" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1442,6 +1481,45 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#keeping-it-running" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Keeping it running
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Keeping it running">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#macos-launchd" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        macOS (launchd)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#linux-systemd" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Linux (systemd)
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#multiple-libraries" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1598,6 +1676,67 @@
 <p>Tokens live in memory and expire after 24 hours (or when the server restarts).</p>
 <p>The demo page at <code>/video/</code> does NOT yet drive the login flow, so when <code>--auth</code> is on the demo can't play videos. Use the API directly until the SPA video tab lands.</p>
 <p>Same credentials as the audio Subsonic mount — one password sourced from the same TOML.</p>
+<h2 id="keeping-it-running">Keeping it running<a class="headerlink" href="#keeping-it-running" title="Permanent link">&para;</a></h2>
+<p>A server started from a shell dies with the shell, and does not come back
+after a reboot -- which is how a library that worked all week is missing
+on the one morning somebody reaches for it from a train.</p>
+<h3 id="macos-launchd">macOS (launchd)<a class="headerlink" href="#macos-launchd" title="Permanent link">&para;</a></h3>
+<p>Write <code>~/Library/LaunchAgents/com.maneki.serve.plist</code>, substituting the
+path to the binary (<code>which maneki</code>), the library root, and the hostname
+the machine is reached by:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="cp">&lt;?xml version="1.0" encoding="UTF-8"?&gt;</span>
+<a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a><span class="cp">&lt;!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"</span>
+<a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a><span class="cp">  "http://www.apple.com/DTDs/PropertyList-1.0.dtd"&gt;</span>
+<a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a><span class="nt">&lt;plist</span><span class="w"> </span><span class="na">version=</span><span class="s">"1.0"</span><span class="nt">&gt;</span>
+<a id="__codelineno-6-5" name="__codelineno-6-5" href="#__codelineno-6-5"></a><span class="nt">&lt;dict&gt;</span>
+<a id="__codelineno-6-6" name="__codelineno-6-6" href="#__codelineno-6-6"></a><span class="w">  </span><span class="nt">&lt;key&gt;</span>Label<span class="nt">&lt;/key&gt;</span>
+<a id="__codelineno-6-7" name="__codelineno-6-7" href="#__codelineno-6-7"></a><span class="w">  </span><span class="nt">&lt;string&gt;</span>com.maneki.serve<span class="nt">&lt;/string&gt;</span>
+<a id="__codelineno-6-8" name="__codelineno-6-8" href="#__codelineno-6-8"></a><span class="w">  </span><span class="nt">&lt;key&gt;</span>ProgramArguments<span class="nt">&lt;/key&gt;</span>
+<a id="__codelineno-6-9" name="__codelineno-6-9" href="#__codelineno-6-9"></a><span class="w">  </span><span class="nt">&lt;array&gt;</span>
+<a id="__codelineno-6-10" name="__codelineno-6-10" href="#__codelineno-6-10"></a><span class="w">    </span><span class="nt">&lt;string&gt;</span>/Users/you/.local/bin/maneki<span class="nt">&lt;/string&gt;</span>
+<a id="__codelineno-6-11" name="__codelineno-6-11" href="#__codelineno-6-11"></a><span class="w">    </span><span class="nt">&lt;string&gt;</span>serve<span class="nt">&lt;/string&gt;</span>
+<a id="__codelineno-6-12" name="__codelineno-6-12" href="#__codelineno-6-12"></a><span class="w">    </span><span class="nt">&lt;string&gt;</span>/Volumes/Media<span class="nt">&lt;/string&gt;</span>
+<a id="__codelineno-6-13" name="__codelineno-6-13" href="#__codelineno-6-13"></a><span class="w">    </span><span class="nt">&lt;string&gt;</span>--host<span class="nt">&lt;/string&gt;</span>
+<a id="__codelineno-6-14" name="__codelineno-6-14" href="#__codelineno-6-14"></a><span class="w">    </span><span class="nt">&lt;string&gt;</span>your-machine.tailnet.ts.net<span class="nt">&lt;/string&gt;</span>
+<a id="__codelineno-6-15" name="__codelineno-6-15" href="#__codelineno-6-15"></a><span class="w">    </span><span class="nt">&lt;string&gt;</span>--port<span class="nt">&lt;/string&gt;</span>
+<a id="__codelineno-6-16" name="__codelineno-6-16" href="#__codelineno-6-16"></a><span class="w">    </span><span class="nt">&lt;string&gt;</span>8765<span class="nt">&lt;/string&gt;</span>
+<a id="__codelineno-6-17" name="__codelineno-6-17" href="#__codelineno-6-17"></a><span class="w">    </span><span class="nt">&lt;string&gt;</span>--ui<span class="nt">&lt;/string&gt;</span>
+<a id="__codelineno-6-18" name="__codelineno-6-18" href="#__codelineno-6-18"></a><span class="w">  </span><span class="nt">&lt;/array&gt;</span>
+<a id="__codelineno-6-19" name="__codelineno-6-19" href="#__codelineno-6-19"></a><span class="w">  </span><span class="nt">&lt;key&gt;</span>RunAtLoad<span class="nt">&lt;/key&gt;</span>
+<a id="__codelineno-6-20" name="__codelineno-6-20" href="#__codelineno-6-20"></a><span class="w">  </span><span class="nt">&lt;true/&gt;</span>
+<a id="__codelineno-6-21" name="__codelineno-6-21" href="#__codelineno-6-21"></a><span class="w">  </span><span class="nt">&lt;key&gt;</span>KeepAlive<span class="nt">&lt;/key&gt;</span>
+<a id="__codelineno-6-22" name="__codelineno-6-22" href="#__codelineno-6-22"></a><span class="w">  </span><span class="nt">&lt;true/&gt;</span>
+<a id="__codelineno-6-23" name="__codelineno-6-23" href="#__codelineno-6-23"></a><span class="w">  </span><span class="nt">&lt;key&gt;</span>StandardOutPath<span class="nt">&lt;/key&gt;</span>
+<a id="__codelineno-6-24" name="__codelineno-6-24" href="#__codelineno-6-24"></a><span class="w">  </span><span class="nt">&lt;string&gt;</span>/tmp/maneki.log<span class="nt">&lt;/string&gt;</span>
+<a id="__codelineno-6-25" name="__codelineno-6-25" href="#__codelineno-6-25"></a><span class="w">  </span><span class="nt">&lt;key&gt;</span>StandardErrorPath<span class="nt">&lt;/key&gt;</span>
+<a id="__codelineno-6-26" name="__codelineno-6-26" href="#__codelineno-6-26"></a><span class="w">  </span><span class="nt">&lt;string&gt;</span>/tmp/maneki.log<span class="nt">&lt;/string&gt;</span>
+<a id="__codelineno-6-27" name="__codelineno-6-27" href="#__codelineno-6-27"></a><span class="nt">&lt;/dict&gt;</span>
+<a id="__codelineno-6-28" name="__codelineno-6-28" href="#__codelineno-6-28"></a><span class="nt">&lt;/plist&gt;</span>
+</code></pre></div>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>launchctl<span class="w"> </span>bootstrap<span class="w"> </span>gui/<span class="k">$(</span>id<span class="w"> </span>-u<span class="k">)</span><span class="w"> </span>~/Library/LaunchAgents/com.maneki.serve.plist
+<a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a>launchctl<span class="w"> </span>kickstart<span class="w"> </span>-k<span class="w"> </span>gui/<span class="k">$(</span>id<span class="w"> </span>-u<span class="k">)</span>/com.maneki.serve<span class="w">   </span><span class="c1"># restart after an upgrade</span>
+<a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a>launchctl<span class="w"> </span>print<span class="w"> </span>gui/<span class="k">$(</span>id<span class="w"> </span>-u<span class="k">)</span>/com.maneki.serve<span class="w"> </span><span class="p">|</span><span class="w"> </span>head<span class="w">   </span><span class="c1"># is it running</span>
+</code></pre></div>
+<p><code>KeepAlive</code> restarts the process if it exits; <code>RunAtLoad</code> starts it at
+login. An external library disk that is not mounted yet is the one case
+worth knowing about: the server starts, finds nothing, and the first scan
+is empty -- <code>launchctl kickstart -k</code> once the disk is mounted fixes it.</p>
+<h3 id="linux-systemd">Linux (systemd)<a class="headerlink" href="#linux-systemd" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a><span class="c1"># ~/.config/systemd/user/maneki.service</span>
+<a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a><span class="k">[Unit]</span>
+<a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a><span class="na">Description</span><span class="o">=</span><span class="s">maneki</span>
+<a id="__codelineno-8-4" name="__codelineno-8-4" href="#__codelineno-8-4"></a><span class="na">After</span><span class="o">=</span><span class="s">network-online.target</span>
+<a id="__codelineno-8-5" name="__codelineno-8-5" href="#__codelineno-8-5"></a>
+<a id="__codelineno-8-6" name="__codelineno-8-6" href="#__codelineno-8-6"></a><span class="k">[Service]</span>
+<a id="__codelineno-8-7" name="__codelineno-8-7" href="#__codelineno-8-7"></a><span class="na">ExecStart</span><span class="o">=</span><span class="s">%h/.local/bin/maneki serve /srv/media --host 0.0.0.0 --port 8765 --ui</span>
+<a id="__codelineno-8-8" name="__codelineno-8-8" href="#__codelineno-8-8"></a><span class="na">Restart</span><span class="o">=</span><span class="s">always</span>
+<a id="__codelineno-8-9" name="__codelineno-8-9" href="#__codelineno-8-9"></a>
+<a id="__codelineno-8-10" name="__codelineno-8-10" href="#__codelineno-8-10"></a><span class="k">[Install]</span>
+<a id="__codelineno-8-11" name="__codelineno-8-11" href="#__codelineno-8-11"></a><span class="na">WantedBy</span><span class="o">=</span><span class="s">default.target</span>
+</code></pre></div>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a>systemctl<span class="w"> </span>--user<span class="w"> </span><span class="nb">enable</span><span class="w"> </span>--now<span class="w"> </span>maneki
+<a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a>loginctl<span class="w"> </span>enable-linger<span class="w"> </span><span class="s2">"</span><span class="nv">$USER</span><span class="s2">"</span><span class="w">   </span><span class="c1"># so it runs with nobody logged in</span>
+</code></pre></div>
 <h2 id="multiple-libraries">Multiple libraries<a class="headerlink" href="#multiple-libraries" title="Permanent link">&para;</a></h2>
 <p><code>maneki serve</code> runs against one root at a time. To serve several libraries, run several processes on different ports — eg one for music and one for movies if they live on separate disks.</p>
 <h2 id="see-also">See also<a class="headerlink" href="#see-also" title="Permanent link">&para;</a></h2>

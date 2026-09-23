@@ -1053,6 +1053,28 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#taking-music-offline" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Taking music offline
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#audiobooks-on-the-phone" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Audiobooks on the phone
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#android" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1565,6 +1587,28 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#taking-music-offline" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Taking music offline
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#audiobooks-on-the-phone" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Audiobooks on the phone
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#android" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1727,11 +1771,19 @@ Maneki mobile app to install.</p>
 <li>Run <code>maneki serve</code> somewhere your phone can reach (Tailscale, LAN, or
    a public URL behind a reverse proxy).</li>
 <li>Install one of the apps below.</li>
-<li>Point it at <code>http(s)://&lt;host&gt;:8765/rest</code>, with the username + password
-   from <code>~/.config/maneki/maneki.toml</code> (or <code>MANEKI_SERVER__USERNAME</code>
-   / <code>MANEKI_SERVER__PASSWORD</code>).</li>
+<li>Point it at <strong><code>http(s)://&lt;host&gt;:8765/audio</code></strong>, with the username +
+   password from <code>~/.config/maneki/maneki.toml</code> (or
+   <code>MANEKI_SERVER__USERNAME</code> / <code>MANEKI_SERVER__PASSWORD</code>).</li>
 <li>Stream.</li>
 </ol>
+<div class="admonition warning">
+<p class="admonition-title">The <code>/audio</code> is not optional</p>
+<p><code>maneki serve</code> mounts Subsonic under <code>/audio</code>, beside the video API
+and the books API, so the address a client wants is
+<code>http://&lt;host&gt;:8765/audio</code> and the client appends its own <code>/rest/...</code>.
+Leave it off and every call 404s, which most apps report as
+"server unreachable" rather than as a wrong address.</p>
+</div>
 <h2 id="prerequisites">Prerequisites<a class="headerlink" href="#prerequisites" title="Permanent link">&para;</a></h2>
 <p>The server itself is covered in <a href="../serve-unified/">the serve guide</a>. For mobile
 the things to double-check are:</p>
@@ -1757,7 +1809,7 @@ the things to double-check are:</p>
    from the App Store.</li>
 <li>Settings → Servers → Add Server.</li>
 <li>Fill in:</li>
-<li><strong>Server Address</strong>: <code>http://&lt;host&gt;:8765</code> (no trailing <code>/rest</code>)</li>
+<li><strong>Server Address</strong>: <code>http://&lt;host&gt;:8765/audio</code> (the app adds <code>/rest</code>)</li>
 <li><strong>Username</strong>: from <code>maneki.toml</code></li>
 <li><strong>Password</strong>: from <code>maneki.toml</code></li>
 <li>Save. play:Sub does the salted-token handshake; if the credentials
@@ -1765,13 +1817,46 @@ the things to double-check are:</p>
 <li>Browse → tap album → play.</li>
 </ol>
 <h3 id="amperfy">Amperfy<a class="headerlink" href="#amperfy" title="Permanent link">&para;</a></h3>
-<p>Free, open source, scrobble-aware. Good if you also use Last.fm.</p>
+<p>Free, open source, scrobble-aware. Good if you also use Last.fm, and the
+one to reach for when you want music on the phone with no server in
+reach.</p>
 <ol>
 <li>Install <a href="https://apps.apple.com/app/amperfy/id1530145105">Amperfy</a>.</li>
 <li>Settings → Server → Add Server. Same fields as above.</li>
 <li>Amperfy defaults to JSON (<code>f=json</code>); Maneki serves both — no
    tweak needed.</li>
 </ol>
+<h2 id="taking-music-offline">Taking music offline<a class="headerlink" href="#taking-music-offline" title="Permanent link">&para;</a></h2>
+<p>Every client that downloads asks Maneki for the whole file over
+<code>/audio/rest/download</code>, which answers with the bytes on disk, a
+<code>Content-Length</code>, and <code>Accept-Ranges: bytes</code> — so an interrupted download
+resumes instead of starting again. Nothing is transcoded on that path:
+what lands on the phone is the file from the library.</p>
+<ul>
+<li><strong>Amperfy</strong>: swipe an album or playlist → Download, or Settings →
+  Library → Download all. Downloaded items play with the server
+  unreachable.</li>
+<li><strong>play:Sub</strong>: tap the cloud icon on an album, or Settings → Offline
+  Mode to browse only what is already on the device.</li>
+<li><strong>Symfonium</strong>: long-press → Download; "Sync" keeps a pinned set
+  current.</li>
+<li><strong>DSub</strong>: menu → Pin, which keeps the file across cache eviction
+  (Download alone does not).</li>
+</ul>
+<p>Streaming on mobile data is a separate setting in every one of these
+apps: they ask Maneki to transcode with <code>maxBitRate</code>, and Maneki does the
+ffmpeg work on the server. 128k mp3 is about a third of the bytes of a
+typical m4a here.</p>
+<h2 id="audiobooks-on-the-phone">Audiobooks on the phone<a class="headerlink" href="#audiobooks-on-the-phone" title="Permanent link">&para;</a></h2>
+<p>Books are a <strong>second music folder</strong> called Audiobooks, not a section of
+the music library, so every client shows them as their own shelf: pick
+the folder in the client's library or folder picker and browse authors
+the way you browse artists.</p>
+<p>Where you stopped is a Subsonic bookmark, which means it is shared: a
+book left at 1:40:00 in Amperfy opens at 1:40:00 in the Maneki web
+client, and the other way round. Clients that support bookmarks
+(play:Sub, Symfonium, DSub) resume on their own; Amperfy plays from the
+start unless you scrub.</p>
 <h2 id="android">Android<a class="headerlink" href="#android" title="Permanent link">&para;</a></h2>
 <h3 id="symfonium">Symfonium<a class="headerlink" href="#symfonium" title="Permanent link">&para;</a></h3>
 <p>Paid (~5 EUR), best-in-class UI.</p>
@@ -1779,7 +1864,7 @@ the things to double-check are:</p>
 <li>Install <a href="https://play.google.com/store/apps/details?id=app.symfonik.music_player">Symfonium</a>
    from Play.</li>
 <li>Settings → Sources → Add → Subsonic.</li>
-<li>URL: <code>http://&lt;host&gt;:8765</code>, plus user + password.</li>
+<li>URL: <code>http://&lt;host&gt;:8765/audio</code>, plus user + password.</li>
 <li>Save → Sync. Syncing pulls a metadata index; subsequent browsing is
    offline-aware.</li>
 </ol>
@@ -1801,9 +1886,10 @@ the things to double-check are:</p>
 <h3 id="could-not-connect">"Could not connect"<a class="headerlink" href="#could-not-connect" title="Permanent link">&para;</a></h3>
 <ul>
 <li>Confirm the server is reachable from the phone:
-  <code>curl http://&lt;host&gt;:8765/rest/ping?u=&lt;user&gt;&amp;p=&lt;password&gt;</code> from a
+  <code>curl "http://&lt;host&gt;:8765/audio/rest/ping?u=&lt;user&gt;&amp;p=&lt;password&gt;&amp;v=1.16.1&amp;c=curl"</code> from a
   laptop on the same network.</li>
-<li>Don't include <code>/rest</code> in the URL field — the apps append it.</li>
+<li>Include <code>/audio</code> in the URL field and nothing more — the apps append
+  <code>/rest</code> themselves.</li>
 </ul>
 <h3 id="invalid-credentials">"Invalid credentials"<a class="headerlink" href="#invalid-credentials" title="Permanent link">&para;</a></h3>
 <ul>
@@ -1817,14 +1903,14 @@ the things to double-check are:</p>
 <ul>
 <li>The server only sees what's under the path you launched it with:
   <code>maneki serve /path/to/Music</code>. Verify
-  <code>curl 'http://&lt;host&gt;:8765/rest/getArtists?u=...&amp;p=...&amp;f=json'</code> returns
+  <code>curl 'http://&lt;host&gt;:8765/audio/rest/getArtists?u=...&amp;p=...&amp;f=json'</code> returns
   a non-empty list.</li>
 <li>If <code>getArtists</code> returns content but the app's empty, force-rescan
   inside the app (most have a "Sync" or "Refresh server" action).</li>
 </ul>
 <h3 id="cover-art-looks-low-res">Cover art looks low-res<a class="headerlink" href="#cover-art-looks-low-res" title="Permanent link">&para;</a></h3>
 <ul>
-<li>Subsonic apps fetch cover art via <code>/rest/getCoverArt?id=...&amp;size=N</code>.
+<li>Subsonic apps fetch cover art via <code>/audio/rest/getCoverArt?id=...&amp;size=N</code>.
   Maneki serves the original embedded artwork; if your library has
   small embeds, the upscale is what the app sees. Embed at 1000×1000
   via <a href="../convert/">convert</a> for crisp art.</li>
