@@ -14,11 +14,13 @@ import {
 import { NavLink } from 'react-router'
 
 import { CoverArt } from '@/components/CoverArt'
+import { LcdDisplay } from '@/components/LcdDisplay'
 import { Visualizer } from '@/components/Visualizer'
 import { Button } from '@/components/ui/button'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { useStore } from '@/hooks/use-store'
 import { clock } from '@/lib/format'
+import { nowPlayingFace } from '@/lib/lcd'
 import {
     currentSong,
     cycleRepeat,
@@ -61,6 +63,7 @@ export function PlayerBar() {
     const session = useStore(sessionStore)
     const tabs = useStore(panelTabs)
     const open = useStore(panelOpen)
+    const face = useStore(nowPlayingFace)
     const song = currentSong()
     const station = player.station
     if ((!song && !station) || !session.music) return null
@@ -96,29 +99,46 @@ export function PlayerBar() {
                 />
             )}
 
-            <div className="min-w-0 flex-1 md:max-w-64">
-                <p className="truncate text-sm" title={song?.title ?? station?.name}>
-                    {song ? (
-                        song.albumId ? (
-                            <NavLink to={`/music/album/${song.albumId}`} className="control-link">
-                                {song.title}
-                            </NavLink>
+            {/* THE DECK FACE REPLACES THE TITLE BLOCK AND THE SCRUBBER, AND NOTHING ELSE. It says
+                what both of them said -- what is playing, and how far through -- so drawing the
+                two together would be the same facts twice at two sizes. The transport stays
+                where it is: what the buttons do does not change with the face. */}
+            {face === 'lcd' ? (
+                <LcdDisplay
+                    song={song}
+                    station={station}
+                    stationTitle={player.stationTitle}
+                    positionS={player.positionS}
+                    durationS={duration}
+                    playing={player.playing}
+                    muted={player.muted}
+                    volume={player.volume}
+                />
+            ) : (
+                <div className="min-w-0 flex-1 md:max-w-64">
+                    <p className="truncate text-sm" title={song?.title ?? station?.name}>
+                        {song ? (
+                            song.albumId ? (
+                                <NavLink to={`/music/album/${song.albumId}`} className="control-link">
+                                    {song.title}
+                                </NavLink>
+                            ) : (
+                                song.title
+                            )
                         ) : (
-                            song.title
-                        )
-                    ) : (
-                        station?.name
-                    )}
-                </p>
-                {/* A station that has announced what it is playing says that; one that has
-                    not says it is live, which is the only other true thing about it. */}
-                <p
-                    className="truncate text-xs text-muted-foreground"
-                    title={station ? player.stationTitle || 'Live' : song?.artist}
-                >
-                    {station ? player.stationTitle || 'Live' : song?.artist}
-                </p>
-            </div>
+                            station?.name
+                        )}
+                    </p>
+                    {/* A station that has announced what it is playing says that; one that has
+                        not says it is live, which is the only other true thing about it. */}
+                    <p
+                        className="truncate text-xs text-muted-foreground"
+                        title={station ? player.stationTitle || 'Live' : song?.artist}
+                    >
+                        {station ? player.stationTitle || 'Live' : song?.artist}
+                    </p>
+                </div>
+            )}
 
             <div className="flex items-center gap-1">
                 {/* Shuffle and repeat sit beside the transport they change, and are drawn as
@@ -177,25 +197,31 @@ export function PlayerBar() {
                 </Button>
             </div>
 
-            <div className={cn('hidden min-w-0 flex-1 items-center gap-2 md:flex', station && 'invisible')}>
-                <span className="shrink-0 font-mono text-xs text-muted-foreground tabular-nums">
-                    {clock(player.positionS)}
-                </span>
-                <input
-                    type="range"
-                    aria-label="Position"
-                    min={0}
-                    max={Math.max(1, Math.floor(duration))}
-                    value={Math.floor(player.positionS)}
-                    onChange={(event) => {
-                        seek(Number(event.target.value))
-                    }}
-                    className="w-full accent-primary"
-                />
-                <span className="shrink-0 font-mono text-xs text-muted-foreground tabular-nums">
-                    {clock(duration)}
-                </span>
-            </div>
+            {/* Not hidden with a class: two controls with one accessible name is two of them in
+                the document, and a slider nobody can see is still a slider somebody lands on. */}
+            {face === 'standard' && (
+                <div
+                    className={cn('hidden min-w-0 flex-1 items-center gap-2 md:flex', station && 'invisible')}
+                >
+                    <span className="shrink-0 font-mono text-xs text-muted-foreground tabular-nums">
+                        {clock(player.positionS)}
+                    </span>
+                    <input
+                        type="range"
+                        aria-label="Position"
+                        min={0}
+                        max={Math.max(1, Math.floor(duration))}
+                        value={Math.floor(player.positionS)}
+                        onChange={(event) => {
+                            seek(Number(event.target.value))
+                        }}
+                        className="w-full accent-primary"
+                    />
+                    <span className="shrink-0 font-mono text-xs text-muted-foreground tabular-nums">
+                        {clock(duration)}
+                    </span>
+                </div>
+            )}
 
             {/* The strip is the way to the stage with a pointer, as the F key is without one. */}
             <button

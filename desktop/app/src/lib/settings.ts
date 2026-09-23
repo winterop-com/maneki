@@ -89,6 +89,19 @@ export function settingsRows(apple: boolean): SettingsRow[] {
             keywords: ['timezone', 'utc', 'clock', 'local', 'zone'],
         },
         {
+            id: 'general:now-playing',
+            category: 'general',
+            label: 'Now playing',
+            description: 'LCD puts a deck face on the player bar in place of the title and the slider.',
+            keywords: ['lcd', 'display', 'deck', 'player', 'bar', 'standard', 'segment', 'hifi'],
+        },
+        {
+            id: 'general:lcd-tint',
+            category: 'general',
+            label: 'LCD tint',
+            keywords: ['lcd', 'green', 'amber', 'blue', 'colour', 'color', 'display'],
+        },
+        {
             id: 'general:density',
             category: 'general',
             label: 'Density',
