@@ -82,10 +82,10 @@ docs: docs-serve
 # ---------------------------------------------------------------------------
 # Desktop wrappers
 #
-# `desktop/react/` is the single shared frontend (React + Babel-standalone).
-# Both Tauri and Electron wrappers load `desktop/react/index.html` in
-# their native webview. The same files are also bundled into the
-# Python wheel for `maneki ui` via `scripts/copy_ui_static.py`.
+# `desktop/app/` is the client. Both the Tauri and the Electron wrapper load
+# its Vite build (`desktop/app/dist/`) in their native webview, and the same
+# build goes into the Python wheel via `scripts/copy_ui_static.py`, beside
+# the classic client (`desktop/react/`) that the wheel still serves at /classic.
 # ---------------------------------------------------------------------------
 
 # ---------------------------------------------------------------------------
