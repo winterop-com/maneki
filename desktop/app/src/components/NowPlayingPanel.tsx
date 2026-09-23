@@ -156,9 +156,20 @@ export function NowPlayingPanel() {
                         <span className="text-xs font-semibold tracking-wide text-faint uppercase">
                             {SPECTRUM_HEADING}
                         </span>
-                        {/* Which drawing is in front of somebody, said quietly: it is the
-                            answer to what a click on the canvas just did. */}
-                        <span className="ml-auto text-xs text-faint">{VISUALIZER_STYLE_LABELS[style]}</span>
+                        {/* Which drawing is in front of somebody, and the way to the next one: a
+                            word on its own read as a label nobody asked for, so the word is the
+                            control, doing what a click on the canvas does. */}
+                        <button
+                            type="button"
+                            aria-label={nextStyleLabel(style)}
+                            title={nextStyleLabel(style)}
+                            onClick={() => {
+                                cycleVisualizerStyle()
+                            }}
+                            className="control-link ml-auto text-xs text-faint hover:text-foreground"
+                        >
+                            {VISUALIZER_STYLE_LABELS[style]}
+                        </button>
                         <Button
                             variant="ghost"
                             size="icon-sm"
