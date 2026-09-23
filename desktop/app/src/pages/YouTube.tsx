@@ -680,7 +680,7 @@ function Watch({ id }: { id: string }) {
             {refusal !== null ? (
                 <Notice>{refusal}</Notice>
             ) : (
-                <div className="aspect-video w-full overflow-hidden rounded-lg bg-black">
+                <div className="aspect-video w-full overflow-hidden rounded-lg bg-background">
                     <VideoPlayer
                         key={height}
                         src={youtubeApi.hlsUrl(id, height === AUTO_HEIGHT ? undefined : height)}
