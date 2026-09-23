@@ -1559,14 +1559,16 @@ trade-offs you prefer.</p>
 </tbody>
 </table>
 <h2 id="what-it-is">What it is<a class="headerlink" href="#what-it-is" title="Permanent link">&para;</a></h2>
-<p>Both wrappers point the embedded webview at any Subsonic-compatible
-server — your own <code>maneki serve</code>, <a href="https://www.navidrome.org/">Navidrome</a>, <a href="https://airsonic.github.io/">Airsonic</a>, whatever.
-They're not just thin chrome around the web UI; the SPA inside
-(<code>desktop/react/</code>) is a full client: salted-token auth, refresh-restore
-via URL hashes, and a Web Audio FFT visualizer.</p>
-<p>You log in once with <strong>URL + Username + Password</strong>; the app
-computes the Subsonic salted token and re-uses it across browse / play
-calls.</p>
+<p>Both wrappers open a window on the same client a browser tab gets from
+<code>maneki serve</code> (<code>desktop/app/</code>): music, radio, audiobooks, video and
+YouTube, the spectrum, the command palette. What the shell adds is a
+fullscreen that takes the whole display and a window that remembers
+its size.</p>
+<p>The client looks for a server at <code>http://127.0.0.1:8765</code> first. When
+nothing answers there it asks for an address: enter
+<code>http://&lt;host&gt;:8765</code> (no <code>/audio</code> -- that suffix is for Subsonic apps)
+plus the username and password from <code>maneki.toml</code>. You sign in once;
+the session is kept across launches.</p>
 <h2 id="install">Install<a class="headerlink" href="#install" title="Permanent link">&para;</a></h2>
 <p><strong>Download a prebuilt build</strong> from the
 <a href="https://github.com/winterop-com/maneki/releases/latest">latest release</a>.
@@ -1644,19 +1646,21 @@ at a tiny window. To reset to the 1440x900 default, delete that file.</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>http://localhost:1420/#a=1234&amp;l=4567&amp;t=8901
 </code></pre></div>
 <p>Reload the window (Cmd-R / F5) and you land back on the same track —
-useful when iterating on <code>desktop/react/</code> during development.</p>
+useful when iterating on <code>desktop/app/</code> during development.</p>
 <h2 id="building-from-source">Building from source<a class="headerlink" href="#building-from-source" title="Permanent link">&para;</a></h2>
 <p>Pick a wrapper, then run the matching make target. Both load the same
-SPA from <code>desktop/react/</code>, so changes propagate to both.</p>
+bundle from <code>desktop/app/dist/</code>, so changes propagate to both.</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>make<span class="w"> </span>desktop-tauri-dev<span class="w">          </span><span class="c1"># Tauri dev shell — hot reload of the SPA</span>
 <a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>make<span class="w"> </span>desktop-tauri-build<span class="w">        </span><span class="c1"># Release Tauri bundle (.dmg + .app)</span>
 <a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>make<span class="w"> </span>desktop-electron-dev<span class="w">       </span><span class="c1"># Electron dev shell</span>
 <a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a>make<span class="w"> </span>desktop-electron-build<span class="w">     </span><span class="c1"># Release Electron build</span>
 <a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a>make<span class="w"> </span>build<span class="w">                      </span><span class="c1"># Both, plus the Python wheel</span>
 </code></pre></div>
-<p>The React frontend at <code>desktop/react/</code> is plain HTML + JSX + CSS loaded
-via Babel-standalone — no build step. Edit any file there and reload
-the wrapper's window to pick up changes.</p>
+<p>The client at <code>desktop/app/</code> is a Vite build. The Tauri dev target runs
+the Vite dev server for you, with hot reload; for a release build the
+shells run <code>bun run build</code> there first, so what ships is always the
+client at the repo's current version. <code>make app-gate</code> runs its lint,
+types and tests.</p>
 <h2 id="trade-offs-vs-the-browser">Trade-offs vs. the browser<a class="headerlink" href="#trade-offs-vs-the-browser" title="Permanent link">&para;</a></h2>
 <p>The browser at <code>http://&lt;host&gt;:8765/</code> does most of the same things —
 why use the desktop apps? Three reasons:</p>
