@@ -2,16 +2,25 @@ import { Radio as RadioIcon } from 'lucide-react'
 import { useEffect, useState } from 'react'
 
 import { Skeleton } from '@/components/Skeleton'
-import { useStore } from '@/hooks/use-store'
+import { useStore, useStoreValue } from '@/hooks/use-store'
 import { playerStore, playStation } from '@/lib/player'
 import { sessionStore } from '@/lib/session'
 import { getStations, type Station } from '@/lib/subsonic'
 import { cn } from '@/lib/utils'
 
+/**
+ * Which station is playing.
+ *
+ * ONE FACT, NOT THE STORE. The player publishes four times a second while something is
+ * sounding -- the position moved, which is what a scrub bar is for -- and a screen that read
+ * the whole of it rebuilt every row of this list on every one of those ticks.
+ */
+const selectStationId = (state: { station: { id: string } | null }) => state.station?.id ?? null
+
 /** The stations this server carries. Picking one replaces whatever was playing. */
 export function RadioPage() {
     const session = useStore(sessionStore)
-    const player = useStore(playerStore)
+    const playingId = useStoreValue(playerStore, selectStationId)
     const [stations, setStations] = useState<Station[] | null>(null)
     const [refusal, setRefusal] = useState<string | null>(null)
     const credentials = session.music
@@ -37,7 +46,7 @@ export function RadioPage() {
     return (
         <ul className="p-2">
             {stations.map((station) => {
-                const live = player.station?.id === station.id
+                const live = playingId === station.id
                 return (
                     <li key={station.id}>
                         <button
