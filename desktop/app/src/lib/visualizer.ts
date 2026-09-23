@@ -215,6 +215,44 @@ export function setSpectrumHeight(height: number): void {
 }
 
 /**
+ * How much room above its controls the player bar has been given, in pixels.
+ *
+ * THE BAR GROWS UPWARD INTO A SPECTRUM. At nothing it is the strip of controls along the foot
+ * that every screen has; dragged taller, the room above the controls is the spectrum across the
+ * whole width of the window, which is what the client before this one drew there. The pixels
+ * somebody dragged it to are kept, for the same reason the pane's are.
+ */
+export const BAR_ROOM_KEY = 'maneki.playerBarRoom'
+export const BAR_ROOM_MAX = 320
+/** Below this the room is not worth a canvas, and the bar snaps shut. */
+export const BAR_ROOM_MIN = 24
+
+export function clampBarRoom(room: number): number {
+    if (!Number.isFinite(room) || room < BAR_ROOM_MIN) return 0
+    return Math.round(Math.min(BAR_ROOM_MAX, room))
+}
+
+function readBarRoom(): number {
+    try {
+        return clampBarRoom(Number(localStorage.getItem(BAR_ROOM_KEY) ?? 0))
+    } catch {
+        return 0
+    }
+}
+
+export const barRoom = createStore(readBarRoom())
+
+export function setBarRoom(room: number): void {
+    const held = clampBarRoom(room)
+    try {
+        localStorage.setItem(BAR_ROOM_KEY, String(held))
+    } catch {
+        // Storage denied: the height holds for as long as this document is open.
+    }
+    barRoom.set(held)
+}
+
+/**
  * Whether the spectrum is over the whole screen.
  *
  * NOT KEPT BETWEEN VISITS, unlike whether the strip is drawn. The stage is something somebody

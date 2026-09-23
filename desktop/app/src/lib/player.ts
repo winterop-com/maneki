@@ -354,6 +354,11 @@ function silence(): void {
     audio?.pause()
 }
 
+/** Where the element's clock stands this instant, for a scrubber drawn every frame. */
+export function positionNow(): number {
+    return audio?.currentTime ?? state().positionS
+}
+
 function element(): HTMLAudioElement {
     if (audio) return audio
     audio = new Audio()

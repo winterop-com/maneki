@@ -17,6 +17,7 @@ import { starMarks, starredNow, toggleStar } from '@/lib/star'
 import { coverUrl, type Song } from '@/lib/subsonic'
 import { cn } from '@/lib/utils'
 import {
+    barRoom,
     clampSpectrumHeight,
     cycleVisualizerStyle,
     openStage,
@@ -92,6 +93,9 @@ export function NowPlayingPanel() {
     const shown = useStore(visualizerShown)
     const style = useStore(visualizerStyle)
     const height = useStore(spectrumHeight)
+    // ONE SPECTRUM AT A TIME: while the player bar has been pulled open and draws it across the
+    // whole width, the pane's copy stands down and the panel is the sleeve and the words.
+    const room = useStore(barRoom)
     const pane = useRef<HTMLButtonElement | null>(null)
     const canvas = useSpectrum(shown && playing, PANE_BANDS)
     // Dragging the top edge UP makes the pane taller: it is docked to the foot of the panel
@@ -131,7 +135,7 @@ export function NowPlayingPanel() {
             {/* NOTHING WEARS CHROME UNLESS IT DOES SOMETHING. One switch turns the spectrum on
                 and off wherever it is drawn, so a reader who has turned it off gets the sleeve
                 and the words rather than a heading over an empty box with a grip under it. */}
-            {shown && (
+            {shown && room === 0 && (
                 <div className="mt-auto flex shrink-0 flex-col">
                     <div
                         role="separator"

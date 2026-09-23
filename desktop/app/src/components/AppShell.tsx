@@ -93,7 +93,7 @@ import { sessionStore, signOut } from '@/lib/session'
 import { applePlatform, modifierLabel, SEEK_STEP_S, VOLUME_STEP } from '@/lib/shortcuts'
 import { toggleStar } from '@/lib/star'
 import { choosePalette, PALETTES } from '@/lib/theme'
-import { cycleVisualizerStyle, openStage, toggleVisualizer, visualizerShown } from '@/lib/visualizer'
+import { barRoom, cycleVisualizerStyle, openStage, toggleVisualizer, visualizerShown } from '@/lib/visualizer'
 
 /** The facts the shell reads off the player. Module scope, so each is one stable function. */
 const selectPlaying = (state: { playing: boolean }) => state.playing
@@ -209,22 +209,26 @@ export function AppShell({ children }: { children: ReactNode }) {
     // the second time is a panel they have already had an opinion about. Not below the
     // breakpoint: the panel is a sheet over the whole screen there, the tab bar across the foot
     // is already the way to it, and a sheet raised by pressing play is one to dismiss first.
+    // AND NOT THE SLEEVE WHILE THE BAR IS OPEN. A player bar pulled tall draws the spectrum
+    // across the foot and its thumbnail names the track, so a Now playing tab beside it is the
+    // same cover a third time; the panel then offers the queue alone.
+    const room = useStore(barRoom)
     useEffect(() => {
         const listed = queued || chapterCount > 0
         if (!listed && station === null) return
-        const empty = fillPanel(
-            [
-                { id: 'now', label: NOW_PLAYING_LABEL, render: () => <NowPlayingPanel /> },
-                ...(listed ? [{ id: 'queue', label: QUEUE_LABEL, render: () => <QueuePanel /> }] : []),
-            ],
-            { screen: 'shell', open: 'now' },
-        )
+        const sleeve = room === 0
+        const tabs = [
+            ...(sleeve ? [{ id: 'now', label: NOW_PLAYING_LABEL, render: () => <NowPlayingPanel /> }] : []),
+            ...(listed ? [{ id: 'queue', label: QUEUE_LABEL, render: () => <QueuePanel /> }] : []),
+        ]
+        if (tabs.length === 0) return
+        const empty = fillPanel(tabs, { screen: 'shell', open: sleeve ? 'now' : 'queue' })
         if (!introduced.current && !smallScreenNow()) {
             introduced.current = true
-            openPanelTab('now')
+            openPanelTab(sleeve ? 'now' : 'queue')
         }
         return empty
-    }, [queued, chapterCount, station])
+    }, [queued, chapterCount, station, room])
 
     const actions = useMemo<PaletteAction[]>(() => {
         const pages: PaletteAction[] = entriesFor(caps).map((entry) => ({
