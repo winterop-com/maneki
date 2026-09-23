@@ -72,6 +72,26 @@ export function url(path: string): string {
     return `${session.baseUrl}${path}`
 }
 
+/**
+ * The same URL, with the token on it, for the addresses this app hands to the browser.
+ *
+ * EVERY OTHER CALL SENDS THE TOKEN AS A HEADER, AND THESE CANNOT. A `<video src>`, an `<img
+ * src>`, a `<track src>`, an `<audio src>` and an `EventSource` are fetched by the browser
+ * itself out of an address, and there is nowhere in an address to put a header -- so against a
+ * server started with `--auth` every poster, stream, subtitle and stats frame would answer 401
+ * while the library around them listed perfectly well.
+ *
+ * The server takes the same token as `?token=` on exactly those routes and validates it exactly
+ * as it validates the header. A server that wants no sign-in hands back the plain URL, because
+ * there is no token to put on it.
+ */
+export function mediaUrl(path: string): string {
+    const absolute = url(path)
+    if (!session.token) return absolute
+    const separator = absolute.includes('?') ? '&' : '?'
+    return `${absolute}${separator}token=${encodeURIComponent(session.token)}`
+}
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
     const headers = new Headers(init?.headers)
     headers.set('accept', 'application/json')
@@ -166,9 +186,9 @@ export const books = {
      * own screen asks for a large one.
      */
     coverUrl: (id: string, size?: number): string =>
-        url(`/books/api/books/${id}/cover${size === undefined ? '' : `?size=${String(size)}`}`),
+        mediaUrl(`/books/api/books/${id}/cover${size === undefined ? '' : `?size=${String(size)}`}`),
     /** The stream URL of one file. `file.url` is relative to the books mount. */
-    fileUrl: (path: string): string => url(`/books/${path}`),
+    fileUrl: (path: string): string => mediaUrl(`/books/${path}`),
 }
 
 /** `?refresh=1` when a reader asked for it, which is what busts the server's listing cache. */
@@ -212,7 +232,7 @@ export const youtube = {
     quality: (): Promise<YouTubeQuality> => request(`${videoMount}/youtube/quality`),
     /** The HLS manifest, capped at `height` when one was chosen and at the server's when not. */
     hlsUrl: (videoId: string, height?: number): string =>
-        url(
+        mediaUrl(
             `${videoMount}/youtube/videos/${encodeURIComponent(videoId)}/hls/index.m3u8` +
                 (height !== undefined && height > 0 ? `?h=${String(height)}` : ''),
         ),
@@ -292,12 +312,12 @@ export const video = {
         }
     },
     /** The live transcode stats, which arrive as server-sent events rather than as an answer. */
-    statsStreamUrl: (): string => url(`${videoMount}/stats/stream`),
+    statsStreamUrl: (): string => mediaUrl(`${videoMount}/stats/stream`),
     /** The HLS manifest, which is what the player is pointed at whatever the container is. */
-    hlsUrl: (id: string): string => url(hlsPath(videoMount, id)),
+    hlsUrl: (id: string): string => mediaUrl(hlsPath(videoMount, id)),
     /** The file's own bytes, ranges and all. */
-    streamUrl: (id: string): string => url(streamPath(videoMount, id)),
-    thumbnailUrl: (id: string, token?: number): string => url(thumbnailPath(videoMount, id, token)),
-    posterUrl: (id: string, token?: number): string => url(posterPath(videoMount, id, token)),
-    subtitleUrl: (id: string, trackId: string): string => url(subtitlePath(videoMount, id, trackId)),
+    streamUrl: (id: string): string => mediaUrl(streamPath(videoMount, id)),
+    thumbnailUrl: (id: string, token?: number): string => mediaUrl(thumbnailPath(videoMount, id, token)),
+    posterUrl: (id: string, token?: number): string => mediaUrl(posterPath(videoMount, id, token)),
+    subtitleUrl: (id: string, trackId: string): string => mediaUrl(subtitlePath(videoMount, id, trackId)),
 }
