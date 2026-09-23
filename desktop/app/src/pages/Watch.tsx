@@ -9,6 +9,7 @@ import { video as videoApi } from '@/lib/api'
 import { clock } from '@/lib/format'
 import { useStore } from '@/hooks/use-store'
 import { registerActions, SCREEN_GROUP } from '@/lib/palette'
+import { inDesktopShell } from '@/lib/desktop'
 import { claimStageKey, claimTransport } from '@/lib/screen-keys'
 import { clearScreenStatus, setScreenStatus } from '@/lib/screen-status'
 import { seeks, togglesTheater, type FocusedField } from '@/lib/shortcuts'
@@ -85,6 +86,12 @@ function Watch({ id }: { id: string }) {
     const theater = useStore(theaterOn)
     const [stats, setStats] = useState(false)
     const [filled, setFilled] = useState(false)
+    // Read by the key handler, which is bound once and would otherwise hold the first value.
+    const filledNow = useRef(false)
+    const onFilled = useCallback((on: boolean) => {
+        filledNow.current = on
+        setFilled(on)
+    }, [])
     const player = useRef<VideoHandle | null>(null)
     const navigate = useNavigate()
 
@@ -388,6 +395,15 @@ function Watch({ id }: { id: string }) {
                 element instanceof HTMLElement
                     ? { tagName: element.tagName, isContentEditable: element.isContentEditable }
                     : null
+            // IN A SHELL, ESCAPE IS THE WAY BACK. A browser leaves element fullscreen on
+            // Escape by itself; a desktop window that was asked to fill the display does
+            // not, and a picture pinned over the whole app with no way out is a trap.
+            if (event.key === 'Escape' && filledNow.current) {
+                event.preventDefault()
+                event.stopPropagation()
+                player.current?.toggleFullscreen()
+                return
+            }
             if (togglesTheater(press, focused)) {
                 event.preventDefault()
                 event.stopPropagation()
@@ -531,7 +547,18 @@ function Watch({ id }: { id: string }) {
             </div>
 
             <div className="flex min-h-0 flex-1 flex-col lg:flex-row">
-                <div className="relative flex min-h-0 min-w-0 flex-1 flex-col">
+                {/* FULL SCREEN IN A SHELL IS THE WINDOW'S, SO THE PICTURE PINS ITSELF. A browser
+                    puts the video element alone on the display; a desktop shell can only fill
+                    the display with its window, and the rail, the bars and the list would stay
+                    around the picture. So while the shell says it is filled, this column stands
+                    over the whole window instead, which is what the old client did too. */}
+                <div
+                    className={
+                        filled && inDesktopShell()
+                            ? 'fixed inset-0 z-[60] flex flex-col bg-black'
+                            : 'relative flex min-h-0 min-w-0 flex-1 flex-col'
+                    }
+                >
                     {video !== null && (
                         <VideoPlayer
                             src={videoApi.hlsUrl(video.id)}
@@ -540,7 +567,7 @@ function Watch({ id }: { id: string }) {
                             subtitles={subtitles}
                             autoplay
                             onEnded={onEnded}
-                            onFullscreenChange={setFilled}
+                            onFullscreenChange={onFilled}
                             onReady={onReady}
                         />
                     )}

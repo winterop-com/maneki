@@ -8,6 +8,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { VideoPlayer, type VideoHandle } from '@/components/video/VideoPlayer'
 import { useStore } from '@/hooks/use-store'
 import { youtube as youtubeApi } from '@/lib/api'
+import { inDesktopShell } from '@/lib/desktop'
 import { clock } from '@/lib/format'
 import { registerActions, SCREEN_GROUP, type PaletteAction } from '@/lib/palette'
 import { claimStageKey, claimTransport } from '@/lib/screen-keys'
@@ -658,6 +659,15 @@ function Watch({ id }: { id: string }) {
     const onReady = useCallback((handle: VideoHandle | null) => {
         player.current = handle
     }, [])
+    // Whether a desktop shell has filled the display with its window: while it has, the
+    // player pins itself over the whole app, since the window's own chrome would otherwise
+    // stay around the picture. See the local watch screen, which does the same.
+    const [filled, setFilled] = useState(false)
+    const filledNow = useRef(false)
+    const onFilled = useCallback((on: boolean) => {
+        filledNow.current = on
+        setFilled(on)
+    }, [])
     useEffect(
         () =>
             claimStageKey(() => {
@@ -681,6 +691,12 @@ function Watch({ id }: { id: string }) {
                 element instanceof HTMLElement
                     ? { tagName: element.tagName, isContentEditable: element.isContentEditable }
                     : null
+            if (event.key === 'Escape' && filledNow.current) {
+                event.preventDefault()
+                event.stopPropagation()
+                player.current?.toggleFullscreen()
+                return
+            }
             const seek = seeks(
                 { key: event.key, ctrlKey: event.ctrlKey, metaKey: event.metaKey, altKey: event.altKey },
                 focused,
@@ -749,7 +765,13 @@ function Watch({ id }: { id: string }) {
                 // The player takes the whole of the screen, as the local one does: the box is
                 // the room left under the heading, and the player keeps the picture's shape
                 // inside it rather than the box dictating a 16:9 that runs off the foot.
-                <div className="flex min-h-0 flex-1 overflow-hidden rounded-lg bg-black">
+                <div
+                    className={
+                        filled && inDesktopShell()
+                            ? 'fixed inset-0 z-[60] flex bg-black'
+                            : 'flex min-h-0 flex-1 overflow-hidden rounded-lg bg-black'
+                    }
+                >
                     <VideoPlayer
                         key={height}
                         src={youtubeApi.hlsUrl(id, height === AUTO_HEIGHT ? undefined : height)}
@@ -757,6 +779,7 @@ function Watch({ id }: { id: string }) {
                         poster={youtubeApi.posterUrl(id)}
                         autoplay
                         onReady={onReady}
+                        onFullscreenChange={onFilled}
                         onError={(message) => {
                             setResolved({ key: id, value: video, refusal: message })
                         }}
