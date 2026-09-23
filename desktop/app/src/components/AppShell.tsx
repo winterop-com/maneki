@@ -1,6 +1,7 @@
 import {
     AudioLines,
     Gauge,
+    FastForward,
     Keyboard,
     ListMusic,
     LogOut,
@@ -17,13 +18,18 @@ import {
     RefreshCw,
     RotateCcw,
     RotateCw,
+    Rewind,
     Search,
     Settings,
     Repeat,
     Shuffle,
     SkipBack,
     SkipForward,
+    Star,
     Sun,
+    Volume1,
+    Volume2,
+    VolumeX,
 } from 'lucide-react'
 import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { useNavigate } from 'react-router'
@@ -34,11 +40,13 @@ import { ConnectionBanner } from '@/components/ConnectionBanner'
 import { FullscreenVisualizer } from '@/components/FullscreenVisualizer'
 import { LyricsOverlay } from '@/components/LyricsOverlay'
 import { NavDrawer, OPEN_NAV_LABEL } from '@/components/NavDrawer'
+import { NowPlayingPanel, NOW_PLAYING_LABEL } from '@/components/NowPlayingPanel'
 import { PanelSheet } from '@/components/PanelSheet'
 import { PlayerBar, QUEUE_LABEL } from '@/components/PlayerBar'
 import { QueuePanel } from '@/components/QueuePanel'
 import { Rail } from '@/components/Rail'
 import { RightPanel } from '@/components/RightPanel'
+import { SearchBox } from '@/components/SearchBox'
 import { SearchOverlay, SEARCH_TITLE } from '@/components/SearchOverlay'
 import { ShortcutsDialog } from '@/components/ShortcutsDialog'
 import { StatusBar } from '@/components/StatusBar'
@@ -46,6 +54,7 @@ import { MODES, MODE_LABELS, ThemeToggle } from '@/components/ThemeToggle'
 import { Button } from '@/components/ui/button'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { useAppShortcuts } from '@/hooks/use-app-shortcuts'
+import { smallScreenNow } from '@/hooks/use-small-screen'
 import { useStore, useStoreValue } from '@/hooks/use-store'
 import { entriesFor, homePath } from '@/lib/nav'
 import {
@@ -58,25 +67,30 @@ import {
     registerActions,
     type PaletteAction,
 } from '@/lib/palette'
-import { fillPanel, railCollapsed, togglePanel, toggleRail } from '@/lib/panels'
+import { fillPanel, openPanelTab, railCollapsed, togglePanel, toggleRail } from '@/lib/panels'
 import { RESCAN_LABEL, rescan } from '@/lib/rescan'
 import {
+    currentSong,
     cycleRepeat,
     next,
     playerStore,
     previous,
+    seek,
     setSpeed,
+    setVolume,
     skipBy,
     SKIP_S,
     SPEEDS,
     toggle,
+    toggleMuted,
     toggleShuffle,
 } from '@/lib/player'
 import { openLyrics } from '@/lib/lyrics'
 import { nextRepeat, REPEAT_LABELS } from '@/lib/queue'
 import { openSearch } from '@/lib/search'
 import { sessionStore, signOut } from '@/lib/session'
-import { applePlatform, modifierLabel } from '@/lib/shortcuts'
+import { applePlatform, modifierLabel, SEEK_STEP_S, VOLUME_STEP } from '@/lib/shortcuts'
+import { toggleStar } from '@/lib/star'
 import { chooseSpectrumTheme, SPECTRUM_THEMES } from '@/lib/spectrum-themes'
 import { cycleVisualizerStyle, openStage, toggleVisualizer, visualizerShown } from '@/lib/visualizer'
 
@@ -142,6 +156,8 @@ export function AppShell({ children }: { children: ReactNode }) {
     const [drawerOpen, setDrawerOpen] = useState(false)
     const menu = useRef<HTMLButtonElement | null>(null)
     const wasOpen = useRef(false)
+    /** Whether this session has already been shown where what is playing lives. */
+    const introduced = useRef(false)
     const caps = session.capabilities ?? null
     const music = session.music ?? null
     const queued = queuedCount > 0
@@ -174,12 +190,27 @@ export function AppShell({ children }: { children: ReactNode }) {
     // goes: a panel offering an empty tab is chrome that does nothing. A book fills it with its
     // chapters for the same reason and under the same heading -- what comes next -- and a book
     // carrying no chapter marks has nothing to list, so it does not.
+    //
+    // AND THE PANEL IS OPENED ONCE A SESSION, on what is playing. The panel defaults closed and
+    // nothing on the screen says what is behind it, so the band nobody could find is put in
+    // front of somebody the first time they play something -- once, guarded by a ref, because
+    // the second time is a panel they have already had an opinion about. Not below the
+    // breakpoint: the panel is a sheet over the whole screen there, the tab bar across the foot
+    // is already the way to it, and a sheet raised by pressing play is one to dismiss first.
     useEffect(() => {
         if (!queued && chapterCount === 0) return
-        return fillPanel([{ id: 'queue', label: QUEUE_LABEL, render: () => <QueuePanel /> }], {
-            screen: 'shell',
-            open: 'queue',
-        })
+        const empty = fillPanel(
+            [
+                { id: 'now', label: NOW_PLAYING_LABEL, render: () => <NowPlayingPanel /> },
+                { id: 'queue', label: QUEUE_LABEL, render: () => <QueuePanel /> },
+            ],
+            { screen: 'shell', open: 'now' },
+        )
+        if (!introduced.current && !smallScreenNow()) {
+            introduced.current = true
+            openPanelTab('now')
+        }
+        return empty
     }, [queued, chapterCount])
 
     const actions = useMemo<PaletteAction[]>(() => {
@@ -297,8 +328,77 @@ export function AppShell({ children }: { children: ReactNode }) {
                                     keywords: ['loop', 'again', 'repeat'],
                                     run: cycleRepeat,
                                 },
+                                // WHAT ONLY A KEYBOARD COULD DO, OFFERED TO EVERYBODY. The star
+                                // and the two arrows were a chord each and nothing on any
+                                // screen, so a pointer could not reach them at all. A station
+                                // has no row in the library to star and nothing to seek in.
+                                {
+                                    id: 'play:star',
+                                    title: 'Star what is playing',
+                                    group: PLAYBACK_GROUP,
+                                    icon: Star,
+                                    keywords: ['favourite', 'favorite', 'love', 'mark', 'unstar'],
+                                    run: () => {
+                                        toggleStar(music ?? undefined, currentSong())
+                                    },
+                                },
+                                {
+                                    id: 'play:seek-back',
+                                    title: `Move ${String(SEEK_STEP_S)} seconds back`,
+                                    group: PLAYBACK_GROUP,
+                                    icon: Rewind,
+                                    keywords: ['seek', 'rewind', 'scrub', 'position'],
+                                    run: () => {
+                                        seek(playerStore.get().positionS - SEEK_STEP_S)
+                                    },
+                                },
+                                {
+                                    id: 'play:seek-forward',
+                                    title: `Move ${String(SEEK_STEP_S)} seconds forward`,
+                                    group: PLAYBACK_GROUP,
+                                    icon: FastForward,
+                                    keywords: ['seek', 'skip', 'scrub', 'position'],
+                                    run: () => {
+                                        seek(playerStore.get().positionS + SEEK_STEP_S)
+                                    },
+                                },
                             ]
                           : []),
+                      // The level is the room's rather than the track's, so these are offered
+                      // for a station as much as for a queue. Each reads the level it is
+                      // stepping from when it runs: subscribing the shell to a number that
+                      // moves under a dragged slider is what `useStoreValue` exists to avoid.
+                      {
+                          id: 'play:louder',
+                          title: 'Turn it up',
+                          group: PLAYBACK_GROUP,
+                          icon: Volume2,
+                          keywords: ['volume', 'loud', 'level', 'up'],
+                          run: () => {
+                              setVolume(playerStore.get().volume + VOLUME_STEP)
+                          },
+                      },
+                      {
+                          id: 'play:quieter',
+                          title: 'Turn it down',
+                          group: PLAYBACK_GROUP,
+                          icon: Volume1,
+                          keywords: ['volume', 'quiet', 'level', 'down'],
+                          run: () => {
+                              setVolume(playerStore.get().volume - VOLUME_STEP)
+                          },
+                      },
+                      {
+                          // Named for what it does either way round, because the shell does not
+                          // read whether it is muted and a row that said "Unmute" to somebody
+                          // who is not muted would be worse than one that says neither.
+                          id: 'play:mute',
+                          title: 'Silence it, or bring it back',
+                          group: PLAYBACK_GROUP,
+                          icon: VolumeX,
+                          keywords: ['mute', 'unmute', 'quiet', 'silence', 'volume'],
+                          run: toggleMuted,
+                      },
                   ]
                 : []
         return [
@@ -480,6 +580,9 @@ export function AppShell({ children }: { children: ReactNode }) {
                         >
                             <Menu className="size-4" aria-hidden />
                         </Button>
+                        {/* Where the client this replaces kept it. It holds nothing and opens
+                            the overlay with whatever was typed into it -- see `SearchBox`. */}
+                        <SearchBox />
                         <div className="flex-1" />
                         {caps !== null && (
                             <span className="hidden font-mono text-xs text-muted-foreground sm:inline">

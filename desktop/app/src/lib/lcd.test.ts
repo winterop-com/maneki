@@ -1,6 +1,16 @@
 import { describe, expect, test } from 'vitest'
 
-import { LCD_WIDTH, lcdClock, lcdLine, marqueeAt, marqueeSteps, trackCell } from '@/lib/lcd'
+import {
+    LCD_WIDTH,
+    lcdClock,
+    lcdLine,
+    marqueeAt,
+    marqueeSteps,
+    trackCell,
+    VU_SEGMENTS,
+    vuLevels,
+    vuSegments,
+} from '@/lib/lcd'
 
 describe('the line the display shows', () => {
     test('joins what is playing the way a deck joins it, in capitals', () => {
@@ -103,5 +113,76 @@ describe('the track cell', () => {
 
     test('does not cut a number to fit the cells it has', () => {
         expect(trackCell(101, false)).toBe('101')
+    })
+})
+
+/** A spread of bins, every one at the same level. */
+function flat(level: number, bins = 128): Uint8Array {
+    return new Uint8Array(bins).fill(level)
+}
+
+/** A spread with one stretch of bins loud and the rest silent. */
+function band(from: number, to: number, level: number, bins = 128): Uint8Array {
+    const frame = new Uint8Array(bins)
+    frame.fill(level, from, to)
+    return frame
+}
+
+describe('the meters', () => {
+    test('silence rests both needles', () => {
+        expect(vuLevels(flat(0))).toEqual({ low: 0, high: 0 })
+    })
+
+    test('full scale everywhere pins both, rather than running past the meter', () => {
+        expect(vuLevels(flat(255))).toEqual({ low: 1, high: 1 })
+    })
+
+    test('reads the bottom of the spectrum on the low meter and the top on the high one', () => {
+        const bass = vuLevels(band(0, 32, 255))
+        expect(bass.low).toBe(1)
+        expect(bass.high).toBe(0)
+
+        const air = vuLevels(band(32, 128, 255))
+        expect(air.low).toBe(0)
+        expect(air.high).toBe(1)
+    })
+
+    test('lifts the high meter, because the top of a mix is never the bottom of it', () => {
+        const quiet = vuLevels(band(32, 128, 40))
+        expect(quiet.high).toBeGreaterThan(40 / 255)
+        expect(quiet.high).toBeLessThanOrEqual(1)
+    })
+
+    test('answers an analyser with nothing in it rather than dividing by no bins', () => {
+        expect(vuLevels(new Uint8Array(0))).toEqual({ low: 0, high: 0 })
+        expect(vuLevels(flat(255, 1))).toEqual({ low: 1, high: 0 })
+    })
+
+    test('averages a stretch rather than taking the loudest bin in it', () => {
+        const spike = new Uint8Array(128)
+        spike[3] = 255
+        expect(vuLevels(spike).low).toBeLessThan(0.1)
+    })
+})
+
+describe('what a level lights', () => {
+    test('nothing at rest and every segment at full scale', () => {
+        expect(vuSegments(0)).toBe(0)
+        expect(vuSegments(1)).toBe(VU_SEGMENTS)
+    })
+
+    test('lights its share of the meter', () => {
+        expect(vuSegments(0.5, 18)).toBe(9)
+        expect(vuSegments(0.5, 10)).toBe(5)
+    })
+
+    test('leaves the meter dark for a room tone rather than lighting a segment for a track', () => {
+        expect(vuSegments(0.01)).toBe(0)
+    })
+
+    test('never lights more segments than the meter has', () => {
+        expect(vuSegments(4)).toBe(VU_SEGMENTS)
+        expect(vuSegments(-1)).toBe(0)
+        expect(vuSegments(Number.NaN)).toBe(0)
     })
 })

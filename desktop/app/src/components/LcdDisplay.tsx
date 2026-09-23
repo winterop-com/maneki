@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react'
 import { usePrefersReducedMotion } from '@/hooks/use-reduced-motion'
 import { useSmallScreen } from '@/hooks/use-small-screen'
 import { useStore } from '@/hooks/use-store'
+import { useVuLevels } from '@/hooks/use-vu'
 import {
     LCD_WIDTH,
     lcdClock,
@@ -12,6 +13,8 @@ import {
     marqueeSteps,
     MARQUEE_MS,
     trackCell,
+    VU_SEGMENTS,
+    vuSegments,
 } from '@/lib/lcd'
 import type { Song, Station } from '@/lib/subsonic'
 
@@ -105,6 +108,10 @@ export function LcdDisplay({
                 </div>
 
                 <div className="ml-auto hidden shrink-0 items-end gap-3 sm:flex">
+                    {/* CHOSEN RATHER THAN HIDDEN, unlike everything else on this strip. A class
+                        would take the meters off a narrow bar and leave the loop driving them
+                        sixty times a second for a row nobody can see. */}
+                    {!small && <VuMeter active={playing && !muted} />}
                     <Readout label="ELAPSED" value={lcdClock(positionS)} />
                     <Readout label="REMAIN" value={lcdClock(left)} />
                     <div className="hidden items-end gap-3 lg:flex">
@@ -164,6 +171,46 @@ function Cells({ text }: { text: string }) {
                     <span className="relative">{cell.character === ' ' ? NO_BREAK : cell.character}</span>
                 </span>
             ))}
+        </span>
+    )
+}
+
+/**
+ * The two meters, and the loop that moves them.
+ *
+ * A COMPONENT OF ITS OWN SO THE STATE IS ITS OWN. The needles move on their own clock, and a
+ * level held by the display would re-render the marquee, the pills and four readouts every time
+ * a segment lit. What is metered, and why the two are LO and HI rather than L and R, is
+ * `lib/lcd`.
+ *
+ * IT IS HIDDEN FROM A SCREEN READER, like the pills and the cells: a row of lit boxes says how
+ * loud it is at a glance, which is the one way it can be read, and the sentence above already
+ * says what is playing.
+ */
+function VuMeter({ active }: { active: boolean }) {
+    const levels = useVuLevels(active)
+    return (
+        <div className="flex flex-col gap-1" aria-hidden>
+            <VuRow label="LO" level={levels.low} />
+            <VuRow label="HI" level={levels.high} />
+        </div>
+    )
+}
+
+/** One meter: its label, and the segments it has lit. */
+function VuRow({ label, level }: { label: string; level: number }) {
+    const lit = vuSegments(level)
+    // A segment is keyed by where it stands, because that is what a segment is: the third one
+    // is the third one whatever the level is doing.
+    const segments = Array.from({ length: VU_SEGMENTS }, (_, at) => at)
+    return (
+        <span className="flex items-center gap-1">
+            <span className="mk-lcd-label">{label}</span>
+            <span className="mk-lcd-vu">
+                {segments.map((at) => (
+                    <span key={at} className="mk-lcd-vu-seg" data-on={at < lit} />
+                ))}
+            </span>
         </span>
     )
 }

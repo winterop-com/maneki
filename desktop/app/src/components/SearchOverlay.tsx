@@ -19,6 +19,7 @@ import {
     SEARCH_DEBOUNCE_MS,
     SEARCH_MIN,
     searchOpen,
+    searchSeed,
     shelveResults,
     worthAsking,
     type SearchRow,
@@ -61,10 +62,16 @@ const GLYPHS = { artist: User, album: Disc3, track: Music2 }
 export function SearchOverlay() {
     const open = useStore(searchOpen)
     const session = useStore(sessionStore)
-    const [query, setQuery] = useState('')
+    const seed = useStore(searchSeed)
+    const [typed, setTyped] = useState<string | null>(null)
     const [answer, setAnswer] = useState<Answer | null>(null)
     const navigate = useNavigate()
     const credentials = session.music
+    // WHAT THE BOX HOLDS IS WHAT IT WAS OPENED WITH UNTIL SOMEBODY TYPES INTO IT. The strip's
+    // field is a door and hands over the letters already typed, and from the first keystroke in
+    // here the box is this box's. Derived rather than copied in by an effect, which would be a
+    // render spent putting a value where one already is.
+    const query = typed ?? seed
     const asked = query.trim()
 
     // WHICH QUESTION THE ANSWER IS TO IS CARRIED ON IT, and read during render rather than
@@ -93,7 +100,7 @@ export function SearchOverlay() {
 
     function dismiss(): void {
         closeSearch()
-        setQuery('')
+        setTyped(null)
         setAnswer(null)
     }
 
@@ -126,7 +133,7 @@ export function SearchOverlay() {
                 <CommandInput
                     placeholder={SEARCH_PLACEHOLDER}
                     value={query}
-                    onValueChange={setQuery}
+                    onValueChange={setTyped}
                     autoFocus
                     className="text-base"
                 />

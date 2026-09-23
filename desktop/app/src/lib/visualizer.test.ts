@@ -4,11 +4,15 @@ import {
     bars,
     BAND_COUNT,
     barLayout,
+    clampSpectrumHeight,
     isFlat,
     isIdle,
     nextStyle,
     ridgePoints,
     scopePoints,
+    SPECTRUM_DEFAULT_HEIGHT,
+    SPECTRUM_MAX_HEIGHT,
+    SPECTRUM_MIN_HEIGHT,
     VISUALIZER_STYLE_LABELS,
     VISUALIZER_STYLES,
     type VisualizerStyle,
@@ -190,5 +194,23 @@ describe('a frame not worth painting', () => {
     test('an analyser with nothing in it is idle rather than a frame to paint', () => {
         expect(isIdle(new Uint8Array(0))).toBe(true)
         expect(isFlat(new Uint8Array(0))).toBe(true)
+    })
+})
+
+describe('how tall the spectrum pane is', () => {
+    test('holds a dragged height between a strip and the whole panel', () => {
+        expect(clampSpectrumHeight(10)).toBe(SPECTRUM_MIN_HEIGHT)
+        expect(clampSpectrumHeight(9000)).toBe(SPECTRUM_MAX_HEIGHT)
+        expect(clampSpectrumHeight(SPECTRUM_DEFAULT_HEIGHT)).toBe(SPECTRUM_DEFAULT_HEIGHT)
+    })
+
+    test('answers whole pixels, which is what the style it is written to takes', () => {
+        expect(clampSpectrumHeight(140.4)).toBe(140)
+        expect(clampSpectrumHeight(139.5)).toBe(140)
+    })
+
+    test('opens at a height it is allowed to open at', () => {
+        expect(SPECTRUM_DEFAULT_HEIGHT).toBeGreaterThanOrEqual(SPECTRUM_MIN_HEIGHT)
+        expect(SPECTRUM_DEFAULT_HEIGHT).toBeLessThanOrEqual(SPECTRUM_MAX_HEIGHT)
     })
 })
