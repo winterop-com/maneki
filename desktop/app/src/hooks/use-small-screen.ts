@@ -43,6 +43,17 @@ export function useSmallScreen(): boolean {
 }
 
 /**
+ * The same question asked once, outside a render.
+ *
+ * For a decision an effect makes at a moment and never re-decides -- whether to put the panel
+ * in front of somebody the first time they play something. A component that renders differently
+ * on the two sides of the breakpoint wants the hook; this is for the ones that do not.
+ */
+export function smallScreenNow(): boolean {
+    return shell.read()
+}
+
+/**
  * Whether a listing is too narrow to be a table.
  *
  * THE TABLE'S BREAKPOINT IS NOT THE SHELL'S. At 768 the content column beside the rail is

@@ -51,6 +51,7 @@ import { MODES, MODE_LABELS, ThemeToggle } from '@/components/ThemeToggle'
 import { Button } from '@/components/ui/button'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { useAppShortcuts } from '@/hooks/use-app-shortcuts'
+import { smallScreenNow } from '@/hooks/use-small-screen'
 import { useStore, useStoreValue } from '@/hooks/use-store'
 import { entriesFor, homePath } from '@/lib/nav'
 import {
@@ -179,7 +180,9 @@ export function AppShell({ children }: { children: ReactNode }) {
     // AND THE PANEL IS OPENED ONCE A SESSION, on what is playing. The panel defaults closed and
     // nothing on the screen says what is behind it, so the band nobody could find is put in
     // front of somebody the first time they play something -- once, guarded by a ref, because
-    // the second time is a panel they have already had an opinion about.
+    // the second time is a panel they have already had an opinion about. Not below the
+    // breakpoint: the panel is a sheet over the whole screen there, the tab bar across the foot
+    // is already the way to it, and a sheet raised by pressing play is one to dismiss first.
     useEffect(() => {
         if (!queued) return
         const empty = fillPanel(
@@ -189,7 +192,7 @@ export function AppShell({ children }: { children: ReactNode }) {
             ],
             { screen: 'shell', open: 'now' },
         )
-        if (!introduced.current) {
+        if (!introduced.current && !smallScreenNow()) {
             introduced.current = true
             openPanelTab('now')
         }
