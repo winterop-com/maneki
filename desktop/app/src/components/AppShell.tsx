@@ -31,6 +31,7 @@ import { ConnectionBanner } from '@/components/ConnectionBanner'
 import { FullscreenVisualizer } from '@/components/FullscreenVisualizer'
 import { LyricsOverlay } from '@/components/LyricsOverlay'
 import { NavDrawer, OPEN_NAV_LABEL } from '@/components/NavDrawer'
+import { NowPlayingPanel, NOW_PLAYING_LABEL } from '@/components/NowPlayingPanel'
 import { PanelSheet } from '@/components/PanelSheet'
 import { PlayerBar, QUEUE_LABEL } from '@/components/PlayerBar'
 import { QueuePanel } from '@/components/QueuePanel'
@@ -55,7 +56,7 @@ import {
     registerActions,
     type PaletteAction,
 } from '@/lib/palette'
-import { fillPanel, railCollapsed, togglePanel, toggleRail } from '@/lib/panels'
+import { fillPanel, openPanelTab, railCollapsed, togglePanel, toggleRail } from '@/lib/panels'
 import { RESCAN_LABEL, rescan } from '@/lib/rescan'
 import { cycleRepeat, next, playerStore, previous, toggle, toggleShuffle } from '@/lib/player'
 import { openLyrics } from '@/lib/lyrics'
@@ -123,6 +124,8 @@ export function AppShell({ children }: { children: ReactNode }) {
     const [drawerOpen, setDrawerOpen] = useState(false)
     const menu = useRef<HTMLButtonElement | null>(null)
     const wasOpen = useRef(false)
+    /** Whether this session has already been shown where what is playing lives. */
+    const introduced = useRef(false)
     const caps = session.capabilities ?? null
     const music = session.music ?? null
     const queued = queuedCount > 0
@@ -153,12 +156,25 @@ export function AppShell({ children }: { children: ReactNode }) {
 
     // The queue fills the panel for as long as there is one, and empties it when the queue
     // goes: a panel offering an empty tab is chrome that does nothing.
+    //
+    // AND THE PANEL IS OPENED ONCE A SESSION, on what is playing. The panel defaults closed and
+    // nothing on the screen says what is behind it, so the band nobody could find is put in
+    // front of somebody the first time they play something -- once, guarded by a ref, because
+    // the second time is a panel they have already had an opinion about.
     useEffect(() => {
         if (!queued) return
-        return fillPanel([{ id: 'queue', label: QUEUE_LABEL, render: () => <QueuePanel /> }], {
-            screen: 'shell',
-            open: 'queue',
-        })
+        const empty = fillPanel(
+            [
+                { id: 'now', label: NOW_PLAYING_LABEL, render: () => <NowPlayingPanel /> },
+                { id: 'queue', label: QUEUE_LABEL, render: () => <QueuePanel /> },
+            ],
+            { screen: 'shell', open: 'now' },
+        )
+        if (!introduced.current) {
+            introduced.current = true
+            openPanelTab('now')
+        }
+        return empty
     }, [queued])
 
     const actions = useMemo<PaletteAction[]>(() => {
