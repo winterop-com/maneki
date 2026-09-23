@@ -191,14 +191,11 @@ export function VideoPlayer({
         load(true)
     }, [load])
 
-    // video.js, its stylesheet and the control-bar theme as one chunk, asked for only here.
+    // video.js and its stylesheets, asked for only here. The sheets come through one module so
+    // the theme always lands after the base -- see `videojs-styles`.
     useEffect(() => {
         let watching = true
-        void Promise.all([
-            import('video.js'),
-            import('video.js/dist/video-js.css'),
-            import('@videojs/themes/dist/city/index.css'),
-        ])
+        void Promise.all([import('video.js'), import('./videojs-styles')])
             .then(([module]) => {
                 if (watching) setVideojs(() => module.default)
             })
