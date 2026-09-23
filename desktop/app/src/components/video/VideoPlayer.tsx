@@ -17,8 +17,9 @@ import type { PlaybackSample } from '@/lib/video'
  * time somebody opens something to watch and never on any other screen.
  *
  * IT CLAIMS THE SOUND AND OFFERS TO BE SILENCED. Two players over each other is nobody's
- * intention, so starting here stops the music, and the music starting stops this -- the same
- * protocol the book player is on, through `lib/sound`, with neither side importing the other.
+ * intention, so starting here stops whatever the audio player was playing -- a record, a
+ * station or a book -- and that player starting stops this, through `lib/sound`, with neither
+ * side importing the other.
  */
 
 /** video.js as the dynamic import hands it back. A type only: nothing here imports it eagerly. */

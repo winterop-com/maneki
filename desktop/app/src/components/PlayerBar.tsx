@@ -175,9 +175,19 @@ export function PlayerBar() {
                         )}
                     </p>
                     {/* A station that has announced what it is playing says that; one that has
-                        not says it is live, which is the only other true thing about it. */}
-                    <p className="truncate text-xs text-muted-foreground" title={beneath}>
-                        {beneath}
+                        not says it is live, which is the only other true thing about it.
+
+                        AND A SOURCE THAT DIED TAKES THAT LINE. Why it went quiet is the only
+                        thing anybody wants off this bar at that moment, it is one line either
+                        way so the strip does not move, and it is where the eye already is. */}
+                    <p
+                        className={cn(
+                            'truncate text-xs',
+                            player.refusal === null ? 'text-muted-foreground' : 'text-critical-ink',
+                        )}
+                        title={player.refusal ?? beneath}
+                    >
+                        {player.refusal ?? beneath}
                     </p>
                 </div>
             )}

@@ -103,6 +103,13 @@ export interface PlayerState {
      */
     stationTitle: string
     playing: boolean
+    /**
+     * Why the sound stopped, when it stopped for a reason rather than because it was asked to.
+     *
+     * Null the rest of the time, which is nearly all of it. The bar draws it where the artist
+     * goes, because that is where somebody is already looking when they wonder why it is quiet.
+     */
+    refusal: string | null
     positionS: number
     durationS: number
     /** Between 0 and 1. Kept between visits, because it is a room rather than a track. */
@@ -193,6 +200,7 @@ const EMPTY: PlayerState = {
     book: null,
     stationTitle: '',
     playing: false,
+    refusal: null,
     positionS: 0,
     durationS: 0,
     volume: storedVolume(),
@@ -290,8 +298,9 @@ function silence(): void {
 function element(): HTMLAudioElement {
     if (audio) return audio
     audio = new Audio()
-    // Only one thing makes sound at a time: a book started on its own screen stops this,
-    // and starting this stops the book.
+    // Only one thing makes sound at a time: a video starting stops this, and this starting
+    // stops the video. Music, a station and a book are all this element, so between those
+    // three there is nothing to arbitrate.
     unregister = registerSilencer(silence)
     audio.preload = 'metadata'
     audio.volume = state().volume
@@ -316,7 +325,9 @@ function element(): HTMLAudioElement {
         if (state().book) return
         patch({ durationS: Number.isFinite(audio!.duration) ? audio!.duration : 0 })
     })
-    audio.addEventListener('play', () => patch({ playing: true }))
+    // Sound coming out is the answer to whatever went wrong last time, so the line goes.
+    audio.addEventListener('play', () => patch({ playing: true, refusal: null }))
+    audio.addEventListener('error', onElementError)
     audio.addEventListener('pause', () => {
         patch({ playing: false })
         // Stopping is the moment a place is worth keeping, and the one a listener expects to
@@ -333,6 +344,31 @@ function element(): HTMLAudioElement {
         onEnded()
     })
     return audio
+}
+
+/**
+ * What the element giving up looks like from here.
+ *
+ * A DEAD SOURCE HAS TO SAY SO. An element that cannot play what it was handed fires this and
+ * then does nothing further -- no `pause`, no `ended` -- so a bar reading its own flags says
+ * "playing" over silence until somebody presses something. A blacklisted station, a 404 off a
+ * moved file, a server that went away mid-track all arrive here.
+ *
+ * The station's poll stops with it. A now-playing question against a stream this listener is no
+ * longer connected to is answered with nothing, every ten seconds, for as long as the tab is
+ * open.
+ */
+function onElementError(): void {
+    stopIcy()
+    patch({ playing: false, refusal: refusalOf() })
+}
+
+/** What to say about it, which is as much as the element is willing to say. */
+function refusalOf(): string {
+    const { station, book } = state()
+    if (station) return `No sound from ${station.name}.`
+    if (book) return 'This part of the book would not play.'
+    return currentSong() ? 'This track would not play.' : 'That would not play.'
 }
 
 /** Play the track at position `orderAt` of the play order. */
@@ -354,6 +390,9 @@ function load(index: number, autoplay: boolean, orderAt?: number): void {
         orderAt: orderAt ?? order.indexOf(index),
         positionS: 0,
         durationS: song.duration ?? 0,
+        // A new source is a fresh chance: whatever the last one refused with is not this
+        // one's news, and if this one fails too it will say so itself.
+        refusal: null,
     })
     if (announced !== song.id) {
         announced = song.id
@@ -386,7 +425,16 @@ export function playStation(station: Station): void {
     leaveBook()
     claimSound(silence)
     player.src = stationStreamUrl(credentials, station)
-    patch({ queue: [], index: -1, station, book: null, stationTitle: '', positionS: 0, durationS: 0 })
+    patch({
+        queue: [],
+        index: -1,
+        station,
+        book: null,
+        stationTitle: '',
+        refusal: null,
+        positionS: 0,
+        durationS: 0,
+    })
     void player.play().catch(() => patch({ playing: false }))
     followIcy(station)
 }
@@ -414,7 +462,11 @@ export function playBook(book: BookDetail, atS?: number): void {
         files: book.files,
         speed: storedSpeed(),
     }
-    const at = Math.min(Math.max(0, atS ?? book.position_s), book.duration_s)
+    // A FINISHED BOOK OPENS AT ITS BEGINNING. The place it kept is the fact that it was
+    // finished, so resuming there is two seconds of the last chapter and then nothing; asking
+    // for a book somebody has already read is asking to read it again.
+    const opened = book.finished || book.position_s >= book.duration_s ? 0 : book.position_s
+    const at = Math.min(Math.max(0, atS ?? opened), book.duration_s)
     savedAt = at
     patch({
         queue: [],
@@ -483,7 +535,7 @@ function placeBook(at: number, resume: boolean): void {
     // Set on every placement rather than once: a new file is a fresh element state, and a book
     // that fell back to single speed at every file boundary would be read by nobody.
     player.playbackRate = book.speed
-    patch({ positionS: at, durationS: book.duration_s })
+    patch({ positionS: at, durationS: book.duration_s, refusal: null })
     if (resume) {
         claimSound(silence)
         void player.play().catch(() => patch({ playing: false }))

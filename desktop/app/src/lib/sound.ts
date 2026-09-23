@@ -1,10 +1,10 @@
 /**
  * One thing makes sound at a time.
  *
- * There are two players in this app: the queue that follows you between screens, and the book
- * player on a book's own screen, which has its own speed, its own skip and its own saved
- * place. Both are real, and neither can be folded into the other -- but starting one while the
- * other is playing puts a novel underneath an album, which is nobody's intention.
+ * Music, a station and a book share one element in `lib/player`, so between those three there
+ * is nothing to arbitrate: putting one on takes the element off the last. A video is the other
+ * player, on its own element on its own screen, and starting a film while an album plays puts
+ * a soundtrack underneath a record, which is nobody's intention.
  *
  * SO STARTING IS A CLAIM. Each player registers a way to be silenced and claims the sound
  * before it plays; claiming silences everyone else. That is the whole protocol, it is a Set of

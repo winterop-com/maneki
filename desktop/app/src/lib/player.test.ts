@@ -16,6 +16,7 @@ import {
     playBook,
     playChapter,
     playerStore,
+    playStation,
     previous,
     seek,
     setPlayerCredentials,
@@ -186,6 +187,39 @@ describe('next', () => {
         play(songs, 0)
         next()
         expect(currentSong()?.title).toBe('Two')
+    })
+})
+
+describe('a source that will not play', () => {
+    test('stops saying it is playing, and says why instead', () => {
+        play(songs, 0)
+        expect(playerStore.get().playing).toBe(true)
+        fake.emit('error')
+        expect(playerStore.get().playing).toBe(false)
+        expect(playerStore.get().refusal).toBe('This track would not play.')
+    })
+
+    test('the next thing that plays clears the line', () => {
+        play(songs, 0)
+        fake.emit('error')
+        next()
+        expect(playerStore.get().refusal).toBeNull()
+        expect(playerStore.get().playing).toBe(true)
+    })
+
+    test('a station names itself, because the bar is about to say nothing else', () => {
+        playStation({ id: 'st_1', name: 'A Station', streamUrl: 'https://host/stream' })
+        fake.emit('error')
+        expect(playerStore.get().refusal).toBe('No sound from A Station.')
+        expect(playerStore.get().playing).toBe(false)
+    })
+
+    test('a book says it is the file rather than the book, because the rest of it is fine', () => {
+        playBook(book, 0)
+        fake.arrive()
+        fake.emit('error')
+        expect(playerStore.get().refusal).toBe('This part of the book would not play.')
+        expect(playerStore.get().playing).toBe(false)
     })
 })
 
@@ -377,6 +411,13 @@ describe('playing a book', () => {
         expect(playerStore.get().positionS).toBe(900)
         expect(playerStore.get().durationS).toBe(3600)
         expect(playerStore.get().playing).toBe(true)
+    })
+
+    test('a book that was finished opens at its beginning rather than at its last second', () => {
+        playBook({ ...book, position_s: 3600, finished: true })
+        fake.arrive()
+        expect(playerStore.get().positionS).toBe(0)
+        expect(fake.src).toContain('one.m4b')
     })
 
     test('a chapter is played from its own start, on whichever file holds it', () => {
