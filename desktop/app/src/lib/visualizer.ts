@@ -216,10 +216,22 @@ export function bars(frequencies: Uint8Array, bands = BAND_COUNT): number[] {
  */
 export const CURVE = 1.7
 
+/**
+ * How much of the analyser's range the bands are laid over: the bottom 55%, which at a 44.1 kHz
+ * rate is everything below about 12 kHz.
+ *
+ * The analyser reads to the Nyquist limit, and above 12 kHz a mastered record has almost
+ * nothing an FFT this coarse can show, so bands laid over the whole range left the right half
+ * of the stage a row of stubs whatever was playing. Stopping where the music stops is what
+ * lets a spectrum fill the width it was given.
+ */
+export const CEILING = 0.55
+
 /** Where one band starts, on a curve that gives the low end most of the bars. */
 function edge(band: number, bands: number, bins: number): number {
+    const usable = Math.max(1, Math.floor(bins * CEILING))
     const fraction = band / bands
-    return Math.min(bins, Math.floor(bins * fraction ** CURVE))
+    return Math.min(usable, Math.floor(usable * fraction ** CURVE))
 }
 
 /**

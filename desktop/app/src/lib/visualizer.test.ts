@@ -6,6 +6,7 @@ import {
     settle,
     tilt,
     bars,
+    CEILING,
     BAND_COUNT,
     barLayout,
     clampSpectrumHeight,
@@ -61,10 +62,22 @@ describe('one frame of the spectrum', () => {
         expect(heights.at(-1)).toBe(0)
     })
 
+    test('stops where the music stops, so the top of the analyser is not a row of stubs', () => {
+        // Energy only above the ceiling: nothing an FFT this coarse can show, and no band
+        // is laid over it, so the picture stays free for what is audible.
+        const bins = new Uint8Array(256)
+        bins.fill(255, Math.ceil(256 * CEILING), 256)
+        expect(bars(bins, 16).every((height) => height === 0)).toBe(true)
+        // Energy just under the ceiling lights the last band rather than being lost.
+        const under = new Uint8Array(256)
+        under.fill(255, Math.floor(256 * CEILING) - 4, Math.floor(256 * CEILING))
+        expect(bars(under, 16).at(-1)).toBeGreaterThan(0)
+    })
+
     test('averages the bins a band covers rather than taking their peak, so it does not flicker', () => {
         const bins = new Uint8Array(256)
         // One loud bin in the top band, which covers many: a peak reading would answer 1.
-        bins[255] = 255
+        bins[Math.floor(256 * CEILING) - 1] = 255
         const heights = bars(bins, 8)
         expect(heights.at(-1)).toBeGreaterThan(0)
         expect(heights.at(-1)).toBeLessThan(0.2)
