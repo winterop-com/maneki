@@ -90,10 +90,12 @@ export function NowPlayingPanel() {
     const height = useStore(spectrumHeight)
     const pane = useRef<HTMLButtonElement | null>(null)
     const canvas = useSpectrum(shown && playing, PANE_BANDS)
+    // Dragging the top edge UP makes the pane taller: it is docked to the foot of the panel
+    // and grows into the room above it, which is why the sign is negative.
     const { dragging, beginResize } = useDragSize(
         'y',
         height,
-        1,
+        -1,
         setSpectrumHeight,
         clampSpectrumHeight,
         pane,
@@ -104,7 +106,7 @@ export function NowPlayingPanel() {
     const credentials = session.music
 
     return (
-        <div className="flex min-h-0 flex-col">
+        <div className="flex h-full min-h-0 flex-col">
             {bookId !== null ? (
                 <BookSleeve chapterIndex={chapterIndex} />
             ) : song === null ? (
@@ -124,8 +126,27 @@ export function NowPlayingPanel() {
                 and off wherever it is drawn, so a reader who has turned it off gets the sleeve
                 and the words rather than a heading over an empty box with a grip under it. */}
             {shown && (
-                <div className="flex flex-col border-t border-border">
-                    <div className="flex h-8 shrink-0 items-center gap-2 px-3">
+                <div className="mt-auto flex shrink-0 flex-col">
+                    <div
+                        role="separator"
+                        aria-orientation="horizontal"
+                        aria-label={RESIZE_SPECTRUM_LABEL}
+                        aria-valuenow={height}
+                        aria-valuemin={SPECTRUM_MIN_HEIGHT}
+                        aria-valuemax={SPECTRUM_MAX_HEIGHT}
+                        tabIndex={0}
+                        data-dragging={dragging}
+                        onPointerDown={beginResize}
+                        onKeyDown={(event) => {
+                            if (event.key === 'ArrowUp') setSpectrumHeight(height - KEYBOARD_STEP)
+                            else if (event.key === 'ArrowDown') setSpectrumHeight(height + KEYBOARD_STEP)
+                            else return
+                            event.preventDefault()
+                        }}
+                        className="resize-handle resize-handle-pane h-2 shrink-0 cursor-row-resize touch-none"
+                    />
+
+                    <div className="flex h-8 shrink-0 items-center gap-2 border-t border-border px-3">
                         <span className="text-xs font-semibold tracking-wide text-faint uppercase">
                             {SPECTRUM_HEADING}
                         </span>
@@ -157,25 +178,6 @@ export function NowPlayingPanel() {
                             chosen ramp is spelled opaque, and every theme is to read alike. */}
                         <canvas ref={canvas} aria-hidden className="size-full text-primary" />
                     </button>
-
-                    <div
-                        role="separator"
-                        aria-orientation="horizontal"
-                        aria-label={RESIZE_SPECTRUM_LABEL}
-                        aria-valuenow={height}
-                        aria-valuemin={SPECTRUM_MIN_HEIGHT}
-                        aria-valuemax={SPECTRUM_MAX_HEIGHT}
-                        tabIndex={0}
-                        data-dragging={dragging}
-                        onPointerDown={beginResize}
-                        onKeyDown={(event) => {
-                            if (event.key === 'ArrowUp') setSpectrumHeight(height - KEYBOARD_STEP)
-                            else if (event.key === 'ArrowDown') setSpectrumHeight(height + KEYBOARD_STEP)
-                            else return
-                            event.preventDefault()
-                        }}
-                        className="resize-handle resize-handle-pane h-2 shrink-0 cursor-row-resize touch-none"
-                    />
                 </div>
             )}
         </div>

@@ -800,7 +800,12 @@ export function spectrum(): AnalyserNode | null {
         const source = graph.createMediaElementSource(audio)
         analyser = graph.createAnalyser()
         analyser.fftSize = 256
-        analyser.smoothingTimeConstant = 0.8
+        analyser.smoothingTimeConstant = 0.78
+        // The window the bytes are scaled over. The default (-100..-30 dB) leaves music
+        // sitting in the bottom third of the range; the old graph read -85..-15, which is
+        // where a mastered record lives, and the bars use their height.
+        analyser.minDecibels = -85
+        analyser.maxDecibels = -15
         source.connect(analyser)
         analyser.connect(graph.destination)
     } catch {

@@ -1,6 +1,10 @@
 import { describe, expect, test } from 'vitest'
 
 import {
+    ATTACK,
+    RELEASE,
+    settle,
+    tilt,
     bars,
     BAND_COUNT,
     barLayout,
@@ -30,11 +34,16 @@ describe('one frame of the spectrum', () => {
         expect(bars(flat(0))).toHaveLength(BAND_COUNT)
     })
 
-    test('reads as a fraction of full scale, so the canvas needs no scale of its own', () => {
-        expect(bars(flat(255), 8).every((height) => height === 1)).toBe(true)
+    test('reads as a fraction of full scale, leaning against the low end', () => {
+        // Full scale is 0.75 at the first band and 1 at the last: the tilt that keeps a
+        // bass-heavy record from being a wall on the left and stubs on the right.
+        const full = bars(flat(255), 8)
+        expect(full[0]).toBeCloseTo(0.75)
+        expect(full.at(-1)).toBeCloseTo(1)
         expect(bars(flat(0), 8).every((height) => height === 0)).toBe(true)
         const half = bars(flat(128), 8)
-        expect(half.every((height) => height > 0.49 && height < 0.51)).toBe(true)
+        expect(half[0]).toBeCloseTo(0.5 * 0.75, 1)
+        expect(half.at(-1)).toBeCloseTo(0.5, 1)
     })
 
     test('silence is a flat row rather than a special case the canvas has to know about', () => {
@@ -130,7 +139,11 @@ describe('the ridge', () => {
 
     test('silence lies along the floor and full scale along the top', () => {
         expect(ridgePoints(flat(0), 200, 40, 8).every((point) => point.y === 40)).toBe(true)
-        expect(ridgePoints(flat(255), 200, 40, 8).every((point) => point.y === 0)).toBe(true)
+        // Full scale leans with the tilt: the last band touches the top, the first sits at 0.75.
+        const top = ridgePoints(flat(255), 200, 40, 8)
+        expect(top.at(-1)?.y).toBe(0)
+        expect(Math.min(...top.map((point) => point.y))).toBe(0)
+        expect(Math.max(...top.map((point) => point.y))).toBeLessThanOrEqual(10)
     })
 
     test('draws through more places than there are bands, which is what smoothing is', () => {
@@ -212,5 +225,26 @@ describe('how tall the spectrum pane is', () => {
     test('opens at a height it is allowed to open at', () => {
         expect(SPECTRUM_DEFAULT_HEIGHT).toBeGreaterThanOrEqual(SPECTRUM_MIN_HEIGHT)
         expect(SPECTRUM_DEFAULT_HEIGHT).toBeLessThanOrEqual(SPECTRUM_MAX_HEIGHT)
+    })
+})
+
+describe('the lean and the envelope', () => {
+    test('the tilt runs from three quarters at the first band to full at the last', () => {
+        expect(tilt(0, 32)).toBeCloseTo(0.75)
+        expect(tilt(31, 32)).toBeCloseTo(1)
+        expect(tilt(0, 1)).toBe(1)
+    })
+
+    test('a bar rises fast and falls slowly', () => {
+        const up = settle([0, 0], [1, 1])
+        expect(up[0]).toBeCloseTo(ATTACK)
+        const down = settle([1, 1], [0, 0])
+        expect(down[0]).toBeCloseTo(1 - RELEASE)
+        expect(ATTACK).toBeGreaterThan(RELEASE)
+    })
+
+    test('a band that was not there last frame starts from the floor', () => {
+        expect(settle([], [1])[0]).toBeCloseTo(ATTACK)
+        expect(settle([1, 1, 1], [1])).toHaveLength(1)
     })
 })

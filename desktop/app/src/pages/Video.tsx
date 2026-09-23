@@ -316,23 +316,32 @@ function Browser({ path }: { path: string }) {
                         </Notice>
                     )}
                     {rows.length > 0 && (
-                        <ul className="min-h-0 flex-1 overflow-y-auto">
+                        <ul className="grid min-h-0 flex-1 grid-cols-2 content-start gap-4 overflow-y-auto p-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
                             {rows.map((row) =>
                                 row.kind === 'folder' ? (
                                     <li key={row.key}>
+                                        {/* A FOLDER IS A SLEEVE TOO. A series or a season is what
+                                            somebody reaches for by look, the way they reach for a
+                                            record; a tile the size of a video's keeps the shelf
+                                            one shelf, and the mark says which folder it is. */}
                                         <button
                                             type="button"
                                             onClick={() => void navigate(browseHref(row.folder.rel_path))}
-                                            className="row-hover flex min-h-finger w-full items-center gap-3 rounded-md px-3 text-left text-sm"
+                                            className="row-hover w-full rounded-lg p-2 text-left"
                                         >
-                                            <Folder
-                                                className="size-4 shrink-0 text-muted-foreground"
-                                                aria-hidden
-                                            />
-                                            <span className="min-w-0 flex-1 truncate" title={row.name}>
+                                            <span className="flex aspect-video w-full items-center justify-center rounded-md bg-muted">
+                                                <Folder
+                                                    className="size-8 text-muted-foreground"
+                                                    aria-hidden
+                                                />
+                                            </span>
+                                            <span
+                                                className="mt-2 block truncate text-sm font-medium"
+                                                title={row.name}
+                                            >
                                                 {row.name}
                                             </span>
-                                            <span className="shrink-0 text-xs text-muted-foreground">
+                                            <span className="block text-xs text-muted-foreground">
                                                 {row.folder.video_count}{' '}
                                                 {row.folder.video_count === 1 ? 'video' : 'videos'}
                                             </span>
@@ -418,7 +427,7 @@ function VideoRow({
         <button
             type="button"
             onClick={onOpen}
-            className="row-hover flex min-h-finger w-full items-center gap-3 rounded-md px-3 py-1 text-left text-sm"
+            className="row-hover flex w-full flex-col rounded-lg p-2 text-left text-sm"
         >
             <img
                 src={videoApi.thumbnailUrl(video.id, token)}
@@ -427,10 +436,10 @@ function VideoRow({
                 decoding="async"
                 width={THUMB_WIDTH}
                 height={THUMB_HEIGHT}
-                className="h-9 w-16 shrink-0 rounded-sm bg-muted object-cover"
+                className="aspect-video w-full rounded-md bg-muted object-cover"
             />
-            <span className="min-w-0 flex-1">
-                <span className="block truncate" title={video.rel_path}>
+            <span className="mt-2 block w-full min-w-0">
+                <span className="block truncate font-medium" title={video.rel_path}>
                     {name}
                 </span>
                 {folder !== '' && (
@@ -445,20 +454,16 @@ function VideoRow({
                     <Meter ratio={progressRatio(video.duration_s, progress?.position_s ?? 0)} />
                 )}
             </span>
-            {progress?.finished === true && (
-                <span className="shrink-0 text-xs text-muted-foreground">Watched</span>
-            )}
-            {/* What a file offers in the way of captions is decided long before somebody opens
-                it, and it is the one thing about a row that changes whether it is the copy to
-                watch. The scan already counted them. */}
-            <span className="hidden shrink-0 text-xs text-muted-foreground md:inline">
-                {subtitleNote(video.subtitles.length)}
-            </span>
-            <span className="shrink-0 font-mono text-xs text-muted-foreground">
-                {video.duration_s === null ? '--:--' : clock(video.duration_s)}
-            </span>
-            <span className="hidden shrink-0 text-xs text-muted-foreground sm:inline">
-                {fileSize(video.size_bytes)}
+            {/* The facts in one quiet line under the name: how long, how big, what captions it
+                carries, and whether it has been watched -- a full bar and a finished video look
+                alike, and only one of them is worth opening again. */}
+            <span className="mt-0.5 flex flex-wrap items-center gap-x-2 text-xs text-muted-foreground">
+                <span className="font-mono">
+                    {video.duration_s === null ? '--:--' : clock(video.duration_s)}
+                </span>
+                <span>{fileSize(video.size_bytes)}</span>
+                <span>{subtitleNote(video.subtitles.length)}</span>
+                {progress?.finished === true && <span>Watched</span>}
             </span>
         </button>
     )

@@ -7,7 +7,7 @@ import { useSpectrum } from '@/hooks/use-spectrum'
 import { useStore } from '@/hooks/use-store'
 import { books as booksApi } from '@/lib/api'
 import { clock } from '@/lib/format'
-import { currentChapter, currentSong, next, playerStore, previous, toggle } from '@/lib/player'
+import { currentChapter, currentSong, next, playerStore, previous, seek, toggle } from '@/lib/player'
 import { sessionStore } from '@/lib/session'
 import { starMarks, starredNow, toggleStar } from '@/lib/star'
 import { coverUrl } from '@/lib/subsonic'
@@ -142,9 +142,25 @@ function Stage() {
                               : (song?.artist ?? '')}
                     </p>
                     {station === null && duration > 0 && (
-                        <p className="mt-4 font-mono text-sm text-muted-foreground tabular-nums">
-                            {clock(player.positionS)} / {clock(duration)}
-                        </p>
+                        <div className="mx-auto mt-4 flex w-full max-w-xl items-center gap-3">
+                            <span className="shrink-0 font-mono text-sm text-muted-foreground tabular-nums">
+                                {clock(player.positionS)}
+                            </span>
+                            <input
+                                type="range"
+                                aria-label="Position"
+                                min={0}
+                                max={Math.max(1, Math.floor(duration))}
+                                value={Math.floor(player.positionS)}
+                                onChange={(event) => {
+                                    seek(Number(event.target.value))
+                                }}
+                                className="w-full accent-primary"
+                            />
+                            <span className="shrink-0 font-mono text-sm text-muted-foreground tabular-nums">
+                                {clock(duration)}
+                            </span>
+                        </div>
                     )}
 
                     <div className="mt-6 flex items-center justify-center gap-2">

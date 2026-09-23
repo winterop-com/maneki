@@ -83,6 +83,10 @@ export function PlayerBar() {
     // merely toggled the panel could open it on one of those; this one lands on the queue, and
     // only when the queue is already the thing showing does pressing it again take the panel down.
     const onQueue = open && tab === 'queue'
+    // ONE SPECTRUM AT A TIME. The Now playing tab carries a pane of the same drawing, and two
+    // of them a hand's width apart is the same fact twice; the strip stands down while that
+    // pane is in front of somebody.
+    const paneShowing = open && tab === 'now'
     const face = useStore(nowPlayingFace)
     const song = currentSong()
     const station = player.station
@@ -343,7 +347,7 @@ export function PlayerBar() {
             {/* The strip is the way to the stage with a pointer, as the F key is without one. It is
                 drawn only while the spectrum is: `Visualizer` answers nothing when it is off, and a
                 button around nothing is an empty stop in the tab order with a name and no face. */}
-            {spectrumShown && (
+            {spectrumShown && !paneShowing && (
                 <button
                     type="button"
                     aria-label={STAGE_LABEL}

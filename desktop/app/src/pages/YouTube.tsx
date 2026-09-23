@@ -254,7 +254,7 @@ function Channels() {
     }
 
     return (
-        <div className="mx-auto flex h-full max-w-4xl flex-col gap-4 p-4">
+        <div className="mx-auto flex h-full w-full max-w-4xl flex-col gap-4 p-4">
             <div className="flex items-center gap-2">
                 <h1 className="flex-1 text-base">Channels</h1>
                 <Refresh onClick={refresh} busy={reading || counting} label="Check for new uploads" />
@@ -288,7 +288,7 @@ function Channels() {
                 <Notice>No channels yet. Paste a channel address above.</Notice>
             )}
             {channels !== null && channels.length > 0 && (
-                <ul className="min-h-0 flex-1 overflow-y-auto rounded-lg border">
+                <ul className="max-h-full overflow-y-auto rounded-lg border">
                     {channels.map((channel) => {
                         const held = counts.get(channel.id)
                         return (
@@ -449,7 +449,7 @@ function Channel({ id }: { id: string }) {
     const refusal = held?.refusal ?? null
 
     return (
-        <div className="mx-auto flex h-full max-w-5xl flex-col gap-4 p-4">
+        <div className="mx-auto flex h-full w-full max-w-5xl flex-col gap-4 p-4">
             <div className="flex items-center gap-2">
                 <Button
                     variant="ghost"
@@ -654,7 +654,7 @@ function Watch({ id }: { id: string }) {
     }
 
     return (
-        <div className="mx-auto flex h-full max-w-5xl flex-col gap-3 p-4">
+        <div className="mx-auto flex h-full w-full max-w-5xl flex-col gap-3 p-4">
             <div className="flex items-center gap-2">
                 <Button
                     variant="ghost"

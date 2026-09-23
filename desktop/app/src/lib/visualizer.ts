@@ -202,15 +202,56 @@ export function bars(frequencies: Uint8Array, bands = BAND_COUNT): number[] {
         const to = Math.max(from + 1, edge(band + 1, bands, frequencies.length))
         let total = 0
         for (let bin = from; bin < to; bin += 1) total += frequencies[bin] ?? 0
-        heights.push(total / (to - from) / 255)
+        heights.push(Math.min(1, (total / (to - from) / 255) * tilt(band, bands)))
     }
     return heights
 }
 
+/**
+ * The exponent of the curve the bins are folded on: how much of the picture the low end gets.
+ *
+ * 1.7 is the client before this one, and it is the difference between a spectrum and a wall.
+ * A steeper curve packs the first bands so tightly that a kick drum is half the screen and
+ * everything above two kilohertz is a row of stubs on the right.
+ */
+export const CURVE = 1.7
+
 /** Where one band starts, on a curve that gives the low end most of the bars. */
 function edge(band: number, bands: number, bins: number): number {
     const fraction = band / bands
-    return Math.min(bins, Math.floor(bins * fraction ** 2.2))
+    return Math.min(bins, Math.floor(bins * fraction ** CURVE))
+}
+
+/**
+ * A gentle lean against the low end: 0.75 at the first band, 1.0 at the last.
+ *
+ * Music is bass-heavy, so without this the left bars saturate and the right ones look
+ * anaemic. The figures are the old client's, which were tuned by looking.
+ */
+export function tilt(band: number, bands: number): number {
+    if (bands <= 1) return 1
+    return 0.75 + 0.25 * (band / (bands - 1))
+}
+
+/** How fast a bar rises to a louder frame, and how slowly it falls to a quieter one. */
+export const ATTACK = 0.5
+export const RELEASE = 0.18
+
+/**
+ * One frame's heights, settled against the last frame's.
+ *
+ * FAST ATTACK, SLOW RELEASE. A bar that jumped to every frame's reading would flicker with the
+ * FFT; one that eased both ways would smear every transient. So a bar rises most of the way to
+ * a louder reading at once and falls back gently, which is what makes a drum hit read as a hit.
+ * `previous` may be shorter or longer than `target` (a band count just changed); what is
+ * missing starts from the floor.
+ */
+export function settle(previous: readonly number[], target: readonly number[]): number[] {
+    return target.map((wanted, index) => {
+        const current = previous[index] ?? 0
+        const ease = wanted > current ? ATTACK : RELEASE
+        return current + (wanted - current) * ease
+    })
 }
 
 /** A place on the canvas, in the units the canvas is set up in. */
@@ -260,7 +301,11 @@ export function ridgePoints(
     height: number,
     bands = BAND_COUNT,
 ): Point[] {
-    const tops = bars(frequencies, bands)
+    return ridgeFromTops(bars(frequencies, bands), width, height)
+}
+
+/** The same curve from heights already worked out, which is what a settled frame is. */
+export function ridgeFromTops(tops: readonly number[], width: number, height: number): Point[] {
     if (tops.length === 0 || width <= 0 || height <= 0) return []
     const at = (index: number): Point => ({
         x: tops.length === 1 ? width / 2 : (index / (tops.length - 1)) * width,

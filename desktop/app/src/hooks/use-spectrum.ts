@@ -39,7 +39,8 @@ import {
     barLayout,
     isFlat,
     isIdle,
-    ridgePoints,
+    ridgeFromTops,
+    settle,
     scopePoints,
     visualizerStyle,
     type VisualizerStyle,
@@ -105,6 +106,8 @@ export function useSpectrum(active: boolean, bands: number): RefObject<HTMLCanva
         // painted, so what is left on screen is the floor rather than the middle of a note; from
         // the one after it the paint is skipped and only the bookkeeping runs.
         let settled = false
+        // Last frame's heights, so this frame's can rise fast and fall slowly against them.
+        let previous: number[] = []
 
         const draw = () => {
             request = requestAnimationFrame(draw)
@@ -128,7 +131,12 @@ export function useSpectrum(active: boolean, bands: number): RefObject<HTMLCanva
                 : themeGradient(theme, context, height, ink)
             context.fillStyle = ramp
             context.strokeStyle = ramp
-            paint(context, style, shown, width, height, bands)
+            if (wave) {
+                paintScope(context, shown, width, height)
+            } else {
+                previous = settle(previous, bars(shown, bands))
+                paint(context, style, previous, width, height)
+            }
         }
 
         request = requestAnimationFrame(draw)
@@ -143,24 +151,21 @@ export function useSpectrum(active: boolean, bands: number): RefObject<HTMLCanva
     return canvas
 }
 
-/** One frame, in whichever drawing is chosen. */
+/** One settled frame of heights, in whichever column drawing is chosen. */
 function paint(
     context: CanvasRenderingContext2D,
     style: VisualizerStyle,
-    frame: Uint8Array,
+    heights: readonly number[],
     width: number,
     height: number,
-    bands: number,
 ): void {
     switch (style) {
-        case 'scope':
-            return paintScope(context, frame, width, height)
         case 'ridge':
-            return paintRidge(context, frame, width, height, bands)
+            return paintRidge(context, heights, width, height)
         case 'mirror':
-            return paintColumns(context, frame, width, height, bands, true)
+            return paintColumns(context, heights, width, height, true)
         default:
-            return paintColumns(context, frame, width, height, bands, false)
+            return paintColumns(context, heights, width, height, false)
     }
 }
 
@@ -173,13 +178,11 @@ function paint(
  */
 function paintColumns(
     context: CanvasRenderingContext2D,
-    frame: Uint8Array,
+    heights: readonly number[],
     width: number,
     height: number,
-    bands: number,
     mirrored: boolean,
 ): void {
-    const heights = bars(frame, bands)
     const { bar, gap } = barLayout(width, heights.length)
     const middle = height / 2
     heights.forEach((level, index) => {
@@ -197,12 +200,11 @@ function paintColumns(
 /** The band tops as a filled curve: the bars melted into one line. */
 function paintRidge(
     context: CanvasRenderingContext2D,
-    frame: Uint8Array,
+    heights: readonly number[],
     width: number,
     height: number,
-    bands: number,
 ): void {
-    const line = ridgePoints(frame, width, height, bands)
+    const line = ridgeFromTops(heights, width, height)
     if (line.length === 0) return
     context.beginPath()
     // The curve is the top of a shape rather than a line: it is closed down to the floor at
