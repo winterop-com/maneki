@@ -1,3 +1,4 @@
+import { Cat } from 'lucide-react'
 import { useEffect } from 'react'
 import { Navigate, Route, Routes } from 'react-router'
 
@@ -25,7 +26,24 @@ export default function App() {
         setPlayerCredentials(session.music)
     }, [session.music])
 
-    if (session.phase === 'unknown') return <div className="h-svh bg-background" />
+    // THE FIRST SECOND IS A SCREEN LIKE ANY OTHER. What `unknown` means is that the server has
+    // not yet said what it has, which on a cold machine or a slow network is long enough to
+    // read as an app that did not start. So it says whose it is and what it is doing -- the
+    // mark, the name, and the one word that is true of it -- rather than painting a ground and
+    // hoping the answer lands before anybody looks.
+    if (session.phase === 'unknown') {
+        return (
+            <div className="flex h-svh flex-col items-center justify-center gap-3 bg-background text-foreground">
+                <div className="flex items-center gap-2">
+                    <span className="flex size-7 shrink-0 items-center justify-center rounded-md bg-primary text-primary-foreground">
+                        <Cat className="size-4" aria-hidden />
+                    </span>
+                    <span className="text-base font-semibold tracking-tight">Maneki</span>
+                </div>
+                <p className="text-sm text-muted-foreground">Connecting</p>
+            </div>
+        )
+    }
     if (session.phase === 'signed-out') return <SignIn />
 
     return (
