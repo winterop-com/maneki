@@ -10,6 +10,7 @@ import { MusicPage } from '@/pages/Music'
 import { RadioPage } from '@/pages/Radio'
 import { SignIn } from '@/pages/SignIn'
 import { VideoPage } from '@/pages/Video'
+import { WatchPage } from '@/pages/Watch'
 
 export default function App() {
     const session = useStore(sessionStore)
@@ -39,6 +40,7 @@ export default function App() {
                 <Route path="/video" element={<VideoPage />} />
                 {/* The splat carries the whole of a folder's path, so a season is a link. */}
                 <Route path="/video/browse/*" element={<VideoPage />} />
+                <Route path="/video/v/:videoId" element={<WatchPage />} />
                 <Route
                     path="*"
                     element={<Navigate to={session.capabilities?.audio ? '/music' : '/books'} replace />}

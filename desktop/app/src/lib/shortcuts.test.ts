@@ -6,10 +6,12 @@ import {
     opensPalette,
     opensShortcuts,
     opensStage,
+    seeks,
     shortcuts,
     togglesPanel,
     togglesPlayback,
     togglesRail,
+    togglesTheater,
     togglesVisualizer,
     steps,
 } from '@/lib/shortcuts'
@@ -148,7 +150,56 @@ describe('the panel chord', () => {
         expect(togglesPanel(press('j', { metaKey: true }), PROSE, true)).toBe(false)
     })
 })
+describe('the theater key', () => {
+    test('is a bare letter, matched by the character it produced', () => {
+        expect(togglesTheater(press('t'), null)).toBe(true)
+        expect(togglesTheater(press('T'), null)).toBe(true)
+    })
+
+    test('is not ours under a modifier, where it belongs to the browser', () => {
+        expect(togglesTheater(press('t', { metaKey: true }), null)).toBe(false)
+        expect(togglesTheater(press('t', { ctrlKey: true }), null)).toBe(false)
+        expect(togglesTheater(press('t', { altKey: true }), null)).toBe(false)
+    })
+
+    test('is a letter somebody is typing while a box has focus', () => {
+        expect(togglesTheater(press('t'), TEXT_BOX)).toBe(false)
+        expect(togglesTheater(press('t'), PROSE)).toBe(false)
+    })
+})
+
+describe('the seek keys', () => {
+    test('are the arrows, either way', () => {
+        expect(seeks(press('ArrowRight'), null)).toBe('forward')
+        expect(seeks(press('ArrowLeft'), null)).toBe('back')
+    })
+
+    test('are nothing on their own, and nothing under a modifier', () => {
+        expect(seeks(press('ArrowUp'), null)).toBeNull()
+        expect(seeks(press('ArrowRight', { metaKey: true }), null)).toBeNull()
+        expect(seeks(press('ArrowLeft', { altKey: true }), null)).toBeNull()
+    })
+
+    test('leave a caret inside a box alone', () => {
+        expect(seeks(press('ArrowRight'), TEXT_BOX)).toBeNull()
+        expect(seeks(press('ArrowLeft'), PROSE)).toBeNull()
+    })
+})
+
 describe('the list of shortcuts', () => {
+    test('offers every key a screen can claim, because one nobody was told of is one nobody has', () => {
+        const listed = new Set(shortcuts(true).map((row) => row.id))
+        expect(listed.has('theater')).toBe(true)
+        expect(listed.has('seek')).toBe(true)
+        expect(listed.has('stage')).toBe(true)
+    })
+
+    test('says what F does on both of the screens that answer it', () => {
+        const stage = shortcuts(true).find((row) => row.id === 'stage')
+        expect(stage?.action).toContain('video')
+        expect(stage?.action).toContain('spectrum')
+    })
+
     test('binds letters and nothing else, because a bracket needs Alt on a Nordic layout', () => {
         const bound = shortcuts(true).flatMap((row) => row.keys)
         expect(bound.filter((key) => /^[[\]{}|\\]$/.test(key))).toEqual([])

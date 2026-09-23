@@ -46,6 +46,12 @@ export const SHUFFLE_KEY = 's'
 /** The letter that cycles what happens at the end of the queue, pressed bare. */
 export const REPEAT_KEY = 'r'
 
+/** The letter that takes the list off the side of a video, pressed bare. */
+export const THEATER_KEY = 't'
+
+/** How far one press of an arrow moves the playhead, in seconds. */
+export const SEEK_S = 5
+
 /**
  * The tags a bare press activates rather than reaches this app.
  *
@@ -203,6 +209,36 @@ export function togglesVisualizer(press: KeyPress, focused: FocusedField | null)
     return !isTypingField(focused)
 }
 
+/**
+ * Whether this press takes the list off the side of a video.
+ *
+ * A bare letter beside the transport's, because it is pressed while watching and a chord for it
+ * would be one more thing to remember. `t` is free: it is the only letter in this range nothing
+ * else here binds, and the run terminal it names in its sibling app does not exist in this one.
+ */
+export function togglesTheater(press: KeyPress, focused: FocusedField | null): boolean {
+    if (press.key.toLowerCase() !== THEATER_KEY) return false
+    if (press.ctrlKey || press.metaKey || press.altKey) return false
+    return !isTypingField(focused)
+}
+
+/**
+ * Whether this press moves the playhead, and which way.
+ *
+ * THE ARROWS ARE THE ONE BINDING HERE THAT IS NOT THE APP'S. They belong to whatever screen is
+ * watching for them -- a list walks its rows with them, a slider moves by them -- so this is a
+ * predicate a screen reads while it is mounted rather than a chord the shell answers. On a
+ * screen playing a video they are the seek every player has, and nowhere else do they mean
+ * anything at all.
+ */
+export function seeks(press: KeyPress, focused: FocusedField | null): 'forward' | 'back' | null {
+    if (press.ctrlKey || press.metaKey || press.altKey) return null
+    if (isTypingField(focused)) return null
+    if (press.key === 'ArrowRight') return 'forward'
+    if (press.key === 'ArrowLeft') return 'back'
+    return null
+}
+
 /** Whether this browser runs on an Apple keyboard, which decides how a chord is spelled. */
 export function applePlatform(userAgent: string): boolean {
     return /Mac|iPhone|iPad/.test(userAgent)
@@ -235,7 +271,11 @@ export function shortcuts(apple: boolean): Shortcut[] {
         { id: 'repeat', action: 'Repeat the queue, or one track', keys: ['R'] },
         { id: 'previous', action: 'Move to the previous track', keys: ['P'] },
         { id: 'visualizer', action: 'Show or hide the spectrum', keys: ['V'] },
-        { id: 'stage', action: 'Put the spectrum over the whole screen', keys: ['F'] },
+        // One key, and what it puts on the whole screen is whatever is in front of somebody:
+        // a screen playing a video claims it for that while it is open.
+        { id: 'stage', action: 'Put the video, or the spectrum, over the whole screen', keys: ['F'] },
+        { id: 'theater', action: 'Hide the list beside a video', keys: ['T'] },
+        { id: 'seek', action: `Move a video ${String(SEEK_S)} seconds either way`, keys: ['←', '→'] },
         { id: 'shortcuts', action: 'Open this list', keys: [SHORTCUTS_KEY] },
         { id: 'dismiss', action: 'Close a dialog, a menu, or the palette', keys: ['Esc'] },
         { id: 'choose', action: 'Open the row that has focus', keys: ['Enter'] },

@@ -42,6 +42,13 @@ export interface VideoHandle {
     seekBy: (deltaS: number) => void
     /** Full screen on the player's own box, through the browser's API rather than a CSS trick. */
     toggleFullscreen: () => void
+    /**
+     * What the source is actually at, or null before the first frame has been decoded.
+     *
+     * The player is the only thing that knows: the listing carries no dimensions, and asking
+     * the server would be an ffprobe per row for a fact only the open video needs.
+     */
+    frameSize: () => { width: number; height: number } | null
     /** What the player knows about how playback is going, for a stats overlay to read. */
     sample: () => PlaybackSample | null
 }
@@ -306,6 +313,11 @@ export function VideoPlayer({
                 if (box === null) return
                 if (document.fullscreenElement === null) void box.requestFullscreen({ navigationUI: 'hide' })
                 else void document.exitFullscreen()
+            },
+            frameSize: () => {
+                const width = built.videoWidth()
+                const height = built.videoHeight()
+                return width > 0 && height > 0 ? { width, height } : null
             },
             sample: () => sampleOf(built),
         })

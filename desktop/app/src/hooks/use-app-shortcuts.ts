@@ -3,6 +3,7 @@ import { useEffect } from 'react'
 import { cycleRepeat, next, previous, toggle, toggleShuffle } from '@/lib/player'
 import { paletteOpen } from '@/lib/palette'
 import { togglePanel, toggleRail } from '@/lib/panels'
+import { stageKeyClaim } from '@/lib/screen-keys'
 import {
     applePlatform,
     opensPalette,
@@ -84,7 +85,12 @@ export function useAppShortcuts(onShortcuts: () => void): void {
             }
             if (opensStage(press, focused())) {
                 event.preventDefault()
-                toggleStage()
+                // What goes on the whole screen is whatever somebody is looking at, so a
+                // screen playing a video takes this key while it is open and the spectrum
+                // has it everywhere else.
+                const claimed = stageKeyClaim()
+                if (claimed === null) toggleStage()
+                else claimed()
                 return
             }
             if (togglesShuffle(press, focused())) {
