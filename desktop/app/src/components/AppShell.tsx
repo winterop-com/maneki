@@ -1,4 +1,5 @@
 import {
+    AudioLines,
     Keyboard,
     ListMusic,
     LogOut,
@@ -8,6 +9,7 @@ import {
     Pause,
     PanelLeft,
     PanelRight,
+    Palette,
     Play,
     Maximize2,
     Search,
@@ -53,7 +55,8 @@ import { cycleRepeat, next, playerStore, previous, toggle, toggleShuffle } from 
 import { nextRepeat, REPEAT_LABELS } from '@/lib/queue'
 import { sessionStore, signOut } from '@/lib/session'
 import { applePlatform, modifierLabel } from '@/lib/shortcuts'
-import { openStage, toggleVisualizer, visualizerShown } from '@/lib/visualizer'
+import { chooseSpectrumTheme, SPECTRUM_THEMES } from '@/lib/spectrum-themes'
+import { cycleVisualizerStyle, openStage, toggleVisualizer, visualizerShown } from '@/lib/visualizer'
 
 /** The three facts the shell reads off the player. Module scope, so each is one stable function. */
 const selectPlaying = (state: { playing: boolean }) => state.playing
@@ -271,6 +274,28 @@ export function AppShell({ children }: { children: ReactNode }) {
                 keywords: ['theme', 'appearance', mode],
                 run: () => {
                     setTheme(mode)
+                },
+            })),
+            {
+                id: 'appearance:spectrum-style',
+                title: 'Next spectrum style',
+                group: APPEARANCE_GROUP,
+                icon: AudioLines,
+                // Every style, not the one that happens to be next: a row found by typing
+                // "scope" is a row that answers whichever style is in front of somebody.
+                keywords: ['spectrum', 'visualiser', 'visualizer', 'bars', 'mirror', 'ridge', 'scope'],
+                run: () => {
+                    cycleVisualizerStyle()
+                },
+            },
+            ...SPECTRUM_THEMES.map((theme) => ({
+                id: `appearance:spectrum-${theme.name}`,
+                title: `Spectrum in ${theme.label}`,
+                group: APPEARANCE_GROUP,
+                icon: Palette,
+                keywords: ['spectrum', 'colour', 'color', 'visualiser', 'visualizer', theme.name],
+                run: () => {
+                    chooseSpectrumTheme(theme.name)
                 },
             })),
             {

@@ -1,4 +1,4 @@
-import { X } from 'lucide-react'
+import { AudioLines, X } from 'lucide-react'
 import { useEffect } from 'react'
 
 import { Button } from '@/components/ui/button'
@@ -8,9 +8,28 @@ import { clock } from '@/lib/format'
 import { currentSong, playerStore } from '@/lib/player'
 import { sessionStore } from '@/lib/session'
 import { coverUrl } from '@/lib/subsonic'
-import { closeStage, stageOpen } from '@/lib/visualizer'
+import {
+    closeStage,
+    cycleVisualizerStyle,
+    nextStyle,
+    stageOpen,
+    VISUALIZER_STYLE_LABELS,
+    visualizerStyle,
+    type VisualizerStyle,
+} from '@/lib/visualizer'
 
 export const LEAVE_STAGE_LABEL = 'Leave the spectrum'
+
+/**
+ * What pressing the style button does, said as the thing it will do.
+ *
+ * A control that cycles has to name where it is going or it is a button somebody presses to
+ * find out. The visible mark is the same either way, so the whole of that sentence is the
+ * accessible name rather than a label beside it.
+ */
+export function nextStyleLabel(style: VisualizerStyle): string {
+    return `Draw the spectrum as ${VISUALIZER_STYLE_LABELS[nextStyle(style)].toLowerCase()}`
+}
 
 /** How many bars the whole screen gets. Enough to read as a spectrum at any width. */
 const STAGE_BANDS = 64
@@ -28,6 +47,10 @@ const STAGE_BANDS = 64
  *
  * ESCAPE LEAVES, and so does the control in the corner, because a screen with no way out that
  * is obvious is a screen somebody reloads the tab to get out of.
+ *
+ * AND THE STYLE IS CHANGED FROM HERE. Which drawing the spectrum is is a thing somebody decides
+ * while looking at it, so the choice is where the looking happens as well as on the settings
+ * pane -- one button, cycling, naming the drawing it is about to put on.
  */
 export function FullscreenVisualizer() {
     const open = useStore(stageOpen)
@@ -35,6 +58,7 @@ export function FullscreenVisualizer() {
     const session = useStore(sessionStore)
     const song = currentSong()
     const playing = player.playing
+    const style = useStore(visualizerStyle)
     const canvas = useSpectrum(open && playing, STAGE_BANDS)
 
     useEffect(() => {
@@ -86,15 +110,31 @@ export function FullscreenVisualizer() {
                 </div>
             </div>
 
-            <Button
-                variant="ghost"
-                size="icon"
-                aria-label={LEAVE_STAGE_LABEL}
-                onClick={closeStage}
-                className="absolute top-4 right-4 text-muted-foreground"
-            >
-                <X className="size-5" aria-hidden />
-            </Button>
+            {/* The two things the stage itself can do, in the corner and nowhere else: what a
+                stage is for is looking at it, so anything standing over the canvas has to have
+                earned the room. */}
+            <div className="absolute top-4 right-4 flex items-center gap-1">
+                <Button
+                    variant="ghost"
+                    size="icon"
+                    aria-label={nextStyleLabel(style)}
+                    onClick={() => {
+                        cycleVisualizerStyle()
+                    }}
+                    className="text-muted-foreground"
+                >
+                    <AudioLines className="size-5" aria-hidden />
+                </Button>
+                <Button
+                    variant="ghost"
+                    size="icon"
+                    aria-label={LEAVE_STAGE_LABEL}
+                    onClick={closeStage}
+                    className="text-muted-foreground"
+                >
+                    <X className="size-5" aria-hidden />
+                </Button>
+            </div>
         </div>
     )
 }
