@@ -1,4 +1,4 @@
-import { ChevronLeft, Pause, Play, Star, Volume2 } from 'lucide-react'
+import { ChevronLeft, Play, Star, Volume2 } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate, useParams } from 'react-router'
 
@@ -7,7 +7,7 @@ import { Skeleton } from '@/components/Skeleton'
 import { Button } from '@/components/ui/button'
 import { useStore, useStoreValue } from '@/hooks/use-store'
 import { clock } from '@/lib/format'
-import { play, playerStore, toggle } from '@/lib/player'
+import { play, playerStore } from '@/lib/player'
 import { sessionStore } from '@/lib/session'
 import { Input } from '@/components/ui/input'
 import { Segmented } from '@/components/Segmented'
@@ -478,11 +478,10 @@ function AlbumScreen({ credentials, id }: { credentials: Credentials; id: string
         )
     }
     const { album, songs } = data
-    // THE BUTTON KNOWS WHEN THIS IS THE ALBUM PLAYING. A button that said Play beside a track
-    // list with one of its rows sounding was saying something false; here it pauses that, and
-    // only on another album does it start this one from the top.
+    // THE BUTTON STARTS THIS ALBUM, AND THAT IS ALL IT DOES. Once this is the album playing,
+    // pausing and resuming are the transport's along the foot of the window, and a second
+    // pause button up here was the same control drawn twice. So it goes.
     const playingThis = playingAlbumId === album.id
-    const sounding = playingThis && playing
 
     return (
         <div className="p-4">
@@ -491,25 +490,17 @@ function AlbumScreen({ credentials, id }: { credentials: Credentials; id: string
                 subtitle={`${album.artist}${album.year ? ` · ${album.year}` : ''}`}
                 onBack={() => navigate(album.artistId ? `/music/artist/${album.artistId}` : '/music')}
                 action={
-                    <Button
-                        size="sm"
-                        onClick={() => {
-                            if (playingThis) toggle()
-                            else play(songs, 0)
-                        }}
-                        disabled={!songs.length}
-                        aria-pressed={sounding}
-                    >
-                        {sounding ? (
-                            <>
-                                <Pause className="size-4" aria-hidden /> Pause
-                            </>
-                        ) : (
-                            <>
-                                <Play className="size-4" aria-hidden /> {playingThis ? 'Resume' : 'Play'}
-                            </>
-                        )}
-                    </Button>
+                    playingThis ? null : (
+                        <Button
+                            size="sm"
+                            onClick={() => {
+                                play(songs, 0)
+                            }}
+                            disabled={!songs.length}
+                        >
+                            <Play className="size-4" aria-hidden /> Play
+                        </Button>
+                    )
                 }
             />
             {/* A CONTAINER, NOT THE VIEWPORT. What this screen has room for is decided by the

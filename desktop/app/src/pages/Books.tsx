@@ -1,4 +1,4 @@
-import { ChevronLeft, Pause, Play } from 'lucide-react'
+import { ChevronLeft, Play } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router'
 
@@ -8,7 +8,7 @@ import { useStoreValue } from '@/hooks/use-store'
 import { books as booksApi } from '@/lib/api'
 import { chapterAt } from '@/lib/book-timeline'
 import { clock, duration, progressRatio, remaining } from '@/lib/format'
-import { playBook, playerStore, toggle, type PlayerState } from '@/lib/player'
+import { playBook, playerStore, type PlayerState } from '@/lib/player'
 import type { BookDetail, BookSummary } from '@/lib/types'
 import { cn } from '@/lib/utils'
 
@@ -23,7 +23,6 @@ const SCAN_POLL_MS = 2000
  * re-rendered on every tick is a list that will not keep up with the pointer. The chapter is a
  * number, so the rows repaint when the chapter turns and not when the second does.
  */
-const selectPlaying = (state: PlayerState) => state.playing
 const selectBookId = (state: PlayerState) => state.book?.id ?? null
 const selectChapterIndex = (state: PlayerState) =>
     state.book === null ? -1 : chapterAt(state.book.chapter_list, state.positionS)
@@ -116,7 +115,6 @@ function Book({ id }: { id: string }) {
     const [book, setBook] = useState<BookDetail | null>(null)
     const [refusal, setRefusal] = useState<string | null>(null)
     const navigate = useNavigate()
-    const playing = useStoreValue(playerStore, selectPlaying)
     const playingId = useStoreValue(playerStore, selectBookId)
     const chapterIndex = useStoreValue(playerStore, selectChapterIndex)
 
@@ -130,12 +128,11 @@ function Book({ id }: { id: string }) {
     if (refusal) return <Notice>{refusal}</Notice>
     if (!book) return <Notice>Opening the book.</Notice>
 
-    // THE BUTTON KNOWS WHEN THIS IS THE BOOK PLAYING, as the album screen's does: it pauses
-    // that rather than saying Play beside a chapter that is sounding. And a book somebody is
-    // part way through says Resume before it is touched, because that is what pressing it
-    // does -- a half-read book offering Play would be promising the beginning.
+    // THE BUTTON KNOWS WHEN THIS IS THE BOOK PLAYING, as the album screen's does, and steps
+    // aside for the transport. And a book somebody is part way through says Resume before it
+    // is touched, because that is what pressing it does -- a half-read book offering Play
+    // would be promising the beginning.
     const playingThis = playingId === book.id
-    const sounding = playingThis && playing
     const started = book.position_s > 0 && !book.finished
 
     return (
@@ -162,26 +159,20 @@ function Book({ id }: { id: string }) {
                         {book.chapters ? ` · ${book.chapters} chapters` : ''}
                     </p>
                 </div>
-                <Button
-                    size="sm"
-                    onClick={() => {
-                        if (playingThis) toggle()
-                        else playBook(book)
-                    }}
-                    disabled={book.files.length === 0}
-                    aria-pressed={sounding}
-                >
-                    {sounding ? (
-                        <>
-                            <Pause className="size-4" aria-hidden /> Pause
-                        </>
-                    ) : (
-                        <>
-                            <Play className="size-4" aria-hidden />{' '}
-                            {playingThis || started ? 'Resume' : 'Play'}
-                        </>
-                    )}
-                </Button>
+                {/* Starting the book is this button's; once it is the book playing, pausing
+                    and resuming are the transport's, and the button goes rather than drawing
+                    the same control twice. */}
+                {!playingThis && (
+                    <Button
+                        size="sm"
+                        onClick={() => {
+                            playBook(book)
+                        }}
+                        disabled={book.files.length === 0}
+                    >
+                        <Play className="size-4" aria-hidden /> {started ? 'Resume' : 'Play'}
+                    </Button>
+                )}
             </div>
 
             {book.chapter_list.length > 0 && (
