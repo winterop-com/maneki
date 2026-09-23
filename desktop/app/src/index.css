@@ -1125,3 +1125,37 @@ html.dark[data-theme='contrast'],
         min-inline-size: var(--spacing-finger);
     }
 }
+
+/* ---------------------------------------------------------------------------
+   HOW CLOSE TOGETHER THE APP SITS, AND HOW LARGE IT IS READ.
+
+   Two axes of size, the way `lib/theme` has two of colour, and both are written onto `<html>`
+   before the first paint by the inline script in index.html -- `data-density` as an attribute,
+   the scale as `--font-scale`. `lib/preferences` owns the values; the sizes are here.
+
+   THE SCALE IS A PERCENTAGE OF THE BROWSER'S OWN SIZE. Every rung of the type scale, every
+   padding and every gap in this app is stated in rem, so one `font-size` on the root moves the
+   whole interface together rather than leaving 14px sentences in boxes built around them. It is
+   a percentage rather than a pixel size because a reader who has already set their browser to
+   read large has answered this question once, and an app that wrote an absolute size would be
+   overruling them to honour its own slider. Nothing here mints a fourth type size: the three
+   rungs stay three rungs, read at the size somebody asked for.
+
+   COMPACT IS A DESK'S CHOICE AND IT STOPS AT THE BREAKPOINT. What a finger lands on is 42px
+   wherever there are fingers, so a row closes up at `md` and up and nowhere else: a phone set
+   to compact gets the text scale and keeps its targets. `--spacing-finger` itself is left
+   alone for that reason -- it is what the finger rule above measures against.
+
+   It is written against the utility rather than against each row, because `@theme inline`
+   compiles `min-h-finger` to a literal height, and a row that sized itself would be every
+   screen in the app deciding density over again.
+   --------------------------------------------------------------------------- */
+:root {
+    font-size: calc(100% * var(--font-scale, 1));
+}
+
+@media (min-width: 768px) {
+    :root[data-density='compact'] .min-h-finger {
+        min-height: 34px;
+    }
+}

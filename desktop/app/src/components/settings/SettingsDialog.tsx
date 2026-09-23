@@ -11,6 +11,18 @@ import { Input } from '@/components/ui/input'
 import { Kbd, KbdGroup } from '@/components/ui/kbd'
 import { useStore } from '@/hooks/use-store'
 import { playerStore, setVolume, toggleMuted } from '@/lib/player'
+import {
+    chooseDensity,
+    chooseFontScale,
+    DENSITIES,
+    DENSITY_LABELS,
+    densityStore,
+    FONT_SCALE_MAX,
+    FONT_SCALE_MIN,
+    FONT_SCALE_STEP,
+    fontScaleStore,
+    formatFontScale,
+} from '@/lib/preferences'
 import { sessionStore, signOut } from '@/lib/session'
 import type { Capabilities } from '@/lib/types'
 import {
@@ -171,15 +183,55 @@ function Row({ row, children, under }: { row: SettingsRow; children?: ReactNode;
     )
 }
 
-/** Listening: the spectrum, how loud, and which clock a date is read against. */
+/** Listening: the spectrum, how loud, which clock a date is read against, and what size it is. */
 function GeneralPane({ rows }: { rows: SettingsRow[] }) {
     const times = useStore(timesMode)
     const player = useStore(playerStore)
     const spectrum = useStore(visualizerShown)
+    const density = useStore(densityStore)
+    const fontScale = useStore(fontScaleStore)
 
     return (
         <div>
             {rows.map((row) => {
+                if (row.id === 'general:density') {
+                    return (
+                        <Row key={row.id} row={row}>
+                            <Segmented
+                                label="Density"
+                                value={density}
+                                options={DENSITIES.map((one) => ({
+                                    value: one,
+                                    label: DENSITY_LABELS[one],
+                                }))}
+                                onChoose={chooseDensity}
+                            />
+                        </Row>
+                    )
+                }
+                if (row.id === 'general:font-scale') {
+                    return (
+                        <Row key={row.id} row={row}>
+                            {/* The readout is what the slider cannot say: a notch along a track
+                                is not a size until it carries the number it stands for. */}
+                            <span className="w-10 shrink-0 text-right font-mono text-xs tabular-nums">
+                                {formatFontScale(fontScale)}
+                            </span>
+                            <input
+                                type="range"
+                                aria-label="Text size"
+                                min={FONT_SCALE_MIN}
+                                max={FONT_SCALE_MAX}
+                                step={FONT_SCALE_STEP}
+                                value={fontScale}
+                                onChange={(event) => {
+                                    chooseFontScale(Number(event.target.value))
+                                }}
+                                className="w-40 accent-primary"
+                            />
+                        </Row>
+                    )
+                }
                 if (row.id === 'general:times') {
                     return (
                         <Row key={row.id} row={row}>

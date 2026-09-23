@@ -53,6 +53,8 @@ describe('the settings registry', () => {
         expect(described).toEqual([
             'general:visualizer',
             'general:times',
+            'general:density',
+            'general:font-scale',
             'server:address',
             'server:subsonic',
             'server:libraries',

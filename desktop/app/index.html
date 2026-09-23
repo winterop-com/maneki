@@ -7,23 +7,33 @@
         <title>Maneki</title>
         <script>
             /*
-             * The palette, before the first paint.
+             * The palette, the density and the text scale, before the first paint.
              *
              * Applied here rather than in a React effect: an effect lands a frame after the
-             * document does, so every load would flash the default under whatever was chosen.
-             * The names are duplicated from lib/theme.ts, and a test asserts they match.
+             * document does, so every load would flash the default under whatever was chosen --
+             * and the size one is a reflow under the reader's eyes rather than a flash. The
+             * names and the bounds are duplicated from lib/theme.ts and lib/preferences.ts,
+             * and a test asserts they match.
              */
             ;(function () {
+                var root = document.documentElement
+                var palette = 'maneki'
+                var density = 'comfortable'
+                var scale = 1
                 try {
                     var names = ['maneki', 'paper', 'contrast']
                     var stored = localStorage.getItem('maneki.palette')
-                    document.documentElement.setAttribute(
-                        'data-theme',
-                        names.indexOf(stored) === -1 ? 'maneki' : stored,
-                    )
+                    if (names.indexOf(stored) !== -1) palette = stored
+                    if (localStorage.getItem('maneki.density') === 'compact') density = 'compact'
+                    var size = Number(localStorage.getItem('maneki.font-scale'))
+                    if (size >= 0.85 && size <= 1.2) scale = size
                 } catch (error) {
-                    document.documentElement.setAttribute('data-theme', 'maneki')
+                    // Storage denied: the app is drawn as it was designed, which is the default
+                    // of all three.
                 }
+                root.setAttribute('data-theme', palette)
+                root.setAttribute('data-density', density)
+                root.style.setProperty('--font-scale', String(scale))
             })()
         </script>
     </head>
