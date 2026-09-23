@@ -41,8 +41,7 @@ import { FullscreenVisualizer } from '@/components/FullscreenVisualizer'
 import { LyricsOverlay } from '@/components/LyricsOverlay'
 import { NavDrawer, OPEN_NAV_LABEL } from '@/components/NavDrawer'
 import { PanelSheet } from '@/components/PanelSheet'
-import { PlayerBar, QUEUE_LABEL } from '@/components/PlayerBar'
-import { QueuePanel } from '@/components/QueuePanel'
+import { PlayerBar } from '@/components/PlayerBar'
 import { Rail } from '@/components/Rail'
 import { RightPanel } from '@/components/RightPanel'
 import { SearchBox } from '@/components/SearchBox'
@@ -66,7 +65,7 @@ import {
     type PaletteAction,
 } from '@/lib/palette'
 import { setDialogOpen } from '@/lib/dialogs'
-import { fillPanel, railCollapsed, togglePanel, toggleRail } from '@/lib/panels'
+import { railCollapsed, togglePanel, toggleRail } from '@/lib/panels'
 import { RESCAN_LABEL, rescan } from '@/lib/rescan'
 import {
     currentSong,
@@ -158,7 +157,6 @@ export function AppShell({ children }: { children: ReactNode }) {
     /** Whether this session has already been shown where what is playing lives. */
     const caps = session.capabilities ?? null
     const music = session.music ?? null
-    const queued = queuedCount > 0
 
     useEffect(() => {
         wasOpen.current = drawerOpen
@@ -188,36 +186,6 @@ export function AppShell({ children }: { children: ReactNode }) {
     // that is the dialog rather than the app. `lib/dialogs` is what the key listener reads.
     useEffect(() => setDialogOpen('settings', settingsOpen), [settingsOpen])
     useEffect(() => setDialogOpen('shortcuts', shortcutsOpen), [shortcutsOpen])
-
-    // The queue fills the panel for as long as there is one, and empties it when the queue
-    // goes: a panel offering an empty tab is chrome that does nothing. A book fills it with its
-    // chapters for the same reason and under the same heading -- what comes next -- and a book
-    // carrying no chapter marks has nothing to list, so it does not.
-    //
-    // A STATION FILLS IT TOO, WITH ONE TAB. It has no queue and no chapters, so for a long
-    // while it filled nothing at all: no Now playing, no Up next button on the bar, and the
-    // spectrum's own pane unreachable for the one thing people put a spectrum on. What it has
-    // is a now-playing, so that is the tab it gets, and the list of what comes next -- which
-    // for a station is nothing, forever -- is not offered rather than offered empty.
-    //
-    // AND THE PANEL IS OPENED ONCE A SESSION, on what is playing. The panel defaults closed and
-    // nothing on the screen says what is behind it, so the band nobody could find is put in
-    // front of somebody the first time they play something -- once, guarded by a ref, because
-    // the second time is a panel they have already had an opinion about. Not below the
-    // breakpoint: the panel is a sheet over the whole screen there, the tab bar across the foot
-    // is already the way to it, and a sheet raised by pressing play is one to dismiss first.
-    // THE PANEL IS THE QUEUE, AND NOTHING ELSE ABOUT WHAT IS PLAYING. The sleeve and the
-    // spectrum are the player bar's, along the foot, and a Now playing tab beside them was the
-    // same cover a third time.
-    useEffect(() => {
-        const listed = queued || chapterCount > 0
-        if (!listed) return
-        const empty = fillPanel([{ id: 'queue', label: QUEUE_LABEL, render: () => <QueuePanel /> }], {
-            screen: 'shell',
-            open: 'queue',
-        })
-        return empty
-    }, [queued, chapterCount])
 
     const actions = useMemo<PaletteAction[]>(() => {
         const pages: PaletteAction[] = entriesFor(caps).map((entry) => ({

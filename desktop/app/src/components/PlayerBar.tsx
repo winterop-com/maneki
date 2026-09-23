@@ -1,5 +1,4 @@
 import {
-    ListMusic,
     Pause,
     Play,
     Repeat,
@@ -19,7 +18,6 @@ import { NavLink } from 'react-router'
 import { CoverArt } from '@/components/CoverArt'
 import { LcdDisplay } from '@/components/LcdDisplay'
 import { Button } from '@/components/ui/button'
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { useDragSize } from '@/hooks/use-drag-size'
 import { useSpectrum } from '@/hooks/use-spectrum'
 import { useStore } from '@/hooks/use-store'
@@ -45,7 +43,6 @@ import {
     toggleShuffle,
 } from '@/lib/player'
 import { REPEAT_LABELS } from '@/lib/queue'
-import { closePanel, openPanelTab, panelOpen, panelTab, panelTabs } from '@/lib/panels'
 import { sessionStore } from '@/lib/session'
 import { coverUrl } from '@/lib/subsonic'
 import {
@@ -59,7 +56,6 @@ import {
 } from '@/lib/visualizer'
 import { cn } from '@/lib/utils'
 
-export const QUEUE_LABEL = 'Up next'
 export const RESIZE_BAR_LABEL = 'Resize the player bar'
 
 /** How far one arrow key moves the bar's edge. */
@@ -97,9 +93,6 @@ export function PlayerBar() {
     const player = useStore(playerStore)
     const spectrumShown = useStore(visualizerShown)
     const session = useStore(sessionStore)
-    const tabs = useStore(panelTabs)
-    const open = useStore(panelOpen)
-    const tab = useStore(panelTab)
     // THE BAR IS DRAGGED TALLER AND THE ROOM IS THE SPECTRUM. The grip is the bar's top edge;
     // pulling it up gives the room above the controls more height, and the spectrum is drawn
     // across the whole of it, always along the foot: never elsewhere, never a second copy.
@@ -137,10 +130,6 @@ export function PlayerBar() {
         const input = scrubber.current
         if (input !== null && !scrubbing.current) input.value = String(player.positionS)
     }, [player.positionS])
-    // THE BUTTON SAYS UP NEXT, SO IT SHOWS UP NEXT. The panel has other tabs, and a button that
-    // merely toggled the panel could open it on one of those; this one lands on the queue, and
-    // only when the queue is already the thing showing does pressing it again take the panel down.
-    const onQueue = open && tab === 'queue'
     const face = useStore(nowPlayingFace)
     const song = currentSong()
     const station = player.station
@@ -162,7 +151,6 @@ export function PlayerBar() {
           : null
     const duration = player.durationS || song?.duration || 0
     const through = duration > 0 ? Math.min(1, player.positionS / duration) : 0
-    const queued = tabs.length > 0
     // The chapter is what is playing and the book is what it is out of, which is the same
     // shape as a track and its artist. A book with no chapter marks is its own title.
     const title = book ? (chapter?.title ?? book.title) : (song?.title ?? station?.name)
@@ -489,29 +477,6 @@ export function PlayerBar() {
                                 className="w-20 accent-primary"
                             />
                         </div>
-
-                        {queued && (
-                            <Tooltip>
-                                <TooltipTrigger
-                                    render={
-                                        <Button
-                                            variant="ghost"
-                                            size="icon-sm"
-                                            aria-label={QUEUE_LABEL}
-                                            aria-pressed={onQueue}
-                                            className="hidden shrink-0 md:inline-flex"
-                                            onClick={() => {
-                                                if (onQueue) closePanel()
-                                                else openPanelTab('queue')
-                                            }}
-                                        >
-                                            <ListMusic className="size-4" aria-hidden />
-                                        </Button>
-                                    }
-                                />
-                                <TooltipContent side="top">{QUEUE_LABEL}</TooltipContent>
-                            </Tooltip>
-                        )}
                     </div>
                 </div>
             </div>
