@@ -53,7 +53,6 @@ describe('the settings registry', () => {
         expect(described).toEqual([
             'general:visualizer',
             'general:spectrum-delay',
-            'general:times',
             'general:now-playing',
             'general:density',
             'general:font-scale',
@@ -75,7 +74,9 @@ describe('the search box', () => {
     })
 
     test('finds a row by a word nothing renders', () => {
-        expect(filterSettings(ROWS, 'timezone').map((row) => row.id)).toEqual(['general:times'])
+        expect(filterSettings(ROWS, 'oscilloscope').map((row) => row.id)).toEqual([
+            'general:visualizer-style',
+        ])
     })
 
     test('finds a row by the category it is filed under', () => {

@@ -54,7 +54,6 @@ import {
 } from '@/lib/settings'
 import { applePlatform, shortcuts } from '@/lib/shortcuts'
 import { choosePalette, paletteAfter, PALETTES, paletteStore, type PaletteName } from '@/lib/theme'
-import { chooseTimes, TIMES_LABELS, TIMES_MODES, timesMode } from '@/lib/times'
 import { cn } from '@/lib/utils'
 import {
     setVisualizer,
@@ -221,9 +220,8 @@ function delayNote(playing: boolean, auto: number): string {
     return 'This output reports no delay of its own, which is the case this slider is for.'
 }
 
-/** Listening: the spectrum, how loud, which clock a date is read against, and what size it is. */
+/** Listening: the spectrum, how loud, what the bar shows, and how big and how close the rows are. */
 function GeneralPane({ rows }: { rows: SettingsRow[] }) {
-    const times = useStore(timesMode)
     const player = useStore(playerStore)
     const spectrum = useStore(visualizerShown)
     const style = useStore(visualizerStyle)
@@ -309,18 +307,6 @@ function GeneralPane({ rows }: { rows: SettingsRow[] }) {
                                     chooseFontScale(Number(event.target.value))
                                 }}
                                 className="w-40 accent-primary"
-                            />
-                        </Row>
-                    )
-                }
-                if (row.id === 'general:times') {
-                    return (
-                        <Row key={row.id} row={row}>
-                            <Segmented
-                                label="Times"
-                                value={times}
-                                options={TIMES_MODES.map((one) => ({ value: one, label: TIMES_LABELS[one] }))}
-                                onChoose={chooseTimes}
                             />
                         </Row>
                     )
