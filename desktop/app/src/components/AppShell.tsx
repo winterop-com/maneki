@@ -53,7 +53,6 @@ import { MODES, MODE_LABELS, ThemeToggle } from '@/components/ThemeToggle'
 import { Button } from '@/components/ui/button'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { useAppShortcuts } from '@/hooks/use-app-shortcuts'
-import { smallScreenNow } from '@/hooks/use-small-screen'
 import { useStore, useStoreValue } from '@/hooks/use-store'
 import { entriesFor, homePath } from '@/lib/nav'
 import {
@@ -67,7 +66,7 @@ import {
     type PaletteAction,
 } from '@/lib/palette'
 import { setDialogOpen } from '@/lib/dialogs'
-import { fillPanel, openPanelTab, railCollapsed, togglePanel, toggleRail } from '@/lib/panels'
+import { fillPanel, railCollapsed, togglePanel, toggleRail } from '@/lib/panels'
 import { RESCAN_LABEL, rescan } from '@/lib/rescan'
 import {
     currentSong,
@@ -157,7 +156,6 @@ export function AppShell({ children }: { children: ReactNode }) {
     const menu = useRef<HTMLButtonElement | null>(null)
     const wasOpen = useRef(false)
     /** Whether this session has already been shown where what is playing lives. */
-    const introduced = useRef(false)
     const caps = session.capabilities ?? null
     const music = session.music ?? null
     const queued = queuedCount > 0
@@ -218,10 +216,6 @@ export function AppShell({ children }: { children: ReactNode }) {
             screen: 'shell',
             open: 'queue',
         })
-        if (!introduced.current && !smallScreenNow()) {
-            introduced.current = true
-            openPanelTab('queue')
-        }
         return empty
     }, [queued, chapterCount])
 
