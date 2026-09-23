@@ -12,7 +12,15 @@
  * once and dropped.
  */
 
-import { ApiError, capabilities, defaultBaseUrl, setSession, setVideoMount, signIn } from '@/lib/api'
+import {
+    ApiError,
+    capabilities,
+    currentSession,
+    defaultBaseUrl,
+    setSession,
+    setVideoMount,
+    signIn,
+} from '@/lib/api'
 import { noteRefusal } from '@/lib/connection'
 import { clear } from '@/lib/player'
 import { forgetMarks } from '@/lib/star'
@@ -100,6 +108,24 @@ export function isAuthError(error: unknown): boolean {
 export const WANTS_CREDENTIALS = 'This server needs a username and password.'
 
 /**
+ * Give up what a server has just refused, and put the door back.
+ *
+ * THE ONE THING THAT HAPPENS ON AN AUTH REFUSAL, wherever the refusal was met. `connect` meets
+ * one while it is asking what the server has; `lib/api` meets one on any call under a bearer
+ * token the server has aged out, which is the same fact arriving later -- the session was
+ * established against a token that has since died, and nothing behind the door works.
+ *
+ * The server is kept and the credentials go, so the next sign-in is one field shorter. Who was
+ * being asked is read off the client rather than passed in, because that is who was refused.
+ */
+export function signOutOnAuthRefusal(reason: string): void {
+    const { baseUrl, username } = currentSession()
+    write({ baseUrl, username })
+    setSession({ baseUrl })
+    sessionStore.set({ phase: 'signed-out', baseUrl, username, refusal: reason })
+}
+
+/**
  * Point at a server and find out what it has.
  *
  * A server that answers `/capabilities` is reachable; one that wants auth
@@ -149,13 +175,7 @@ export async function connect(stored: StoredSession = read(), submitted = false)
         // the door is the screen. Anything else is a session that is still valid against a
         // server that is momentarily not there.
         if (isAuthError(error)) {
-            write({ baseUrl: stored.baseUrl, username: stored.username })
-            sessionStore.set({
-                phase: 'signed-out',
-                baseUrl: stored.baseUrl,
-                username: stored.username,
-                refusal: reason,
-            })
+            signOutOnAuthRefusal(reason)
             return
         }
         noteRefusal(error)

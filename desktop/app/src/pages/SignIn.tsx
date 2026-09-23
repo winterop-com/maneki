@@ -130,7 +130,12 @@ export function SignIn() {
             {/* The form pane is the lit surface in the dark mode: against a brand pane that is
                 dark in both, a form on the page ground would be one rung from it. */}
             <main className="relative flex flex-1 items-start justify-center p-6 lg:items-center lg:p-12 dark:bg-card">
+                {/* `noValidate` and the fields keep their `required`: both webviews surface
+                    "The string did not match the expected pattern" out of a password autofill
+                    while native validation is on, and the server's own refusal is the sentence
+                    this screen has to draw. */}
                 <form
+                    noValidate
                     className="relative grid w-full max-w-xs gap-5 xl:w-[26.875rem] xl:max-w-none"
                     onSubmit={(event) => {
                         void submit(event)

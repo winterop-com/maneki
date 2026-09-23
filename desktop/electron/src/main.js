@@ -109,14 +109,15 @@ function createWindow() {
     center: !usePosition,
     title: "Maneki",
     icon: path.join(__dirname, "..", "..", "tauri", "src-tauri", "icons", "icon.png"),
-    // Hide the native title-bar text so our in-app topbar IS the title
-    // bar — Spotify / Linear / Notion / VSCode all do this. On macOS,
-    // `hiddenInset` keeps the traffic-light buttons in their usual top-
-    // left position but drops the duplicated "Maneki" label. CSS in
-    // `_app.css` adds ~78px of left padding to `.topbar` on darwin so
-    // the search input doesn't sit under the traffic lights, and
-    // marks the bar as `-webkit-app-region: drag` so it functions as
-    // a drag handle like a native title bar.
+    // Hide the native title-bar text so our in-app top strip IS the
+    // title bar — Spotify / Linear / Notion / VSCode all do this. On
+    // macOS, `hiddenInset` keeps the traffic-light buttons in their
+    // usual top-left position but drops the duplicated "Maneki" label.
+    // The client compensates: `desktop/app/src/index.css` pads the
+    // rail's head clear of the buttons on darwin, and marks the top
+    // strip `-webkit-app-region: drag` so it works as a drag handle
+    // like a native title bar. Both hang off the `data-shell` /
+    // `data-platform` attributes set in `desktop/app/index.html`.
     titleBarStyle: "hiddenInset",
     // Windows / Linux equivalent — overlay buttons over the topbar
     // colour so the visual cue is consistent across platforms.

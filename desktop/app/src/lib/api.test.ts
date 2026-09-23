@@ -10,9 +10,13 @@
 
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest'
 
-import { books, mediaUrl, setSession, url, video, youtube } from '@/lib/api'
+import { books, defaultBaseUrl, mediaUrl, setSession, url, video, youtube } from '@/lib/api'
+import { LOCAL_SERVER } from '@/lib/desktop'
 
 const BASE = 'https://box.local'
+/** A user agent with nothing of a shell in it, which is what a browser tab has. */
+const SAFARI =
+    'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Safari/605.1.15'
 /** A token with a character that has to be escaped before it goes in a URL. */
 const TOKEN = 'abc+def/ghi=='
 
@@ -23,6 +27,34 @@ beforeEach(() => {
 afterEach(() => {
     vi.unstubAllGlobals()
     setSession({ baseUrl: '' })
+})
+
+/** A document in whichever shell, as the two things `defaultBaseUrl` reads it through. */
+function loadedFrom(origin: string, protocol: string, shell?: 'tauri'): void {
+    vi.stubGlobal('window', {
+        location: { origin, protocol },
+        ...(shell === 'tauri' ? { __TAURI__: {} } : {}),
+    })
+    vi.stubGlobal('navigator', { userAgent: SAFARI })
+}
+
+describe('the server the app points at before anybody has said which', () => {
+    test('is the origin that served the page, in a browser tab', () => {
+        loadedFrom('https://maneki.example', 'https:')
+        expect(defaultBaseUrl()).toBe('https://maneki.example')
+    })
+
+    // Regression: `http://tauri.localhost` is a real origin over a real protocol and no server
+    // at all, so it arrived prefilled on the door and named in the connection banner.
+    test("is the shells' own default inside a shell, never the shell's host", () => {
+        loadedFrom('http://tauri.localhost', 'http:', 'tauri')
+        expect(defaultBaseUrl()).toBe(LOCAL_SERVER)
+    })
+
+    test('is nothing at all for a file opened in a tab, which has no server behind it', () => {
+        loadedFrom('null', 'file:')
+        expect(defaultBaseUrl()).toBe('')
+    })
 })
 
 describe('mediaUrl', () => {

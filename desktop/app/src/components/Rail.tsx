@@ -101,6 +101,7 @@ export function Rail() {
         <>
             <aside
                 ref={aside}
+                data-shell-rail={collapsed ? 'collapsed' : 'expanded'}
                 className={cn(
                     'relative hidden shrink-0 flex-col overflow-hidden border-r border-border-strong bg-sidebar text-sidebar-foreground md:flex',
                     !dragging && 'transition-[width] duration-200',
@@ -111,9 +112,14 @@ export function Rail() {
                 56px strip that does not read as a cram, so the mark itself expands the rail,
                 showing the expand glyph under the hand -- and loses nothing as a link, because
                 Home is the first entry right below it. Expanded, the mark is the home link and
-                the collapse control sits beside the wordmark, where it always was. */}
+                the collapse control sits beside the wordmark, where it always was.
+
+                `data-shell-lights` is what the traffic-light clearance in index.css hangs off:
+                this is the strip the window's own buttons are drawn over inside a desktop
+                shell on macOS. */}
                 <div
                     data-shell-strip="top"
+                    data-shell-lights="strip"
                     className={cn(
                         'flex h-shell-top shrink-0 items-center gap-2 px-3',
                         collapsed && 'justify-center px-0',
@@ -144,12 +150,18 @@ export function Rail() {
                             <NavLink
                                 to={homePath(caps)}
                                 aria-label="maneki"
-                                className="flex items-center gap-2 rounded-md focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none"
+                                className="flex min-w-0 items-center gap-2 rounded-md focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none"
                             >
                                 <span className="flex size-7 shrink-0 items-center justify-center rounded-md bg-primary text-primary-foreground">
                                     <Cat className="size-4" aria-hidden />
                                 </span>
-                                <span className="text-base font-semibold tracking-tight">maneki</span>
+                                {/* The wordmark is what gives way, and the mark and the collapse
+                                control are what do not: dragged to its narrowest, and inside a
+                                desktop shell where the window's own buttons have taken the left
+                                of this strip, the two controls stay where they are. */}
+                                <span className="truncate text-base font-semibold tracking-tight">
+                                    maneki
+                                </span>
                             </NavLink>
                             <Tooltip>
                                 <TooltipTrigger

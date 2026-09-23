@@ -1,6 +1,7 @@
+import { readFileSync } from 'node:fs'
 import { describe, expect, test } from 'vitest'
 
-import { LOCAL_SERVER, probeOrigins, shellKind } from '@/lib/desktop'
+import { LOCAL_SERVER, probeOrigins, shellKind, type ShellKind } from '@/lib/desktop'
 
 const SAFARI =
     'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Safari/605.1.15'
@@ -57,5 +58,33 @@ describe('which addresses the door asks', () => {
     // Two chances for one server to answer differently, and one wasted round trip.
     test('never asks one server the same question twice', () => {
         expect(probeOrigins('browser', LOCAL_SERVER)).toEqual([LOCAL_SERVER])
+    })
+})
+
+/**
+ * The shell and the platform are tagged on <html> before the first paint by an inline script in
+ * index.html, which cannot import this module -- the traffic-light clearance and the drag
+ * regions in index.css hang off what it writes, and a tag that landed a frame later would draw
+ * the rail's mark under the window's own buttons and then move it. These assert the two copies
+ * of the same test say the same thing.
+ */
+describe('the pre-paint tagging', () => {
+    const html = readFileSync(new URL('../../index.html', import.meta.url), 'utf8')
+
+    test('asks the Tauri global first and the user agent after it', () => {
+        expect(html).toContain('window.__TAURI__')
+        expect(html).toContain("'electron/'")
+    })
+
+    test('writes the attribute the shell rules hang off, with the names this module answers', () => {
+        expect(html).toContain("'data-shell'")
+        for (const kind of ['tauri', 'electron', 'browser'] satisfies ShellKind[]) {
+            expect(html).toContain(`'${kind}'`)
+        }
+    })
+
+    test('names the platform whose windows draw their buttons over the page', () => {
+        expect(html).toContain("'data-platform'")
+        expect(html).toContain("'darwin'")
     })
 })

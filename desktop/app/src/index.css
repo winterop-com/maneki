@@ -1015,18 +1015,123 @@ html.dark[data-theme='contrast'],
     }
 }
 
-.list-scroll::-webkit-scrollbar {
+/* ---------------------------------------------------------------------------
+   THE SCROLLBAR IS THE APP'S, NOT THE PLATFORM'S.
+
+   A default macOS or Chromium bar is a wide light-grey track that reads as a strip of another
+   program in every palette this app has, and every column in the shell scrolls -- the rail,
+   the screen, the panel, the queue, each dialog. So it is said once, bare, rather than by the
+   one class that happened to remember to ask for it.
+
+   THE STANDARD PROPERTIES ARE FOR FIREFOX AND FOR NOTHING ELSE. `scrollbar-width` and
+   `scrollbar-color` are what Firefox understands, and modern WebKit (Safari 18.2 and up, which
+   is the system webview the Tauri shell runs on) now understands them too -- where, per spec,
+   setting either one DISABLES the `::-webkit-scrollbar` styling above it. WebKit also ignores
+   `scrollbar-color` on the overlay scrollbars macOS draws, so stating them unconditionally
+   hands the shell back the bare native bar. `@supports not selector(...)` is what keeps them
+   where they are needed and out of the two engines that theme the pseudo-elements instead.
+   --------------------------------------------------------------------------- */
+::-webkit-scrollbar {
     width: 10px;
+    height: 10px;
 }
-.list-scroll::-webkit-scrollbar-track {
+::-webkit-scrollbar-track {
     background: transparent;
-    margin-block-start: 37px;
 }
-.list-scroll::-webkit-scrollbar-thumb {
+::-webkit-scrollbar-thumb {
     background: var(--border-strong);
+    /* Padded off the track's edges, so the thumb is a pill in the gutter rather than a bar
+       welded to whatever it is scrolling. */
     border: 3px solid transparent;
     background-clip: content-box;
     border-radius: 999px;
+}
+::-webkit-scrollbar-thumb:hover {
+    background: var(--muted-foreground);
+    background-clip: content-box;
+}
+::-webkit-scrollbar-corner {
+    background: transparent;
+}
+@supports not selector(::-webkit-scrollbar) {
+    * {
+        scrollbar-width: thin;
+        scrollbar-color: var(--border-strong) transparent;
+    }
+}
+
+/* ---------------------------------------------------------------------------
+   THE WINDOW A DESKTOP SHELL PUTS THIS PAGE IN.
+
+   Both shells hide the native title bar and hand the whole window to the page -- Tauri with
+   `titleBarStyle: "Overlay"`, Electron with `hiddenInset`. Two things follow from that, and
+   both are the page's to deal with.
+
+   THE TRAFFIC LIGHTS ARE STILL DRAWN, over the top-left of the document, in a band about 72px
+   wide. Whatever the page puts there is underneath three buttons belonging to the window, so
+   the strips that reach that corner stand clear of it. A browser tab has no such buttons and
+   gets none of this, which is what `:not([data-shell='browser'])` says; `index.html` sets both
+   attributes before the first paint.
+
+   THE TOP STRIP IS THE TITLE BAR, so grabbing it moves the window, the way grabbing a native
+   one does. Electron's Chromium honours `-webkit-app-region`, and the controls inside the
+   strip have to opt back out of it or they stop being clickable. Tauri's WKWebView honours
+   none of it: there the same press is delegated to the window by `lib/window-drag`, and what
+   is left here is the cursor and the selection, which WKWebView otherwise draws as a text
+   I-beam mid-drag.
+   --------------------------------------------------------------------------- */
+html[data-platform='darwin']:not([data-shell='browser']) {
+    /* Three buttons and the inset around them, as the client this one replaces measured it. */
+    --traffic-lights: 80px;
+}
+
+html[data-platform='darwin']:not([data-shell='browser']) [data-shell-lights='strip'] {
+    padding-left: var(--traffic-lights);
+}
+
+/* A COLLAPSED RAIL IS NARROWER THAN THE LIGHTS ARE WIDE. 56px of centred icons has nowhere to
+   put a mark that clears them, so in this one shell the column holds the room the window has
+   already taken: `min-width` clamps the width the component sets inline, which is what lets
+   the whole thing stay a CSS rule. The expanded rail is wider than the lights at any width it
+   can be dragged to, and gives way with its wordmark rather than with its width. */
+html[data-platform='darwin']:not([data-shell='browser']) [data-shell-rail='collapsed'] {
+    min-width: calc(var(--traffic-lights) + 32px);
+}
+
+/* The door's brand pane, which is a strip with the lockup at its left only below `lg`. Above
+   it the pane positions its own contents against its padding box, so padding there would move
+   the mark and the facts rather than clear the lights they already clear. */
+@media (width < 64rem) {
+    html[data-platform='darwin']:not([data-shell='browser']) [data-shell-lights='pane'] {
+        padding-left: var(--traffic-lights);
+    }
+}
+
+html:not([data-shell='browser']) :is([data-window-drag], [data-shell-strip='top']) {
+    cursor: default;
+    user-select: none;
+    -webkit-user-select: none;
+}
+
+html[data-shell='electron'] :is([data-window-drag], [data-shell-strip='top']) {
+    -webkit-app-region: drag;
+}
+
+html[data-shell='electron']
+    :is([data-window-drag], [data-shell-strip='top'])
+    :is(
+        a,
+        button,
+        input,
+        label,
+        select,
+        textarea,
+        [role='button'],
+        [role='slider'],
+        [role='tab'],
+        [data-window-no-drag]
+    ) {
+    -webkit-app-region: no-drag;
 }
 
 /* ---------------------------------------------------------------------------
@@ -2020,6 +2125,35 @@ html.dark[data-theme='neon'],
 .dark {
     --terminal: oklch(0.105 0.012 255);
     --terminal-bar: oklch(0.21 0.013 255);
+}
+
+/* ---------------------------------------------------------------------------
+   THE CAPTIONS ARE WORDS ON THE PICTURE, NOT A BOX OVER IT.
+
+   videojs-vtt writes `background-color: rgba(0, 0, 0, 0.8)` inline on every cue and on the div
+   inside it -- the opaque-box look -- and an inline style beats any rule here that does not say
+   otherwise. So the background, and only the background, is taken with `!important`: an outline
+   and a soft shadow hold the words against a bright frame without a black band across the
+   bottom third of the film.
+
+   EVERYTHING ELSE IS PLAIN CSS ON PURPOSE. video.js writes nothing inline for the colour, the
+   weight or the shadow, so these win by cascade alone -- which leaves the player's own captions
+   settings menu able to override each of them, and `persistTextTrackSettings` able to remember
+   what was chosen. Size and face are not set here at all: the size baseline is written through
+   `textTrackSettings` at player init, where the menu can still dial relative to it.
+   ------------------------------------------------------------------------- */
+.video-js .vjs-text-track-display .vjs-text-track-cue,
+.video-js .vjs-text-track-display .vjs-text-track-cue > div {
+    background: transparent !important;
+    color: #fff;
+    font-weight: 500;
+    line-height: 1.25;
+    text-shadow:
+        -1px 0 0 #000,
+        1px 0 0 #000,
+        0 -1px 0 #000,
+        0 1px 0 #000,
+        0 1px 3px rgba(0, 0, 0, 0.85);
 }
 
 /* ---------------------------------------------------------------------------

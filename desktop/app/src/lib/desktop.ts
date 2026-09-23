@@ -68,6 +68,7 @@ export function probeOrigins(shell: ShellKind, origin: string): string[] {
 interface TauriWindow {
     setFullscreen?: (on: boolean) => Promise<void>
     isFullscreen?: () => Promise<boolean>
+    startDragging?: () => Promise<void>
 }
 
 interface TauriGlobal {
@@ -163,6 +164,23 @@ export async function exitNativeFullscreen(): Promise<boolean> {
     if (bridge) return !(await bridge.setFullscreen(false))
     if (typeof document === 'undefined' || document.fullscreenElement === null) return true
     await document.exitFullscreen()
+    return true
+}
+
+/**
+ * Move the window with the pointer that is already down, where there is a window to move.
+ *
+ * ONLY ONE SHELL NEEDS ASKING. Electron's Chromium moves its own window out of the
+ * `-webkit-app-region: drag` the top strip wears in index.css, and a browser tab has no window
+ * of its own. Tauri's WKWebView honours neither that property nor Tauri's own drag attribute
+ * on a tree React renders after mount, so there the press is handed to the window here.
+ *
+ * Answers whether a window took it, which is the caller's cue that there was nothing to do.
+ */
+export async function startNativeWindowDrag(): Promise<boolean> {
+    const tauri = tauriWindow()
+    if (!tauri?.startDragging) return false
+    await tauri.startDragging()
     return true
 }
 

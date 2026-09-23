@@ -12,6 +12,12 @@
  */
 
 import { NETWORK_REFUSAL, noteRecovered, noteRefusal } from '@/lib/connection'
+// TWO IMPORTS IN AN ORDER THAT MATTERS. `lib/session` imports this module back -- it is the one
+// place that knows what a refusal means for a session -- and in a cycle the module named first
+// is the one evaluated first. `lib/desktop` is named before it because `defaultBaseUrl` reads a
+// constant from it while `lib/session` is still evaluating its own module body.
+import { currentShell, LOCAL_SERVER } from '@/lib/desktop'
+import { signOutOnAuthRefusal } from '@/lib/session'
 import type {
     BookDetail,
     BookProgress,
@@ -59,11 +65,20 @@ export function currentSession(): Session {
     return session
 }
 
-/** The origin the page was served from, which is a maneki server unless the shell says otherwise. */
+/**
+ * The server to talk to before anybody has said which.
+ *
+ * A BROWSER TAB WAS SERVED THIS BUNDLE BY A MANEKI, so its own origin is the answer. A shell
+ * loaded the bundle off disk and its origin is the shell's own: Tauri serves it from
+ * `http://tauri.localhost`, which is a real origin over a real protocol and no server at all --
+ * left as the default it arrived prefilled on the door and named in the connection banner as
+ * if it were one. What a shell can honestly guess at is the address `maneki serve` listens on.
+ */
 export function defaultBaseUrl(): string {
     if (typeof window === 'undefined') return ''
+    if (currentShell() !== 'browser') return LOCAL_SERVER
     const { origin, protocol } = window.location
-    // A shell loading the bundle from disk has no server behind its origin.
+    // A file opened in a tab has no server behind its origin either.
     return protocol === 'file:' ? '' : origin
 }
 
@@ -110,7 +125,19 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     }
     // Any answer is proof the server is there, a refusal included.
     noteRecovered()
-    if (!response.ok) throw new ApiError(response.status, await refusalOf(response))
+    if (!response.ok) {
+        const refusal = new ApiError(response.status, await refusalOf(response))
+        // A BEARER TOKEN EXPIRES WHILE THE APP IS STANDING. The server ages one out after a
+        // day, and the only call the session makes on its way up is the unauthenticated
+        // `/capabilities` -- so a token that died overnight leaves a session that looks ready
+        // behind every screen refusing to load. The server saying we are not allowed in is the
+        // same sentence here as it is there: what is kept is no longer good, and the door is
+        // the only honest screen. The Subsonic pair is untouched, because it does not expire.
+        if (session.token !== undefined && (refusal.status === 401 || refusal.status === 403)) {
+            signOutOnAuthRefusal(refusal.message)
+        }
+        throw refusal
+    }
     if (response.status === 204) return undefined as T
     return (await response.json()) as T
 }

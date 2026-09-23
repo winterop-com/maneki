@@ -36,6 +36,40 @@
                 root.style.setProperty('--font-scale', String(scale))
             })()
         </script>
+        <script>
+            /*
+             * Which shell this is and which platform it is on, before the first paint.
+             *
+             * The window's traffic lights are drawn over the top-left of the page by both
+             * desktop shells on macOS, and the clearance the strips under them need is a CSS
+             * rule keyed on these two attributes -- so they have to be on <html> before the
+             * first paint, or the rail's mark is drawn once beneath the lights and then jumps.
+             *
+             * The shell test is the one in lib/desktop.ts: the Tauri global first, because it
+             * is a fact about the runtime, then the version Electron writes into its own user
+             * agent. A test asserts the two copies say the same thing.
+             */
+            ;(function () {
+                var root = document.documentElement
+                var agent = navigator.userAgent || ''
+                root.setAttribute(
+                    'data-shell',
+                    window.__TAURI__
+                        ? 'tauri'
+                        : agent.toLowerCase().indexOf('electron/') !== -1
+                          ? 'electron'
+                          : 'browser',
+                )
+                // navigator.platform is deprecated and still set in both webviews, which makes
+                // it the fastest synchronous answer; the user agent is what answers where it
+                // has been emptied.
+                var platform = (navigator.platform || '') + ' ' + agent
+                root.setAttribute(
+                    'data-platform',
+                    /mac/i.test(platform) ? 'darwin' : /win/i.test(platform) ? 'win32' : 'linux',
+                )
+            })()
+        </script>
     </head>
     <body>
         <div id="root"></div>

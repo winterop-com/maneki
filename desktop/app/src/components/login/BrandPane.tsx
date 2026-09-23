@@ -50,7 +50,14 @@ export function BrandPane({ server, version }: { server: string | null; version:
         lit: lit(index, BAR_COUNT),
     }))
     return (
-        <aside className="relative flex items-center justify-between gap-4 overflow-hidden bg-terminal px-5 py-5 text-terminal-foreground lg:block lg:p-0">
+        // Below `lg` the pane is a strip with the lockup at its left, which inside a desktop
+        // shell on macOS is where the window's traffic lights are drawn -- `data-shell-lights`
+        // is what the clearance rule in index.css hangs off. Above `lg` the pane's own content
+        // is inset far enough to clear them on its own.
+        <aside
+            data-shell-lights="pane"
+            className="relative flex items-center justify-between gap-4 overflow-hidden bg-terminal px-5 py-5 text-terminal-foreground lg:block lg:p-0"
+        >
             <div className="hidden lg:absolute lg:inset-x-12 lg:top-12 lg:bottom-72 lg:flex lg:items-end xl:inset-x-18">
                 <svg
                     className="h-full w-full"

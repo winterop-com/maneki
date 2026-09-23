@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, test, vi } from 'vitest'
 
-import { ApiError } from '@/lib/api'
+import { ApiError, books } from '@/lib/api'
 import { connectionStore, dismissRefusal } from '@/lib/connection'
 import { playerStore } from '@/lib/player'
 import { connect, isAuthError, sessionStore, signOut, WANTS_CREDENTIALS } from '@/lib/session'
@@ -163,6 +163,64 @@ describe('connecting to a server', () => {
             baseUrl: 'https://host',
             username: 'mort',
         })
+    })
+})
+
+/** A server that wants a bearer token and serves no music, so the token is the whole session. */
+function tokenOnly(): Capabilities {
+    return server({ auth_required: true, endpoints: { ...server({}).endpoints, audio_subsonic: null } })
+}
+
+/** One answer to everything, for a server that has stopped accepting what it accepted. */
+function answeringWith(status: number, detail: string): void {
+    vi.stubGlobal(
+        'fetch',
+        vi.fn(async () => ({ ok: false, status, json: async () => ({ detail }) })),
+    )
+}
+
+describe('a bearer token that expired while the app was standing', () => {
+    // Regression: `connect` only asks the unauthenticated `/capabilities`, so a token the
+    // server aged out overnight left the app on `ready` with every screen behind it refused
+    // and no way back to the door.
+    test('takes the session with it the first time a call is refused', async () => {
+        answering(tokenOnly())
+        await connect({ baseUrl: 'https://host', username: 'mort', token: 'stale' })
+        expect(sessionStore.get().phase).toBe('ready')
+
+        answeringWith(401, 'token expired')
+        await expect(books.list()).rejects.toThrow('token expired')
+
+        expect(sessionStore.get().phase).toBe('signed-out')
+        expect(sessionStore.get().refusal).toBe('token expired')
+        // The server is kept and the credentials go, so the next sign-in is one field shorter.
+        expect(JSON.parse(localStorage.getItem('maneki.session') ?? '{}')).toEqual({
+            baseUrl: 'https://host',
+            username: 'mort',
+        })
+    })
+
+    // A 500, a 404, a rescan this account may not ask for: only the sentence about who we are
+    // throws credentials away, or a server having a bad minute would empty the app.
+    test('and no other refusal does, whatever the server is having trouble with', async () => {
+        answering(tokenOnly())
+        await connect({ baseUrl: 'https://host', username: 'mort', token: 'good' })
+
+        answeringWith(500, 'something broke')
+        await expect(books.list()).rejects.toThrow('something broke')
+        expect(sessionStore.get().phase).toBe('ready')
+    })
+
+    test('and a server that was never handed a token is not signed out of one', async () => {
+        answering(
+            server({ auth_required: false, endpoints: { ...server({}).endpoints, audio_subsonic: null } }),
+        )
+        await connect({ baseUrl: 'https://host' })
+        expect(sessionStore.get().phase).toBe('ready')
+
+        answeringWith(401, 'sign in')
+        await expect(books.list()).rejects.toThrow('sign in')
+        expect(sessionStore.get().phase).toBe('ready')
     })
 })
 
