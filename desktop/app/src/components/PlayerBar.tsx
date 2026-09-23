@@ -4,6 +4,8 @@ import {
     Play,
     Repeat,
     Repeat1,
+    RotateCcw,
+    RotateCw,
     Shuffle,
     SkipBack,
     SkipForward,
@@ -19,16 +21,22 @@ import { Visualizer } from '@/components/Visualizer'
 import { Button } from '@/components/ui/button'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { useStore } from '@/hooks/use-store'
+import { books as booksApi } from '@/lib/api'
 import { clock } from '@/lib/format'
 import { nowPlayingFace } from '@/lib/lcd'
 import {
+    currentChapter,
     currentSong,
     cycleRepeat,
     next,
     playerStore,
     previous,
     seek,
+    setSpeed,
     setVolume,
+    skipBy,
+    SKIP_S,
+    SPEEDS,
     toggle,
     toggleMuted,
     toggleShuffle,
@@ -57,6 +65,12 @@ export const STAGE_LABEL = 'Put the spectrum over the whole screen'
  * A STATION HAS NO POSITION. It has no length, nothing to skip to and nothing to scrub, so the
  * skip buttons are disabled and the line and the clocks are not drawn at all rather than drawn
  * as zeroes.
+ *
+ * AND A BOOK IS DRAWN ON THIS BAR AND NO OTHER. It used to have a transport of its own on its
+ * own screen, which is how somebody ended up with two now-playings and a chapter list that
+ * seeked whichever of them was silent. What a book needs that a record does not -- the two
+ * fifteen-second jumps, a reading speed -- joins the same row, and what it has no use for --
+ * shuffle, repeat -- leaves it: a book is one thing read in one order.
  */
 export function PlayerBar() {
     const player = useStore(playerStore)
@@ -66,12 +80,34 @@ export function PlayerBar() {
     const face = useStore(nowPlayingFace)
     const song = currentSong()
     const station = player.station
-    if ((!song && !station) || !session.music) return null
+    const book = player.book
+    const chapter = currentChapter()
+    if (!song && !station && !book) return null
+    // A track's cover and its stream are the music server's, so there is nothing to draw
+    // without one. A book is maneki's own, and a server with books and no music still has a
+    // transport.
+    if (!book && !session.music) return null
 
-    const cover = song ? coverUrl(session.music, song.coverArt, 96) : null
+    const cover = book
+        ? book.has_cover
+            ? booksApi.coverUrl(book.id, 96)
+            : null
+        : song && session.music
+          ? coverUrl(session.music, song.coverArt, 96)
+          : null
     const duration = player.durationS || song?.duration || 0
     const through = duration > 0 ? Math.min(1, player.positionS / duration) : 0
     const queued = tabs.length > 0
+    // The chapter is what is playing and the book is what it is out of, which is the same
+    // shape as a track and its artist. A book with no chapter marks is its own title.
+    const title = book ? (chapter?.title ?? book.title) : (song?.title ?? station?.name)
+    const beneath = book
+        ? chapter
+            ? `${book.title} · ${book.author}`
+            : book.author
+        : station
+          ? player.stationTitle || 'Live'
+          : song?.artist
 
     return (
         <div
@@ -92,9 +128,10 @@ export function PlayerBar() {
                 <img src={cover} alt="" className="size-9 shrink-0 rounded-sm object-cover" />
             ) : (
                 // The album's id rather than the track's, so every track off one record wears
-                // the same mark here that the record wears on the shelf.
+                // the same mark here that the record wears on the shelf. A book's own id, for
+                // the same reason: the mark on the bar is the mark on the shelf.
                 <CoverArt
-                    id={song?.albumId ?? song?.id ?? station?.id ?? ''}
+                    id={book?.id ?? song?.albumId ?? song?.id ?? station?.id ?? ''}
                     className="size-9 shrink-0 rounded-sm"
                 />
             )}
@@ -102,8 +139,12 @@ export function PlayerBar() {
             {/* THE DECK FACE REPLACES THE TITLE BLOCK AND THE SCRUBBER, AND NOTHING ELSE. It says
                 what both of them said -- what is playing, and how far through -- so drawing the
                 two together would be the same facts twice at two sizes. The transport stays
-                where it is: what the buttons do does not change with the face. */}
-            {face === 'lcd' ? (
+                where it is: what the buttons do does not change with the face.
+
+                AND IT IS A MUSIC FACE. Its window is a track, an artist and a track number read
+                the way a hi-fi reads them, and a chapter of a novel is none of those -- so a
+                book is drawn in the app's own voice whichever face was chosen. */}
+            {face === 'lcd' && !book ? (
                 <LcdDisplay
                     song={song}
                     station={station}
@@ -116,8 +157,12 @@ export function PlayerBar() {
                 />
             ) : (
                 <div className="min-w-0 flex-1 md:max-w-64">
-                    <p className="truncate text-sm" title={song?.title ?? station?.name}>
-                        {song ? (
+                    <p className="truncate text-sm" title={title}>
+                        {book ? (
+                            <NavLink to={`/books/${book.id}`} className="control-link">
+                                {title}
+                            </NavLink>
+                        ) : song ? (
                             song.albumId ? (
                                 <NavLink to={`/music/album/${song.albumId}`} className="control-link">
                                     {song.title}
@@ -131,11 +176,8 @@ export function PlayerBar() {
                     </p>
                     {/* A station that has announced what it is playing says that; one that has
                         not says it is live, which is the only other true thing about it. */}
-                    <p
-                        className="truncate text-xs text-muted-foreground"
-                        title={station ? player.stationTitle || 'Live' : song?.artist}
-                    >
-                        {station ? player.stationTitle || 'Live' : song?.artist}
+                    <p className="truncate text-xs text-muted-foreground" title={beneath}>
+                        {beneath}
                     </p>
                 </div>
             )}
@@ -143,37 +185,60 @@ export function PlayerBar() {
             <div className="flex items-center gap-1">
                 {/* Shuffle and repeat sit beside the transport they change, and are drawn as
                     pressed rather than as a different glyph: what they do is a state the
-                    queue is in, not an action. A station has no queue to be in one. */}
+                    queue is in, not an action. A station has no queue to be in one, and a book
+                    is one thing read in one order -- neither is offered the controls, and a
+                    book is not offered them disabled either, because they are not a thing a
+                    book can be missing. */}
+                {!book && (
+                    <>
+                        <Button
+                            variant="ghost"
+                            size="icon-sm"
+                            aria-label="Shuffle the queue"
+                            aria-pressed={player.shuffle}
+                            onClick={toggleShuffle}
+                            disabled={station !== null}
+                            className={cn('hidden sm:inline-flex', player.shuffle && 'text-primary')}
+                        >
+                            <Shuffle className="size-4" aria-hidden />
+                        </Button>
+                        <Button
+                            variant="ghost"
+                            size="icon-sm"
+                            aria-label={REPEAT_LABELS[player.repeat]}
+                            aria-pressed={player.repeat !== 'off'}
+                            onClick={cycleRepeat}
+                            disabled={station !== null}
+                            className={cn('hidden sm:inline-flex', player.repeat !== 'off' && 'text-primary')}
+                        >
+                            {player.repeat === 'one' ? (
+                                <Repeat1 className="size-4" aria-hidden />
+                            ) : (
+                                <Repeat className="size-4" aria-hidden />
+                            )}
+                        </Button>
+                    </>
+                )}
+                {/* THE TWO JUMPS ARE A BOOK'S, and they stand outside the chapter steps rather
+                    than replacing them: fifteen seconds is for the sentence somebody missed,
+                    a chapter is for the part of the book they are in. A record has no use for
+                    either, so it is not given a control that would only mean "scrub a bit". */}
+                {book && (
+                    <Button
+                        variant="ghost"
+                        size="icon-sm"
+                        aria-label={`Back ${String(SKIP_S)} seconds`}
+                        onClick={() => {
+                            skipBy(-SKIP_S)
+                        }}
+                    >
+                        <RotateCcw className="size-4" aria-hidden />
+                    </Button>
+                )}
                 <Button
                     variant="ghost"
                     size="icon-sm"
-                    aria-label="Shuffle the queue"
-                    aria-pressed={player.shuffle}
-                    onClick={toggleShuffle}
-                    disabled={station !== null}
-                    className={cn('hidden sm:inline-flex', player.shuffle && 'text-primary')}
-                >
-                    <Shuffle className="size-4" aria-hidden />
-                </Button>
-                <Button
-                    variant="ghost"
-                    size="icon-sm"
-                    aria-label={REPEAT_LABELS[player.repeat]}
-                    aria-pressed={player.repeat !== 'off'}
-                    onClick={cycleRepeat}
-                    disabled={station !== null}
-                    className={cn('hidden sm:inline-flex', player.repeat !== 'off' && 'text-primary')}
-                >
-                    {player.repeat === 'one' ? (
-                        <Repeat1 className="size-4" aria-hidden />
-                    ) : (
-                        <Repeat className="size-4" aria-hidden />
-                    )}
-                </Button>
-                <Button
-                    variant="ghost"
-                    size="icon-sm"
-                    aria-label="Previous"
+                    aria-label={book ? 'Previous chapter' : 'Previous'}
                     onClick={previous}
                     disabled={station !== null}
                 >
@@ -189,17 +254,31 @@ export function PlayerBar() {
                 <Button
                     variant="ghost"
                     size="icon-sm"
-                    aria-label="Next"
+                    aria-label={book ? 'Next chapter' : 'Next'}
                     onClick={next}
                     disabled={station !== null}
                 >
                     <SkipForward className="size-4" aria-hidden />
                 </Button>
+                {book && (
+                    <Button
+                        variant="ghost"
+                        size="icon-sm"
+                        aria-label={`Forward ${String(SKIP_S)} seconds`}
+                        onClick={() => {
+                            skipBy(SKIP_S)
+                        }}
+                    >
+                        <RotateCw className="size-4" aria-hidden />
+                    </Button>
+                )}
             </div>
 
             {/* Not hidden with a class: two controls with one accessible name is two of them in
-                the document, and a slider nobody can see is still a slider somebody lands on. */}
-            {face === 'standard' && (
+                the document, and a slider nobody can see is still a slider somebody lands on.
+                A book is drawn in the standard face whatever was chosen, so it keeps the
+                slider the face would have replaced. */}
+            {(face === 'standard' || book !== null) && (
                 <div
                     className={cn('hidden min-w-0 flex-1 items-center gap-2 md:flex', station && 'invisible')}
                 >
@@ -221,6 +300,28 @@ export function PlayerBar() {
                         {clock(duration)}
                     </span>
                 </div>
+            )}
+
+            {/* HOW FAST IT IS READ IS A BOOK'S ALONE. Music at 1.25x is a novelty; a narrator
+                at 1.25x is how a lot of people listen to every book they own, so the choice is
+                on the transport rather than behind a settings pane -- and it is offered only
+                where it means something. Below the breakpoint the bar has no room for it and
+                the palette carries the same speeds. */}
+            {book && (
+                <select
+                    aria-label="Reading speed"
+                    value={book.speed}
+                    onChange={(event) => {
+                        setSpeed(Number(event.target.value))
+                    }}
+                    className="hidden h-8 shrink-0 rounded-md border bg-field px-2 text-xs md:block"
+                >
+                    {SPEEDS.map((speed) => (
+                        <option key={speed} value={speed}>
+                            {speed}x
+                        </option>
+                    ))}
+                </select>
             )}
 
             {/* The strip is the way to the stage with a pointer, as the F key is without one. */}
