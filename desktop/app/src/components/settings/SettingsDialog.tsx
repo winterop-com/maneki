@@ -10,7 +10,29 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Input } from '@/components/ui/input'
 import { Kbd, KbdGroup } from '@/components/ui/kbd'
 import { useStore } from '@/hooks/use-store'
+import {
+    chooseLcdTint,
+    chooseNowPlaying,
+    LCD_TINT_LABELS,
+    LCD_TINTS,
+    lcdTint,
+    NOW_PLAYING_FACES,
+    NOW_PLAYING_LABELS,
+    nowPlayingFace,
+} from '@/lib/lcd'
 import { playerStore, setVolume, spectrumContext, toggleMuted } from '@/lib/player'
+import {
+    chooseDensity,
+    chooseFontScale,
+    DENSITIES,
+    DENSITY_LABELS,
+    densityStore,
+    FONT_SCALE_MAX,
+    FONT_SCALE_MIN,
+    FONT_SCALE_STEP,
+    fontScaleStore,
+    formatFontScale,
+} from '@/lib/preferences'
 import { sessionStore, signOut } from '@/lib/session'
 import {
     chooseSpectrumTheme,
@@ -199,7 +221,7 @@ function delayNote(playing: boolean, auto: number): string {
     return 'This output reports no delay of its own, which is the case this slider is for.'
 }
 
-/** Listening: the spectrum, how loud, and which clock a date is read against. */
+/** Listening: the spectrum, how loud, which clock a date is read against, and what size it is. */
 function GeneralPane({ rows }: { rows: SettingsRow[] }) {
     const times = useStore(timesMode)
     const player = useStore(playerStore)
@@ -211,10 +233,86 @@ function GeneralPane({ rows }: { rows: SettingsRow[] }) {
     // moment somebody puts headphones on, and this dialog stands open for minutes.
     const graph = spectrumContext()
     const auto = Math.round(outputDelayMs(graph))
+    const density = useStore(densityStore)
+    const fontScale = useStore(fontScaleStore)
+    const face = useStore(nowPlayingFace)
+    const tint = useStore(lcdTint)
 
     return (
         <div>
             {rows.map((row) => {
+                if (row.id === 'general:now-playing') {
+                    return (
+                        <Row key={row.id} row={row}>
+                            <Segmented
+                                label="Now playing"
+                                value={face}
+                                options={NOW_PLAYING_FACES.map((one) => ({
+                                    value: one,
+                                    label: NOW_PLAYING_LABELS[one],
+                                }))}
+                                onChoose={chooseNowPlaying}
+                            />
+                        </Row>
+                    )
+                }
+                if (row.id === 'general:lcd-tint') {
+                    return (
+                        <Row key={row.id} row={row}>
+                            {/* Shut while the standard face is chosen rather than hidden: a row
+                                that came and went as another row was answered would be a pane
+                                that reflows under the hand answering it. */}
+                            <Segmented
+                                label="LCD tint"
+                                value={tint}
+                                disabled={face !== 'lcd'}
+                                options={LCD_TINTS.map((one) => ({
+                                    value: one,
+                                    label: LCD_TINT_LABELS[one],
+                                }))}
+                                onChoose={chooseLcdTint}
+                            />
+                        </Row>
+                    )
+                }
+                if (row.id === 'general:density') {
+                    return (
+                        <Row key={row.id} row={row}>
+                            <Segmented
+                                label="Density"
+                                value={density}
+                                options={DENSITIES.map((one) => ({
+                                    value: one,
+                                    label: DENSITY_LABELS[one],
+                                }))}
+                                onChoose={chooseDensity}
+                            />
+                        </Row>
+                    )
+                }
+                if (row.id === 'general:font-scale') {
+                    return (
+                        <Row key={row.id} row={row}>
+                            {/* The readout is what the slider cannot say: a notch along a track
+                                is not a size until it carries the number it stands for. */}
+                            <span className="w-10 shrink-0 text-right font-mono text-xs tabular-nums">
+                                {formatFontScale(fontScale)}
+                            </span>
+                            <input
+                                type="range"
+                                aria-label="Text size"
+                                min={FONT_SCALE_MIN}
+                                max={FONT_SCALE_MAX}
+                                step={FONT_SCALE_STEP}
+                                value={fontScale}
+                                onChange={(event) => {
+                                    chooseFontScale(Number(event.target.value))
+                                }}
+                                className="w-40 accent-primary"
+                            />
+                        </Row>
+                    )
+                }
                 if (row.id === 'general:times') {
                     return (
                         <Row key={row.id} row={row}>

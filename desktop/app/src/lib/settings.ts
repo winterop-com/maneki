@@ -140,6 +140,33 @@ export function settingsRows(apple: boolean): SettingsRow[] {
             keywords: ['timezone', 'utc', 'clock', 'local', 'zone'],
         },
         {
+            id: 'general:now-playing',
+            category: 'general',
+            label: 'Now playing',
+            description: 'LCD puts a deck face on the player bar in place of the title and the slider.',
+            keywords: ['lcd', 'display', 'deck', 'player', 'bar', 'standard', 'segment', 'hifi'],
+        },
+        {
+            id: 'general:lcd-tint',
+            category: 'general',
+            label: 'LCD tint',
+            keywords: ['lcd', 'green', 'amber', 'blue', 'colour', 'color', 'display'],
+        },
+        {
+            id: 'general:density',
+            category: 'general',
+            label: 'Density',
+            description: 'Compact closes up the rows on a desk and leaves a phone alone.',
+            keywords: ['compact', 'comfortable', 'spacing', 'rows', 'tight', 'roomy'],
+        },
+        {
+            id: 'general:font-scale',
+            category: 'general',
+            label: 'Text size',
+            description: 'A share of what this browser is already set to, applied to all of it.',
+            keywords: ['font', 'size', 'scale', 'larger', 'smaller', 'zoom', 'accessibility'],
+        },
+        {
             id: 'theme:appearance',
             category: 'theme',
             label: 'Appearance',

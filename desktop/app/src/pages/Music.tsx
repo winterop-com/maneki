@@ -2,6 +2,7 @@ import { ChevronLeft, Pause, Play, Star } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate, useParams } from 'react-router'
 
+import { CoverArt } from '@/components/CoverArt'
 import { Button } from '@/components/ui/button'
 import { useStore, useStoreValue } from '@/hooks/use-store'
 import { clock } from '@/lib/format'
@@ -84,6 +85,7 @@ function Favourites({ credentials }: { credentials: Credentials }) {
                             >
                                 <Cover
                                     credentials={credentials}
+                                    id={album.id}
                                     art={album.coverArt}
                                     className="mb-2 w-full rounded-md"
                                 />
@@ -291,6 +293,7 @@ function ArtistScreen({ credentials, id }: { credentials: Credentials; id: strin
                         >
                             <Cover
                                 credentials={credentials}
+                                id={album.id}
                                 art={album.coverArt}
                                 className="mb-2 w-full rounded-md"
                             />
@@ -373,6 +376,7 @@ function AlbumScreen({ credentials, id }: { credentials: Credentials; id: string
             <div className="@container flex items-start gap-4">
                 <Cover
                     credentials={credentials}
+                    id={album.id}
                     art={album.coverArt}
                     className="hidden size-40 rounded-md sm:block @2xl:size-56 @5xl:size-72"
                 />
@@ -472,15 +476,18 @@ function Header({
 
 function Cover({
     credentials,
+    id,
     art,
     className,
 }: {
     credentials: Credentials
+    /** What the drawing stands for when there is no sleeve: the album's own id. */
+    id: string
     art: string | undefined
     className?: string
 }) {
     const src = coverUrl(credentials, art, 500)
-    if (!src) return <div className={cn('aspect-square bg-muted', className)} aria-hidden />
+    if (!src) return <CoverArt id={id} className={className} />
     return <img src={src} alt="" loading="lazy" className={cn('aspect-square object-cover', className)} />
 }
 

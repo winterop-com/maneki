@@ -13,6 +13,7 @@
  * a screen can say what went wrong rather than "request failed".
  */
 
+import { NETWORK_REFUSAL, noteRecovered, noteRefusal } from '@/lib/connection'
 import { md5 } from '@/lib/md5'
 
 /** What a Subsonic server refused, in its own words. */
@@ -119,8 +120,13 @@ export async function call<T = Record<string, unknown>>(
     try {
         response = await fetch(withParams(credentials, endpoint, params))
     } catch {
-        throw new SubsonicError(0, 'the server did not answer')
+        // Same seam as `lib/api`'s: nothing came back, which is the whole app's problem rather
+        // than this call's, so the shell's banner is what says it.
+        const refusal = new SubsonicError(0, NETWORK_REFUSAL)
+        noteRefusal(refusal)
+        throw refusal
     }
+    noteRecovered()
     if (!response.ok) throw new SubsonicError(0, `the server answered ${response.status}`)
     const body = (await response.json()) as { 'subsonic-response'?: Record<string, unknown> }
     const inner = body['subsonic-response']
@@ -363,6 +369,35 @@ export async function getPlainLyrics(
         title,
     })
     return inner.lyrics?.value ?? ''
+}
+
+/** How a walk of the library folder is getting on. */
+export interface ScanStatus {
+    /** Whether the server is still reading. */
+    scanning: boolean
+    /** How many tracks it holds as of this answer, which climbs while it walks. */
+    count: number
+}
+
+function scanStatusOf(inner: { scanStatus?: { scanning?: boolean; count?: number } }): ScanStatus {
+    const status = inner.scanStatus ?? {}
+    return { scanning: status.scanning === true, count: status.count ?? 0 }
+}
+
+/**
+ * Ask the server to read the library folder again.
+ *
+ * Answers at once with the state the walk is in rather than when it is done -- a rescan of a
+ * large library is minutes, and a request held open for it is a request that times out. What
+ * comes back is the first `getScanStatus`, so a caller has something to say immediately.
+ */
+export async function startScan(credentials: Credentials): Promise<ScanStatus> {
+    return scanStatusOf(await call<{ scanStatus?: ScanStatus }>(credentials, 'startScan'))
+}
+
+/** How the walk is getting on. `scanning: false` is the answer that ends a poll. */
+export async function getScanStatus(credentials: Credentials): Promise<ScanStatus> {
+    return scanStatusOf(await call<{ scanStatus?: ScanStatus }>(credentials, 'getScanStatus'))
 }
 
 export interface Starred {

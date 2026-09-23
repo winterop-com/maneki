@@ -11,6 +11,7 @@
  * sentence, so a screen can draw the reason rather than "request failed".
  */
 
+import { NETWORK_REFUSAL, noteRecovered, noteRefusal } from '@/lib/connection'
 import type {
     BookDetail,
     BookProgress,
@@ -79,8 +80,15 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     try {
         response = await fetch(url(path), { ...init, headers })
     } catch {
-        throw new ApiError(0, 'the server did not answer')
+        // THE ONE PLACE THIS APP LEARNS THE WIRE IS DOWN. A status is the server answering and
+        // belongs to whoever asked; nothing coming back at all is everybody's, and that is the
+        // banner `lib/connection` raises across the shell.
+        const refusal = new ApiError(0, NETWORK_REFUSAL)
+        noteRefusal(refusal)
+        throw refusal
     }
+    // Any answer is proof the server is there, a refusal included.
+    noteRecovered()
     if (!response.ok) throw new ApiError(response.status, await refusalOf(response))
     if (response.status === 204) return undefined as T
     return (await response.json()) as T
@@ -107,6 +115,32 @@ async function send<T>(path: string, method: string, body?: unknown): Promise<T>
 /** What this server has: which libraries, and whether it wants a sign-in. */
 export function capabilities(): Promise<Capabilities> {
     return request<Capabilities>('/capabilities')
+}
+
+/**
+ * Ask an address whether a maneki server is answering there, and take no for an answer.
+ *
+ * THIS IS A QUESTION, NOT A REQUEST, which is why it goes around `request` rather than through
+ * it. Nothing being at an address is the expected answer half the time -- the door asks the
+ * same question of two addresses and at most one of them is a server -- so it never raises the
+ * connection banner, never throws, and never touches the session. A probe that reported "lost
+ * connection to the server" for every address that turned out not to be one would be a banner
+ * over the sign-in screen the first time anybody opened the app in a shell.
+ *
+ * `cache: 'no-store'` because what is being asked is whether something is listening right now,
+ * and a cached yes from an earlier session is exactly the wrong answer.
+ */
+export async function probe(origin: string): Promise<Capabilities | null> {
+    try {
+        const response = await fetch(`${origin}/capabilities`, { cache: 'no-store' })
+        if (!response.ok) return null
+        const answered = (await response.json()) as Partial<Capabilities>
+        // Another server may well answer `/capabilities` with something of its own, so the
+        // name is checked: what the door is looking for is a maneki, not a 200.
+        return answered.server === 'maneki' ? (answered as Capabilities) : null
+    } catch {
+        return null
+    }
 }
 
 /** Trade a username and password for a bearer token. */

@@ -1125,3 +1125,130 @@ html.dark[data-theme='contrast'],
         min-inline-size: var(--spacing-finger);
     }
 }
+
+/* ---------------------------------------------------------------------------
+   HOW CLOSE TOGETHER THE APP SITS, AND HOW LARGE IT IS READ.
+
+   Two axes of size, the way `lib/theme` has two of colour, and both are written onto `<html>`
+   before the first paint by the inline script in index.html -- `data-density` as an attribute,
+   the scale as `--font-scale`. `lib/preferences` owns the values; the sizes are here.
+
+   THE SCALE IS A PERCENTAGE OF THE BROWSER'S OWN SIZE. Every rung of the type scale, every
+   padding and every gap in this app is stated in rem, so one `font-size` on the root moves the
+   whole interface together rather than leaving 14px sentences in boxes built around them. It is
+   a percentage rather than a pixel size because a reader who has already set their browser to
+   read large has answered this question once, and an app that wrote an absolute size would be
+   overruling them to honour its own slider. Nothing here mints a fourth type size: the three
+   rungs stay three rungs, read at the size somebody asked for.
+
+   COMPACT IS A DESK'S CHOICE AND IT STOPS AT THE BREAKPOINT. What a finger lands on is 42px
+   wherever there are fingers, so a row closes up at `md` and up and nowhere else: a phone set
+   to compact gets the text scale and keeps its targets. `--spacing-finger` itself is left
+   alone for that reason -- it is what the finger rule above measures against.
+
+   It is written against the utility rather than against each row, because `@theme inline`
+   compiles `min-h-finger` to a literal height, and a row that sized itself would be every
+   screen in the app deciding density over again.
+   --------------------------------------------------------------------------- */
+:root {
+    font-size: calc(100% * var(--font-scale, 1));
+}
+
+@media (min-width: 768px) {
+    :root[data-density='compact'] .min-h-finger {
+        min-height: 34px;
+    }
+}
+
+/* ---------------------------------------------------------------------------
+   THE DECK FACE.
+
+   An LCD is an instrument rather than a card -- the cousin of a console, not of a panel -- so it
+   declares its own inks once here and no palette touches them, exactly as a terminal drawer
+   does. Lit glass is lit glass on paper as much as on near-black: a display that took the page's
+   own ground in a light mode would be a rectangle of nothing where the readout is.
+
+   THE SEGMENTS ARE AN OVERLAY, NOT A FONT. Behind every character stands a dim `8`, which on a
+   fixed-width face is every segment a cell has; the character is drawn over it in the lit ink.
+   That is the whole of the effect, and it costs no font: a seven-segment typeface would be a
+   download on every load for a face most readers never choose, and it could not draw a letter.
+
+   ITS GLYPHS ARE NOT UI TEXT AND ARE NOT ON THE TYPE SCALE. The three rungs are for prose,
+   labels and controls, and a readout is none of those -- it is the instrument's own lettering,
+   at the size the instrument is read at. It is stated here, against these classes, so it is
+   counted rather than arriving as an arbitrary size in a className.
+   --------------------------------------------------------------------------- */
+.mk-lcd {
+    --lcd-ink: oklch(0.87 0.19 148);
+    --lcd-ground: oklch(0.22 0.04 150);
+    --lcd-ground-2: oklch(0.17 0.03 150);
+    --lcd-dim: color-mix(in oklab, var(--lcd-ink) 15%, transparent);
+    --lcd-glow: color-mix(in oklab, var(--lcd-ink) 45%, transparent);
+    font-family: var(--font-mono);
+    font-variant-numeric: tabular-nums;
+    color: var(--lcd-ink);
+}
+.mk-lcd[data-tint='amber'] {
+    --lcd-ink: oklch(0.85 0.16 75);
+    --lcd-ground: oklch(0.22 0.035 70);
+    --lcd-ground-2: oklch(0.17 0.03 70);
+}
+.mk-lcd[data-tint='blue'] {
+    --lcd-ink: oklch(0.85 0.13 228);
+    --lcd-ground: oklch(0.22 0.04 240);
+    --lcd-ground-2: oklch(0.17 0.035 240);
+}
+
+/* The glass, and the bezel's inner shadow around it. A deck's readout is recessed, and the
+   inset edge is what says the display is behind something rather than printed on it. */
+.mk-lcd-glass {
+    background: linear-gradient(180deg, var(--lcd-ground), var(--lcd-ground-2));
+    border-radius: var(--radius-sm);
+    box-shadow:
+        inset 0 0 0 1px oklch(0 0 0 / 0.55),
+        inset 0 0 10px oklch(0 0 0 / 0.4);
+}
+
+/* One cell: the ghost every segment lit, and the character over it. */
+.mk-lcd-cell {
+    position: relative;
+    display: inline-block;
+    font-weight: 600;
+    line-height: 1;
+    letter-spacing: 0.04em;
+    text-shadow: 0 0 6px var(--lcd-glow);
+}
+.mk-lcd-cell > .mk-lcd-ghost {
+    position: absolute;
+    inset: 0;
+    color: var(--lcd-dim);
+    text-shadow: none;
+}
+
+/* The three sizes the instrument has: the title line, a readout, and the caps label over it. */
+.mk-lcd-line .mk-lcd-cell {
+    font-size: 15px;
+}
+.mk-lcd-value .mk-lcd-cell {
+    font-size: 11px;
+}
+.mk-lcd-label {
+    font-size: 8px;
+    font-weight: 600;
+    line-height: 1;
+    letter-spacing: 0.16em;
+    color: var(--lcd-dim);
+}
+
+/* A mode pill is lit or it is not, and that is the only thing it says. */
+.mk-lcd-pill {
+    font-size: 8px;
+    font-weight: 600;
+    line-height: 1;
+    letter-spacing: 0.14em;
+    color: var(--lcd-dim);
+}
+.mk-lcd-pill[data-on='true'] {
+    color: var(--lcd-ink);
+    text-shadow: 0 0 6px var(--lcd-glow);
+}

@@ -20,11 +20,10 @@ describe('the pre-paint script', () => {
     })
 
     test('falls back to the default palette when storage says nothing usable', () => {
-        expect(html).toContain(`'data-theme', '${DEFAULT_PALETTE}'`)
-        expect(html).toContain(`'${DEFAULT_PALETTE}' : stored`)
+        expect(html).toContain(`var palette = '${DEFAULT_PALETTE}'`)
     })
 
     test('writes the attribute the palettes hang off', () => {
-        expect(html).toContain(`'${PALETTE_ATTRIBUTE}'`)
+        expect(html).toContain(`'${PALETTE_ATTRIBUTE}', palette`)
     })
 })
