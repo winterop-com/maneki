@@ -126,6 +126,81 @@ The demo page at `/video/` does NOT yet drive the login flow, so when `--auth` i
 
 Same credentials as the audio Subsonic mount — one password sourced from the same TOML.
 
+## Keeping it running
+
+A server started from a shell dies with the shell, and does not come back
+after a reboot -- which is how a library that worked all week is missing
+on the one morning somebody reaches for it from a train.
+
+### macOS (launchd)
+
+Write `~/Library/LaunchAgents/com.maneki.serve.plist`, substituting the
+path to the binary (`which maneki`), the library root, and the hostname
+the machine is reached by:
+
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+  "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.maneki.serve</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/Users/you/.local/bin/maneki</string>
+    <string>serve</string>
+    <string>/Volumes/Media</string>
+    <string>--host</string>
+    <string>your-machine.tailnet.ts.net</string>
+    <string>--port</string>
+    <string>8765</string>
+    <string>--ui</string>
+  </array>
+  <key>RunAtLoad</key>
+  <true/>
+  <key>KeepAlive</key>
+  <true/>
+  <key>StandardOutPath</key>
+  <string>/tmp/maneki.log</string>
+  <key>StandardErrorPath</key>
+  <string>/tmp/maneki.log</string>
+</dict>
+</plist>
+```
+
+```bash
+launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.maneki.serve.plist
+launchctl kickstart -k gui/$(id -u)/com.maneki.serve   # restart after an upgrade
+launchctl print gui/$(id -u)/com.maneki.serve | head   # is it running
+```
+
+`KeepAlive` restarts the process if it exits; `RunAtLoad` starts it at
+login. An external library disk that is not mounted yet is the one case
+worth knowing about: the server starts, finds nothing, and the first scan
+is empty -- `launchctl kickstart -k` once the disk is mounted fixes it.
+
+### Linux (systemd)
+
+```ini
+# ~/.config/systemd/user/maneki.service
+[Unit]
+Description=maneki
+After=network-online.target
+
+[Service]
+ExecStart=%h/.local/bin/maneki serve /srv/media --host 0.0.0.0 --port 8765 --ui
+Restart=always
+
+[Install]
+WantedBy=default.target
+```
+
+```bash
+systemctl --user enable --now maneki
+loginctl enable-linger "$USER"   # so it runs with nobody logged in
+```
+
 ## Multiple libraries
 
 `maneki serve` runs against one root at a time. To serve several libraries, run several processes on different ports — eg one for music and one for movies if they live on separate disks.

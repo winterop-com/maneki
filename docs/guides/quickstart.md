@@ -244,13 +244,20 @@ synced lyrics.)
 
 Open Amperfy → first-launch screen prompts for a server. Fill in:
 
-- **Server URL**: `http://mlaptop.tail4a4b9a.ts.net:8765` (your Mac's
-  Tailscale URL — no trailing slash, no `/rest`).
+- **Server URL**: `http://mlaptop.tail4a4b9a.ts.net:8765/audio` (your
+  Mac's Tailscale URL, plus `/audio` — and nothing after it).
+
+    `maneki serve` mounts Subsonic under `/audio`, beside the video and
+    books APIs, so the address ends there and the app appends its own
+    `/rest/...`. Leave `/audio` off and every call 404s, which Amperfy
+    reports as a server it cannot reach rather than as a wrong address.
+    `/capabilities` names the mount, under `audio_subsonic`.
 - **Username**: `admin` (or whatever you put in `maneki.toml`).
 - **Password**: `admin` (or whatever you put in `maneki.toml`).
 
-Tap **Login**. Amperfy probes `/rest/ping`, then `/rest/getMusicFolders`
-and `/rest/getArtists` to populate the library. On first connect with a
+Tap **Login**. Amperfy probes `/audio/rest/ping`, then
+`/audio/rest/getMusicFolders` and `/audio/rest/getArtists` to populate
+the library. On first connect with a
 ~300-album library this takes 2-5 seconds.
 
 If login fails, the most common causes are:
@@ -277,7 +284,7 @@ Try the things you'd expect from a Subsonic client:
 - **Lock-screen controls** — pause / next / prev work.
 - **Seek scrubber** — Amperfy uses the Subsonic `transcodeOffset`
   extension (which maneki advertises) for accurate mid-track resume.
-- **Search** — `/rest/search3` matches against artist, album, and track
+- **Search** — `/audio/rest/search3` matches against artist, album, and track
   titles.
 
 ## 6. Optional: browse + play locally on the Mac
@@ -319,7 +326,8 @@ Check, in order:
 2. Is Tailscale connected on the iPhone? Open the app and confirm.
 3. Can you load the JSON probe URL in Mobile Safari? If yes, the
    transport works — the issue is in Amperfy's auth / URL setup.
-4. Did you put the URL in correctly (no trailing slash, no `/rest`)?
+4. Did you put the URL in correctly — ending in `/audio`, with no
+   trailing slash and no `/rest`?
 
 ### Symfonium / play:Sub / Feishin instead of Amperfy
 
