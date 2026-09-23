@@ -96,14 +96,23 @@ export function isAuthError(error: unknown): boolean {
     return false
 }
 
+/** What a server that wants credentials this client does not hold is missing. */
+export const WANTS_CREDENTIALS = 'This server needs a username and password.'
+
 /**
  * Point at a server and find out what it has.
  *
  * A server that answers `/capabilities` is reachable; one that wants auth
  * and has no token for us leaves the session signed out, which is the
  * sign-in screen's cue.
+ *
+ * A SUBMIT IS ANSWERED AND A LOAD IS NOT. Falling to `signed-out` on the first connect of a
+ * session is the door opening, and a door that greeted somebody with a complaint would be
+ * telling them off for arriving. The same fall under a press of Connect is a question that was
+ * asked and not answered, and saying nothing there leaves a screen that does not move -- so
+ * `submitted` is what separates the two, and it is the caller that knows.
  */
-export async function connect(stored: StoredSession = read()): Promise<void> {
+export async function connect(stored: StoredSession = read(), submitted = false): Promise<void> {
     setSession(stored)
     try {
         const caps = await capabilities()
@@ -116,7 +125,12 @@ export async function connect(stored: StoredSession = read()): Promise<void> {
         // serves music still needs credentials for that music, and without them this screen
         // would say the server has no music library -- which is false, and offers no way in.
         if ((caps.auth_required && !stored.token) || (rest !== null && !stored.subsonic)) {
-            sessionStore.set({ phase: 'signed-out', baseUrl: stored.baseUrl, username: stored.username })
+            sessionStore.set({
+                phase: 'signed-out',
+                baseUrl: stored.baseUrl,
+                username: stored.username,
+                refusal: submitted ? WANTS_CREDENTIALS : undefined,
+            })
             return
         }
         const music = rest && stored.subsonic ? { restUrl: rest, ...stored.subsonic } : undefined
@@ -180,7 +194,7 @@ export async function signInTo(baseUrl: string, username: string, password: stri
             await ping(credentials)
             stored.subsonic = { username, salt: credentials.salt, token: credentials.token }
         }
-        await connect(stored)
+        await connect(stored, true)
     } catch (error) {
         sessionStore.set({
             phase: 'signed-out',

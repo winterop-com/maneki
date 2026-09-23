@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, test, vi } from 'vitest'
 import { ApiError } from '@/lib/api'
 import { connectionStore, dismissRefusal } from '@/lib/connection'
 import { playerStore } from '@/lib/player'
-import { connect, isAuthError, sessionStore, signOut } from '@/lib/session'
+import { connect, isAuthError, sessionStore, signOut, WANTS_CREDENTIALS } from '@/lib/session'
 import { SubsonicError } from '@/lib/subsonic'
 import type { Capabilities } from '@/lib/types'
 
@@ -73,6 +73,17 @@ describe('connecting to a server', () => {
         answering(server({ auth_required: false }))
         await connect({ baseUrl: 'https://host' })
         expect(sessionStore.get().phase).toBe('signed-out')
+    })
+
+    // Regression: pressing Connect fell to this same branch with nothing said, so the screen
+    // did not move and the press read as a button that does nothing.
+    test('a load greets and a submit is answered, so Connect never changes nothing', async () => {
+        answering(server({ auth_required: false }))
+        await connect({ baseUrl: 'https://host' })
+        expect(sessionStore.get().refusal).toBeUndefined()
+
+        await connect({ baseUrl: 'https://host' }, true)
+        expect(sessionStore.get().refusal).toBe(WANTS_CREDENTIALS)
     })
 
     test('a server that wants a password and holds no token is signed out', async () => {
