@@ -244,6 +244,8 @@ def test_folder_browse_walks_author_then_book(tmp_path: Path) -> None:
     [entry] = author["child"]
     assert entry["id"] == book_subsonic_id(book)
     assert entry["isDir"] is True
+    # A folder child is named by `title` in the spec; Amperfy reads that alone.
+    assert entry["title"] == TITLE
 
     listing = _inner(client, "getMusicDirectory", id=book_subsonic_id(book))["directory"]
     assert listing["name"] == TITLE

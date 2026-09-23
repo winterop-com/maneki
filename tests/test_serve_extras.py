@@ -71,6 +71,9 @@ def test_get_music_directory_for_artist_lists_albums(tmp_path: Path) -> None:
     assert all(child["isDir"] is True for child in inner["child"])
     names = [c["name"] for c in inner["child"]]
     assert "Arrival" in names
+    # The spec names a folder child by `title`; Amperfy reads nothing else and
+    # drew every artist folder empty while only `name` was set.
+    assert [c["title"] for c in inner["child"]] == names
 
 
 def test_get_music_directory_for_album_lists_songs(tmp_path: Path) -> None:
@@ -342,3 +345,23 @@ def test_get_genres_counts_each_track_genre_under_multiple_genres(tmp_path: Path
     assert by_name["Indie"]["albumCount"] == 1
     assert by_name["Rock"]["songCount"] == 1
     assert by_name["Rock"]["albumCount"] == 1
+
+
+def test_compilation_track_keeps_its_own_artist_and_drops_the_album_artist_id(tmp_path: Path) -> None:
+    """On a compilation each track names its own artist. A client that follows
+    `artistId` rather than `artist` (Amperfy) drew the album artist under
+    every track while the id pointed there, so a track by somebody else
+    carries the name alone; a track by the album artist keeps the id."""
+    from maneki.audio.serve.payloads import song_payload
+
+    album = _album(tmp_path, "Absolute Music", "Absolute Music 11", year="1991", tracks=["Joyride", "Own Song"])
+    by_roxette = album.tracks[0].model_copy(update={"artist": "Roxette"})
+    by_the_label = album.tracks[1].model_copy(update={"artist": "Absolute Music"})
+
+    guest = song_payload(album, by_roxette)
+    assert guest["artist"] == "Roxette"
+    assert "artistId" not in guest
+
+    own = song_payload(album, by_the_label)
+    assert own["artist"] == "Absolute Music"
+    assert own["artistId"] == artist_id("Absolute Music")

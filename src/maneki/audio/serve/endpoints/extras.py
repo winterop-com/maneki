@@ -167,7 +167,7 @@ async def get_music_directory(request: Request, id: str = Query(...)) -> dict:
             {
                 "id": id,
                 "name": cache.artist_name_by_id[id],
-                "child": [{**album_payload(a, with_songs=False), "isDir": True} for a in sorted_albums],
+                "child": [_directory_child(album_payload(a, with_songs=False)) for a in sorted_albums],
             },
         )
     if id.startswith("al_"):
@@ -186,6 +186,18 @@ async def get_music_directory(request: Request, id: str = Query(...)) -> dict:
     return error_envelope(70, f"Unknown directory id format: {id}")
 
 
+def _directory_child(payload: dict) -> dict:
+    """An album or a book as a folder inside a directory listing.
+
+    The spec's `child` element names a folder by `title`, not `name`, and a
+    client that reads it by the letter (Amperfy) drew every author and
+    artist folder empty while `name` was the only word on it. Both are
+    carried, because `name` is what the album payload says and what the
+    clients that tolerated it still read.
+    """
+    return {**payload, "isDir": True, "title": payload["name"]}
+
+
 def _books(request: Request) -> BooksIndex | None:
     """The audiobook index, when this root has one."""
     return getattr(request.app.state, "books", None)
@@ -200,7 +212,7 @@ def _book_directory(request: Request, books: BooksIndex, id: str) -> dict:
             {
                 "id": id,
                 "name": author,
-                "child": [{**book_payload(b, with_songs=False), "isDir": True} for b in books_by(books, author)],
+                "child": [_directory_child(book_payload(b, with_songs=False)) for b in books_by(books, author)],
             },
         )
     book = find_book(books, id)
