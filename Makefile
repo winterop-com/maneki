@@ -206,10 +206,18 @@ _wipe-tauri-userdata:
 
 desktop-tauri-dev: desktop-sync-frontend _wipe-tauri-userdata
 	@echo ">>> Tauri dev — opens window pointed at the desktop/app dev server"
+	@command -v cargo-tauri >/dev/null 2>&1 || { \
+	  echo "The Tauri CLI is not installed. Install it once with:"; \
+	  echo "  cargo install tauri-cli --version \"^2\" --locked"; \
+	  exit 1; }
 	@cd desktop/tauri/src-tauri && cargo tauri dev
 
 desktop-tauri-build: desktop-sync-frontend desktop-sync-version
 	@echo ">>> Tauri release build — produces a .app under desktop/tauri/src-tauri/target/release/bundle/"
+	@command -v cargo-tauri >/dev/null 2>&1 || { \
+	  echo "The Tauri CLI is not installed. Install it once with:"; \
+	  echo "  cargo install tauri-cli --version \"^2\" --locked"; \
+	  exit 1; }
 	@# Clear leftover create-dmg state before bundling. bundle_dmg.sh aborts
 	@# outright if a stale `Maneki` volume is still mounted (an interrupted
 	@# build, or a downloaded .dmg left open in Finder) or a rw.*.dmg scratch
