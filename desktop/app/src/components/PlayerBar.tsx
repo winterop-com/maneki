@@ -101,6 +101,9 @@ export function PlayerBar() {
     // pulling it up gives the room above the controls more height, and the spectrum is drawn
     // across the whole of it, always along the foot: never elsewhere, never a second copy.
     const room = useStore(barRoom)
+    // THE DRAG WRITES A HEIGHT ONTO THE ELEMENT IT IS GIVEN, so it is given the room and not
+    // the bar: handed the bar, it forced the whole of it to the room's height mid-drag and the
+    // controls spilled out under the status bar.
     const bar = useRef<HTMLDivElement | null>(null)
     const { dragging, beginResize } = useDragSize('y', room, -1, setBarRoom, clampBarRoom, bar)
     const wide = useSpectrum(spectrumShown && player.playing, WIDE_BANDS)
@@ -178,7 +181,6 @@ export function PlayerBar() {
 
     return (
         <div
-            ref={bar}
             data-shell-strip="player"
             className="relative flex shrink-0 flex-col border-t border-border-strong bg-sidebar"
         >
@@ -204,7 +206,11 @@ export function PlayerBar() {
                 /* THE ROOM IS THE SLEEVE AND THE SPECTRUM, as the dock the client before this one
                    drew: the cover at the room's own height on the left, where the bar's thumbnail
                    stands under it, and the spectrum across everything to the right edge. */
-                <div style={{ height: room }} className="flex shrink-0 items-stretch gap-3 px-3 pt-2">
+                <div
+                    ref={bar}
+                    style={{ height: room }}
+                    className="flex shrink-0 items-stretch gap-3 px-3 pt-2"
+                >
                     {sleeve ? (
                         <img
                             src={sleeve}
