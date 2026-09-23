@@ -1,14 +1,14 @@
 import { X } from 'lucide-react'
-import { useEffect, useRef } from 'react'
+import { useEffect } from 'react'
 
 import { Button } from '@/components/ui/button'
-import { usePrefersReducedMotion } from '@/hooks/use-reduced-motion'
+import { useSpectrum } from '@/hooks/use-spectrum'
 import { useStore } from '@/hooks/use-store'
 import { clock } from '@/lib/format'
-import { currentSong, playerStore, spectrum } from '@/lib/player'
+import { currentSong, playerStore } from '@/lib/player'
 import { sessionStore } from '@/lib/session'
 import { coverUrl } from '@/lib/subsonic'
-import { bars, closeStage, stageOpen } from '@/lib/visualizer'
+import { closeStage, stageOpen } from '@/lib/visualizer'
 
 export const LEAVE_STAGE_LABEL = 'Leave the spectrum'
 
@@ -22,12 +22,9 @@ const STAGE_BANDS = 64
  * sound is coming out; this is the one somebody puts on and looks at, so it carries the cover,
  * the title and the clock as well, and nothing else at all.
  *
- * THE DRAWING IS THE SAME FUNCTION the strip uses, at more bands: how bytes become heights is
- * decided once, in `lib/visualizer`, and both canvases only paint the answer.
- *
- * MIRRORED ABOUT THE FLOOR, which the strip is not. A bar growing from the bottom of a 46px
- * strip reads as a level; the same bar on a full screen reads as a column of nothing above it,
- * so the stage draws each band up and down from the middle.
+ * THE DRAWING IS THE SAME LOOP the strip runs, at more bands: which style is painted and how a
+ * frame of bytes becomes geometry is decided once, in `hooks/use-spectrum` over `lib/visualizer`,
+ * and the stage is a canvas the size of the room.
  *
  * ESCAPE LEAVES, and so does the control in the corner, because a screen with no way out that
  * is obvious is a screen somebody reloads the tab to get out of.
@@ -36,10 +33,9 @@ export function FullscreenVisualizer() {
     const open = useStore(stageOpen)
     const player = useStore(playerStore)
     const session = useStore(sessionStore)
-    const still = usePrefersReducedMotion()
-    const canvas = useRef<HTMLCanvasElement | null>(null)
     const song = currentSong()
     const playing = player.playing
+    const canvas = useSpectrum(open && playing, STAGE_BANDS)
 
     useEffect(() => {
         if (!open) return
@@ -51,57 +47,6 @@ export function FullscreenVisualizer() {
             document.removeEventListener('keydown', escape)
         }
     }, [open])
-
-    useEffect(() => {
-        const element = canvas.current
-        if (!open || !element || !playing || still) return
-        const analyser = spectrum()
-        if (!analyser) return
-        const context = element.getContext('2d')
-        if (!context) return
-        const frequencies = new Uint8Array(analyser.frequencyBinCount)
-        let frame = 0
-
-        // Measured when the box changes rather than every frame: see `Visualizer` for why.
-        let width = element.clientWidth
-        let height = element.clientHeight
-        let ink = getComputedStyle(element).color
-        const measure = () => {
-            width = element.clientWidth
-            height = element.clientHeight
-            ink = getComputedStyle(element).color
-            const ratio = window.devicePixelRatio || 1
-            element.width = Math.round(width * ratio)
-            element.height = Math.round(height * ratio)
-            context.setTransform(ratio, 0, 0, ratio, 0, 0)
-        }
-        measure()
-        const watcher = new ResizeObserver(measure)
-        watcher.observe(element)
-
-        const draw = () => {
-            frame = requestAnimationFrame(draw)
-            context.clearRect(0, 0, width, height)
-            analyser.getByteFrequencyData(frequencies)
-            const heights = bars(frequencies, STAGE_BANDS)
-            const gap = Math.max(2, width / 400)
-            const bar = Math.max(1, (width - gap * (heights.length - 1)) / heights.length)
-            const middle = height / 2
-            context.fillStyle = ink
-            heights.forEach((level, index) => {
-                // Half the height each way, so a full-scale band fills the screen and a quiet
-                // one is a line through the middle rather than a stub on the floor.
-                const reach = Math.max(1, (level * height) / 2)
-                context.fillRect(index * (bar + gap), middle - reach, bar, reach * 2)
-            })
-        }
-
-        frame = requestAnimationFrame(draw)
-        return () => {
-            cancelAnimationFrame(frame)
-            watcher.disconnect()
-        }
-    }, [open, playing, still])
 
     if (!open) return null
 
