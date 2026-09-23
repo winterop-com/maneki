@@ -28,6 +28,13 @@ describe('the settings registry', () => {
         expect(SETTINGS_CATEGORIES.map((category) => category.id)).toContain(FIRST_CATEGORY)
     })
 
+    // The palette carries the spectrum's ramp, so a second colour row would be a second answer
+    // to one question -- which is how an ice-blue spectrum ended up under an amber app.
+    test('offers the colours in one row, the palette, and nowhere else', () => {
+        expect(ROWS.map((row) => row.id)).not.toContain('general:spectrum-theme')
+        expect(filterSettings(ROWS, 'spectrum colour').map((row) => row.id)).toEqual(['theme:palette'])
+    })
+
     test('gives every row an id of its own, because the control on its right is keyed by it', () => {
         expect(new Set(ROWS.map((row) => row.id)).size).toBe(ROWS.length)
     })

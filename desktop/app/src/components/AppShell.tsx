@@ -92,7 +92,7 @@ import { openSearch } from '@/lib/search'
 import { sessionStore, signOut } from '@/lib/session'
 import { applePlatform, modifierLabel, SEEK_STEP_S, VOLUME_STEP } from '@/lib/shortcuts'
 import { toggleStar } from '@/lib/star'
-import { chooseSpectrumTheme, SPECTRUM_THEMES } from '@/lib/spectrum-themes'
+import { choosePalette, PALETTES } from '@/lib/theme'
 import { cycleVisualizerStyle, openStage, toggleVisualizer, visualizerShown } from '@/lib/visualizer'
 
 /** The facts the shell reads off the player. Module scope, so each is one stable function. */
@@ -527,14 +527,16 @@ export function AppShell({ children }: { children: ReactNode }) {
                     cycleVisualizerStyle()
                 },
             },
-            ...SPECTRUM_THEMES.map((theme) => ({
-                id: `appearance:spectrum-${theme.name}`,
-                title: `Spectrum in ${theme.label}`,
+            // The palette carries the spectrum's ramp, so this is the one colour row there is:
+            // what used to be a list of ramps here is a list of palettes.
+            ...PALETTES.map((palette) => ({
+                id: `appearance:palette-${palette.name}`,
+                title: `Palette: ${palette.label}`,
                 group: APPEARANCE_GROUP,
                 icon: Palette,
-                keywords: ['spectrum', 'colour', 'color', 'visualiser', 'visualizer', theme.name],
+                keywords: ['palette', 'theme', 'colour', 'color', 'spectrum', palette.name],
                 run: () => {
-                    chooseSpectrumTheme(theme.name)
+                    choosePalette(palette.name)
                 },
             })),
             {

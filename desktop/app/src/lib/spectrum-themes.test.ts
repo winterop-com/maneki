@@ -1,16 +1,15 @@
 import { describe, expect, test } from 'vitest'
 
 import {
-    DEFAULT_SPECTRUM_THEME,
-    isSpectrumTheme,
+    PALETTE_RAMPS,
+    rampForPalette,
     SPECTRUM_THEMES,
-    spectrumTheme,
-    spectrumThemeAfter,
     themeGradient,
     themeStops,
     themeSweep,
     type SpectrumTheme,
 } from '@/lib/spectrum-themes'
+import { PALETTE_NAMES } from '@/lib/theme'
 
 /** A gradient that remembers what was asked of it, because Node has no canvas. */
 function makeGradient(box: readonly number[]) {
@@ -37,45 +36,41 @@ function fakeContext() {
     }
 }
 
-describe('the themes on offer', () => {
+describe('the ramps on offer', () => {
     test('names each one once, and each one has something to call it', () => {
         expect(new Set(SPECTRUM_THEMES.map((one) => one.name)).size).toBe(SPECTRUM_THEMES.length)
         for (const theme of SPECTRUM_THEMES) expect(theme.label).toBeTruthy()
     })
+})
 
-    test('burns by default, and offers the accent first', () => {
-        expect(DEFAULT_SPECTRUM_THEME).toBe('fire')
-        expect(SPECTRUM_THEMES[0].name).toBe('accent')
-        expect(spectrumTheme.get()).toBe('fire')
+describe('the ramp a palette carries', () => {
+    // The whole point of the table: a palette without a ramp is a palette whose spectrum would
+    // have to fall back to something, and falling back is how the two disagreed in the first place.
+    test('answers for every palette this build has, and with a ramp this build has', () => {
+        const names = SPECTRUM_THEMES.map((one) => one.name)
+        for (const palette of PALETTE_NAMES) {
+            expect(names).toContain(rampForPalette(palette))
+        }
+        expect(Object.keys(PALETTE_RAMPS).toSorted()).toEqual(PALETTE_NAMES.toSorted())
     })
 
-    test('knows its own names and nothing else', () => {
-        expect(isSpectrumTheme('fire')).toBe(true)
-        expect(isSpectrumTheme('maneki')).toBe(false)
-        expect(isSpectrumTheme(null)).toBe(false)
+    test("burns for the app's own palette, which is what a stage is for", () => {
+        expect(rampForPalette('maneki')).toBe('fire')
+    })
+
+    test('follows the accent where the palette is too quiet to carry a ramp', () => {
+        expect(rampForPalette('paper')).toBe('accent')
+        expect(themeStops(rampForPalette('paper'), '#abcdef')).toEqual(['#abcdef'])
+    })
+
+    test('spends the accent it was drawn around, cold for tokyo and grey for contrast', () => {
+        expect(rampForPalette('tokyo')).toBe('ice')
+        expect(rampForPalette('contrast')).toBe('mono')
+        expect(rampForPalette('neon')).toBe('aurora')
     })
 })
 
-describe('moving through the swatches', () => {
-    test('goes either way and wraps at both ends, because the cards are a radio group', () => {
-        const last = SPECTRUM_THEMES.at(-1)!.name
-        expect(spectrumThemeAfter('accent', 'ArrowRight')).toBe('fire')
-        expect(spectrumThemeAfter('accent', 'ArrowLeft')).toBe(last)
-        expect(spectrumThemeAfter(last, 'ArrowRight')).toBe('accent')
-    })
-
-    test('answers down and up the same as right and left, for a row that has wrapped', () => {
-        expect(spectrumThemeAfter('accent', 'ArrowDown')).toBe('fire')
-        expect(spectrumThemeAfter('fire', 'ArrowUp')).toBe('accent')
-    })
-
-    test('says nothing about a key this control does not answer', () => {
-        expect(spectrumThemeAfter('fire', 'Enter')).toBeNull()
-        expect(spectrumThemeAfter('fire', 'Tab')).toBeNull()
-    })
-})
-
-describe('the ramp a theme paints', () => {
+describe('the stops a ramp paints', () => {
     test('is the theme it was asked for, floor first', () => {
         expect(themeStops('fire', '#000000')).toEqual(['#ffd24a', '#ff7a1a', '#e02020'])
     })

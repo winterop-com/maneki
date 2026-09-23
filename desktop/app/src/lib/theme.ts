@@ -34,8 +34,8 @@ export interface Palette {
  * The palettes this build has, ordered quiet to loud.
  *
  * The first three are the app's own. The four after them are the presets the client before this
- * one shipped, each carrying the accent it was drawn around -- which is why there is no second
- * control here: the old client's accent axis lives on as the spectrum's, in `lib/spectrum-themes`.
+ * one shipped, each carrying the accent it was drawn around -- and the palette carries the
+ * spectrum's ramp with it, in `lib/spectrum-themes`, so the colour is chosen here and once.
  */
 export const PALETTES: Palette[] = [
     { name: 'maneki', label: 'Maneki' },

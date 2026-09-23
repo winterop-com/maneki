@@ -16,10 +16,10 @@
  * a page with a long list in it is felt as a pointer that will not keep up. Both are read when
  * the box actually changes, and again when the palette or the mode is written onto `<html>`.
  *
- * THE COLOUR IS A TOKEN UNLESS SOMEBODY ASKED OTHERWISE. What the canvas reads off its own
- * element is the accent in the palette in force, and that is what the default theme paints
- * with. `lib/spectrum-themes` is where a chosen ramp comes from, and where the reason a fixed
- * colour is allowed there at all is written down.
+ * THE COLOUR IS THE PALETTE'S, NOT A SECOND CHOICE. The ramp comes from whichever palette is in
+ * force, and a palette quiet enough to carry no ramp is painted in what the canvas reads off its
+ * own element, which is the accent token. `lib/spectrum-themes` holds that table, and the reason
+ * a fixed colour is allowed there at all.
  *
  * WHAT IS DRAWN IS WHAT IS AUDIBLE, NOT WHAT THE ANALYSER JUST READ. The two are the same thing
  * over a cable and a third of a second apart over Bluetooth, so every frame goes through the
@@ -32,8 +32,9 @@ import { useEffect, useRef, type RefObject } from 'react'
 import { usePrefersReducedMotion } from '@/hooks/use-reduced-motion'
 import { useStore } from '@/hooks/use-store'
 import { spectrum, spectrumContext } from '@/lib/player'
-import { spectrumTheme, themeGradient, themeStops, themeSweep } from '@/lib/spectrum-themes'
+import { rampForPalette, themeGradient, themeStops, themeSweep } from '@/lib/spectrum-themes'
 import { makeDelayLine, outputDelayMs, spectrumDelayMs } from '@/lib/sync'
+import { paletteStore } from '@/lib/theme'
 import {
     bars,
     barLayout,
@@ -67,7 +68,9 @@ export function useSpectrum(
 ): RefObject<HTMLCanvasElement | null> {
     const canvas = useRef<HTMLCanvasElement | null>(null)
     const style = useStore(visualizerStyle)
-    const theme = useStore(spectrumTheme)
+    // The ramp is the palette's, not a choice of its own: see `lib/spectrum-themes`.
+    const palette = useStore(paletteStore)
+    const theme = rampForPalette(palette)
     const chosenEffect = useStore(spectrumEffect)
     const effect = withEffect ? chosenEffect : 'none'
     // A reader who has asked their system for less movement gets the still bar the player
@@ -147,9 +150,9 @@ export function useSpectrum(
             } else {
                 context.clearRect(0, 0, width, height)
             }
-            // Built once per theme, size and accent rather than per frame -- and `accent`, the
-            // theme every session starts on, is a gradient of the one colour the canvas read
-            // off its own element, which is a token.
+            // Built once per ramp, size and accent rather than per frame -- and `accent`, the
+            // ramp a palette with none of its own carries, is a gradient of the one colour the
+            // canvas read off its own element, which is a token.
             const ramp = wave
                 ? themeSweep(theme, context, width, ink)
                 : themeGradient(theme, context, height, ink)

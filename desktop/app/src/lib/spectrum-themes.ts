@@ -7,17 +7,21 @@
  * in a bar, only a ramp somebody picked because they like looking at it -- and a ramp assembled
  * out of status and kind tokens would be borrowing meaning it does not have.
  *
- * FOLLOWING THE ACCENT IS THE DEFAULT AND STAYS THE DEFAULT. `accent` is not a theme with
- * colours of its own: it is painted in whatever the canvas already reads off its own element,
- * which is a token, in the palette in force. Anybody who wants a fixed ramp goes and asks for
- * one; nobody gets one by opening the app.
+ * THE PALETTE CARRIES THE RAMP; THERE IS NO SECOND CHOICE. A ramp picked apart from the palette
+ * is a ramp that can disagree with it, and an ice-blue spectrum under an amber app is what that
+ * looked like. `PALETTE_RAMPS` below says which ramp belongs with which palette, so choosing the
+ * look chooses the colour the bars burn in, once.
+ *
+ * `accent` is not a ramp with colours of its own: it is painted in whatever the canvas already
+ * reads off its own element, which is a token, in the palette in force. It is what a palette
+ * quiet enough to want one ink on the page carries.
  *
  * THE STOPS RUN FROM THE FLOOR UP, quiet colour first, because that is the order somebody reads
  * a bar in. Which end of the gradient each lands on is the painter's, and it is not the same
  * end for a spectrum drawn up the canvas as for a scope drawn across it.
  */
 
-import { createStore } from '@/lib/store'
+import type { PaletteName } from '@/lib/theme'
 
 /** The themes this build has. */
 export type SpectrumTheme = 'accent' | 'fire' | 'ice' | 'aurora' | 'sunset' | 'mono'
@@ -30,7 +34,7 @@ export interface SpectrumThemeEntry {
     stops: readonly string[]
 }
 
-/** The themes, the one that follows the palette first. */
+/** The ramps, the one that follows the palette first. */
 export const SPECTRUM_THEMES: readonly SpectrumThemeEntry[] = [
     { name: 'accent', label: 'Accent', stops: [] },
     { name: 'fire', label: 'Fire', stops: ['#ffd24a', '#ff7a1a', '#e02020'] },
@@ -40,56 +44,38 @@ export const SPECTRUM_THEMES: readonly SpectrumThemeEntry[] = [
     { name: 'mono', label: 'Mono', stops: ['#6b7280', '#c4c8ce', '#ffffff'] },
 ]
 
-/** Fire, until somebody says otherwise: a spectrum that reads as heat is what a stage is for. */
-export const DEFAULT_SPECTRUM_THEME: SpectrumTheme = 'fire'
-
-/** Where the choice is kept between visits. */
-export const SPECTRUM_THEME_KEY = 'maneki.spectrum.theme'
-
-export const SPECTRUM_THEME_NAMES: readonly SpectrumTheme[] = SPECTRUM_THEMES.map((one) => one.name)
-
-/** Whether a string names a theme this build has. */
-export function isSpectrumTheme(candidate: string | null): candidate is SpectrumTheme {
-    return candidate !== null && (SPECTRUM_THEME_NAMES as readonly string[]).includes(candidate)
-}
-
-function readTheme(): SpectrumTheme {
-    try {
-        const stored = localStorage.getItem(SPECTRUM_THEME_KEY)
-        return isSpectrumTheme(stored) ? stored : DEFAULT_SPECTRUM_THEME
-    } catch {
-        return DEFAULT_SPECTRUM_THEME
-    }
-}
-
-/** Which theme both canvases paint in. */
-export const spectrumTheme = createStore<SpectrumTheme>(readTheme())
-
-export function chooseSpectrumTheme(theme: string): SpectrumTheme {
-    const chosen = isSpectrumTheme(theme) ? theme : DEFAULT_SPECTRUM_THEME
-    try {
-        localStorage.setItem(SPECTRUM_THEME_KEY, chosen)
-    } catch {
-        // Storage denied: the choice holds for as long as this document is open.
-    }
-    spectrumTheme.set(chosen)
-    return chosen
-}
-
 /**
- * Which theme an arrow key moves to, or null for a key this control does not answer.
+ * The ramp each palette carries, read off the accent that palette is drawn around in index.css.
  *
- * The swatch cards are a radio group, the same as the palette's, so the arrows move and choose
- * in one gesture and the ends wrap. What the keys decide is a pure function; focusing the card
- * that won is the component's.
+ * WHICH RAMP AND WHY, one line each, because the reason is the whole point of the table:
+ *  - maneki, the app's own amber at hue 80, burns: `fire` runs amber to red through the accent
+ *    it already is, and a stage that reads as heat is what the default should look like.
+ *  - paper is a printed page and its amber is the ink on it, so it carries `accent`: one colour,
+ *    the palette's own, rather than a ramp shouting over a palette drawn to be quiet.
+ *  - contrast spends no colour it does not need, so the bars are grey to white: `mono` is the
+ *    only ramp that does not undo the legibility the palette is for.
+ *  - tokyo's indigo at hue 262 is `ice`, cyan through blue into violet: the accent's own hue
+ *    with the two either side of it.
+ *  - vinyl's deep red at hue 30 is where `fire` ends, so the ramp arrives at the accent instead
+ *    of crossing it, and the warm side is the only side this palette has.
+ *  - cassette is orange at hue 50 and faded rather than hot: `sunset` is cream to peach to pink,
+ *    which is the tape's own warmth without fire's red.
+ *  - neon's magenta at hue 358 is `aurora`, green through cyan into violet: the cold half of the
+ *    wheel the accent leaves unspent, which is what makes the two read as lit.
  */
-export function spectrumThemeAfter(current: SpectrumTheme, key: string): SpectrumTheme | null {
-    const forward = key === 'ArrowRight' || key === 'ArrowDown'
-    const back = key === 'ArrowLeft' || key === 'ArrowUp'
-    if (!forward && !back) return null
-    const at = SPECTRUM_THEME_NAMES.indexOf(current)
-    const next = (at + (forward ? 1 : -1) + SPECTRUM_THEME_NAMES.length) % SPECTRUM_THEME_NAMES.length
-    return SPECTRUM_THEME_NAMES[next]
+export const PALETTE_RAMPS: Record<PaletteName, SpectrumTheme> = {
+    maneki: 'fire',
+    paper: 'accent',
+    contrast: 'mono',
+    tokyo: 'ice',
+    vinyl: 'fire',
+    cassette: 'sunset',
+    neon: 'aurora',
+}
+
+/** The ramp a palette paints its spectrum in. */
+export function rampForPalette(palette: PaletteName): SpectrumTheme {
+    return PALETTE_RAMPS[palette]
 }
 
 /**

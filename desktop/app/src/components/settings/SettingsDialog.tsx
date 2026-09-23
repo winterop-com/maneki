@@ -34,13 +34,7 @@ import {
     formatFontScale,
 } from '@/lib/preferences'
 import { sessionStore, signOut } from '@/lib/session'
-import {
-    chooseSpectrumTheme,
-    SPECTRUM_THEMES,
-    spectrumTheme,
-    spectrumThemeAfter,
-    type SpectrumTheme,
-} from '@/lib/spectrum-themes'
+import { rampForPalette, themeStops } from '@/lib/spectrum-themes'
 import { outputDelayMs, setSpectrumDelay, SPECTRUM_DELAY_MAX_MS, spectrumDelayMs } from '@/lib/sync'
 import type { Capabilities } from '@/lib/types'
 import {
@@ -231,7 +225,6 @@ function GeneralPane({ rows }: { rows: SettingsRow[] }) {
     const spectrum = useStore(visualizerShown)
     const style = useStore(visualizerStyle)
     const effect = useStore(spectrumEffect)
-    const colours = useStore(spectrumTheme)
     const delay = useStore(spectrumDelayMs)
     // Read as the pane renders rather than held in state: what the browser reports changes the
     // moment somebody puts headphones on, and this dialog stands open for minutes.
@@ -394,22 +387,6 @@ function GeneralPane({ rows }: { rows: SettingsRow[] }) {
                         </Row>
                     )
                 }
-                if (row.id === 'general:spectrum-theme') {
-                    return (
-                        <Row
-                            key={row.id}
-                            row={row}
-                            under={
-                                <SpectrumSwatches
-                                    value={colours}
-                                    onChoose={(name) => {
-                                        chooseSpectrumTheme(name)
-                                    }}
-                                />
-                            }
-                        />
-                    )
-                }
                 if (row.id === 'general:spectrum-delay') {
                     return (
                         <Row
@@ -459,92 +436,14 @@ function GeneralPane({ rows }: { rows: SettingsRow[] }) {
 }
 
 /**
- * One card per spectrum theme, and the card is the ramp.
+ * A ramp's stops as a strip, quiet end first.
  *
- * THE SAME CONTROL THE PALETTE HAS, for the same reason: what a ramp is is what it looks like,
- * and a row of names would be asking somebody to try each one to find out. The accent card is
- * painted with the token itself, so it moves with the palette the way the spectrum does.
- *
- * The colours come from `lib/spectrum-themes` rather than being written here: that module is
- * the one place in the app a colour is spelled, and a swatch that copied them would be a second
- * place they could be wrong.
+ * One stop is the palette that carries no ramp of its own and burns in its accent alone: it is
+ * laid at both ends, because a gradient with a single stop is not a gradient.
  */
-function SpectrumSwatches({
-    value,
-    onChoose,
-}: {
-    value: SpectrumTheme
-    onChoose: (name: SpectrumTheme) => void
-}) {
-    const cards = useRef<(HTMLButtonElement | null)[]>([])
-    const at = Math.max(
-        0,
-        SPECTRUM_THEMES.findIndex((one) => one.name === value),
-    )
-
-    const move = (key: string) => {
-        const next = spectrumThemeAfter(value, key)
-        if (next === null) return false
-        onChoose(next)
-        cards.current[SPECTRUM_THEMES.findIndex((one) => one.name === next)]?.focus()
-        return true
-    }
-
-    return (
-        <div role="radiogroup" aria-label="Spectrum colour" className="flex flex-wrap gap-2">
-            {SPECTRUM_THEMES.map((theme, index) => {
-                const chosen = theme.name === value
-                return (
-                    <button
-                        key={theme.name}
-                        ref={(element) => {
-                            cards.current[index] = element
-                        }}
-                        type="button"
-                        role="radio"
-                        aria-checked={chosen}
-                        tabIndex={index === at ? 0 : -1}
-                        className={cn(
-                            'flex max-w-32 min-w-20 flex-1 flex-col gap-1.5 rounded-md border p-1.5 text-left',
-                            'focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none',
-                            chosen ? 'border-primary ring-2 ring-primary' : 'border-border hover:bg-accent',
-                        )}
-                        onClick={() => {
-                            onChoose(theme.name)
-                        }}
-                        onKeyDown={(event) => {
-                            if (move(event.key)) {
-                                event.preventDefault()
-                            } else if (event.key === ' ' || event.key === 'Enter') {
-                                event.preventDefault()
-                                onChoose(theme.name)
-                            }
-                        }}
-                    >
-                        <span
-                            className={cn(
-                                'h-6 rounded-sm border border-border',
-                                // A theme with no colours of its own is the accent, and the
-                                // accent is a token rather than something to paint by hand.
-                                theme.stops.length === 0 && 'bg-primary',
-                            )}
-                            style={ramp(theme.stops)}
-                        />
-                        <span className="flex items-center gap-1 text-xs">
-                            {theme.label}
-                            {chosen && <Check className="size-3 text-primary" aria-hidden />}
-                        </span>
-                    </button>
-                )
-            })}
-        </div>
-    )
-}
-
-/** The theme's own stops as a strip, quiet end first, or nothing for the one that has none. */
-function ramp(stops: readonly string[]): CSSProperties | undefined {
-    if (stops.length === 0) return undefined
-    return { backgroundImage: `linear-gradient(to right, ${stops.join(', ')})` }
+function ramp(stops: readonly string[]): CSSProperties {
+    const across = stops.length === 1 ? [stops[0], stops[0]] : stops
+    return { backgroundImage: `linear-gradient(to right, ${across.join(', ')})` }
 }
 
 /** The look: the two axes, one row each. */
@@ -596,7 +495,8 @@ const SWATCH_STRIPS = ['bg-background', 'bg-card', 'bg-border', 'bg-foreground',
  * WHAT A PALETTE LOOKS LIKE IS THE SWATCH, NOT A SENTENCE. Each card scopes itself with
  * `data-palette`, which index.css hangs that palette's own token block off, so the five strips
  * are the real ground, surface, line, ink and accent -- in the appearance in force, and right
- * without anybody copying a colour when a token moves.
+ * without anybody copying a colour when a token moves. Under them is the ramp the palette
+ * carries, because the spectrum's colour comes with the palette and is not chosen anywhere else.
  *
  * A RADIOGROUP, WITH THE ARROWS CHOOSING. One tab stop for the group, the arrows move and
  * choose, Space and Enter choose what has focus. That is the stock behaviour of a radio group,
@@ -656,6 +556,14 @@ function PaletteSwatches({ value, onChoose }: { value: PaletteName; onChoose: (n
                                 <span key={strip} className={cn('flex-1', strip)} />
                             ))}
                         </span>
+                        {/* The ramp this palette burns its spectrum in. It is scoped the same
+                            way, so the palette that paints in its own accent rather than a ramp
+                            shows that accent here, and the card is the whole choice. */}
+                        <span
+                            data-palette={palette.name}
+                            className="h-2 rounded-sm"
+                            style={ramp(themeStops(rampForPalette(palette.name), 'var(--primary)'))}
+                        />
                         <span className="flex items-center gap-1 text-xs">
                             {palette.label}
                             {chosen && <Check className="size-3 text-primary" aria-hidden />}
