@@ -18,7 +18,6 @@ import { NavLink } from 'react-router'
 
 import { CoverArt } from '@/components/CoverArt'
 import { LcdDisplay } from '@/components/LcdDisplay'
-import { Visualizer } from '@/components/Visualizer'
 import { Button } from '@/components/ui/button'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { useDragSize } from '@/hooks/use-drag-size'
@@ -49,7 +48,15 @@ import { REPEAT_LABELS } from '@/lib/queue'
 import { closePanel, openPanelTab, panelOpen, panelTab, panelTabs } from '@/lib/panels'
 import { sessionStore } from '@/lib/session'
 import { coverUrl } from '@/lib/subsonic'
-import { BAR_ROOM_MAX, barRoom, clampBarRoom, openStage, setBarRoom, visualizerShown } from '@/lib/visualizer'
+import {
+    BAR_ROOM_MAX,
+    BAR_ROOM_MIN,
+    barRoom,
+    clampBarRoom,
+    openStage,
+    setBarRoom,
+    visualizerShown,
+} from '@/lib/visualizer'
 import { cn } from '@/lib/utils'
 
 export const QUEUE_LABEL = 'Up next'
@@ -91,12 +98,12 @@ export function PlayerBar() {
     const open = useStore(panelOpen)
     const tab = useStore(panelTab)
     // THE BAR IS DRAGGED TALLER AND THE ROOM IS THE SPECTRUM. The grip is the bar's top edge;
-    // pulling it up opens room above the controls, and the spectrum is drawn across the whole
-    // of it. Dragged back down past the little it is worth, the bar shuts to its controls.
+    // pulling it up gives the room above the controls more height, and the spectrum is drawn
+    // across the whole of it, always along the foot: never elsewhere, never a second copy.
     const room = useStore(barRoom)
     const bar = useRef<HTMLDivElement | null>(null)
     const { dragging, beginResize } = useDragSize('y', room, -1, setBarRoom, clampBarRoom, bar)
-    const wide = useSpectrum(spectrumShown && room > 0 && player.playing, WIDE_BANDS)
+    const wide = useSpectrum(spectrumShown && player.playing, WIDE_BANDS)
     // THE SCRUBBER MOVES EVERY FRAME, NOT FOUR TIMES A SECOND. The store publishes the position
     // on the element's own timeupdate, which is a quarter-second step; a thumb that jumps a
     // quarter second at a time reads as a stutter. So the input is uncontrolled and a frame
@@ -128,12 +135,6 @@ export function PlayerBar() {
     // merely toggled the panel could open it on one of those; this one lands on the queue, and
     // only when the queue is already the thing showing does pressing it again take the panel down.
     const onQueue = open && tab === 'queue'
-    // ONE SPECTRUM AT A TIME. The Now playing tab carries a pane of the same drawing, and two
-    // of them a hand's width apart is the same fact twice; the strip stands down while that
-    // pane is in front of somebody -- and only then. The open tab is remembered by id across
-    // screens that offer no such tab, so a panel standing on somebody else's first tab still
-    // said 'now', and the strip stood down for a pane nobody was being shown.
-    const paneShowing = open && tab === 'now' && tabs.some((one) => one.id === 'now')
     const face = useStore(nowPlayingFace)
     const song = currentSong()
     const station = player.station
@@ -186,7 +187,7 @@ export function PlayerBar() {
                 aria-orientation="horizontal"
                 aria-label={RESIZE_BAR_LABEL}
                 aria-valuenow={room}
-                aria-valuemin={0}
+                aria-valuemin={BAR_ROOM_MIN}
                 aria-valuemax={BAR_ROOM_MAX}
                 tabIndex={0}
                 data-dragging={dragging}
@@ -199,7 +200,7 @@ export function PlayerBar() {
                 }}
                 className="resize-handle resize-handle-pane absolute inset-x-0 -top-1 z-10 h-2 cursor-row-resize touch-none"
             />
-            {spectrumShown && room > 0 && (
+            {spectrumShown && (
                 /* THE ROOM IS THE SLEEVE AND THE SPECTRUM, as the dock the client before this one
                    drew: the cover at the room's own height on the left, where the bar's thumbnail
                    stands under it, and the spectrum across everything to the right edge. */
@@ -464,19 +465,6 @@ export function PlayerBar() {
                 {/* The strip is the way to the stage with a pointer, as the F key is without one. It is
                 drawn only while the spectrum is: `Visualizer` answers nothing when it is off, and a
                 button around nothing is an empty stop in the tab order with a name and no face. */}
-                {spectrumShown && !paneShowing && room === 0 && (
-                    <button
-                        type="button"
-                        aria-label={STAGE_LABEL}
-                        onClick={openStage}
-                        className="hidden shrink-0 rounded-sm focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none lg:block"
-                    >
-                        {/* The quiet is the element's opacity rather than an alpha on the token: a
-                    chosen spectrum ramp is spelled opaque, and every theme is to read as faint
-                    on the bar alike. */}
-                        <Visualizer className="h-7 w-28 text-primary opacity-70" />
-                    </button>
-                )}
 
                 <div className="hidden shrink-0 items-center gap-1 md:flex">
                     <Button

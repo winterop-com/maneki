@@ -40,7 +40,6 @@ import { ConnectionBanner } from '@/components/ConnectionBanner'
 import { FullscreenVisualizer } from '@/components/FullscreenVisualizer'
 import { LyricsOverlay } from '@/components/LyricsOverlay'
 import { NavDrawer, OPEN_NAV_LABEL } from '@/components/NavDrawer'
-import { NowPlayingPanel, NOW_PLAYING_LABEL } from '@/components/NowPlayingPanel'
 import { PanelSheet } from '@/components/PanelSheet'
 import { PlayerBar, QUEUE_LABEL } from '@/components/PlayerBar'
 import { QueuePanel } from '@/components/QueuePanel'
@@ -93,7 +92,7 @@ import { sessionStore, signOut } from '@/lib/session'
 import { applePlatform, modifierLabel, SEEK_STEP_S, VOLUME_STEP } from '@/lib/shortcuts'
 import { toggleStar } from '@/lib/star'
 import { choosePalette, PALETTES } from '@/lib/theme'
-import { barRoom, cycleVisualizerStyle, openStage, toggleVisualizer, visualizerShown } from '@/lib/visualizer'
+import { cycleVisualizerStyle, openStage, toggleVisualizer, visualizerShown } from '@/lib/visualizer'
 
 /** The facts the shell reads off the player. Module scope, so each is one stable function. */
 const selectPlaying = (state: { playing: boolean }) => state.playing
@@ -209,26 +208,22 @@ export function AppShell({ children }: { children: ReactNode }) {
     // the second time is a panel they have already had an opinion about. Not below the
     // breakpoint: the panel is a sheet over the whole screen there, the tab bar across the foot
     // is already the way to it, and a sheet raised by pressing play is one to dismiss first.
-    // AND NOT THE SLEEVE WHILE THE BAR IS OPEN. A player bar pulled tall draws the spectrum
-    // across the foot and its thumbnail names the track, so a Now playing tab beside it is the
-    // same cover a third time; the panel then offers the queue alone.
-    const room = useStore(barRoom)
+    // THE PANEL IS THE QUEUE, AND NOTHING ELSE ABOUT WHAT IS PLAYING. The sleeve and the
+    // spectrum are the player bar's, along the foot, and a Now playing tab beside them was the
+    // same cover a third time.
     useEffect(() => {
         const listed = queued || chapterCount > 0
-        if (!listed && station === null) return
-        const sleeve = room === 0
-        const tabs = [
-            ...(sleeve ? [{ id: 'now', label: NOW_PLAYING_LABEL, render: () => <NowPlayingPanel /> }] : []),
-            ...(listed ? [{ id: 'queue', label: QUEUE_LABEL, render: () => <QueuePanel /> }] : []),
-        ]
-        if (tabs.length === 0) return
-        const empty = fillPanel(tabs, { screen: 'shell', open: sleeve ? 'now' : 'queue' })
+        if (!listed) return
+        const empty = fillPanel([{ id: 'queue', label: QUEUE_LABEL, render: () => <QueuePanel /> }], {
+            screen: 'shell',
+            open: 'queue',
+        })
         if (!introduced.current && !smallScreenNow()) {
             introduced.current = true
-            openPanelTab(sleeve ? 'now' : 'queue')
+            openPanelTab('queue')
         }
         return empty
-    }, [queued, chapterCount, station, room])
+    }, [queued, chapterCount])
 
     const actions = useMemo<PaletteAction[]>(() => {
         const pages: PaletteAction[] = entriesFor(caps).map((entry) => ({
