@@ -7,6 +7,7 @@ import { VideoPlayer, type PlayerSubtitle, type VideoHandle } from '@/components
 import { Button } from '@/components/ui/button'
 import { video as videoApi } from '@/lib/api'
 import { clock } from '@/lib/format'
+import { useStore } from '@/hooks/use-store'
 import { registerActions, SCREEN_GROUP } from '@/lib/palette'
 import { claimStageKey } from '@/lib/screen-keys'
 import { clearScreenStatus, setScreenStatus } from '@/lib/screen-status'
@@ -23,6 +24,7 @@ import {
     watchHref,
 } from '@/lib/video'
 import { cn } from '@/lib/utils'
+import { theaterOn, toggleTheater } from '@/lib/watching'
 
 /** How often to look for the frame size before the first frame has been decoded. */
 const SIZE_POLL_MS = 500
@@ -61,7 +63,7 @@ function Watch({ id }: { id: string }) {
     const [beside, setBeside] = useState<VideoEntry[]>([])
     const [size, setSize] = useState<{ width: number; height: number } | null>(null)
     const [posterToken, setPosterToken] = useState<number | undefined>(undefined)
-    const [theater, setTheater] = useState(false)
+    const theater = useStore(theaterOn)
     const [stats, setStats] = useState(false)
     const player = useRef<VideoHandle | null>(null)
     const navigate = useNavigate()
@@ -193,10 +195,6 @@ function Watch({ id }: { id: string }) {
         player.current = handle
     }, [])
 
-    const toggleTheater = useCallback(() => {
-        setTheater((on) => !on)
-    }, [])
-
     const toggleStats = useCallback(() => {
         setStats((on) => !on)
     }, [])
@@ -214,6 +212,16 @@ function Watch({ id }: { id: string }) {
      * Bound here rather than in the shell, because that is what they are: the arrows belong to
      * whatever is in front of somebody -- a list walks its rows with them -- and a screen that
      * is not playing anything has nothing for them to do.
+     *
+     * ON THE WINDOW, IN THE CAPTURE PHASE, AND THAT IS THE WHOLE OF WHY `t` DID NOTHING. Every
+     * video.js component answers a keydown it has no use for by calling `stopPropagation` on
+     * it, so a listener on the document never hears a press made while the picture has focus --
+     * which is where focus is from the moment somebody clicks play. Capture runs from the window
+     * down to whatever was pressed on, so this reads the press before the player can swallow it.
+     *
+     * AND IT STOPS WHAT IT ANSWERS. The shell binds the arrows to the track that is playing, and
+     * a screen with a video on it is a screen where an arrow means the video -- so a press this
+     * screen takes goes no further.
      */
     useEffect(() => {
         const onKeyDown = (event: KeyboardEvent): void => {
@@ -230,19 +238,21 @@ function Watch({ id }: { id: string }) {
                     : null
             if (togglesTheater(press, focused)) {
                 event.preventDefault()
+                event.stopPropagation()
                 toggleTheater()
                 return
             }
             const seek = seeks(press, focused)
             if (seek === null) return
             event.preventDefault()
+            event.stopPropagation()
             player.current?.seekBy(seek)
         }
-        document.addEventListener('keydown', onKeyDown)
+        window.addEventListener('keydown', onKeyDown, true)
         return () => {
-            document.removeEventListener('keydown', onKeyDown)
+            window.removeEventListener('keydown', onKeyDown, true)
         }
-    }, [toggleTheater])
+    }, [])
 
     useEffect(
         () =>
@@ -275,7 +285,7 @@ function Watch({ id }: { id: string }) {
                     run: toggleStats,
                 },
             ]),
-        [fullscreen, stats, theater, toggleStats, toggleTheater],
+        [fullscreen, stats, theater, toggleStats],
     )
 
     /**
@@ -308,8 +318,18 @@ function Watch({ id }: { id: string }) {
     ].filter((fact) => fact !== null)
 
     return (
-        <div className="flex min-h-0 flex-1 flex-col">
-            <div className="flex shrink-0 items-center gap-2 p-2">
+        <div className="relative flex min-h-0 flex-1 flex-col">
+            {/* THEATER TAKES THE CHROME AS WELL AS THE LIST. Hiding the column beside the picture
+                buys width, and on a 16:9 title at a desk width the picture is bounded by its
+                height rather than by its width -- so width alone moved the frame by a few
+                percent and read as a button that does nothing. The strip goes over the picture
+                instead of above it, which gives the same gesture the height back too. */}
+            <div
+                className={cn(
+                    'flex shrink-0 items-center gap-2 p-2',
+                    theater && 'absolute inset-x-0 top-0 z-20 bg-background/75',
+                )}
+            >
                 <Button
                     variant="ghost"
                     size="sm"
@@ -335,11 +355,11 @@ function Watch({ id }: { id: string }) {
                     <Activity className="size-4" aria-hidden />
                 </Button>
                 <Button
-                    variant="outline"
+                    variant={theater ? 'default' : 'outline'}
                     size="sm"
+                    aria-pressed={theater}
                     aria-label={theater ? 'Show the list beside the video' : THEATER_LABEL}
                     onClick={toggleTheater}
-                    className="hidden lg:inline-flex"
                 >
                     <PanelRight className="size-4" aria-hidden />
                 </Button>
@@ -361,7 +381,12 @@ function Watch({ id }: { id: string }) {
                         />
                     )}
                     {stats && video !== null && (
-                        <StatsOverlay videoId={video.id} sample={sample} onClose={toggleStats} />
+                        <StatsOverlay
+                            videoId={video.id}
+                            sample={sample}
+                            onClose={toggleStats}
+                            below={theater}
+                        />
                     )}
                 </div>
                 {/* The list is beside the player above the breakpoint and under it below one,
