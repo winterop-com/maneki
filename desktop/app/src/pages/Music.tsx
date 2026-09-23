@@ -1,4 +1,4 @@
-import { ChevronLeft, Pause, Play, Star } from 'lucide-react'
+import { ChevronLeft, Pause, Play, Star, Volume2 } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate, useParams } from 'react-router'
 
@@ -370,12 +370,18 @@ function ArtistScreen({ credentials, id }: { credentials: Credentials; id: strin
     )
 }
 
-/** One album's tracks. Picking one plays the album from there. */
-/** Which album the playing track belongs to, and whether it is sounding: two facts, not the store. */
+/**
+ * Which album the playing track belongs to, which track it is, and whether it is sounding.
+ *
+ * THREE FACTS, NOT THE STORE. The player publishes four times a second while a track plays,
+ * and a track list that read the whole of it would rebuild every row on every tick.
+ */
 const selectPlayingAlbum = (state: { queue: Song[]; index: number }) =>
     state.queue[state.index]?.albumId ?? null
+const selectPlayingId = (state: { queue: Song[]; index: number }) => state.queue[state.index]?.id ?? null
 const selectPlaying = (state: { playing: boolean }) => state.playing
 
+/** One album's tracks. Picking one plays the album from there. */
 function AlbumScreen({ credentials, id }: { credentials: Credentials; id: string }) {
     const [held, setHeld] = useState<Held<{ album: Album; songs: Song[] }>>({
         key: id,
@@ -383,6 +389,7 @@ function AlbumScreen({ credentials, id }: { credentials: Credentials; id: string
         refusal: null,
     })
     const playingAlbumId = useStoreValue(playerStore, selectPlayingAlbum)
+    const playingId = useStoreValue(playerStore, selectPlayingId)
     const playing = useStoreValue(playerStore, selectPlaying)
     const navigate = useNavigate()
 
@@ -456,43 +463,59 @@ function AlbumScreen({ credentials, id }: { credentials: Credentials; id: string
                     className="hidden size-40 rounded-md sm:block @2xl:size-56 @5xl:size-72"
                 />
                 <ol className="min-w-0 flex-1 rounded-lg border">
-                    {songs.map((song, index) => (
-                        <li key={song.id} className="flex items-center">
-                            <button
-                                type="button"
-                                onClick={() => play(songs, index)}
-                                className={cn(
-                                    'row-hover flex min-h-finger w-full items-center gap-3 px-3 text-left text-sm',
-                                )}
+                    {songs.map((song, index) => {
+                        // THE ROW SAYS WHICH TRACK IS SOUNDING. A track list with a player bar
+                        // under it playing one of its own rows and marking none of them makes
+                        // somebody read the title along the foot and find it by eye.
+                        const current = song.id === playingId
+                        return (
+                            <li
+                                key={song.id}
+                                className={cn('flex items-center', current && 'bg-muted font-medium')}
                             >
-                                <span className="w-6 shrink-0 text-right text-xs text-muted-foreground">
-                                    {song.track ?? index + 1}
-                                </span>
-                                {/* ON A COMPILATION THE ARTIST IS PART OF WHAT THE ROW IS, so
+                                <button
+                                    type="button"
+                                    onClick={() => play(songs, index)}
+                                    aria-current={current ? 'true' : undefined}
+                                    className="row-hover flex min-h-finger w-full items-center gap-3 px-3 text-left text-sm"
+                                >
+                                    <span className="flex w-6 shrink-0 items-center justify-end text-xs text-muted-foreground tabular-nums">
+                                        {current ? (
+                                            playing ? (
+                                                <Volume2 className="size-3.5 text-primary" aria-hidden />
+                                            ) : (
+                                                <Play className="size-3.5 text-primary" aria-hidden />
+                                            )
+                                        ) : (
+                                            (song.track ?? index + 1)
+                                        )}
+                                    </span>
+                                    {/* ON A COMPILATION THE ARTIST IS PART OF WHAT THE ROW IS, so
                                     it sits under the title where a reader is already looking,
                                     not in a column against the far edge beside the clock. An
                                     album whose tracks are all the same artist says it once, in
                                     the heading, and the rows stay one line. */}
-                                <span className="min-w-0 flex-1">
-                                    <span className="block truncate" title={song.title}>
-                                        {song.title}
-                                    </span>
-                                    {song.artist && song.artist !== album.artist && (
-                                        <span
-                                            className="block truncate text-xs text-muted-foreground"
-                                            title={song.artist}
-                                        >
-                                            {song.artist}
+                                    <span className="min-w-0 flex-1">
+                                        <span className="block truncate" title={song.title}>
+                                            {song.title}
                                         </span>
-                                    )}
-                                </span>
-                                <span className="shrink-0 font-mono text-xs text-muted-foreground tabular-nums">
-                                    {clock(song.duration ?? 0)}
-                                </span>
-                            </button>
-                            <StarButton credentials={credentials} song={song} />
-                        </li>
-                    ))}
+                                        {song.artist && song.artist !== album.artist && (
+                                            <span
+                                                className="block truncate text-xs text-muted-foreground"
+                                                title={song.artist}
+                                            >
+                                                {song.artist}
+                                            </span>
+                                        )}
+                                    </span>
+                                    <span className="shrink-0 font-mono text-xs text-muted-foreground tabular-nums">
+                                        {clock(song.duration ?? 0)}
+                                    </span>
+                                </button>
+                                <StarButton credentials={credentials} song={song} />
+                            </li>
+                        )
+                    })}
                 </ol>
             </div>
         </div>
