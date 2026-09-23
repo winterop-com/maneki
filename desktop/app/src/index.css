@@ -2021,3 +2021,32 @@ html.dark[data-theme='neon'],
     --terminal: oklch(0.105 0.012 255);
     --terminal-bar: oklch(0.21 0.013 255);
 }
+
+/* ---------------------------------------------------------------------------
+   THE STAGE.
+
+   The spectrum over the whole screen is a dark room whatever the mode and the palette: the
+   ground goes one rung below the door's brand pane, and the controls standing over the canvas
+   are drawn in the pane's own inks rather than the page's, which would be black on black at
+   night and grey on amber by day. The scrubber is the one range input drawn here, so it
+   wears the accent as its thumb and the pane's faint line as its track.
+   ------------------------------------------------------------------------- */
+[data-stage] {
+    --terminal: oklch(0.11 0.012 255);
+}
+
+.stage-button {
+    color: var(--terminal-muted);
+}
+.stage-button:hover:not(:disabled) {
+    color: var(--terminal-foreground);
+    background-color: color-mix(in oklab, var(--terminal-foreground) 10%, transparent);
+}
+.stage-button:disabled {
+    color: var(--terminal-faint);
+}
+
+.stage-range {
+    accent-color: var(--terminal-accent);
+    height: 4px;
+}
