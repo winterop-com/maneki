@@ -1,5 +1,6 @@
 import {
     AudioLines,
+    FastForward,
     Keyboard,
     ListMusic,
     LogOut,
@@ -14,13 +15,18 @@ import {
     Maximize2,
     MicVocal,
     RefreshCw,
+    Rewind,
     Search,
     Settings,
     Repeat,
     Shuffle,
     SkipBack,
     SkipForward,
+    Star,
     Sun,
+    Volume1,
+    Volume2,
+    VolumeX,
 } from 'lucide-react'
 import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { useNavigate } from 'react-router'
@@ -59,12 +65,24 @@ import {
 } from '@/lib/palette'
 import { fillPanel, openPanelTab, railCollapsed, togglePanel, toggleRail } from '@/lib/panels'
 import { RESCAN_LABEL, rescan } from '@/lib/rescan'
-import { cycleRepeat, next, playerStore, previous, toggle, toggleShuffle } from '@/lib/player'
+import {
+    currentSong,
+    cycleRepeat,
+    next,
+    playerStore,
+    previous,
+    seek,
+    setVolume,
+    toggle,
+    toggleMuted,
+    toggleShuffle,
+} from '@/lib/player'
 import { openLyrics } from '@/lib/lyrics'
 import { nextRepeat, REPEAT_LABELS } from '@/lib/queue'
 import { openSearch } from '@/lib/search'
 import { sessionStore, signOut } from '@/lib/session'
-import { applePlatform, modifierLabel } from '@/lib/shortcuts'
+import { applePlatform, modifierLabel, SEEK_STEP_S, VOLUME_STEP } from '@/lib/shortcuts'
+import { toggleStar } from '@/lib/star'
 import { chooseSpectrumTheme, SPECTRUM_THEMES } from '@/lib/spectrum-themes'
 import { cycleVisualizerStyle, openStage, toggleVisualizer, visualizerShown } from '@/lib/visualizer'
 
@@ -235,8 +253,77 @@ export function AppShell({ children }: { children: ReactNode }) {
                                     keywords: ['loop', 'again', 'repeat'],
                                     run: cycleRepeat,
                                 },
+                                // WHAT ONLY A KEYBOARD COULD DO, OFFERED TO EVERYBODY. The star
+                                // and the two arrows were a chord each and nothing on any
+                                // screen, so a pointer could not reach them at all. A station
+                                // has no row in the library to star and nothing to seek in.
+                                {
+                                    id: 'play:star',
+                                    title: 'Star what is playing',
+                                    group: PLAYBACK_GROUP,
+                                    icon: Star,
+                                    keywords: ['favourite', 'favorite', 'love', 'mark', 'unstar'],
+                                    run: () => {
+                                        toggleStar(music ?? undefined, currentSong())
+                                    },
+                                },
+                                {
+                                    id: 'play:seek-back',
+                                    title: `Move ${String(SEEK_STEP_S)} seconds back`,
+                                    group: PLAYBACK_GROUP,
+                                    icon: Rewind,
+                                    keywords: ['seek', 'rewind', 'scrub', 'position'],
+                                    run: () => {
+                                        seek(playerStore.get().positionS - SEEK_STEP_S)
+                                    },
+                                },
+                                {
+                                    id: 'play:seek-forward',
+                                    title: `Move ${String(SEEK_STEP_S)} seconds forward`,
+                                    group: PLAYBACK_GROUP,
+                                    icon: FastForward,
+                                    keywords: ['seek', 'skip', 'scrub', 'position'],
+                                    run: () => {
+                                        seek(playerStore.get().positionS + SEEK_STEP_S)
+                                    },
+                                },
                             ]
                           : []),
+                      // The level is the room's rather than the track's, so these are offered
+                      // for a station as much as for a queue. Each reads the level it is
+                      // stepping from when it runs: subscribing the shell to a number that
+                      // moves under a dragged slider is what `useStoreValue` exists to avoid.
+                      {
+                          id: 'play:louder',
+                          title: 'Turn it up',
+                          group: PLAYBACK_GROUP,
+                          icon: Volume2,
+                          keywords: ['volume', 'loud', 'level', 'up'],
+                          run: () => {
+                              setVolume(playerStore.get().volume + VOLUME_STEP)
+                          },
+                      },
+                      {
+                          id: 'play:quieter',
+                          title: 'Turn it down',
+                          group: PLAYBACK_GROUP,
+                          icon: Volume1,
+                          keywords: ['volume', 'quiet', 'level', 'down'],
+                          run: () => {
+                              setVolume(playerStore.get().volume - VOLUME_STEP)
+                          },
+                      },
+                      {
+                          // Named for what it does either way round, because the shell does not
+                          // read whether it is muted and a row that said "Unmute" to somebody
+                          // who is not muted would be worse than one that says neither.
+                          id: 'play:mute',
+                          title: 'Silence it, or bring it back',
+                          group: PLAYBACK_GROUP,
+                          icon: VolumeX,
+                          keywords: ['mute', 'unmute', 'quiet', 'silence', 'volume'],
+                          run: toggleMuted,
+                      },
                   ]
                 : []
         return [
