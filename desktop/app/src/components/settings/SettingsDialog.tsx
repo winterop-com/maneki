@@ -56,6 +56,7 @@ import { applePlatform, shortcuts } from '@/lib/shortcuts'
 import { choosePalette, paletteAfter, PALETTES, paletteStore, type PaletteName } from '@/lib/theme'
 import { chooseTimes, TIMES_LABELS, TIMES_MODES, timesMode } from '@/lib/times'
 import { cn } from '@/lib/utils'
+import { autoplayNext, setAutoplayNext } from '@/lib/watching'
 import {
     setVisualizer,
     setVisualizerStyle,
@@ -237,6 +238,7 @@ function GeneralPane({ rows }: { rows: SettingsRow[] }) {
     const fontScale = useStore(fontScaleStore)
     const face = useStore(nowPlayingFace)
     const tint = useStore(lcdTint)
+    const upNext = useStore(autoplayNext)
 
     return (
         <div>
@@ -310,6 +312,22 @@ function GeneralPane({ rows }: { rows: SettingsRow[] }) {
                                 }}
                                 className="w-40 accent-primary"
                             />
+                        </Row>
+                    )
+                }
+                if (row.id === 'general:autoplay-next') {
+                    return (
+                        <Row key={row.id} row={row}>
+                            <Button
+                                variant={upNext ? 'secondary' : 'outline'}
+                                size="sm"
+                                aria-pressed={upNext}
+                                onClick={() => {
+                                    setAutoplayNext(!upNext)
+                                }}
+                            >
+                                {upNext ? 'On' : 'Off'}
+                            </Button>
                         </Row>
                     )
                 }

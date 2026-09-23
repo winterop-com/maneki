@@ -7,11 +7,11 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { useStore } from '@/hooks/use-store'
 import { video as videoApi } from '@/lib/api'
-import { clock } from '@/lib/format'
+import { clock, progressRatio } from '@/lib/format'
 import { registerActions, SCREEN_GROUP } from '@/lib/palette'
 import { clearScreenStatus, scanNote, setScreenStatus } from '@/lib/screen-status'
 import { sessionStore } from '@/lib/session'
-import type { VideoBrowse, VideoEntry, VideoScanState } from '@/lib/types'
+import type { VideoBrowse, VideoEntry, VideoProgress, VideoScanState } from '@/lib/types'
 import {
     browseHref,
     crumbsOf,
@@ -19,6 +19,7 @@ import {
     fileSize,
     rowsOf,
     scanProgress,
+    started,
     subtitleNote,
     watchHref,
 } from '@/lib/video'
@@ -69,6 +70,7 @@ function Browser({ path }: { path: string }) {
     const [tokens, setTokens] = useState<Record<string, number>>({})
     const [query, setQuery] = useState('')
     const [found, setFound] = useState<{ query: string; rows: VideoEntry[] } | null>(null)
+    const [watched, setWatched] = useState<Record<string, VideoProgress>>({})
     const navigate = useNavigate()
 
     // Whether this screen is still the one in front of somebody, and which folder it is
@@ -93,6 +95,22 @@ function Browser({ path }: { path: string }) {
             },
             (error: Error) => {
                 if (mounted.current && wanted.current === at) setRefusal(error.message)
+            },
+        )
+        /**
+         * Where this account got to comes with the folder.
+         *
+         * ONE REQUEST RATHER THAN ONE PER ROW. A season is twenty-six rows and the answer is a
+         * handful of them, so the whole of an account's positions costs less than twenty-six
+         * reads that mostly say zero. It is asked again with every folder read, because coming
+         * back from an episode is what has just changed one of them.
+         */
+        void videoApi.progress().then(
+            (rows) => {
+                if (mounted.current) setWatched(Object.fromEntries(rows.map((row) => [row.video_id, row])))
+            },
+            () => {
+                // No store on this server: a row says how long a video is, as it always did.
             },
         )
     }, [])
@@ -326,6 +344,7 @@ function Browser({ path }: { path: string }) {
                                             video={row.video}
                                             token={tokens[row.video.id]}
                                             siblings={siblings}
+                                            progress={watched[row.video.id]}
                                             onOpen={() => void navigate(watchHref(row.video.id))}
                                         />
                                     </li>
@@ -373,11 +392,14 @@ function VideoRow({
     video,
     token,
     siblings,
+    progress,
     showPath = false,
     onOpen,
 }: {
     video: VideoEntry
     token?: number
+    /** Where this account stopped in it, where they have. */
+    progress?: VideoProgress
     /**
      * What else is in this folder, which is what the row's name is shortened against.
      *
@@ -416,7 +438,16 @@ function VideoRow({
                         {folder}
                     </span>
                 )}
+                {/* A bar under the row somebody stopped halfway through, and a word for one
+                    they got to the end of -- a full bar and a finished video look alike, and
+                    only one of them is worth opening again. */}
+                {started(progress) && video.duration_s !== null && (
+                    <Meter ratio={progressRatio(video.duration_s, progress?.position_s ?? 0)} />
+                )}
             </span>
+            {progress?.finished === true && (
+                <span className="shrink-0 text-xs text-muted-foreground">Watched</span>
+            )}
             {/* What a file offers in the way of captions is decided long before somebody opens
                 it, and it is the one thing about a row that changes whether it is the copy to
                 watch. The scan already counted them. */}
@@ -430,6 +461,18 @@ function VideoRow({
                 {fileSize(video.size_bytes)}
             </span>
         </button>
+    )
+}
+
+/** How far through a video, as a bar under its row. The shelf's meter, drawn in a listing. */
+function Meter({ ratio }: { ratio: number }) {
+    return (
+        <span className="mt-1 block h-0.5 w-full rounded-sm bg-muted" role="presentation">
+            <span
+                className="block h-full rounded-sm bg-primary"
+                style={{ width: `${String(Math.round(ratio * 100))}%` }}
+            />
+        </span>
     )
 }
 

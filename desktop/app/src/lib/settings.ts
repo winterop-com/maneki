@@ -167,6 +167,13 @@ export function settingsRows(apple: boolean): SettingsRow[] {
             keywords: ['font', 'size', 'scale', 'larger', 'smaller', 'zoom', 'accessibility'],
         },
         {
+            id: 'general:autoplay-next',
+            category: 'general',
+            label: 'Up next',
+            description: 'The end of a video starts the next one in its folder.',
+            keywords: ['autoplay', 'auto play', 'next', 'episode', 'video', 'continue', 'binge'],
+        },
+        {
             id: 'theme:appearance',
             category: 'theme',
             label: 'Appearance',

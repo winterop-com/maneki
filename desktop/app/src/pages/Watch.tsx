@@ -21,12 +21,13 @@ import {
     parentOf,
     preferredSubtitles,
     resolutionLabel,
+    resumeAt,
     subtitleLabel,
     subtitleNote,
     watchHref,
 } from '@/lib/video'
 import { cn } from '@/lib/utils'
-import { theaterOn, toggleTheater } from '@/lib/watching'
+import { autoplayNext, theaterOn, toggleTheater, UP_NEXT_SECONDS } from '@/lib/watching'
 
 /** How often to look for the frame size before the first frame has been decoded. */
 const SIZE_POLL_MS = 500
@@ -37,6 +38,12 @@ const POSTER_POLL_MS = 4000
 /** What a row's still frame is asked for at: 16:9, and twice the size it is drawn. */
 const THUMB_WIDTH = 160
 const THUMB_HEIGHT = 90
+
+/** How often the playhead is read. Cheap, and nothing on the screen re-renders for it. */
+const TICK_MS = 1000
+
+/** How far the playhead has to move before the server is told again. */
+const SAVE_EVERY_S = 10
 
 export const THEATER_LABEL = 'Hide the list beside the video'
 export const FULLSCREEN_LABEL = 'Put the video over the whole screen'
@@ -204,9 +211,93 @@ function Watch({ id }: { id: string }) {
     }, [id])
     useEffect(() => clearScreenStatus, [])
 
+    /**
+     * WHERE THIS ACCOUNT STOPPED, ASKED FOR BEFORE THE PLAYER EXISTS.
+     *
+     * The read and the player race: the chunk may land first or the answer may. So the position
+     * is held here and a second effect applies it once both are in, and the handle's own seek
+     * waits on the media besides -- a `currentTime` written before there is metadata is
+     * discarded, and what somebody sees then is a resume that did not happen.
+     */
+    const [resume, setResume] = useState<number | null>(null)
+    useEffect(() => {
+        let live = true
+        void videoApi.readProgress(id).then(
+            (saved) => {
+                if (live) setResume(resumeAt(saved))
+            },
+            () => {
+                // No store on this server, or it refused: the video starts at the top, which is
+                // what it did before there was a store at all.
+                if (live) setResume(0)
+            },
+        )
+        return () => {
+            live = false
+        }
+    }, [id])
+
+    const applied = useRef<string | null>(null)
+    const [havePlayer, setHavePlayer] = useState(false)
     const onReady = useCallback((handle: VideoHandle | null) => {
         player.current = handle
+        setHavePlayer(handle !== null)
     }, [])
+    useEffect(() => {
+        if (!havePlayer || resume === null || resume <= 0 || applied.current === id) return
+        applied.current = id
+        player.current?.seekTo(resume)
+    }, [havePlayer, id, resume])
+
+    /**
+     * SAVED WHILE WATCHING, NOT ONLY AT THE END. The books player's rules, for the same reason:
+     * forty minutes in, a closed laptop must not cost the forty minutes. One tick a second reads
+     * the playhead into a ref -- cheap, and nothing re-renders -- and a report goes out every
+     * `SAVE_EVERY_S` of movement, when playback pauses, and when the screen or the tab goes.
+     *
+     * A seek backwards is movement too, which is why the comparison is on distance rather than
+     * on having climbed: somebody who skips back to rewatch a scene has moved their position.
+     */
+    const at = useRef(0)
+    const savedAt = useRef(0)
+    const paused = useRef(true)
+    const save = useCallback(
+        (positionS: number, finished?: boolean) => {
+            if (positionS <= 0 && finished !== true) return
+            savedAt.current = positionS
+            void videoApi.saveProgress(id, positionS, finished).catch(() => {
+                // A lost report is one the next tick makes again; nothing to say on screen.
+            })
+        },
+        [id],
+    )
+
+    useEffect(() => {
+        const tick = setInterval(() => {
+            const reading = player.current?.sample() ?? null
+            if (reading === null) return
+            const now = player.current?.positionS() ?? 0
+            at.current = now
+            const stopped = reading.paused
+            // The transition, not the state: a paused player would otherwise report once a
+            // second for as long as somebody left the room.
+            if (stopped && !paused.current) save(now)
+            paused.current = stopped
+            if (!stopped && Math.abs(now - savedAt.current) >= SAVE_EVERY_S) save(now)
+        }, TICK_MS)
+        return () => {
+            clearInterval(tick)
+        }
+    }, [save])
+
+    useEffect(() => {
+        const keep = (): void => save(at.current)
+        window.addEventListener('pagehide', keep)
+        return () => {
+            window.removeEventListener('pagehide', keep)
+            keep()
+        }
+    }, [save])
 
     const toggleStats = useCallback(() => {
         setStats((on) => !on)
@@ -215,6 +306,19 @@ function Watch({ id }: { id: string }) {
     const fullscreen = useCallback(() => {
         player.current?.toggleFullscreen()
     }, [])
+
+    /**
+     * The end of a video is the one moment the player says outright that it is finished.
+     *
+     * Everything else the screen reports is a position and the server decides from the tail; a
+     * video that actually ran out has been watched, whatever its length, and saying so is what
+     * keeps the row marked after somebody sat through the credits.
+     */
+    const [ended, setEnded] = useState(false)
+    const onEnded = useCallback(() => {
+        save(video?.duration_s ?? at.current, true)
+        setEnded(true)
+    }, [save, video])
 
     // `f` is the spectrum's everywhere else in the app; here it is the picture's.
     useEffect(() => claimStageKey(fullscreen), [fullscreen])
@@ -234,6 +338,10 @@ function Watch({ id }: { id: string }) {
     const around = useMemo(() => neighbours(beside, id), [beside, id])
     const nextId = around.next?.id ?? null
     const previousId = around.previous?.id ?? null
+    const autoplay = useStore(autoplayNext)
+    const playNext = useCallback(() => {
+        if (nextId !== null) void navigate(watchHref(nextId))
+    }, [navigate, nextId])
     useEffect(() => {
         const step = (to: string | null): (() => void) | null =>
             to === null
@@ -429,6 +537,7 @@ function Watch({ id }: { id: string }) {
                             poster={videoApi.posterUrl(video.id, posterToken)}
                             subtitles={subtitles}
                             autoplay
+                            onEnded={onEnded}
                             onFullscreenChange={setFilled}
                             onReady={onReady}
                         />
@@ -439,6 +548,14 @@ function Watch({ id }: { id: string }) {
                             sample={sample}
                             onClose={toggleStats}
                             below={theater}
+                        />
+                    )}
+                    {ended && around.next !== null && (
+                        <UpNext
+                            title={episodeName(around.next.name, besideNames)}
+                            countdown={autoplay}
+                            onPlay={playNext}
+                            onDismiss={() => setEnded(false)}
                         />
                     )}
                 </div>
@@ -490,6 +607,66 @@ function Watch({ id }: { id: string }) {
                         </ul>
                     </aside>
                 )}
+            </div>
+        </div>
+    )
+}
+
+/**
+ * What comes after this one, offered rather than simply done.
+ *
+ * A SEASON IS A RUN AND THE END OF AN EPISODE IS THE MIDDLE OF IT, so the folder's next video
+ * starts by itself after a few seconds. The card is what makes that a thing somebody agreed to
+ * rather than something the screen did while they were getting up: it says which episode, it
+ * counts down where they can see it, and Stay puts it away and leaves the picture where it is.
+ *
+ * WITH AUTOPLAY OFF THE CARD STILL STANDS, and waits instead of counting. The offer is worth
+ * making either way -- what the setting decides is whether it answers itself.
+ */
+function UpNext({
+    title,
+    countdown,
+    onPlay,
+    onDismiss,
+}: {
+    title: string
+    countdown: boolean
+    onPlay: () => void
+    onDismiss: () => void
+}) {
+    const [left, setLeft] = useState(UP_NEXT_SECONDS)
+
+    useEffect(() => {
+        if (!countdown) return
+        const timer = setInterval(() => {
+            setLeft((seconds) => seconds - 1)
+        }, 1000)
+        return () => {
+            clearInterval(timer)
+        }
+    }, [countdown])
+
+    useEffect(() => {
+        if (countdown && left <= 0) onPlay()
+    }, [countdown, left, onPlay])
+
+    return (
+        <div className="absolute inset-0 z-10 flex items-center justify-center bg-background/80 p-4">
+            <div className="w-full max-w-sm rounded-lg border bg-card p-4">
+                <p className="truncate text-sm" title={title}>
+                    Up next: <span className="font-medium">{title}</span>
+                </p>
+                {countdown && (
+                    <p className="mt-1 text-xs text-muted-foreground">Playing in {Math.max(0, left)}s</p>
+                )}
+                <div className="mt-3 flex items-center gap-2">
+                    <Button size="sm" onClick={onPlay}>
+                        Play
+                    </Button>
+                    <Button size="sm" variant="outline" onClick={onDismiss}>
+                        Stay
+                    </Button>
+                </div>
             </div>
         </div>
     )

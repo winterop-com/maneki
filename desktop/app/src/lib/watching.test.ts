@@ -1,6 +1,15 @@
 import { afterEach, describe, expect, it } from 'vitest'
 
-import { setTheater, THEATER_KEY, theaterOn, toggleTheater } from '@/lib/watching'
+import {
+    AUTOPLAY_NEXT_KEY,
+    autoplayNext,
+    setAutoplayNext,
+    setTheater,
+    THEATER_KEY,
+    theaterOn,
+    toggleTheater,
+    UP_NEXT_SECONDS,
+} from '@/lib/watching'
 
 afterEach(() => {
     setTheater(false)
@@ -36,5 +45,22 @@ describe('the theater choice', () => {
 
     it('keeps the choice under one key, which is what the next visit reads', () => {
         expect(THEATER_KEY).toBe('maneki.theater')
+    })
+})
+
+describe('the up-next choice', () => {
+    it('plays the next one by default, which is what a season is for', () => {
+        expect(autoplayNext.get()).toBe(true)
+    })
+
+    it('can be turned off, and the card then waits instead of counting', () => {
+        setAutoplayNext(false)
+        expect(autoplayNext.get()).toBe(false)
+        setAutoplayNext(true)
+    })
+
+    it('counts down where somebody can see it', () => {
+        expect(UP_NEXT_SECONDS).toBeGreaterThan(0)
+        expect(AUTOPLAY_NEXT_KEY).toBe('maneki.autoplay-next')
     })
 })

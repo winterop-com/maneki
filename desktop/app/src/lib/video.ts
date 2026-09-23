@@ -16,6 +16,7 @@ import type {
     VideoBrowse,
     VideoEntry,
     VideoFolder,
+    VideoProgress,
     VideoScanState,
     VideoSessionStats,
     VideoStatsFrame,
@@ -108,6 +109,28 @@ export function rowsOf(browse: VideoBrowse): BrowseRow[] {
         .map((video): BrowseRow => ({ kind: 'video', key: video.id, name: video.name, video }))
         .toSorted((left, right) => compareNames(left.name, right.name))
     return [...folders, ...videos]
+}
+
+/**
+ * Under this, a position is not one worth coming back to.
+ *
+ * Opening a video, watching the titles and leaving again is not a decision to resume from, and a
+ * folder of rows each carrying a sliver of a meter is a folder saying nothing. The server stores
+ * whatever it is told; what counts as having started something is decided here, once, so the
+ * resume and the meter under a row cannot disagree about it.
+ */
+export const STARTED_AFTER_S = 15
+
+/** Where a player should open: what was saved, or the top. */
+export function resumeAt(progress: VideoProgress | null): number {
+    if (progress === null || progress.finished) return 0
+    return progress.position_s >= STARTED_AFTER_S ? progress.position_s : 0
+}
+
+/** Whether a row has a position worth drawing under it. A finished video says so instead. */
+export function started(progress: VideoProgress | null | undefined): boolean {
+    if (progress === undefined || progress === null || progress.finished) return false
+    return progress.position_s >= STARTED_AFTER_S
 }
 
 /** Where an episode number begins, which is where the name of an episode begins. */

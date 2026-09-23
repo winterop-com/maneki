@@ -15,6 +15,12 @@ import { createStore } from '@/lib/store'
 /** Where the theater choice is kept between visits. */
 export const THEATER_KEY = 'maneki.theater'
 
+/** Where the up-next choice is kept between visits. */
+export const AUTOPLAY_NEXT_KEY = 'maneki.autoplay-next'
+
+/** How long the up-next card counts down before it plays the next video by itself. */
+export const UP_NEXT_SECONDS = 5
+
 function readFlag(key: string, fallback: boolean): boolean {
     try {
         const stored = localStorage.getItem(key)
@@ -47,4 +53,18 @@ export function setTheater(on: boolean): void {
 
 export function toggleTheater(): void {
     setTheater(!theaterOn.get())
+}
+
+/**
+ * Whether the end of one video starts the next one in its folder.
+ *
+ * On by default, which is what a season of television is for. The card counts down in front of
+ * it either way, so somebody who wanted to stop there has five seconds and a button; with this
+ * off the card waits instead of counting, because the offer is still worth making.
+ */
+export const autoplayNext = createStore(readFlag(AUTOPLAY_NEXT_KEY, true))
+
+export function setAutoplayNext(on: boolean): void {
+    writeFlag(AUTOPLAY_NEXT_KEY, on)
+    autoplayNext.set(on)
 }

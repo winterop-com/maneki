@@ -4,6 +4,7 @@ import type {
     VideoBrowse,
     VideoEntry,
     VideoFolder,
+    VideoProgress,
     VideoScanState,
     VideoSessionStats,
     VideoStatsFrame,
@@ -25,9 +26,12 @@ import {
     posterPath,
     preferredSubtitles,
     resolutionLabel,
+    resumeAt,
     rowsOf,
     scanProgress,
     sessionFor,
+    STARTED_AFTER_S,
+    started,
     streamVerdict,
     subtitleKey,
     subtitleLabel,
@@ -70,6 +74,10 @@ function track(partial: Partial<VideoSubtitleTrack>): VideoSubtitleTrack {
         url: '',
         ...partial,
     }
+}
+
+function saved(partial: Partial<VideoProgress>): VideoProgress {
+    return { video_id: 'v1', position_s: 0, finished: false, updated_at: 1, ...partial }
 }
 
 function sample(partial: Partial<PlaybackSample> = {}): PlaybackSample {
@@ -208,6 +216,30 @@ describe('subtitleLabel', () => {
 
     it('says Subtitles for a sidecar that named no language', () => {
         expect(subtitleLabel('sidecar:und', 'und')).toBe('Subtitles')
+    })
+})
+
+describe('where a video opens', () => {
+    it('opens at the top when nobody has watched it', () => {
+        expect(resumeAt(null)).toBe(0)
+        expect(started(null)).toBe(false)
+        expect(started(undefined)).toBe(false)
+    })
+
+    it('carries on from where somebody stopped', () => {
+        expect(resumeAt(saved({ position_s: 610 }))).toBe(610)
+        expect(started(saved({ position_s: 610 }))).toBe(true)
+    })
+
+    it('starts a finished video again rather than resuming into its credits', () => {
+        expect(resumeAt(saved({ position_s: 2650, finished: true }))).toBe(0)
+        expect(started(saved({ position_s: 2650, finished: true }))).toBe(false)
+    })
+
+    it('treats the first few seconds as never having started', () => {
+        expect(resumeAt(saved({ position_s: STARTED_AFTER_S - 1 }))).toBe(0)
+        expect(started(saved({ position_s: STARTED_AFTER_S - 1 }))).toBe(false)
+        expect(resumeAt(saved({ position_s: STARTED_AFTER_S }))).toBe(STARTED_AFTER_S)
     })
 })
 

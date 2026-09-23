@@ -19,6 +19,7 @@ import type {
     Capabilities,
     VideoBrowse,
     VideoEntry,
+    VideoProgress,
     VideoScanState,
     VideoSubtitleTrack,
     YouTubeChannel,
@@ -270,6 +271,23 @@ export const video = {
     /** Every subtitle track a file offers, sidecars and embedded streams alike. */
     subtitles: (id: string): Promise<VideoSubtitleTrack[]> =>
         request(`${videoMount}/videos/${encodeURIComponent(id)}/subtitles`),
+    /** Where this account stopped in one video. A video never started reads as 0. */
+    readProgress: (id: string): Promise<VideoProgress> =>
+        request(`${videoMount}/videos/${encodeURIComponent(id)}/progress`),
+    /**
+     * Record where the viewer is, in seconds into the file.
+     *
+     * Safe on a timer: the server holds one row per video and writes it in place. `finished`
+     * left out lets the server decide from the tail, which is what a position report means; the
+     * end of playback says so outright.
+     */
+    saveProgress: (id: string, positionS: number, finished?: boolean): Promise<VideoProgress> =>
+        send(`${videoMount}/videos/${encodeURIComponent(id)}/progress`, 'PUT', {
+            position_s: positionS,
+            finished,
+        }),
+    /** Every video this account has started. One request fills a folder with resume points. */
+    progress: (): Promise<VideoProgress[]> => request(`${videoMount}/progress`),
     /**
      * Drop whatever the server is still transcoding ahead of this video.
      *
