@@ -100,6 +100,9 @@ export function useSpectrum(
         let width = element.clientWidth
         let height = element.clientHeight
         let ink = getComputedStyle(element).color
+        // The frame most recently painted, so a resize can paint it again without a new read.
+        let last: Uint8Array | null = null
+
         const measure = () => {
             width = element.clientWidth
             height = element.clientHeight
@@ -108,6 +111,10 @@ export function useSpectrum(
             element.width = Math.round(width * ratio)
             element.height = Math.round(height * ratio)
             context.setTransform(ratio, 0, 0, ratio, 0, 0)
+            // RESIZING A CANVAS BLANKS IT, and the next frame is up to a frame away -- which
+            // under a drag, where every pointer move is a resize, is a run of black frames
+            // between paints. So the last frame is painted again at the new size at once.
+            if (last !== null) paintFrame(last, false)
         }
         measure()
         const watcher = new ResizeObserver(measure)
@@ -139,6 +146,11 @@ export function useSpectrum(
             const quiet = wave ? isFlat(shown) : isIdle(shown)
             if (quiet && settled) return
             settled = quiet
+            last = shown
+            paintFrame(shown, quiet)
+        }
+
+        const paintFrame = (shown: Uint8Array, quiet: boolean) => {
             // TRAILS ARE THE LAST FRAME NOT QUITE WIPED. Instead of clearing, the canvas is
             // washed with the ground at part strength, so what was drawn a moment ago is still
             // faintly there under what is drawn now. A quiet frame is cleared outright, so the
