@@ -2197,3 +2197,11 @@ html.dark[data-theme='neon'],
 .stage-select:hover {
     color: var(--terminal-foreground);
 }
+
+/* Focus handed back to a pointer-focused control after an overlay closes: held, but not
+   drawn as a ring until the keyboard is used again. See `hooks/use-overlay`. */
+[data-focus-quiet]:focus-visible {
+    outline: none;
+    box-shadow: none;
+    --tw-ring-shadow: 0 0 #0000;
+}
