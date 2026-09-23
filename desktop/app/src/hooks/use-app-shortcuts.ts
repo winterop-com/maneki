@@ -15,6 +15,7 @@ import {
 import { paletteOpen } from '@/lib/palette'
 import { togglePanel, toggleRail } from '@/lib/panels'
 import { toggleLyrics } from '@/lib/lyrics'
+import { stageKeyClaim } from '@/lib/screen-keys'
 import { closeSearch, openSearch, searchOpen } from '@/lib/search'
 import { sessionStore } from '@/lib/session'
 import {
@@ -115,7 +116,12 @@ export function useAppShortcuts(onShortcuts: () => void): void {
             }
             if (opensStage(press, focused())) {
                 event.preventDefault()
-                toggleStage()
+                // What goes on the whole screen is whatever somebody is looking at, so a
+                // screen playing a video takes this key while it is open and the spectrum
+                // has it everywhere else.
+                const claimed = stageKeyClaim()
+                if (claimed === null) toggleStage()
+                else claimed()
                 return
             }
             if (togglesShuffle(press, focused())) {

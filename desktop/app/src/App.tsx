@@ -9,7 +9,8 @@ import { BooksPage } from '@/pages/Books'
 import { MusicPage } from '@/pages/Music'
 import { RadioPage } from '@/pages/Radio'
 import { SignIn } from '@/pages/SignIn'
-import { Soon } from '@/pages/Soon'
+import { VideoPage } from '@/pages/Video'
+import { WatchPage } from '@/pages/Watch'
 import { YouTubePage } from '@/pages/YouTube'
 
 export default function App() {
@@ -37,7 +38,10 @@ export default function App() {
                 <Route path="/music/album/:albumId" element={<MusicPage />} />
                 <Route path="/music/starred" element={<MusicPage view="starred" />} />
                 <Route path="/radio" element={<RadioPage />} />
-                <Route path="/video/*" element={<Soon section="Video" />} />
+                <Route path="/video" element={<VideoPage />} />
+                {/* The splat carries the whole of a folder's path, so a season is a link. */}
+                <Route path="/video/browse/*" element={<VideoPage />} />
+                <Route path="/video/v/:videoId" element={<WatchPage />} />
                 <Route path="/youtube" element={<YouTubePage />} />
                 <Route path="/youtube/c/:channelId" element={<YouTubePage />} />
                 <Route path="/youtube/v/:videoId" element={<YouTubePage />} />

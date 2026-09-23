@@ -12,7 +12,7 @@
  * once and dropped.
  */
 
-import { capabilities, defaultBaseUrl, setSession, signIn } from '@/lib/api'
+import { capabilities, defaultBaseUrl, setSession, setVideoMount, signIn } from '@/lib/api'
 import { forgetMarks } from '@/lib/star'
 import { createStore } from '@/lib/store'
 import { type Credentials, makeCredentials, ping } from '@/lib/subsonic'
@@ -83,6 +83,8 @@ export async function connect(stored: StoredSession = read()): Promise<void> {
     setSession(stored)
     try {
         const caps = await capabilities()
+        // Where the video API answers is this instance's to state, not this bundle's to assume.
+        setVideoMount(caps.endpoints.video_api)
         const rest = restUrl(stored.baseUrl, caps)
         // TWO WAYS TO BE SIGNED OUT. A server started with --auth wants a bearer token for its
         // own endpoints; the Subsonic mount wants a salt and a token on every request whether

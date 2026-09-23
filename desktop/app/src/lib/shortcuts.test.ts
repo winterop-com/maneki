@@ -16,6 +16,7 @@ import {
     togglesPanel,
     togglesPlayback,
     togglesRail,
+    togglesTheater,
     togglesVisualizer,
     steps,
     SEEK_STEP_S,
@@ -156,7 +157,38 @@ describe('the panel chord', () => {
         expect(togglesPanel(press('j', { metaKey: true }), PROSE, true)).toBe(false)
     })
 })
+describe('the theater key', () => {
+    test('is a bare letter, matched by the character it produced', () => {
+        expect(togglesTheater(press('t'), null)).toBe(true)
+        expect(togglesTheater(press('T'), null)).toBe(true)
+    })
+
+    test('is not ours under a modifier, where it belongs to the browser', () => {
+        expect(togglesTheater(press('t', { metaKey: true }), null)).toBe(false)
+        expect(togglesTheater(press('t', { ctrlKey: true }), null)).toBe(false)
+        expect(togglesTheater(press('t', { altKey: true }), null)).toBe(false)
+    })
+
+    test('is a letter somebody is typing while a box has focus', () => {
+        expect(togglesTheater(press('t'), TEXT_BOX)).toBe(false)
+        expect(togglesTheater(press('t'), PROSE)).toBe(false)
+    })
+})
+
 describe('the list of shortcuts', () => {
+    test('offers every key a screen can claim, because one nobody was told of is one nobody has', () => {
+        const listed = new Set(shortcuts(true).map((row) => row.id))
+        expect(listed.has('theater')).toBe(true)
+        expect(listed.has('seek')).toBe(true)
+        expect(listed.has('stage')).toBe(true)
+    })
+
+    test('says what F does on both of the screens that answer it', () => {
+        const stage = shortcuts(true).find((row) => row.id === 'stage')
+        expect(stage?.action).toContain('video')
+        expect(stage?.action).toContain('spectrum')
+    })
+
     test('binds letters and nothing else, because a bracket needs Alt on a Nordic layout', () => {
         const bound = shortcuts(true).flatMap((row) => row.keys)
         expect(bound.filter((key) => /^[[\]{}|\\]$/.test(key))).toEqual([])

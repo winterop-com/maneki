@@ -16,12 +16,17 @@ import type {
     BookProgress,
     BookSummary,
     Capabilities,
+    VideoBrowse,
+    VideoEntry,
+    VideoScanState,
+    VideoSubtitleTrack,
     YouTubeChannel,
     YouTubeCounts,
     YouTubeQuality,
     YouTubeTab,
     YouTubeVideo,
 } from '@/lib/types'
+import { VIDEO_MOUNT, hlsPath, posterPath, streamPath, subtitlePath, thumbnailPath } from '@/lib/video'
 
 /** A server's answer that was not a success. */
 export class ApiError extends Error {
@@ -132,13 +137,6 @@ export const books = {
     fileUrl: (path: string): string => url(`/books/${path}`),
 }
 
-/**
- * Where the native video API is mounted, which is what `capabilities.endpoints.video_api`
- * answers with. Written here the way the books mount is: one constant rather than a prefix
- * every call has to remember.
- */
-const VIDEO_API = '/video/api'
-
 /** `?refresh=1` when a reader asked for it, which is what busts the server's listing cache. */
 function refreshQuery(refresh: boolean | undefined, separator = '?'): string {
     return refresh === true ? `${separator}refresh=1` : ''
@@ -155,33 +153,33 @@ function refreshQuery(refresh: boolean | undefined, separator = '?'): string {
 export const youtube = {
     /** The account's channels, each with the identity and avatar the last listing found. */
     channels: (refresh?: boolean): Promise<YouTubeChannel[]> =>
-        request(`${VIDEO_API}/youtube/channels${refreshQuery(refresh)}`),
+        request(`${videoMount}/youtube/channels${refreshQuery(refresh)}`),
     /** Subscribe. `url` must name a YouTube host, or the server refuses it with a 422. */
     addChannel: (channelUrl: string): Promise<YouTubeChannel> =>
-        send(`${VIDEO_API}/youtube/channels`, 'POST', { url: channelUrl }),
+        send(`${videoMount}/youtube/channels`, 'POST', { url: channelUrl }),
     /** Unsubscribe. Idempotent, so a second press is not a refusal. */
     removeChannel: (channelId: string): Promise<{ removed: string }> =>
-        send(`${VIDEO_API}/youtube/channels/${encodeURIComponent(channelId)}`, 'DELETE'),
+        send(`${videoMount}/youtube/channels/${encodeURIComponent(channelId)}`, 'DELETE'),
     /** How many items the channel has on each tab, capped. Three listings, so it is slow. */
     counts: (channelId: string, refresh?: boolean): Promise<YouTubeCounts> =>
         request(
-            `${VIDEO_API}/youtube/channels/${encodeURIComponent(channelId)}/counts${refreshQuery(refresh)}`,
+            `${videoMount}/youtube/channels/${encodeURIComponent(channelId)}/counts${refreshQuery(refresh)}`,
         ),
     /** One tab's recent items. A channel with no such tab answers with an empty list. */
     videos: (channelId: string, tab: YouTubeTab, refresh?: boolean): Promise<YouTubeVideo[]> =>
         request(
-            `${VIDEO_API}/youtube/channels/${encodeURIComponent(channelId)}/videos?tab=${tab}` +
+            `${videoMount}/youtube/channels/${encodeURIComponent(channelId)}/videos?tab=${tab}` +
                 refreshQuery(refresh, '&'),
         ),
     /** One video's title and length, which is what a deep link into the player has to ask for. */
     video: (videoId: string): Promise<YouTubeVideo> =>
-        request(`${VIDEO_API}/youtube/videos/${encodeURIComponent(videoId)}`),
+        request(`${videoMount}/youtube/videos/${encodeURIComponent(videoId)}`),
     /** The heights this server offers and the one it uses when asked for none. */
-    quality: (): Promise<YouTubeQuality> => request(`${VIDEO_API}/youtube/quality`),
+    quality: (): Promise<YouTubeQuality> => request(`${videoMount}/youtube/quality`),
     /** The HLS manifest, capped at `height` when one was chosen and at the server's when not. */
     hlsUrl: (videoId: string, height?: number): string =>
         url(
-            `${VIDEO_API}/youtube/videos/${encodeURIComponent(videoId)}/hls/index.m3u8` +
+            `${videoMount}/youtube/videos/${encodeURIComponent(videoId)}/hls/index.m3u8` +
                 (height !== undefined && height > 0 ? `?h=${String(height)}` : ''),
         ),
     /**
@@ -195,4 +193,77 @@ export const youtube = {
         `https://i.ytimg.com/vi/${encodeURIComponent(videoId)}/hqdefault.jpg`,
     posterUrl: (videoId: string): string =>
         `https://i.ytimg.com/vi/${encodeURIComponent(videoId)}/maxresdefault.jpg`,
+}
+
+/**
+ * Where the video API answers, which this instance states rather than this bundle assuming.
+ *
+ * `/capabilities` carries the mount, so a server that moved it is followed on the next connect
+ * instead of on the next release. Until it has answered, the default is what maneki mounts.
+ */
+let videoMount = VIDEO_MOUNT
+
+export function setVideoMount(mount: string | null | undefined): void {
+    videoMount = mount ?? VIDEO_MOUNT
+}
+
+export const video = {
+    /** Everything under the library root, flat. The folder browser reads `browse` instead. */
+    list: (): Promise<VideoEntry[]> => request(`${videoMount}/videos`),
+    /** One video by id, for a link somebody was sent rather than a folder they walked into. */
+    detail: (id: string): Promise<VideoEntry> => request(`${videoMount}/videos/${encodeURIComponent(id)}`),
+    /** One folder's immediate children. The empty path is the library root. */
+    browse: (path = ''): Promise<VideoBrowse> =>
+        request(`${videoMount}/browse${path === '' ? '' : `?path=${encodeURIComponent(path)}`}`),
+    /** Filename search across the whole library. The server caps what it answers with. */
+    search: (query: string): Promise<VideoEntry[]> => {
+        const trimmed = query.trim()
+        if (trimmed === '') return Promise.resolve([])
+        return request(`${videoMount}/search?q=${encodeURIComponent(trimmed)}`)
+    },
+    /** What the server is doing to the library, which a cold start is mostly made of. */
+    scanStatus: (): Promise<VideoScanState> => request(`${videoMount}/scan_status`),
+    /**
+     * Ask for the library to be read again.
+     *
+     * Fire and forget: the walk takes as long as the library is big, so the server answers at
+     * once with where it is and the screen watches `scanStatus` from there.
+     */
+    scan: (): Promise<{ started: boolean; status: VideoScanState }> => send(`${videoMount}/scan`, 'POST'),
+    /** Which ids have a still frame and which have a contact sheet, right now. */
+    thumbnailsReady: (): Promise<{ ready: string[]; posters_ready: string[] }> =>
+        request(`${videoMount}/thumbnails/ready`),
+    /** Every subtitle track a file offers, sidecars and embedded streams alike. */
+    subtitles: (id: string): Promise<VideoSubtitleTrack[]> =>
+        request(`${videoMount}/videos/${encodeURIComponent(id)}/subtitles`),
+    /**
+     * Drop whatever the server is still transcoding ahead of this video.
+     *
+     * Called when a player goes. Segments are transcoded speculatively either side of the last
+     * one asked for, and each completion starts the next -- so without this the machine keeps
+     * encoding a film nobody is watching for as long as it takes to reach the end of it.
+     * Best effort: a server that has already gone is not a failure worth reporting.
+     */
+    cancelSession: (id: string): void => {
+        try {
+            void fetch(url(`${videoMount}/videos/${encodeURIComponent(id)}/session`), {
+                method: 'DELETE',
+                // The call is made while a component is coming down, and often while the tab
+                // is closing with it, which is exactly the request a browser drops.
+                keepalive: true,
+                headers: session.token ? { authorization: `Bearer ${session.token}` } : undefined,
+            })
+        } catch {
+            // Nothing on this side is improved by knowing the cancel did not land.
+        }
+    },
+    /** The live transcode stats, which arrive as server-sent events rather than as an answer. */
+    statsStreamUrl: (): string => url(`${videoMount}/stats/stream`),
+    /** The HLS manifest, which is what the player is pointed at whatever the container is. */
+    hlsUrl: (id: string): string => url(hlsPath(videoMount, id)),
+    /** The file's own bytes, ranges and all. */
+    streamUrl: (id: string): string => url(streamPath(videoMount, id)),
+    thumbnailUrl: (id: string, token?: number): string => url(thumbnailPath(videoMount, id, token)),
+    posterUrl: (id: string, token?: number): string => url(posterPath(videoMount, id, token)),
+    subtitleUrl: (id: string, trackId: string): string => url(subtitlePath(videoMount, id, trackId)),
 }

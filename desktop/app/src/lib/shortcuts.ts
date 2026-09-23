@@ -58,7 +58,10 @@ export const SEARCH_KEY = '/'
 /** The letter that puts the words of what is playing on screen, pressed bare. */
 export const LYRICS_KEY = 'l'
 
-/** How far one press of an arrow moves the position, in seconds. */
+/** The letter that takes the list off the side of a video, pressed bare. */
+export const THEATER_KEY = 't'
+
+/** How far one press of an arrow moves the position, in seconds -- a track's or a video's. */
 export const SEEK_STEP_S = 5
 
 /** How much one press of an arrow moves the volume, of a level between 0 and 1. */
@@ -303,6 +306,19 @@ export function togglesVisualizer(press: KeyPress, focused: FocusedField | null)
     return !isTypingField(focused)
 }
 
+/**
+ * Whether this press takes the list off the side of a video.
+ *
+ * A bare letter beside the transport's, because it is pressed while watching and a chord for it
+ * would be one more thing to remember. `t` is free: it is the only letter in this range nothing
+ * else here binds, and the run terminal it names in its sibling app does not exist in this one.
+ */
+export function togglesTheater(press: KeyPress, focused: FocusedField | null): boolean {
+    if (press.key.toLowerCase() !== THEATER_KEY) return false
+    if (press.ctrlKey || press.metaKey || press.altKey) return false
+    return !isTypingField(focused)
+}
+
 /** Whether this browser runs on an Apple keyboard, which decides how a chord is spelled. */
 export function applePlatform(userAgent: string): boolean {
     return /Mac|iPhone|iPad/.test(userAgent)
@@ -335,7 +351,10 @@ export function shortcuts(apple: boolean): Shortcut[] {
         { id: 'repeat', action: 'Repeat the queue, or one track', keys: ['R'] },
         { id: 'previous', action: 'Move to the previous track', keys: ['P'] },
         { id: 'visualizer', action: 'Show or hide the spectrum', keys: ['V'] },
-        { id: 'stage', action: 'Put the spectrum over the whole screen', keys: ['F'] },
+        // One key, and what it puts on the whole screen is whatever is in front of somebody:
+        // a screen playing a video claims it for that while it is open.
+        { id: 'stage', action: 'Put the video, or the spectrum, over the whole screen', keys: ['F'] },
+        { id: 'theater', action: 'Hide the list beside a video', keys: ['T'] },
         { id: 'seek', action: 'Move five seconds back or forward', keys: ['←', '→'] },
         { id: 'volume', action: 'Turn it up or down', keys: ['↑', '↓'] },
         { id: 'mute', action: 'Silence it, keeping the level', keys: ['M'] },
