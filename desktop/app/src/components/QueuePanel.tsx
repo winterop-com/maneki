@@ -20,10 +20,19 @@ export function QueuePanel() {
         return <p className="p-4 text-sm text-muted-foreground">Nothing queued.</p>
     }
 
+    // UP NEXT MEANS WHAT COMES NEXT. Shuffled, that is the play order rather than the album's,
+    // and the numbers down the side stay the track's own place on the record, which is what
+    // somebody reading the list is matching against the sleeve.
+    const rows = player.shuffle
+        ? player.order.map((index) => ({ index, song: player.queue[index] }))
+        : player.queue.map((song, index) => ({ index, song }))
+    const playingAt = player.shuffle ? player.orderAt : player.index
+
     return (
         <ol className="p-2">
-            {player.queue.map((song, index) => {
-                const current = index === player.index
+            {rows.map(({ index, song }, position) => {
+                if (!song) return null
+                const current = position === playingAt
                 return (
                     <li key={`${song.id}-${String(index)}`}>
                         <button

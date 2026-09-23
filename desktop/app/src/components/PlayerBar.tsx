@@ -1,4 +1,16 @@
-import { ListMusic, Pause, Play, SkipBack, SkipForward, Volume1, Volume2, VolumeX } from 'lucide-react'
+import {
+    ListMusic,
+    Pause,
+    Play,
+    Repeat,
+    Repeat1,
+    Shuffle,
+    SkipBack,
+    SkipForward,
+    Volume1,
+    Volume2,
+    VolumeX,
+} from 'lucide-react'
 import { NavLink } from 'react-router'
 
 import { Visualizer } from '@/components/Visualizer'
@@ -6,7 +18,19 @@ import { Button } from '@/components/ui/button'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { useStore } from '@/hooks/use-store'
 import { clock } from '@/lib/format'
-import { currentSong, next, playerStore, previous, seek, setVolume, toggle, toggleMuted } from '@/lib/player'
+import {
+    currentSong,
+    cycleRepeat,
+    next,
+    playerStore,
+    previous,
+    seek,
+    setVolume,
+    toggle,
+    toggleMuted,
+    toggleShuffle,
+} from '@/lib/player'
+import { REPEAT_LABELS } from '@/lib/queue'
 import { panelOpen, panelTabs, togglePanel } from '@/lib/panels'
 import { sessionStore } from '@/lib/session'
 import { coverUrl } from '@/lib/subsonic'
@@ -91,6 +115,35 @@ export function PlayerBar() {
             </div>
 
             <div className="flex items-center gap-1">
+                {/* Shuffle and repeat sit beside the transport they change, and are drawn as
+                    pressed rather than as a different glyph: what they do is a state the
+                    queue is in, not an action. A station has no queue to be in one. */}
+                <Button
+                    variant="ghost"
+                    size="icon-sm"
+                    aria-label="Shuffle the queue"
+                    aria-pressed={player.shuffle}
+                    onClick={toggleShuffle}
+                    disabled={station !== null}
+                    className={cn('hidden sm:inline-flex', player.shuffle && 'text-primary')}
+                >
+                    <Shuffle className="size-4" aria-hidden />
+                </Button>
+                <Button
+                    variant="ghost"
+                    size="icon-sm"
+                    aria-label={REPEAT_LABELS[player.repeat]}
+                    aria-pressed={player.repeat !== 'off'}
+                    onClick={cycleRepeat}
+                    disabled={station !== null}
+                    className={cn('hidden sm:inline-flex', player.repeat !== 'off' && 'text-primary')}
+                >
+                    {player.repeat === 'one' ? (
+                        <Repeat1 className="size-4" aria-hidden />
+                    ) : (
+                        <Repeat className="size-4" aria-hidden />
+                    )}
+                </Button>
                 <Button
                     variant="ghost"
                     size="icon-sm"

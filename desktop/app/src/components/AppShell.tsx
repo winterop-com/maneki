@@ -12,6 +12,8 @@ import {
     Maximize2,
     Search,
     Settings,
+    Repeat,
+    Shuffle,
     SkipBack,
     SkipForward,
     Sun,
@@ -47,7 +49,8 @@ import {
     type PaletteAction,
 } from '@/lib/palette'
 import { fillPanel, railCollapsed, togglePanel, toggleRail } from '@/lib/panels'
-import { next, playerStore, previous, toggle } from '@/lib/player'
+import { cycleRepeat, next, playerStore, previous, toggle, toggleShuffle } from '@/lib/player'
+import { nextRepeat, REPEAT_LABELS } from '@/lib/queue'
 import { sessionStore, signOut } from '@/lib/session'
 import { applePlatform, modifierLabel } from '@/lib/shortcuts'
 import { openStage, toggleVisualizer, visualizerShown } from '@/lib/visualizer'
@@ -56,6 +59,8 @@ import { openStage, toggleVisualizer, visualizerShown } from '@/lib/visualizer'
 const selectPlaying = (state: { playing: boolean }) => state.playing
 const selectQueueLength = (state: { queue: unknown[] }) => state.queue.length
 const selectStation = (state: { station: unknown }) => state.station
+const selectShuffle = (state: { shuffle: boolean }) => state.shuffle
+const selectRepeat = (state: { repeat: 'off' | 'all' | 'one' }) => state.repeat
 
 export const SIGN_OUT_LABEL = 'Sign out'
 export const TOGGLE_PANEL_LABEL = 'Show or hide the side panel'
@@ -96,6 +101,8 @@ export function AppShell({ children }: { children: ReactNode }) {
     const playing = useStoreValue(playerStore, selectPlaying)
     const queuedCount = useStoreValue(playerStore, selectQueueLength)
     const station = useStoreValue(playerStore, selectStation)
+    const shuffle = useStoreValue(playerStore, selectShuffle)
+    const repeat = useStoreValue(playerStore, selectRepeat)
     const spectrum = useStore(visualizerShown)
     const navigate = useNavigate()
     const { setTheme } = useTheme()
@@ -183,6 +190,22 @@ export function AppShell({ children }: { children: ReactNode }) {
                                     keywords: ['back', 'again'],
                                     run: previous,
                                 },
+                                {
+                                    id: 'play:shuffle',
+                                    title: shuffle ? 'Play in the album order' : 'Shuffle the queue',
+                                    group: PLAYBACK_GROUP,
+                                    icon: Shuffle,
+                                    keywords: ['random', 'mix'],
+                                    run: toggleShuffle,
+                                },
+                                {
+                                    id: 'play:repeat',
+                                    title: REPEAT_LABELS[nextRepeat(repeat)],
+                                    group: PLAYBACK_GROUP,
+                                    icon: Repeat,
+                                    keywords: ['loop', 'again', 'repeat'],
+                                    run: cycleRepeat,
+                                },
                             ]
                           : []),
                   ]
@@ -259,7 +282,19 @@ export function AppShell({ children }: { children: ReactNode }) {
                 run: signOut,
             },
         ]
-    }, [caps, collapsed, navigate, openSettings, playing, queuedCount, station, setTheme, spectrum])
+    }, [
+        caps,
+        collapsed,
+        navigate,
+        openSettings,
+        playing,
+        queuedCount,
+        repeat,
+        shuffle,
+        station,
+        setTheme,
+        spectrum,
+    ])
 
     useEffect(() => registerActions(actions), [actions])
 

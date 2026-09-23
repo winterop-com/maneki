@@ -1,14 +1,16 @@
 import { useEffect } from 'react'
 
-import { next, previous, toggle } from '@/lib/player'
+import { cycleRepeat, next, previous, toggle, toggleShuffle } from '@/lib/player'
 import { paletteOpen } from '@/lib/palette'
 import { togglePanel, toggleRail } from '@/lib/panels'
 import {
     applePlatform,
     opensPalette,
+    cyclesRepeat,
     opensShortcuts,
     opensStage,
     steps,
+    togglesShuffle,
     togglesPanel,
     togglesPlayback,
     togglesRail,
@@ -83,6 +85,16 @@ export function useAppShortcuts(onShortcuts: () => void): void {
             if (opensStage(press, focused())) {
                 event.preventDefault()
                 toggleStage()
+                return
+            }
+            if (togglesShuffle(press, focused())) {
+                event.preventDefault()
+                toggleShuffle()
+                return
+            }
+            if (cyclesRepeat(press, focused())) {
+                event.preventDefault()
+                cycleRepeat()
                 return
             }
             if (opensShortcuts(press, focused())) {

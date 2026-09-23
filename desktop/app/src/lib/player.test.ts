@@ -2,6 +2,8 @@ import { beforeEach, describe, expect, test, vi } from 'vitest'
 
 import {
     clear,
+    cycleRepeat,
+    toggleShuffle,
     setVolume,
     storedVolume,
     toggleMuted,
@@ -216,5 +218,67 @@ describe('the volume', () => {
         toggleMuted()
         setVolume(0.8)
         expect(playerStore.get().muted).toBe(false)
+    })
+})
+
+describe('shuffle and repeat', () => {
+    beforeEach(() => {
+        vi.stubGlobal('localStorage', fakeStorage())
+    })
+
+    test('shuffle keeps what is playing and changes what comes next', () => {
+        play(songs, 0)
+        expect(currentSong()?.title).toBe('One')
+        if (!playerStore.get().shuffle) toggleShuffle()
+        expect(playerStore.get().shuffle).toBe(true)
+        expect(currentSong()?.title).toBe('One')
+        expect(playerStore.get().orderAt).toBe(0)
+        expect(playerStore.get().order.toSorted()).toEqual([0, 1, 2])
+    })
+
+    test('turning shuffle off carries on from where you are in the album', () => {
+        play(songs, 1)
+        if (!playerStore.get().shuffle) toggleShuffle()
+        if (playerStore.get().shuffle) toggleShuffle()
+        expect(playerStore.get().shuffle).toBe(false)
+        expect(playerStore.get().order).toEqual([0, 1, 2])
+        expect(currentSong()?.title).toBe('Two')
+    })
+
+    test('repeat-one plays the same track again when it ends', () => {
+        play(songs, 1)
+        while (playerStore.get().repeat !== 'one') cycleRepeat()
+        fake.emit('ended')
+        expect(currentSong()?.title).toBe('Two')
+        expect(playerStore.get().positionS).toBe(0)
+    })
+
+    test('repeat-all wraps at the end instead of stopping', () => {
+        play(songs, 2)
+        while (playerStore.get().repeat !== 'all') cycleRepeat()
+        fake.emit('ended')
+        expect(currentSong()?.title).toBe('One')
+        expect(playerStore.get().playing).toBe(true)
+    })
+
+    test('with repeat off the queue still ends', () => {
+        play(songs, 2)
+        while (playerStore.get().repeat !== 'off') cycleRepeat()
+        fake.emit('ended')
+        expect(playerStore.get().playing).toBe(false)
+    })
+
+    test('pressing next under repeat-one moves along, because the press says so', () => {
+        play(songs, 0)
+        while (playerStore.get().repeat !== 'one') cycleRepeat()
+        next()
+        expect(currentSong()?.title).toBe('Two')
+    })
+
+    test('the way somebody listens is kept between visits', () => {
+        if (!playerStore.get().shuffle) toggleShuffle()
+        expect(localStorage.getItem('maneki.shuffle')).toBe('true')
+        const mode = cycleRepeat()
+        expect(localStorage.getItem('maneki.repeat')).toBe(mode)
     })
 })

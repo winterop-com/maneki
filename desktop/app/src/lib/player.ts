@@ -19,6 +19,15 @@ import {
     type Song,
     type Station,
 } from '@/lib/subsonic'
+import {
+    afterSkip,
+    afterTrack,
+    beforeTrack,
+    buildOrder,
+    nextRepeat,
+    reorderAround,
+    type Repeat,
+} from '@/lib/queue'
 import { claimSound, registerSilencer } from '@/lib/sound'
 import { createStore } from '@/lib/store'
 
@@ -26,6 +35,17 @@ export interface PlayerState {
     queue: Song[]
     /** Where in the queue we are; -1 when nothing has been played yet. */
     index: number
+    /**
+     * The order the queue is played in: positions into `queue`, shuffled or not.
+     *
+     * Kept apart from the queue itself so the panel can draw the album's own order while
+     * playback follows another one -- see `lib/queue`.
+     */
+    order: number[]
+    /** Where in `order` playback is; -1 when nothing has been played yet. */
+    orderAt: number
+    shuffle: boolean
+    repeat: Repeat
     /** The station playing, when what is playing is a station rather than a queue. */
     station: Station | null
     /**
@@ -64,9 +84,34 @@ export function storedVolume(): number {
     }
 }
 
+/** Where the way somebody listens is kept between visits. */
+const SHUFFLE_KEY = 'maneki.shuffle'
+const REPEAT_KEY = 'maneki.repeat'
+
+function storedShuffle(): boolean {
+    try {
+        return localStorage.getItem(SHUFFLE_KEY) === 'true'
+    } catch {
+        return false
+    }
+}
+
+function storedRepeat(): Repeat {
+    try {
+        const held = localStorage.getItem(REPEAT_KEY)
+        return held === 'all' || held === 'one' ? held : 'off'
+    } catch {
+        return 'off'
+    }
+}
+
 const EMPTY: PlayerState = {
     queue: [],
     index: -1,
+    order: [],
+    orderAt: -1,
+    shuffle: storedShuffle(),
+    repeat: storedRepeat(),
     station: null,
     stationTitle: '',
     playing: false,
@@ -164,18 +209,31 @@ function element(): HTMLAudioElement {
     audio.addEventListener('ended', () => {
         const song = currentSong()
         if (song && credentials) void scrobble(credentials, song.id, true)
-        next()
+        onEnded()
     })
     return audio
 }
 
-function load(index: number, autoplay: boolean): void {
-    const { queue } = state()
+/** Play the track at position `orderAt` of the play order. */
+function loadAt(orderAt: number, autoplay: boolean): void {
+    const { order } = state()
+    const index = order[orderAt]
+    if (index === undefined) return
+    load(index, autoplay, orderAt)
+}
+
+function load(index: number, autoplay: boolean, orderAt?: number): void {
+    const { queue, order } = state()
     const song = queue[index]
     if (!song || !credentials) return
     const player = element()
     player.src = streamUrl(credentials, song.id)
-    patch({ index, positionS: 0, durationS: song.duration ?? 0 })
+    patch({
+        index,
+        orderAt: orderAt ?? order.indexOf(index),
+        positionS: 0,
+        durationS: song.duration ?? 0,
+    })
     if (announced !== song.id) {
         announced = song.id
         void scrobble(credentials, song.id, false)
@@ -188,8 +246,10 @@ export function play(songs: Song[], startIndex = 0): void {
     if (!songs.length) return
     stopIcy()
     claimSound(silence)
-    patch({ queue: songs, station: null, stationTitle: '' })
-    load(Math.min(Math.max(0, startIndex), songs.length - 1), true)
+    const at = Math.min(Math.max(0, startIndex), songs.length - 1)
+    const order = buildOrder(songs.length, at, state().shuffle)
+    patch({ queue: songs, order, station: null, stationTitle: '' })
+    load(at, true, order.indexOf(at))
 }
 
 /**
@@ -218,14 +278,34 @@ export function toggle(): void {
 }
 
 export function next(): void {
-    const { index, queue, station } = state()
+    const { order, orderAt, station, repeat } = state()
     if (station) return // a station has nothing to skip to
-    if (index + 1 < queue.length) load(index + 1, true)
-    else patch({ playing: false })
+    const moved = afterSkip(order, orderAt, repeat)
+    if (moved === null) patch({ playing: false })
+    else loadAt(moved, true)
+}
+
+/** What a track ending does, which is not the same as pressing skip -- see `lib/queue`. */
+function onEnded(): void {
+    const { order, orderAt, repeat } = state()
+    const moved = afterTrack(order, orderAt, repeat)
+    if (moved === null) {
+        patch({ playing: false })
+        return
+    }
+    // Repeat-one lands on the same position, and a browser will not replay a track by being
+    // asked for the same src: it is rewound instead.
+    if (moved === orderAt) {
+        seek(0)
+        const player = element()
+        void player.play().catch(() => patch({ playing: false }))
+        return
+    }
+    loadAt(moved, true)
 }
 
 export function previous(): void {
-    const { index, station } = state()
+    const { order, orderAt, station, repeat } = state()
     if (station) return
     // Past the first few seconds, "previous" means "start this one again",
     // which is what every player does and what a listener expects.
@@ -233,8 +313,38 @@ export function previous(): void {
         seek(0)
         return
     }
-    if (index > 0) load(index - 1, true)
-    else seek(0)
+    const moved = beforeTrack(order, orderAt, repeat)
+    if (moved === null) seek(0)
+    else loadAt(moved, true)
+}
+
+/** Play in a surprising order, or back in the album's own. What is playing keeps playing. */
+export function toggleShuffle(): void {
+    const { order, orderAt, shuffle } = state()
+    const wanted = !shuffle
+    try {
+        localStorage.setItem(SHUFFLE_KEY, String(wanted))
+    } catch {
+        // Storage denied: the choice holds while this document is open.
+    }
+    if (order.length === 0 || orderAt < 0) {
+        patch({ shuffle: wanted })
+        return
+    }
+    const rebuilt = reorderAround(order, orderAt, wanted)
+    patch({ shuffle: wanted, order: rebuilt.order, orderAt: rebuilt.at })
+}
+
+/** Cycle what happens at the end of the queue: off, the whole queue, this track. */
+export function cycleRepeat(): Repeat {
+    const wanted = nextRepeat(state().repeat)
+    try {
+        localStorage.setItem(REPEAT_KEY, wanted)
+    } catch {
+        // Storage denied: the choice holds while this document is open.
+    }
+    patch({ repeat: wanted })
+    return wanted
 }
 
 /** How loud, between 0 and 1. Setting it unmutes: moving the slider is asking to hear it. */
@@ -305,5 +415,11 @@ export function clear(): void {
     void graph?.close()
     graph = null
     announced = null
-    playerStore.set({ ...EMPTY, volume: state().volume, muted: state().muted })
+    playerStore.set({
+        ...EMPTY,
+        volume: state().volume,
+        muted: state().muted,
+        shuffle: state().shuffle,
+        repeat: state().repeat,
+    })
 }

@@ -40,6 +40,12 @@ export const VISUALIZER_KEY = 'v'
 /** The letter that puts the spectrum over the whole screen, pressed bare. */
 export const STAGE_KEY = 'f'
 
+/** The letter that shuffles the queue, pressed bare. */
+export const SHUFFLE_KEY = 's'
+
+/** The letter that cycles what happens at the end of the queue, pressed bare. */
+export const REPEAT_KEY = 'r'
+
 /**
  * The tags a bare press activates rather than reaches this app.
  *
@@ -167,6 +173,25 @@ export function opensStage(press: KeyPress, focused: FocusedField | null): boole
 }
 
 /**
+ * Whether this press shuffles the queue, or cycles the repeat mode.
+ *
+ * Bare letters, like the rest of the transport: these are pressed while listening, and a chord
+ * for each would be two more things to remember. Under a modifier they belong to the browser --
+ * Cmd+S saves the page, Cmd+R reloads it -- so a modifier means this is not ours.
+ */
+export function togglesShuffle(press: KeyPress, focused: FocusedField | null): boolean {
+    if (press.key.toLowerCase() !== SHUFFLE_KEY) return false
+    if (press.ctrlKey || press.metaKey || press.altKey) return false
+    return !isTypingField(focused)
+}
+
+export function cyclesRepeat(press: KeyPress, focused: FocusedField | null): boolean {
+    if (press.key.toLowerCase() !== REPEAT_KEY) return false
+    if (press.ctrlKey || press.metaKey || press.altKey) return false
+    return !isTypingField(focused)
+}
+
+/**
  * Whether this press shows or hides the spectrum.
  *
  * A bare letter, the way the transport keys are: the visualizer is something somebody turns on
@@ -206,6 +231,8 @@ export function shortcuts(apple: boolean): Shortcut[] {
         { id: 'panel', action: 'Show or hide the side panel', keys: [modifier, 'J'] },
         { id: 'play', action: 'Start or stop what is playing', keys: ['Space'] },
         { id: 'next', action: 'Move to the next track', keys: ['N'] },
+        { id: 'shuffle', action: 'Shuffle the queue', keys: ['S'] },
+        { id: 'repeat', action: 'Repeat the queue, or one track', keys: ['R'] },
         { id: 'previous', action: 'Move to the previous track', keys: ['P'] },
         { id: 'visualizer', action: 'Show or hide the spectrum', keys: ['V'] },
         { id: 'stage', action: 'Put the spectrum over the whole screen', keys: ['F'] },
