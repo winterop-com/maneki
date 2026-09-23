@@ -33,9 +33,9 @@ Both `make lint` and `make test` must pass before commit, and `make app-gate` wh
 
 ### The two clients
 
-`desktop/react` is the client that ships today, in plain JSX with hand-written CSS. `desktop/app` is its replacement, on the shared UI template this family of apps uses (TypeScript, Tailwind, shadcn on Base UI, oxlint and oxfmt, vitest): see [dirigent's `docs/ui-conventions.md`][conventions], which is the design system both are built to.
+`desktop/app` is the client: the one `maneki serve` serves at `/` and the one the Tauri and Electron shells load. It is on the shared UI template this family of apps uses (TypeScript, Tailwind, shadcn on Base UI, oxlint and oxfmt, vitest): see [dirigent's `docs/ui-conventions.md`][conventions], which is the design system it is built to. `desktop/react` is the client it replaced, in plain JSX with hand-written CSS; the wheel still carries it at `/classic` until nobody needs it.
 
-Screens move across one at a time. Until a section arrives, the new client says so and the old one serves it; only `desktop/react` is copied into the wheel, so what ships is unaffected until the swap. Both are hash-routed with relative asset URLs, because the desktop shells load the bundle from disk.
+Both are hash-routed with relative asset URLs, because the desktop shells load the bundle from disk.
 
 [conventions]: https://github.com/winterop-com/dirigent/blob/main/docs/ui-conventions.md
 

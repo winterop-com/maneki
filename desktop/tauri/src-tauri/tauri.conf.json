@@ -4,9 +4,9 @@
   "version": "0.19.4",
   "identifier": "com.winterop.maneki",
   "build": {
-    "frontendDist": "../../react/dist",
-    "beforeBuildCommand": "cd ../react && bun install --frozen-lockfile && bun run build",
-    "beforeDevCommand": "cd ../react && bun install --frozen-lockfile && bun run dev",
+    "frontendDist": "../../app/dist",
+    "beforeBuildCommand": "cd ../app && bun install --frozen-lockfile && bun run build",
+    "beforeDevCommand": "cd ../app && bun install --frozen-lockfile && bun run dev --port 1421 --strictPort",
     "devUrl": "http://localhost:1421"
   },
   "app": {

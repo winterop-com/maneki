@@ -15,15 +15,17 @@ trade-offs you prefer.
 
 ## What it is
 
-Both wrappers point the embedded webview at any Subsonic-compatible
-server — your own `maneki serve`, [Navidrome], [Airsonic], whatever.
-They're not just thin chrome around the web UI; the SPA inside
-(`desktop/react/`) is a full client: salted-token auth, refresh-restore
-via URL hashes, and a Web Audio FFT visualizer.
+Both wrappers open a window on the same client a browser tab gets from
+`maneki serve` (`desktop/app/`): music, radio, audiobooks, video and
+YouTube, the spectrum, the command palette. What the shell adds is a
+fullscreen that takes the whole display and a window that remembers
+its size.
 
-You log in once with **URL + Username + Password**; the app
-computes the Subsonic salted token and re-uses it across browse / play
-calls.
+The client looks for a server at `http://127.0.0.1:8765` first. When
+nothing answers there it asks for an address: enter
+`http://<host>:8765` (no `/audio` -- that suffix is for Subsonic apps)
+plus the username and password from `maneki.toml`. You sign in once;
+the session is kept across launches.
 
 ## Install
 
@@ -99,12 +101,12 @@ http://localhost:1420/#a=1234&l=4567&t=8901
 ```
 
 Reload the window (Cmd-R / F5) and you land back on the same track —
-useful when iterating on `desktop/react/` during development.
+useful when iterating on `desktop/app/` during development.
 
 ## Building from source
 
 Pick a wrapper, then run the matching make target. Both load the same
-SPA from `desktop/react/`, so changes propagate to both.
+bundle from `desktop/app/dist/`, so changes propagate to both.
 
 ```bash
 make desktop-tauri-dev          # Tauri dev shell — hot reload of the SPA
@@ -114,9 +116,11 @@ make desktop-electron-build     # Release Electron build
 make build                      # Both, plus the Python wheel
 ```
 
-The React frontend at `desktop/react/` is plain HTML + JSX + CSS loaded
-via Babel-standalone — no build step. Edit any file there and reload
-the wrapper's window to pick up changes.
+The client at `desktop/app/` is a Vite build. The Tauri dev target runs
+the Vite dev server for you, with hot reload; for a release build the
+shells run `bun run build` there first, so what ships is always the
+client at the repo's current version. `make app-gate` runs its lint,
+types and tests.
 
 ## Trade-offs vs. the browser
 

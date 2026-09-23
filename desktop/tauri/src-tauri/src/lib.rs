@@ -3,7 +3,7 @@
 //! The Rust side stays minimal — it registers plugins, runs the Tauri
 //! app, and persists the main window's outer bounds across launches.
 //! The entire UI (login, shell, browse, playback) is owned by
-//! `desktop/react/` — the React + Babel-standalone client.
+//! `desktop/app/` — the TypeScript client, built with Vite into `dist/`.
 //!
 //! Window bounds persistence
 //! -------------------------
@@ -68,7 +68,7 @@ fn write_bounds(app: &tauri::AppHandle, bounds: &WindowBounds) {
 
 // Fullscreen is driven from the JS side via Tauri 2's built-in
 // `core:window:allow-set-fullscreen` permission - no custom invoke
-// handler needed. See desktop/react/src/_desktop.js.
+// handler needed. See desktop/app/src/lib/desktop.ts.
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {

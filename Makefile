@@ -1,4 +1,4 @@
-.PHONY: help install lint check test app app-dev app-fmt app-gate coverage docs docs-serve docs-build build build-python dist-collect desktop-build-frontend desktop-sync-frontend desktop-sync-version desktop-tauri desktop-tauri-dev desktop-tauri-build _wipe-tauri-userdata desktop-electron desktop-electron-dev desktop-electron-build _wipe-electron-userdata ui-static-sync clean
+.PHONY: help install lint check test app app-dev app-fmt app-gate coverage docs docs-serve docs-build build build-python dist-collect desktop-build-frontend classic-build desktop-sync-frontend desktop-sync-version desktop-tauri desktop-tauri-dev desktop-tauri-build _wipe-tauri-userdata desktop-electron desktop-electron-dev desktop-electron-build _wipe-electron-userdata ui-static-sync clean
 
 UV := $(shell command -v uv 2> /dev/null)
 
@@ -122,8 +122,12 @@ build-python: ui-static-sync
 	@echo ">>> Building Python wheel + sdist into ./dist"
 	@$(UV) build
 
-desktop-build-frontend:
-	@echo ">>> Building the React SPA with Vite -> desktop/react/dist/"
+# The bundle the desktop shells load is the current client, desktop/app.
+desktop-build-frontend: app
+
+# The client this one replaces, still served at /classic by the wheel.
+classic-build:
+	@echo ">>> Building the classic client -> desktop/react/dist/"
 	@cd desktop/react && (test -d node_modules || bun install --frozen-lockfile) && bun run build
 
 app:
@@ -144,7 +148,7 @@ app-gate:
 
 # Both clients go into the wheel: the current one is served at "/", the one it
 # replaces stays at "/classic" for the video screens it still owns.
-ui-static-sync: app desktop-build-frontend
+ui-static-sync: app classic-build
 	@$(UV) run python scripts/copy_ui_static.py
 
 # Copy desktop artifacts into ./dist alongside the Python wheel + sdist
@@ -201,7 +205,7 @@ _wipe-tauri-userdata:
 	@rm -rf "$$HOME/Library/Preferences/com.winterop.maneki.plist"
 
 desktop-tauri-dev: desktop-sync-frontend _wipe-tauri-userdata
-	@echo ">>> Tauri dev — opens window pointed at desktop/react/index.html"
+	@echo ">>> Tauri dev — opens window pointed at the desktop/app dev server"
 	@cd desktop/tauri/src-tauri && cargo tauri dev
 
 desktop-tauri-build: desktop-sync-frontend desktop-sync-version
@@ -250,7 +254,7 @@ _wipe-electron-userdata:
 	@rm -rf "$$HOME/Library/Preferences/Maneki.plist"
 
 desktop-electron-dev: desktop-sync-frontend _wipe-electron-userdata
-	@echo ">>> Electron dev — opens window pointed at desktop/react/index.html"
+	@echo ">>> Electron dev — opens window pointed at desktop/app/dist/index.html"
 	@cd desktop/electron && (test -d node_modules || bun install) && bun run start
 
 desktop-electron-build: desktop-sync-frontend desktop-sync-version desktop-build-frontend
@@ -269,6 +273,7 @@ clean:
 	@rm -rf dist build *.egg-info
 	@rm -rf site
 	@# Desktop build outputs and installed deps.
+	@rm -rf desktop/app/dist desktop/app/node_modules
 	@rm -rf desktop/react/dist desktop/react/node_modules
 	@rm -rf desktop/electron/dist desktop/electron/node_modules
 	@rm -rf desktop/tauri/src-tauri/target

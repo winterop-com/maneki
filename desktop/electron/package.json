@@ -35,8 +35,8 @@
     ],
     "extraResources": [
       {
-        "from": "../react/dist",
-        "to": "react"
+        "from": "../app/dist",
+        "to": "app"
       }
     ],
     "mac": {

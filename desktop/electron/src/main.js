@@ -1,5 +1,5 @@
 // Electron main process — opens a single BrowserWindow pointed at the
-// shared `desktop/react/index.html`. The renderer page (the SPA) is
+// built client in `desktop/app/dist/`. The renderer page (the SPA) is
 // identical to what Tauri loads; the only Electron-specific bits live
 // in this file + `preload.js`.
 //
@@ -140,14 +140,14 @@ function createWindow() {
   // The SPA is a Vite build now (no in-browser Babel). Three load paths:
   if (app.isPackaged) {
     // Packaged: electron-builder ships the built dist via extraResources
-    // (from: ../react/dist, to: react) -> Resources/react/index.html.
-    mainWindow.loadFile(path.join(process.resourcesPath, "react", "index.html"));
+    // (from: ../app/dist, to: app) -> Resources/app/index.html.
+    mainWindow.loadFile(path.join(process.resourcesPath, "app", "index.html"));
   } else if (process.env.MK_DEV) {
     // Dev: the live Vite dev server (HMR). `make desktop-electron-dev` starts it.
     mainWindow.loadURL("http://localhost:1421");
   } else {
     // Unpackaged, no dev server: the built dist sitting next to the source.
-    mainWindow.loadFile(path.join(__dirname, "..", "..", "react", "dist", "index.html"));
+    mainWindow.loadFile(path.join(__dirname, "..", "..", "app", "dist", "index.html"));
   }
 }
 
