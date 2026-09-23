@@ -118,11 +118,13 @@ def create_combined_app(
             (prewarm, neighbour prefetch, poster generation). None uses
             the TranscodeBudget default (cpu_count // 2, capped at 4).
             Foreground player requests always preempt background work.
-        rescan: when True, wipe the on-disk thumbnail / poster cache
-            before startup so the next browse / prewarm regenerates
+        rescan: when True, rebuild every library from the files: the
+            music index is rebuilt rather than delta-validated, every book
+            is re-probed, and the video index and its on-disk thumbnail /
+            poster cache are wiped so the next browse / prewarm regenerates
             everything. Use after files change underneath the server
-            (renames, edits) so cached cover sheets get refreshed.
-            Default False keeps prior runs' work.
+            (renames, edits, re-tagging). Default False keeps prior runs'
+            work and only picks up what changed.
         prewarm_cache: when True, generate every video's row thumbnail
             and contact-sheet poster during startup (heavy: ~1-2s per
             thumbnail + ~3-5s per poster, niced + 1-thread so it
@@ -240,6 +242,12 @@ def create_combined_app(
 
             audio_watcher = LibraryWatcher(audio_sub_app.state.cache, observer=observer)
             audio_watcher.start()
+            # --rescan means every library, not only the video one: the index built in
+            # `_mount_audio` reused what was on disk, so it is rebuilt from the files here,
+            # in the background, the way a Subsonic `startScan` rebuilds it.
+            if rescan:
+                _log.info("rescan: rebuilding the music index from the files")
+                audio_sub_app.state.cache.start_background_rescan(force=True)
 
         # Books: scan in the background (warm starts reuse the index rows),
         # then watch the folder so an imported book appears on its own.
@@ -252,7 +260,9 @@ def create_combined_app(
             from maneki.audio.serve.watcher import LibraryWatcher
 
             books_index = books_sub_app.state.books_index
-            books_index.start_background_rescan()
+            if rescan:
+                _log.info("rescan: re-probing every book")
+            books_index.start_background_rescan(force=rescan)
             books_watcher = LibraryWatcher(books_index, observer=observer)
             books_watcher.start()
 

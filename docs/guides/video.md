@@ -308,7 +308,7 @@ The video pipeline rides on `maneki serve`. Relevant flags:
 | Flag | Effect |
 |---|---|
 | `--ui` | Mount the React SPA at `/`. |
-| `--rescan` | Wipe `<root>/.maneki/posters/` and `DELETE FROM videos` before scanning. The next browse / open regenerates from scratch. Audio's tables are untouched. |
+| `--rescan` | Wipe `<root>/.maneki/posters/` and `DELETE FROM videos` before scanning, so the next browse / open regenerates from scratch. Since 0.19.20 it also rebuilds the music index and re-probes every book, in the background. |
 | `--prewarm-cache` | Run the subtitle probe + thumbnail + contact-sheet poster generation passes at startup (background workers, yields to foreground player requests). Idempotent on a warm cache. Aliased as `--prewarm-images` was renamed in 0.9. |
 | `--no-cover-images` | Skip the contact-sheet poster phase entirely. `/poster` falls back to the row thumbnail. |
 | `--workers N` | Background-transcode worker cap. Default `min(8, cpu // 2)`. Affects prewarm + neighbour prefetch; foreground transcodes are capped at 3 concurrent regardless. |

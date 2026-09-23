@@ -105,8 +105,10 @@ def serve_cmd(
         typer.Option(
             "--rescan",
             help=(
-                "Wipe the cached thumbnails / posters before startup so they regenerate. "
-                "Use this when files changed underneath the server (renames, edits)."
+                "Rebuild every library from the files: the music index is rebuilt, every "
+                "book is re-probed, and the video index and its thumbnails / posters are "
+                "wiped so they regenerate. Use this when files changed underneath the "
+                "server (renames, edits, re-tagging)."
             ),
         ),
     ] = False,

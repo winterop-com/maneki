@@ -17,7 +17,7 @@ maneki serve ~/Downloads/library --ui
 # Video-side: opt into / out of cache prewarm + contact-sheet posters
 maneki serve ~/library --ui --prewarm-cache         # populate thumbs / posters / subs at startup
 maneki serve ~/library --ui --no-cover-images       # skip contact sheets; fall back to row thumbnail
-maneki serve ~/library --ui --rescan                # wipe the on-disk video cache + DB rows first
+maneki serve ~/library --ui --rescan                # rebuild every library from the files first
 ```
 
 Then:
