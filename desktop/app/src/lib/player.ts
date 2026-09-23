@@ -538,6 +538,20 @@ export function skipBy(seconds: number): void {
     seek(state().positionS + seconds)
 }
 
+/**
+ * Play the book already on the element, from `atS`.
+ *
+ * What a chapter row in the side panel does, and it starts rather than scrubs: picking a
+ * chapter out of a list is asking to hear it, where dragging the scrubber is not.
+ */
+export function playChapter(atS: number): void {
+    const { book } = state()
+    if (!book) return
+    const at = Math.min(Math.max(0, atS), book.duration_s)
+    placeBook(at, true)
+    saveBook(at)
+}
+
 /** How fast a book is read. Kept between visits, because it is how somebody listens. */
 export function setSpeed(rate: number): void {
     const held = Math.min(Math.max(SPEEDS[0], rate), SPEEDS[SPEEDS.length - 1]!)

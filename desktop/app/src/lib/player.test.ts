@@ -14,6 +14,7 @@ import {
     next,
     play,
     playBook,
+    playChapter,
     playerStore,
     previous,
     seek,
@@ -459,6 +460,15 @@ describe('walking a book', () => {
         fake.arrive()
         previous()
         expect(playerStore.get().positionS).toBe(1200)
+    })
+
+    test('a chapter picked out of the panel starts, where a scrub would not', () => {
+        playBook(book, 0)
+        fake.arrive()
+        fake.pause()
+        playChapter(1200)
+        expect(playerStore.get().positionS).toBe(1200)
+        expect(playerStore.get().playing).toBe(true)
     })
 
     test('next on the last chapter stays where it is rather than playing it again', () => {

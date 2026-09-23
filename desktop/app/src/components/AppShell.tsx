@@ -66,12 +66,14 @@ import { applePlatform, modifierLabel } from '@/lib/shortcuts'
 import { chooseSpectrumTheme, SPECTRUM_THEMES } from '@/lib/spectrum-themes'
 import { cycleVisualizerStyle, openStage, toggleVisualizer, visualizerShown } from '@/lib/visualizer'
 
-/** The three facts the shell reads off the player. Module scope, so each is one stable function. */
+/** The facts the shell reads off the player. Module scope, so each is one stable function. */
 const selectPlaying = (state: { playing: boolean }) => state.playing
 const selectQueueLength = (state: { queue: unknown[] }) => state.queue.length
 const selectStation = (state: { station: unknown }) => state.station
 const selectShuffle = (state: { shuffle: boolean }) => state.shuffle
 const selectRepeat = (state: { repeat: 'off' | 'all' | 'one' }) => state.repeat
+const selectChapterCount = (state: { book: { chapter_list: unknown[] } | null }) =>
+    state.book?.chapter_list.length ?? 0
 
 export const SIGN_OUT_LABEL = 'Sign out'
 export const TOGGLE_PANEL_LABEL = 'Show or hide the side panel'
@@ -114,6 +116,7 @@ export function AppShell({ children }: { children: ReactNode }) {
     const station = useStoreValue(playerStore, selectStation)
     const shuffle = useStoreValue(playerStore, selectShuffle)
     const repeat = useStoreValue(playerStore, selectRepeat)
+    const chapterCount = useStoreValue(playerStore, selectChapterCount)
     const spectrum = useStore(visualizerShown)
     const navigate = useNavigate()
     const { setTheme } = useTheme()
@@ -152,14 +155,16 @@ export function AppShell({ children }: { children: ReactNode }) {
     )
 
     // The queue fills the panel for as long as there is one, and empties it when the queue
-    // goes: a panel offering an empty tab is chrome that does nothing.
+    // goes: a panel offering an empty tab is chrome that does nothing. A book fills it with its
+    // chapters for the same reason and under the same heading -- what comes next -- and a book
+    // carrying no chapter marks has nothing to list, so it does not.
     useEffect(() => {
-        if (!queued) return
+        if (!queued && chapterCount === 0) return
         return fillPanel([{ id: 'queue', label: QUEUE_LABEL, render: () => <QueuePanel /> }], {
             screen: 'shell',
             open: 'queue',
         })
-    }, [queued])
+    }, [queued, chapterCount])
 
     const actions = useMemo<PaletteAction[]>(() => {
         const pages: PaletteAction[] = entriesFor(caps).map((entry) => ({
