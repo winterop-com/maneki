@@ -1,6 +1,6 @@
-import { ChevronLeft, Play, Star, Volume2 } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Play, Star, Volume2 } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
-import { useNavigate, useParams } from 'react-router'
+import { NavLink, useNavigate, useParams } from 'react-router'
 
 import { CoverArt } from '@/components/CoverArt'
 import { Skeleton } from '@/components/Skeleton'
@@ -394,7 +394,11 @@ function ArtistScreen({ credentials, id }: { credentials: Credentials; id: strin
 
     return (
         <div className="p-4">
-            <Header title={data.artist.name} onBack={() => navigate('/music')} />
+            <Header
+                title={data.artist.name}
+                onBack={() => navigate('/music')}
+                trail={[{ label: 'Music', to: '/music' }]}
+            />
             <ul className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
                 {data.albums.map((album) => (
                     <li key={album.id}>
@@ -478,6 +482,7 @@ function AlbumScreen({ credentials, id }: { credentials: Credentials; id: string
         )
     }
     const { album, songs } = data
+    const discs = new Set(songs.map((song) => song.discNumber ?? 1)).size
     // THE BUTTON STARTS THIS ALBUM, AND THAT IS ALL IT DOES. Once this is the album playing,
     // pausing and resuming are the transport's along the foot of the window, and a second
     // pause button up here was the same control drawn twice. So it goes.
@@ -489,6 +494,12 @@ function AlbumScreen({ credentials, id }: { credentials: Credentials; id: string
                 title={album.name}
                 subtitle={`${album.artist}${album.year ? ` · ${album.year}` : ''}`}
                 onBack={() => navigate(album.artistId ? `/music/artist/${album.artistId}` : '/music')}
+                trail={[
+                    { label: 'Music', to: '/music' },
+                    ...(album.artistId
+                        ? [{ label: album.artist, to: `/music/artist/${album.artistId}` }]
+                        : []),
+                ]}
                 action={
                     playingThis ? null : (
                         <Button
@@ -520,11 +531,20 @@ function AlbumScreen({ credentials, id }: { credentials: Credentials; id: string
                         // under it playing one of its own rows and marking none of them makes
                         // somebody read the title along the foot and find it by eye.
                         const current = song.id === playingId
+                        // A SECOND DISC IS SAID, NOT GUESSED FROM THE NUMBERS STARTING OVER.
+                        const disc = song.discNumber ?? 1
+                        const newDisc =
+                            discs > 1 && (index === 0 || (songs[index - 1]?.discNumber ?? 1) !== disc)
                         return (
                             <li
                                 key={song.id}
-                                className={cn('flex items-center', current && 'bg-muted font-medium')}
+                                className={cn('flex flex-col', current && 'bg-muted font-medium')}
                             >
+                                {newDisc && (
+                                    <span className="border-b px-3 py-1.5 text-xs font-semibold tracking-wide text-faint uppercase">
+                                        Disc {disc}
+                                    </span>
+                                )}
                                 <button
                                     type="button"
                                     onClick={() => play(songs, index)}
@@ -604,11 +624,14 @@ function Header({
     subtitle,
     onBack,
     action,
+    trail = [],
 }: {
     title: string
     subtitle?: string
     onBack: () => void
     action?: React.ReactNode
+    /** Where this screen sits: the places above it, nearest last, each a link back up. */
+    trail?: { label: string; to: string }[]
 }) {
     return (
         <div className="mb-4 flex items-center gap-2">
@@ -616,6 +639,24 @@ function Header({
                 <ChevronLeft className="size-4" aria-hidden />
             </Button>
             <div className="min-w-0 flex-1">
+                {/* THE TRAIL SAYS WHERE THIS IS. An album's heading names the album; without
+                    the shelf and the artist above it, a screen reached from search or a link
+                    is a list of songs floating in the app. Each step is a link back up. */}
+                {trail.length > 0 && (
+                    <nav
+                        aria-label="Where this is"
+                        className="flex items-center gap-1 text-xs text-muted-foreground"
+                    >
+                        {trail.map((step) => (
+                            <span key={step.to} className="flex items-center gap-1">
+                                <NavLink to={step.to} className="control-link truncate hover:text-foreground">
+                                    {step.label}
+                                </NavLink>
+                                <ChevronRight className="size-3 shrink-0 text-faint" aria-hidden />
+                            </span>
+                        ))}
+                    </nav>
+                )}
                 <h1 className="truncate text-base">{title}</h1>
                 {subtitle && <p className="truncate text-sm text-muted-foreground">{subtitle}</p>}
             </div>
