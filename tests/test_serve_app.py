@@ -276,3 +276,12 @@ def test_post_form_credentials_reach_the_subsonic_mount(library_root: Path) -> N
     )
     assert resp.status_code == 200
     assert resp.json()["subsonic-response"]["status"] == "ok"
+
+
+def test_bare_mount_prefix_answers_like_its_root(library_root: Path) -> None:
+    """Amperfy requests the address exactly as typed, `/audio`, before it
+    signs in; a mount only answers at `/audio/`, and the 404 was reported
+    as a failed login. The bare prefix is routed as its root."""
+    client = TestClient(create_combined_app(root=library_root, audio_cfg=_TEST_AUDIO_CFG))
+    assert client.get("/audio").status_code == 200
+    assert client.get("/audio/").status_code == 200

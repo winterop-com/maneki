@@ -562,7 +562,13 @@ def accepts_media_token(method: str, path: str) -> bool:
 
 
 class CollapseSlashesMiddleware:
-    """Collapse repeated slashes in the request path before routing.
+    """Make the request path the one the client meant before routing.
+
+    Two repairs. Repeated slashes are collapsed: play:Sub normalises the
+    address it is given to a trailing slash and then appends `/rest/...`.
+    And a bare mount prefix gets its slash: Amperfy asks for the address
+    exactly as typed, `/audio`, before it signs in, and a mount only
+    answers at `/audio/`; a 404 there is reported as a failed login.
 
     Pure ASGI rather than `BaseHTTPMiddleware`: the path is a fact on the
     scope, and rewriting it there is what lets the mounts see the path a
@@ -571,15 +577,20 @@ class CollapseSlashesMiddleware:
     handlers never read, are left as they came.
     """
 
+    #: The prefixes `create_combined_app` mounts sub-apps under.
+    MOUNTS = ("/audio", "/video", "/books", "/classic")
+
     def __init__(self, app: Any) -> None:
         self.app = app
 
     async def __call__(self, scope: Any, receive: Any, send: Any) -> None:
         if scope.get("type") == "http":
             path = scope.get("path", "")
-            if "//" in path:
-                while "//" in path:
-                    path = path.replace("//", "/")
+            while "//" in path:
+                path = path.replace("//", "/")
+            if path in self.MOUNTS:
+                path += "/"
+            if path != scope.get("path", ""):
                 scope["path"] = path
         await self.app(scope, receive, send)
 
