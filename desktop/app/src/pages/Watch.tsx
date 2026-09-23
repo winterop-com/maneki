@@ -1,4 +1,4 @@
-import { Activity, ChevronLeft, Maximize2, PanelRight } from 'lucide-react'
+import { Activity, ChevronLeft, Maximize2, Minimize2, PanelRight } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router'
 
@@ -34,6 +34,7 @@ const POSTER_POLL_MS = 4000
 
 export const THEATER_LABEL = 'Hide the list beside the video'
 export const FULLSCREEN_LABEL = 'Put the video over the whole screen'
+export const LEAVE_FULLSCREEN_LABEL = 'Leave full screen'
 
 /**
  * One video, playing.
@@ -65,6 +66,7 @@ function Watch({ id }: { id: string }) {
     const [posterToken, setPosterToken] = useState<number | undefined>(undefined)
     const theater = useStore(theaterOn)
     const [stats, setStats] = useState(false)
+    const [filled, setFilled] = useState(false)
     const player = useRef<VideoHandle | null>(null)
     const navigate = useNavigate()
 
@@ -268,7 +270,7 @@ function Watch({ id }: { id: string }) {
                 },
                 {
                     id: 'video:fullscreen',
-                    title: FULLSCREEN_LABEL,
+                    title: filled ? LEAVE_FULLSCREEN_LABEL : FULLSCREEN_LABEL,
                     group: SCREEN_GROUP,
                     screen: true,
                     icon: Maximize2,
@@ -285,7 +287,7 @@ function Watch({ id }: { id: string }) {
                     run: toggleStats,
                 },
             ]),
-        [fullscreen, stats, theater, toggleStats],
+        [filled, fullscreen, stats, theater, toggleStats],
     )
 
     /**
@@ -363,8 +365,18 @@ function Watch({ id }: { id: string }) {
                 >
                     <PanelRight className="size-4" aria-hidden />
                 </Button>
-                <Button variant="outline" size="sm" aria-label={FULLSCREEN_LABEL} onClick={fullscreen}>
-                    <Maximize2 className="size-4" aria-hidden />
+                <Button
+                    variant={filled ? 'default' : 'outline'}
+                    size="sm"
+                    aria-pressed={filled}
+                    aria-label={filled ? LEAVE_FULLSCREEN_LABEL : FULLSCREEN_LABEL}
+                    onClick={fullscreen}
+                >
+                    {filled ? (
+                        <Minimize2 className="size-4" aria-hidden />
+                    ) : (
+                        <Maximize2 className="size-4" aria-hidden />
+                    )}
                 </Button>
             </div>
 
@@ -377,6 +389,7 @@ function Watch({ id }: { id: string }) {
                             poster={videoApi.posterUrl(video.id, posterToken)}
                             subtitles={subtitles}
                             autoplay
+                            onFullscreenChange={setFilled}
                             onReady={onReady}
                         />
                     )}
