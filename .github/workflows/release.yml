@@ -74,11 +74,11 @@ jobs:
 
       - name: Build sdist + wheel
         # Goes via `make build-python`, NOT `uv build` directly, because
-        # the Makefile target depends on `ui-static-sync` which copies
-        # `desktop/react/` -> `src/maneki/_ui_static/` so the wheel
-        # ships the SPA that `maneki ui` serves. A raw `uv build`
-        # would publish a wheel where `maneki ui` raises
-        # FileNotFoundError on the installed user's machine.
+        # the Makefile target depends on `ui-static-sync`, which builds
+        # both clients and copies `desktop/app/dist` -> `src/maneki/_ui_static/`
+        # (what `/` serves) and `desktop/react/dist` -> `_ui_static_classic/`
+        # (what `/classic` serves). A raw `uv build` would publish a wheel
+        # where `maneki serve --ui` refuses to start for want of a client.
         run: make build-python
 
       - name: Verify wheel bundles the SPA static files
