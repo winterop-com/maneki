@@ -5,13 +5,15 @@ import { useLocation, useNavigate, useParams, useSearchParams } from 'react-rout
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { VideoPlayer } from '@/components/video/VideoPlayer'
+import { VideoPlayer, type VideoHandle } from '@/components/video/VideoPlayer'
 import { useStore } from '@/hooks/use-store'
 import { youtube as youtubeApi } from '@/lib/api'
 import { clock } from '@/lib/format'
 import { registerActions, SCREEN_GROUP, type PaletteAction } from '@/lib/palette'
+import { claimStageKey, claimTransport } from '@/lib/screen-keys'
 import { clearScreenStatus, setScreenStatus, type StatusTone } from '@/lib/screen-status'
 import { sessionStore } from '@/lib/session'
+import { seeks, type FocusedField } from '@/lib/shortcuts'
 import { countsHeld, rememberCounts, uncounted } from '@/lib/youtube-counts'
 import type { YouTubeChannel, YouTubeTab, YouTubeVideo } from '@/lib/types'
 import { cn } from '@/lib/utils'
@@ -642,6 +644,58 @@ function Watch({ id }: { id: string }) {
 
     useScreenNote(held === null ? 'resolving the stream' : null, video?.title ?? null)
 
+    /**
+     * THE KEYS MEAN THE PICTURE WHILE THERE IS ONE, as they do on the local watch screen.
+     *
+     * Left to the shell, `f` put the spectrum over a video somebody was watching and Space
+     * stopped an album they were not listening to. So `f` is this player's full screen, Space is
+     * its play, and the arrows move its playhead -- read on the window in the capture phase,
+     * because a video.js component answers a keydown it has no use for by stopping it. `n` and
+     * `p` are claimed as nothing: a channel's upload is not part of any queue, and a key that
+     * did nothing is better than a key that quietly moved the album instead.
+     */
+    const player = useRef<VideoHandle | null>(null)
+    const onReady = useCallback((handle: VideoHandle | null) => {
+        player.current = handle
+    }, [])
+    useEffect(
+        () =>
+            claimStageKey(() => {
+                player.current?.toggleFullscreen()
+            }),
+        [],
+    )
+    useEffect(
+        () =>
+            claimTransport({
+                play: () => player.current?.togglePlay(),
+                next: null,
+                previous: null,
+            }),
+        [],
+    )
+    useEffect(() => {
+        const onKeyDown = (event: KeyboardEvent): void => {
+            const element = document.activeElement
+            const focused: FocusedField | null =
+                element instanceof HTMLElement
+                    ? { tagName: element.tagName, isContentEditable: element.isContentEditable }
+                    : null
+            const seek = seeks(
+                { key: event.key, ctrlKey: event.ctrlKey, metaKey: event.metaKey, altKey: event.altKey },
+                focused,
+            )
+            if (seek === null) return
+            event.preventDefault()
+            event.stopPropagation()
+            player.current?.seekBy(seek)
+        }
+        window.addEventListener('keydown', onKeyDown, true)
+        return () => {
+            window.removeEventListener('keydown', onKeyDown, true)
+        }
+    }, [])
+
     const ladder = qualityLadder(heights)
     const length = video === null || video.duration_s === null ? null : clock(video.duration_s)
 
@@ -702,6 +756,7 @@ function Watch({ id }: { id: string }) {
                         kind="hls"
                         poster={youtubeApi.posterUrl(id)}
                         autoplay
+                        onReady={onReady}
                         onError={(message) => {
                             setResolved({ key: id, value: video, refusal: message })
                         }}
