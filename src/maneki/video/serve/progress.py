@@ -100,7 +100,9 @@ class VideoProgressStore:
         player reporting every ten seconds for an hour leaves one row
         behind rather than three hundred and sixty.
         """
-        position = max(0.0, position_s)
+        # A tenth of a second is all a place in a book or a film is worth writing down; the
+        # element's clock arrives as a double with fourteen digits saying nothing more.
+        position = round(max(0.0, position_s), 1)
         if duration_s:
             position = min(position, duration_s)
         if finished is None:

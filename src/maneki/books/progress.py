@@ -91,7 +91,9 @@ class ProgressStore:
         now: float | None = None,
     ) -> BookProgress:
         """Record the position. Passing the book's length marks the tail as finished."""
-        position = max(0.0, position_s)
+        # A tenth of a second is all a place in a book or a film is worth writing down; the
+        # element's clock arrives as a double with fourteen digits saying nothing more.
+        position = round(max(0.0, position_s), 1)
         if duration_s:
             position = min(position, duration_s)
         if finished is None:
