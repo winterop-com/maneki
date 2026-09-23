@@ -110,6 +110,31 @@ export function rowsOf(browse: VideoBrowse): BrowseRow[] {
     return [...folders, ...videos]
 }
 
+/** What sits either side of one video in the folder it came out of. */
+export interface Neighbours {
+    previous: VideoEntry | null
+    next: VideoEntry | null
+}
+
+/**
+ * The video before and the video after, in the order the folder is read in.
+ *
+ * IN THE LISTING'S ORDER, NOT THE SERVER'S. The wire answers a folder in the filesystem's walk
+ * order, which is no order to a reader, and the screen sorts it -- so "the next one" has to be
+ * the next one on screen or `n` moves somewhere nobody was pointing at. Same comparison the
+ * listing uses, which is what keeps S2 before S10.
+ *
+ * A video the folder does not hold, and either end of it, answer null: there is nothing there,
+ * and a step that wrapped round to the first episode after the last would be a season that
+ * never ends.
+ */
+export function neighbours(videos: readonly VideoEntry[], id: string): Neighbours {
+    const ordered = videos.toSorted((left, right) => compareNames(left.name, right.name))
+    const at = ordered.findIndex((one) => one.id === id)
+    if (at < 0) return { previous: null, next: null }
+    return { previous: ordered[at - 1] ?? null, next: ordered[at + 1] ?? null }
+}
+
 /**
  * The tail a subtitle track is fetched by.
  *

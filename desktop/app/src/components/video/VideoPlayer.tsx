@@ -44,6 +44,8 @@ export interface PlayerSubtitle {
 export interface VideoHandle {
     /** Where the playhead is, in seconds. */
     positionS: () => number
+    /** Start it, or stop it. What Space means while a video is the thing being played. */
+    togglePlay: () => void
     /** Move the playhead, clamped to the video's own ends. */
     seekBy: (deltaS: number) => void
     /** Put the playhead somewhere, held until the media can take it. */
@@ -367,6 +369,10 @@ export function VideoPlayer({
 
         told.current.onReady?.({
             positionS: () => built.currentTime() ?? 0,
+            togglePlay: () => {
+                if (built.paused()) void built.play()?.catch(() => undefined)
+                else built.pause()
+            },
             seekBy: (deltaS) => {
                 const at = built.currentTime() ?? 0
                 const end = built.duration() ?? 0

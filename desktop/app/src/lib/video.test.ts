@@ -18,6 +18,7 @@ import {
     encoderOf,
     fileSize,
     hlsPath,
+    neighbours,
     otherStreams,
     parentOf,
     posterPath,
@@ -206,6 +207,25 @@ describe('subtitleLabel', () => {
 
     it('says Subtitles for a sidecar that named no language', () => {
         expect(subtitleLabel('sidecar:und', 'und')).toBe('Subtitles')
+    })
+})
+
+describe('neighbours', () => {
+    const season = [video('S01E10'), video('S01E02'), video('S01E01')]
+
+    it('steps in the order the listing draws, not the order the wire answered', () => {
+        const around = neighbours(season, 'S01E02')
+        expect(around.previous?.id).toBe('S01E01')
+        expect(around.next?.id).toBe('S01E10')
+    })
+
+    it('stops at either end rather than wrapping round', () => {
+        expect(neighbours(season, 'S01E01').previous).toBeNull()
+        expect(neighbours(season, 'S01E10').next).toBeNull()
+    })
+
+    it('answers nothing about a video the folder does not hold', () => {
+        expect(neighbours(season, 'nowhere')).toEqual({ previous: null, next: null })
     })
 })
 

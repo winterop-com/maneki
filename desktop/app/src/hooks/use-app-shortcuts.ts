@@ -15,7 +15,7 @@ import {
 import { paletteOpen } from '@/lib/palette'
 import { togglePanel, toggleRail } from '@/lib/panels'
 import { toggleLyrics } from '@/lib/lyrics'
-import { stageKeyClaim } from '@/lib/screen-keys'
+import { stageKeyClaim, transportClaim } from '@/lib/screen-keys'
 import { closeSearch, openSearch, searchOpen } from '@/lib/search'
 import { sessionStore } from '@/lib/session'
 import {
@@ -97,16 +97,29 @@ export function useAppShortcuts(onShortcuts: () => void): void {
                 openSearch()
                 return
             }
+            // What is playing is what somebody is looking at. A screen with a video on it
+            // claims these three while it is open, so Space stops the picture rather than the
+            // album nobody is listening to, and the same keys mean the queue everywhere else.
             if (togglesPlayback(press, focused())) {
                 event.preventDefault()
-                toggle()
+                const claimed = transportClaim()
+                if (claimed === null) toggle()
+                else claimed.play()
                 return
             }
             const step = steps(press, focused())
             if (step !== null) {
                 event.preventDefault()
-                if (step === 'next') next()
-                else previous()
+                const claimed = transportClaim()
+                if (claimed === null) {
+                    if (step === 'next') next()
+                    else previous()
+                    return
+                }
+                // A claim with nothing either side of what is open answers with nothing, which
+                // is the point: stepping the album instead would be the wrong thing moving.
+                if (step === 'next') claimed.next?.()
+                else claimed.previous?.()
                 return
             }
             if (togglesVisualizer(press, focused())) {

@@ -9,13 +9,14 @@ import { video as videoApi } from '@/lib/api'
 import { clock } from '@/lib/format'
 import { useStore } from '@/hooks/use-store'
 import { registerActions, SCREEN_GROUP } from '@/lib/palette'
-import { claimStageKey } from '@/lib/screen-keys'
+import { claimStageKey, claimTransport } from '@/lib/screen-keys'
 import { clearScreenStatus, setScreenStatus } from '@/lib/screen-status'
 import { seeks, togglesTheater, type FocusedField } from '@/lib/shortcuts'
 import type { VideoEntry, VideoSubtitleTrack } from '@/lib/types'
 import {
     browseHref,
     fileSize,
+    neighbours,
     parentOf,
     preferredSubtitles,
     resolutionLabel,
@@ -207,6 +208,33 @@ function Watch({ id }: { id: string }) {
 
     // `f` is the spectrum's everywhere else in the app; here it is the picture's.
     useEffect(() => claimStageKey(fullscreen), [fullscreen])
+
+    /**
+     * Space, `n` and `p` mean the picture while there is one.
+     *
+     * They are the queue's keys everywhere else, and they stayed the queue's here: Space stopped
+     * an album nobody was listening to and `n` moved it on, while the episode somebody was
+     * actually watching carried on regardless. What is playing is what is in front of them.
+     *
+     * The step is the folder's, in the order the list beside the picture draws it, and a folder
+     * with nothing after this episode answers `n` with nothing rather than with the album.
+     */
+    const around = useMemo(() => neighbours(beside, id), [beside, id])
+    const nextId = around.next?.id ?? null
+    const previousId = around.previous?.id ?? null
+    useEffect(() => {
+        const step = (to: string | null): (() => void) | null =>
+            to === null
+                ? null
+                : () => {
+                      void navigate(watchHref(to))
+                  }
+        return claimTransport({
+            play: () => player.current?.togglePlay(),
+            next: step(nextId),
+            previous: step(previousId),
+        })
+    }, [navigate, nextId, previousId])
 
     /**
      * The keys that only mean something while a video is on screen.
