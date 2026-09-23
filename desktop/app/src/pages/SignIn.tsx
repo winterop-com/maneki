@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { useStore } from '@/hooks/use-store'
 import { probe } from '@/lib/api'
+import { candidates } from '@/lib/server-address'
 import { currentShell, probeOrigins } from '@/lib/desktop'
 import { connect, sessionStore, signInTo } from '@/lib/session'
 import type { Capabilities } from '@/lib/types'
@@ -14,6 +15,18 @@ import type { Capabilities } from '@/lib/types'
 export const CHANGE_SERVER_LABEL = 'Connect to a different server'
 export const SHOW_PASSWORD_LABEL = 'Show password'
 export const HIDE_PASSWORD_LABEL = 'Hide password'
+
+/**
+ * The first of `origins` that answers `/capabilities`, asked one at a time, or null.
+ *
+ * One at a time on purpose: the list is in order of likelihood, and asking all of them at
+ * once would let a slower, likelier answer lose to a faster, less likely one.
+ */
+async function firstAnswering(origins: readonly string[]): Promise<string | null> {
+    const [first, ...rest] = origins
+    if (first === undefined) return null
+    return (await probe(first)) ? first : firstAnswering(rest)
+}
 
 /** The field treatment this screen alone wears: taller than a control, and edged in every palette. */
 const FIELD = 'border-border-strong h-12 rounded-lg pl-11'
@@ -89,7 +102,12 @@ export function SignIn() {
         event.preventDefault()
         setBusy(true)
         setSubmitted(true)
-        const server = baseUrl.replace(/\/+$/, '')
+        // A NAME IS ENOUGH. `macmini` is tried the ways a server is reached -- see
+        // `lib/server-address` -- and the first address that answers is the one signed in to.
+        // When none answers, the likeliest is tried anyway so the refusal names it.
+        const tried = candidates(baseUrl)
+        const server = (await firstAnswering(tried)) ?? tried[0] ?? baseUrl
+        setBaseUrl(server)
         if (username) await signInTo(server, username, password)
         else await connect({ baseUrl: server }, true)
         setBusy(false)
@@ -145,7 +163,7 @@ export function SignIn() {
                                     name="server"
                                     autoComplete="url"
                                     required
-                                    placeholder="http://host:8765"
+                                    placeholder="macmini, or http://host:8765"
                                     className={`${FIELD} font-mono`}
                                     value={baseUrl}
                                     onChange={(event) => {
