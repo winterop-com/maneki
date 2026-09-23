@@ -1,0 +1,233 @@
+/**
+ * The loop that paints the spectrum, for whichever canvas asks for it.
+ *
+ * ONE LOOP, TWO CANVASES. The strip on the player bar and the stage over the whole screen are
+ * the same reading of the same analyser at different sizes, so the measuring, the frame clock
+ * and the four drawings live here and each component is a canvas with a ref on it. Two copies
+ * of this loop would be two places a style has to be added to.
+ *
+ * THE GEOMETRY IS NOT HERE. What a frame of bytes looks like -- the band heights, the smoothed
+ * ridge, the scope's trace, whether the frame is worth painting -- is `lib/visualizer`, which is
+ * exercised in plain Node. This file is the part that needs a canvas: it turns those points into
+ * calls and nothing else.
+ *
+ * MEASURED ON RESIZE, NOT PER FRAME. Reading `clientWidth` forces the browser to lay the page
+ * out and `getComputedStyle` forces it to recalculate style; doing both sixty times a second on
+ * a page with a long list in it is felt as a pointer that will not keep up. Both are read when
+ * the box actually changes, and again when the palette or the mode is written onto `<html>`.
+ *
+ * THE COLOUR IS A TOKEN UNLESS SOMEBODY ASKED OTHERWISE. What the canvas reads off its own
+ * element is the accent in the palette in force, and that is what the default theme paints
+ * with. `lib/spectrum-themes` is where a chosen ramp comes from, and where the reason a fixed
+ * colour is allowed there at all is written down.
+ *
+ * WHAT IS DRAWN IS WHAT IS AUDIBLE, NOT WHAT THE ANALYSER JUST READ. The two are the same thing
+ * over a cable and a third of a second apart over Bluetooth, so every frame goes through the
+ * delay line in `lib/sync` and what gets painted is the frame from as long ago as the output is
+ * behind.
+ */
+
+import { useEffect, useRef, type RefObject } from 'react'
+
+import { usePrefersReducedMotion } from '@/hooks/use-reduced-motion'
+import { useStore } from '@/hooks/use-store'
+import { spectrum, spectrumContext } from '@/lib/player'
+import { spectrumTheme, themeGradient, themeSweep } from '@/lib/spectrum-themes'
+import { makeDelayLine, outputDelayMs, spectrumDelayMs } from '@/lib/sync'
+import {
+    bars,
+    barLayout,
+    isFlat,
+    isIdle,
+    ridgePoints,
+    scopePoints,
+    visualizerStyle,
+    type VisualizerStyle,
+} from '@/lib/visualizer'
+
+/**
+ * Paint the analyser into a canvas for as long as `active` holds.
+ *
+ * `bands` is how many bars the caller's width can carry: the strip is 112px and the stage is a
+ * screen, and a band count that suited both would be wrong for one of them.
+ */
+export function useSpectrum(active: boolean, bands: number): RefObject<HTMLCanvasElement | null> {
+    const canvas = useRef<HTMLCanvasElement | null>(null)
+    const style = useStore(visualizerStyle)
+    const theme = useStore(spectrumTheme)
+    // A reader who has asked their system for less movement gets the still bar the player
+    // already has, and no loop at all.
+    const still = usePrefersReducedMotion()
+
+    useEffect(() => {
+        const element = canvas.current
+        if (!element || !active || still) return
+        const analyser = spectrum()
+        if (!analyser) return
+        const context = element.getContext('2d')
+        if (!context) return
+
+        // The scope reads the samples themselves and every other style reads the FFT, so only
+        // the one the chosen style asks for is ever read: the time domain is a copy, but the
+        // frequency data is the transform, and asking for both is paying for it twice.
+        const wave = style === 'scope'
+        const frame = new Uint8Array(wave ? analyser.fftSize : analyser.frequencyBinCount)
+        // What is read off the analyser is not what is audible yet -- see `lib/sync`. Every
+        // frame goes through the line whatever the delay is, so dialling one in mid-track has a
+        // history to read back from rather than starting empty.
+        const line = makeDelayLine(frame.length)
+        const graph = spectrumContext()
+        let request = 0
+
+        let width = element.clientWidth
+        let height = element.clientHeight
+        let ink = getComputedStyle(element).color
+        const measure = () => {
+            width = element.clientWidth
+            height = element.clientHeight
+            ink = getComputedStyle(element).color
+            const ratio = window.devicePixelRatio || 1
+            element.width = Math.round(width * ratio)
+            element.height = Math.round(height * ratio)
+            context.setTransform(ratio, 0, 0, ratio, 0, 0)
+        }
+        measure()
+        const watcher = new ResizeObserver(measure)
+        watcher.observe(element)
+        // The palette and the mode are written onto <html>, and the ink is one of their tokens.
+        const painted = new MutationObserver(measure)
+        painted.observe(document.documentElement, {
+            attributes: true,
+            attributeFilter: ['class', 'data-theme'],
+        })
+
+        // Whether the quiet has already been drawn once. The frame that crosses into silence is
+        // painted, so what is left on screen is the floor rather than the middle of a note; from
+        // the one after it the paint is skipped and only the bookkeeping runs.
+        let settled = false
+
+        const draw = () => {
+            request = requestAnimationFrame(draw)
+            if (wave) analyser.getByteTimeDomainData(frame)
+            else analyser.getByteFrequencyData(frame)
+            // The graph's own clock, because that is what the latency is measured against; a
+            // page clock where there is no graph, which only happens before anything has played.
+            line.push(frame, graph === null ? performance.now() : graph.currentTime * 1000)
+            // Read again every frame rather than held: the setting moves under a dragged slider,
+            // and what the browser reports changes the moment the output device does.
+            const shown = line.read(outputDelayMs(graph) + spectrumDelayMs.get())
+            const quiet = wave ? isFlat(shown) : isIdle(shown)
+            if (quiet && settled) return
+            settled = quiet
+            context.clearRect(0, 0, width, height)
+            // Built once per theme, size and accent rather than per frame -- and `accent`, the
+            // theme every session starts on, is a gradient of the one colour the canvas read
+            // off its own element, which is a token.
+            const ramp = wave
+                ? themeSweep(theme, context, width, ink)
+                : themeGradient(theme, context, height, ink)
+            context.fillStyle = ramp
+            context.strokeStyle = ramp
+            paint(context, style, shown, width, height, bands)
+        }
+
+        request = requestAnimationFrame(draw)
+        return () => {
+            cancelAnimationFrame(request)
+            watcher.disconnect()
+            painted.disconnect()
+            context.clearRect(0, 0, width, height)
+        }
+    }, [active, bands, still, style, theme])
+
+    return canvas
+}
+
+/** One frame, in whichever drawing is chosen. */
+function paint(
+    context: CanvasRenderingContext2D,
+    style: VisualizerStyle,
+    frame: Uint8Array,
+    width: number,
+    height: number,
+    bands: number,
+): void {
+    switch (style) {
+        case 'scope':
+            return paintScope(context, frame, width, height)
+        case 'ridge':
+            return paintRidge(context, frame, width, height, bands)
+        case 'mirror':
+            return paintColumns(context, frame, width, height, bands, true)
+        default:
+            return paintColumns(context, frame, width, height, bands, false)
+    }
+}
+
+/**
+ * Bars, stood on the floor or about the middle.
+ *
+ * MIRRORING IS WHERE THE BAR STANDS, NOT A DIFFERENT READING. Both draw the same heights, so
+ * the two styles are one loop with the baseline moved -- and a band that reaches full scale
+ * fills the canvas either way.
+ */
+function paintColumns(
+    context: CanvasRenderingContext2D,
+    frame: Uint8Array,
+    width: number,
+    height: number,
+    bands: number,
+    mirrored: boolean,
+): void {
+    const heights = bars(frame, bands)
+    const { bar, gap } = barLayout(width, heights.length)
+    const middle = height / 2
+    heights.forEach((level, index) => {
+        const x = index * (bar + gap)
+        if (mirrored) {
+            const reach = Math.max(1, (level * height) / 2)
+            context.fillRect(x, middle - reach, bar, reach * 2)
+        } else {
+            const tall = Math.max(1, level * height)
+            context.fillRect(x, height - tall, bar, tall)
+        }
+    })
+}
+
+/** The band tops as a filled curve: the bars melted into one line. */
+function paintRidge(
+    context: CanvasRenderingContext2D,
+    frame: Uint8Array,
+    width: number,
+    height: number,
+    bands: number,
+): void {
+    const line = ridgePoints(frame, width, height, bands)
+    if (line.length === 0) return
+    context.beginPath()
+    // The curve is the top of a shape rather than a line: it is closed down to the floor at
+    // both ends, which is the area under the spectrum and what gets filled.
+    context.moveTo(0, height)
+    for (const point of line) context.lineTo(point.x, point.y)
+    context.lineTo(width, height)
+    context.closePath()
+    context.fill()
+}
+
+/** The waveform, stroked rather than filled: a scope draws a line and has no area under it. */
+function paintScope(
+    context: CanvasRenderingContext2D,
+    frame: Uint8Array,
+    width: number,
+    height: number,
+): void {
+    const line = scopePoints(frame, width, height)
+    if (line.length === 0) return
+    context.lineWidth = Math.max(1.5, height * 0.012)
+    context.lineJoin = 'round'
+    context.lineCap = 'round'
+    context.beginPath()
+    context.moveTo(line[0].x, line[0].y)
+    for (let at = 1; at < line.length; at += 1) context.lineTo(line[at].x, line[at].y)
+    context.stroke()
+}
