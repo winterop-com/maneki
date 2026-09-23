@@ -252,3 +252,13 @@ def test_radio_only_serve_starts_no_audio_watcher(tmp_path: Path, monkeypatch: p
     with TestClient(create_combined_app(root=tmp_path, audio_cfg=_TEST_AUDIO_CFG)):
         pass
     assert _FakeWatcher.instances == []
+
+
+def test_doubled_slash_in_path_reaches_the_subsonic_mount(library_root: Path) -> None:
+    """play:Sub normalises the server address to a trailing slash and then
+    appends `/rest/...`, so `/audio//rest/ping` has to answer like
+    `/audio/rest/ping` rather than 404 as "not reachable"."""
+    client = TestClient(create_combined_app(root=library_root, audio_cfg=_TEST_AUDIO_CFG))
+    resp = client.get("/audio//rest/ping?u=admin&p=admin&v=1.16.1&c=test&f=json")
+    assert resp.status_code == 200
+    assert resp.json()["subsonic-response"]["status"] == "ok"

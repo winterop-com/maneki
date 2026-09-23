@@ -399,6 +399,14 @@ def create_combined_app(
         allow_headers=["*"],
     )
 
+    # Subsonic clients are given `http://host:8765/audio` and append their own
+    # `/rest/...`; some of them (play:Sub) first normalise what they were given
+    # to a trailing slash, so what arrives is `/audio//rest/ping`, which no
+    # mount matches and which the app then reports as "not reachable". A
+    # doubled slash never means anything else here, so it is collapsed before
+    # routing rather than documented as a thing to avoid.
+    combined.add_middleware(CollapseSlashesMiddleware)
+
     @combined.get("/capabilities")
     def capabilities() -> dict[str, object]:
         # `audio` / `video` describe the LOCAL LIBRARY; the `endpoints` map
@@ -551,6 +559,29 @@ def accepts_media_token(method: str, path: str) -> bool:
     worst be read with.
     """
     return method in {"GET", "HEAD"} and any(pattern.match(path) for pattern in _MEDIA_TOKEN_PATHS)
+
+
+class CollapseSlashesMiddleware:
+    """Collapse repeated slashes in the request path before routing.
+
+    Pure ASGI rather than `BaseHTTPMiddleware`: the path is a fact on the
+    scope, and rewriting it there is what lets the mounts see the path a
+    client meant rather than the one its URL joining produced. Only the
+    path is touched -- the query string, and the raw path the Subsonic
+    handlers never read, are left as they came.
+    """
+
+    def __init__(self, app: Any) -> None:
+        self.app = app
+
+    async def __call__(self, scope: Any, receive: Any, send: Any) -> None:
+        if scope.get("type") == "http":
+            path = scope.get("path", "")
+            if "//" in path:
+                while "//" in path:
+                    path = path.replace("//", "/")
+                scope["path"] = path
+        await self.app(scope, receive, send)
 
 
 class BearerAuthMiddleware(BaseHTTPMiddleware):
