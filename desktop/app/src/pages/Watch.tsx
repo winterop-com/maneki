@@ -1,4 +1,4 @@
-import { Activity, ChevronLeft, Maximize2, Minimize2, PanelRight } from 'lucide-react'
+import { Activity, ChevronLeft, Maximize2, Minimize2, PanelRight, Play } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router'
 
@@ -15,6 +15,7 @@ import { seeks, togglesTheater, type FocusedField } from '@/lib/shortcuts'
 import type { VideoEntry, VideoSubtitleTrack } from '@/lib/types'
 import {
     browseHref,
+    episodeName,
     fileSize,
     neighbours,
     parentOf,
@@ -33,6 +34,10 @@ const SIZE_POLL_MS = 500
 /** How often to ask whether the contact sheet behind the player has been made yet. */
 const POSTER_POLL_MS = 4000
 
+/** What a row's still frame is asked for at: 16:9, and twice the size it is drawn. */
+const THUMB_WIDTH = 160
+const THUMB_HEIGHT = 90
+
 export const THEATER_LABEL = 'Hide the list beside the video'
 export const FULLSCREEN_LABEL = 'Put the video over the whole screen'
 export const LEAVE_FULLSCREEN_LABEL = 'Leave full screen'
@@ -46,9 +51,14 @@ export const LEAVE_FULLSCREEN_LABEL = 'Leave full screen'
  * the folder rather than a queue because there is no queue here: nothing about watching is
  * played in order the way a record is.
  *
- * AND IT GOES AWAY ON ONE KEY. `t` takes the list off and gives the width to the picture, which
- * is what somebody watching rather than choosing wants; `f` is the browser's own full screen on
- * the player, claimed from the spectrum for as long as this screen is open.
+ * AND IT GOES AWAY ON ONE KEY. `t` takes the list off and the chrome with it, which is what
+ * somebody watching rather than choosing wants; `f` fills the screen, claimed from the spectrum
+ * for as long as this screen is open. Space, `n` and `p` are claimed the same way, because what
+ * is playing while a video is on screen is the video.
+ *
+ * A ROW SAYS WHAT DIFFERS. Every file in a season begins with the same forty characters, so the
+ * list beside the picture draws the frame, what the name does not share with its neighbours, and
+ * how long it runs -- and marks the one that is playing.
  */
 export function WatchPage() {
     const { videoId } = useParams()
@@ -219,6 +229,8 @@ function Watch({ id }: { id: string }) {
      * The step is the folder's, in the order the list beside the picture draws it, and a folder
      * with nothing after this episode answers `n` with nothing rather than with the album.
      */
+    // What the folder holds, which is what a row's name is shortened against.
+    const besideNames = useMemo(() => beside.map((one) => one.name), [beside])
     const around = useMemo(() => neighbours(beside, id), [beside, id])
     const nextId = around.next?.id ?? null
     const previousId = around.previous?.id ?? null
@@ -344,7 +356,7 @@ function Watch({ id }: { id: string }) {
         video === null || video.duration_s === null ? null : clock(video.duration_s),
         size === null ? null : resolutionLabel(size.width, size.height),
         video === null ? null : fileSize(video.size_bytes),
-        subtitleNote(tracks),
+        subtitleNote(tracks === null ? null : tracks.length),
     ].filter((fact) => fact !== null)
 
     return (
@@ -442,12 +454,32 @@ function Watch({ id }: { id: string }) {
                                         onClick={() => void navigate(watchHref(one.id))}
                                         aria-current={one.id === id ? 'true' : undefined}
                                         className={cn(
-                                            'row-hover flex min-h-finger w-full items-center gap-2 rounded-md px-2 text-left text-sm',
+                                            'row-hover flex min-h-finger w-full items-center gap-2 rounded-md p-1 text-left text-sm',
                                             one.id === id && 'bg-muted font-medium',
                                         )}
                                     >
+                                        {/* The frame says what an episode is before the words do,
+                                            and the mark on it says which one is playing -- a row
+                                            in the wash alone is a state somebody has to compare
+                                            rows to read. */}
+                                        <span className="relative shrink-0">
+                                            <img
+                                                src={videoApi.thumbnailUrl(one.id)}
+                                                alt=""
+                                                loading="lazy"
+                                                decoding="async"
+                                                width={THUMB_WIDTH}
+                                                height={THUMB_HEIGHT}
+                                                className="h-9 w-16 rounded-sm bg-muted object-cover"
+                                            />
+                                            {one.id === id && (
+                                                <span className="absolute inset-0 flex items-center justify-center rounded-sm bg-background/60">
+                                                    <Play className="size-4 fill-current" aria-hidden />
+                                                </span>
+                                            )}
+                                        </span>
                                         <span className="min-w-0 flex-1 truncate" title={one.name}>
-                                            {one.name}
+                                            {episodeName(one.name, besideNames)}
                                         </span>
                                         <span className="shrink-0 font-mono text-xs text-muted-foreground">
                                             {one.duration_s === null ? '--:--' : clock(one.duration_s)}

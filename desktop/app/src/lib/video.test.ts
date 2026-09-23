@@ -16,6 +16,7 @@ import {
     compareNames,
     crumbsOf,
     encoderOf,
+    episodeName,
     fileSize,
     hlsPath,
     neighbours,
@@ -210,6 +211,53 @@ describe('subtitleLabel', () => {
     })
 })
 
+describe('episodeName', () => {
+    const season = [
+        'Star Trek The Next Generation - S03E03 - The Survivors',
+        'Star Trek The Next Generation - S03E04 - Who Watches the Watchers',
+        'Star Trek The Next Generation - S03E05 - The Bonding',
+    ]
+
+    it('leads with the episode number, which is what somebody is looking for', () => {
+        expect(episodeName(season[1] ?? '', season)).toBe('S03E04 - Who Watches the Watchers')
+    })
+
+    it('finds the number whatever case the release wrote it in', () => {
+        expect(episodeName('The Wire s01e01 Pilot', [])).toBe('s01e01 Pilot')
+    })
+
+    it('takes off what every other name in the folder shares, at a word boundary', () => {
+        const parts = ['The Lord of the Rings - Part 1', 'The Lord of the Rings - Part 2']
+        expect(episodeName(parts[0] ?? '', parts)).toBe('Part 1')
+    })
+
+    it('cuts words rather than characters, so a shared first letter is not a cut', () => {
+        const titles = ['The Hunted', 'The High Ground']
+        expect(episodeName(titles[0] ?? '', titles)).toBe('Hunted')
+    })
+
+    it('keeps a name whose folder shares nothing with it', () => {
+        expect(episodeName('Arrival', ['Arrival', 'Dune', 'Solaris'])).toBe('Arrival')
+    })
+
+    it('keeps a name that is the only thing in its folder', () => {
+        const alone = 'Star Trek The Next Generation'
+        expect(episodeName(alone, [alone])).toBe(alone)
+        expect(episodeName(alone, [])).toBe(alone)
+    })
+
+    it('never answers with nothing, however much the names have in common', () => {
+        const same = ['A B C', 'A B C D']
+        expect(episodeName(same[0] ?? '', same)).toBe('A B C')
+    })
+
+    it('leaves a name that already starts with its number alone', () => {
+        expect(episodeName('S03E04 - Who Watches the Watchers', ['S03E05 - The Bonding'])).toBe(
+            'S03E04 - Who Watches the Watchers',
+        )
+    })
+})
+
 describe('neighbours', () => {
     const season = [video('S01E10'), video('S01E02'), video('S01E01')]
 
@@ -235,14 +283,12 @@ describe('subtitleNote', () => {
     })
 
     it('says so when the file offers none, rather than leaving the fact off', () => {
-        expect(subtitleNote([])).toBe('no subtitles')
+        expect(subtitleNote(0)).toBe('no subtitles')
     })
 
     it('counts what there is, singular for one', () => {
-        expect(subtitleNote([track({ track_id: 'embed:2' })])).toBe('1 subtitle')
-        expect(subtitleNote([track({ track_id: 'embed:2' }), track({ track_id: 'embed:3' })])).toBe(
-            '2 subtitles',
-        )
+        expect(subtitleNote(1)).toBe('1 subtitle')
+        expect(subtitleNote(2)).toBe('2 subtitles')
     })
 })
 

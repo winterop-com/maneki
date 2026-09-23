@@ -110,6 +110,72 @@ export function rowsOf(browse: VideoBrowse): BrowseRow[] {
     return [...folders, ...videos]
 }
 
+/** Where an episode number begins, which is where the name of an episode begins. */
+const EPISODE_MARK = /\bS\d{1,2}E\d{1,3}\b/i
+
+/** What a scene release puts between the parts of a filename, and what a trimmed name drops. */
+const LEADING_SEPARATORS = /^[\s\-–—_.·]+/
+
+/**
+ * What one video is called among the others in its folder.
+ *
+ * THE ROW HAS TO SAY THE ONE THING THAT DIFFERS. A season of television is twenty-six files
+ * whose names begin with the same forty characters, so a column of them reads "Star Trek The
+ * Next Generation ..." twenty-six times with the episode -- the only part anybody is looking
+ * for -- cut off past the edge of the row. The trail above the listing already says which show
+ * and which season; the row's job is the episode.
+ *
+ * SO WHAT THEY SHARE COMES OFF, AT A WORD BOUNDARY. The prefix is measured in whole words
+ * against every other name in the folder, which is what stops "The Hunted" and "The High
+ * Ground" losing their "The H". A folder whose names share nothing keeps its names.
+ *
+ * AND THE CUT PREFERS A SEPARATOR WHERE THE SHARED RUN HOLDS ONE, because that is where a
+ * release name's fields divide. Two parts of one film share "The Lord of the Rings - Part ",
+ * every word of it, and a cut at the end of that leaves a row reading "1".
+ *
+ * AND AN EPISODE NUMBER LEADS WHEREVER IT IS. `S03E04` is how somebody finds an episode and how
+ * a folder sorts, so a name carrying one starts there -- which also answers the single-file
+ * folder, where there is no sibling to measure a prefix against and the name is otherwise left
+ * whole.
+ *
+ * Never empty: a name that is entirely what its siblings share is returned as it was, because a
+ * blank row says less than a repeated one.
+ */
+export function episodeName(name: string, siblings: readonly string[]): string {
+    const marked = EPISODE_MARK.exec(name)
+    if (marked !== null && marked.index > 0) return name.slice(marked.index)
+    const own = name.split(' ')
+    const cut = cutAt(own, sharedWords(name, siblings))
+    if (cut === 0 || cut >= own.length) return name
+    const rest = own.slice(cut).join(' ').replace(LEADING_SEPARATORS, '').trim()
+    return rest === '' ? name : rest
+}
+
+/** Where to cut a shared run of words: after its last separator, or after all of it. */
+function cutAt(own: readonly string[], shared: number): number {
+    for (let at = shared; at > 0; at -= 1) {
+        if (SEPARATOR_WORD.test(own[at - 1] ?? '')) return at
+    }
+    return shared
+}
+
+/** A word that is only punctuation, which is a release name saying one field has ended. */
+const SEPARATOR_WORD = /^[-–—_.·|]+$/
+
+/** How many whole leading words every other name in the folder has in common with this one. */
+function sharedWords(name: string, siblings: readonly string[]): number {
+    const own = name.split(' ')
+    let shared = -1
+    for (const other of siblings) {
+        if (other === name) continue
+        const words = other.split(' ')
+        let count = 0
+        while (count < own.length && count < words.length && own[count] === words[count]) count += 1
+        shared = shared < 0 ? count : Math.min(shared, count)
+    }
+    return shared < 0 ? 0 : shared
+}
+
 /** What sits either side of one video in the folder it came out of. */
 export interface Neighbours {
     previous: VideoEntry | null
@@ -189,10 +255,10 @@ export function subtitleLabel(trackId: string, lang?: string | null, given?: str
  * server leaves those out of what it offers, so as far as this screen is concerned there are
  * none.
  */
-export function subtitleNote(tracks: readonly VideoSubtitleTrack[] | null): string | null {
-    if (tracks === null) return null
-    if (tracks.length === 0) return 'no subtitles'
-    return `${String(tracks.length)} subtitle${tracks.length === 1 ? '' : 's'}`
+export function subtitleNote(count: number | null): string | null {
+    if (count === null) return null
+    if (count === 0) return 'no subtitles'
+    return `${String(count)} subtitle${count === 1 ? '' : 's'}`
 }
 
 /** A subtitle track as the player takes one: a name, an address, and the tag it is in. */

@@ -12,7 +12,16 @@ import { registerActions, SCREEN_GROUP } from '@/lib/palette'
 import { clearScreenStatus, scanNote, setScreenStatus } from '@/lib/screen-status'
 import { sessionStore } from '@/lib/session'
 import type { VideoBrowse, VideoEntry, VideoScanState } from '@/lib/types'
-import { browseHref, crumbsOf, fileSize, rowsOf, scanProgress, watchHref } from '@/lib/video'
+import {
+    browseHref,
+    crumbsOf,
+    episodeName,
+    fileSize,
+    rowsOf,
+    scanProgress,
+    subtitleNote,
+    watchHref,
+} from '@/lib/video'
 import { cn } from '@/lib/utils'
 
 /** How often to ask what the server is doing while it is doing it. */
@@ -245,6 +254,9 @@ function Browser({ path }: { path: string }) {
     const results = found !== null && found.query === query.trim() ? found.rows : null
     const scanning = scan?.scanning === true
     const rows = browse === null ? [] : rowsOf(browse)
+    // A season is twenty-six names that begin with the same forty characters, so what a row
+    // draws is what it does not share with the rest of the folder.
+    const siblings = (browse?.videos ?? []).map((one) => one.name)
 
     return (
         <div className="flex min-h-0 flex-1 flex-col gap-2 p-2">
@@ -313,6 +325,7 @@ function Browser({ path }: { path: string }) {
                                         <VideoRow
                                             video={row.video}
                                             token={tokens[row.video.id]}
+                                            siblings={siblings}
                                             onOpen={() => void navigate(watchHref(row.video.id))}
                                         />
                                     </li>
@@ -359,16 +372,26 @@ function SearchResults({
 function VideoRow({
     video,
     token,
+    siblings,
     showPath = false,
     onOpen,
 }: {
     video: VideoEntry
     token?: number
+    /**
+     * What else is in this folder, which is what the row's name is shortened against.
+     *
+     * Absent for a search result, where the rows come from all over the library and the whole
+     * name is the answer: a hit shortened against its neighbours in the result set would lose
+     * the half that says which show it is.
+     */
+    siblings?: readonly string[]
     /** Where it sits, drawn under the name only where the name is not the whole answer. */
     showPath?: boolean
     onOpen: () => void
 }) {
     const folder = showPath ? video.rel_path.slice(0, video.rel_path.lastIndexOf('/')) : ''
+    const name = siblings === undefined ? video.name : episodeName(video.name, siblings)
     return (
         <button
             type="button"
@@ -386,13 +409,19 @@ function VideoRow({
             />
             <span className="min-w-0 flex-1">
                 <span className="block truncate" title={video.rel_path}>
-                    {video.name}
+                    {name}
                 </span>
                 {folder !== '' && (
                     <span className="block truncate text-xs text-faint" title={folder}>
                         {folder}
                     </span>
                 )}
+            </span>
+            {/* What a file offers in the way of captions is decided long before somebody opens
+                it, and it is the one thing about a row that changes whether it is the copy to
+                watch. The scan already counted them. */}
+            <span className="hidden shrink-0 text-xs text-muted-foreground md:inline">
+                {subtitleNote(video.subtitles.length)}
             </span>
             <span className="shrink-0 font-mono text-xs text-muted-foreground">
                 {video.duration_s === null ? '--:--' : clock(video.duration_s)}
