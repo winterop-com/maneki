@@ -115,18 +115,25 @@ export function VideoPlayer({
         told.current = { onEnded, onError, onReady }
     })
 
-    /** Point the player at the source it has, keeping where the playhead was. */
-    const load = useCallback((keepPosition: boolean): void => {
+    /**
+     * Point the player at the source it has.
+     *
+     * `resume` is what a reload after a failure asks for: carry on from where the playhead was
+     * and start playing. It plays unconditionally rather than only where it was playing before,
+     * because an error leaves the player paused -- so reading the flag back would make every
+     * recovery, and the Retry button with it, something that puts the picture back and nothing
+     * else. Without it this is a different video, from the top, stopped.
+     */
+    const load = useCallback((resume: boolean): void => {
         const current = player.current
         if (current === null) return
         const { src: at, kind: as } = source.current
-        const was = keepPosition ? current.currentTime() : 0
-        const playing = keepPosition && !current.paused()
+        const was = resume ? current.currentTime() : 0
         current.error(null)
         current.src(as === 'hls' ? { src: at, type: HLS_TYPE } : { src: at })
         current.one('loadedmetadata', () => {
             if (was !== undefined && Number.isFinite(was) && was > 0) current.currentTime(was)
-            if (playing) void current.play()?.catch(() => undefined)
+            if (resume) void current.play()?.catch(() => undefined)
         })
     }, [])
 
