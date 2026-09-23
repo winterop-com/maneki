@@ -152,6 +152,15 @@ export function PlayerBar() {
         : song && session.music
           ? coverUrl(session.music, song.coverArt, 96)
           : null
+    // The room's sleeve is drawn at up to a few hundred pixels: the thumbnail's 96 scaled up
+    // there was a blur, so it is asked for at the size the panel's sleeve is.
+    const sleeve = book
+        ? book.has_cover
+            ? booksApi.coverUrl(book.id, 600)
+            : null
+        : song && session.music
+          ? coverUrl(session.music, song.coverArt, 600)
+          : null
     const duration = player.durationS || song?.duration || 0
     const through = duration > 0 ? Math.min(1, player.positionS / duration) : 0
     const queued = tabs.length > 0
@@ -195,9 +204,9 @@ export function PlayerBar() {
                    drew: the cover at the room's own height on the left, where the bar's thumbnail
                    stands under it, and the spectrum across everything to the right edge. */
                 <div style={{ height: room }} className="flex shrink-0 items-stretch gap-3 px-3 pt-2">
-                    {cover ? (
+                    {sleeve ? (
                         <img
-                            src={cover}
+                            src={sleeve}
                             alt=""
                             className="aspect-square h-full shrink-0 rounded-md object-cover"
                         />
