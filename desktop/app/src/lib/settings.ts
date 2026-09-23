@@ -126,6 +126,13 @@ export function settingsRows(apple: boolean): SettingsRow[] {
             keywords: ['url', 'host', 'origin', 'tailscale'],
         },
         {
+            id: 'server:subsonic',
+            category: 'server',
+            label: 'On a phone',
+            description: "The address a Subsonic app wants, which is not this page's.",
+            keywords: ['phone', 'mobile', 'amperfy', 'play:sub', 'symfonium', 'dsub', 'subsonic', 'offline'],
+        },
+        {
             id: 'server:version',
             category: 'server',
             label: 'Version',

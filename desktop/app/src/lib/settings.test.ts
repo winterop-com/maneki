@@ -54,6 +54,7 @@ describe('the settings registry', () => {
             'general:visualizer',
             'general:times',
             'server:address',
+            'server:subsonic',
             'server:libraries',
         ])
     })
@@ -116,5 +117,18 @@ describe('the left nav while a query narrows', () => {
     test('keeps the nav order rather than the order rows happened to match in', () => {
         const every = categoriesWith(ROWS).map((category) => category.id)
         expect(every).toEqual(SETTINGS_CATEGORIES.map((category) => category.id))
+    })
+})
+
+describe('the phone row', () => {
+    test('is findable by the app somebody is holding', () => {
+        for (const app of ['amperfy', 'play:sub', 'symfonium', 'dsub']) {
+            expect(filterSettings(ROWS, app).map((row) => row.id)).toContain('server:subsonic')
+        }
+    })
+
+    test('is findable by what somebody is trying to do', () => {
+        expect(filterSettings(ROWS, 'phone').map((row) => row.id)).toContain('server:subsonic')
+        expect(filterSettings(ROWS, 'offline').map((row) => row.id)).toContain('server:subsonic')
     })
 })

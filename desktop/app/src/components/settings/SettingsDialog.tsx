@@ -1,4 +1,4 @@
-import { Check, Volume2, VolumeX } from 'lucide-react'
+import { Check, Copy, Volume2, VolumeX } from 'lucide-react'
 import { useTheme } from 'next-themes'
 import { useMemo, useRef, useState, type ReactNode } from 'react'
 
@@ -12,6 +12,7 @@ import { Kbd, KbdGroup } from '@/components/ui/kbd'
 import { useStore } from '@/hooks/use-store'
 import { playerStore, setVolume, toggleMuted } from '@/lib/player'
 import { sessionStore, signOut } from '@/lib/session'
+import type { Capabilities } from '@/lib/types'
 import {
     categoriesWith,
     FIRST_CATEGORY,
@@ -403,10 +404,58 @@ function AccountPane({ rows }: { rows: SettingsRow[] }) {
     )
 }
 
+/**
+ * The address a Subsonic app on a phone wants, which is not the one in the browser's bar.
+ *
+ * maneki mounts Subsonic under `/audio`, beside the video and books APIs, and every client
+ * appends its own `/rest/...`. Leaving `/audio` off is the mistake that costs an evening: the
+ * calls 404 and the app reports a server it cannot reach rather than a wrong address. So the
+ * app states the whole thing, ready to copy, rather than leaving it to a guide.
+ */
+function subsonicAddress(baseUrl: string, caps: Capabilities | undefined): string | null {
+    const mount = caps?.endpoints.audio_subsonic
+    if (!mount) return null
+    const origin = baseUrl === '' ? window.location.origin : baseUrl
+    // The client appends `/rest`, so what a person types stops before it.
+    return `${origin}${mount.replace(/\/rest$/, '')}`
+}
+
+/** Copy to the clipboard, saying so where the button was. */
+function CopyButton({ text, label }: { text: string; label: string }) {
+    const [copied, setCopied] = useState(false)
+    return (
+        <Button
+            variant="ghost"
+            size="icon-sm"
+            aria-label={copied ? 'Copied' : label}
+            onClick={() => {
+                void navigator.clipboard
+                    .writeText(text)
+                    .then(() => {
+                        setCopied(true)
+                        setTimeout(() => {
+                            setCopied(false)
+                        }, 1500)
+                    })
+                    .catch(() => {
+                        // A browser that refuses the clipboard still shows the text to select.
+                    })
+            }}
+        >
+            {copied ? (
+                <Check className="size-4 text-primary" aria-hidden />
+            ) : (
+                <Copy className="size-4" aria-hidden />
+            )}
+        </Button>
+    )
+}
+
 /** What this server is, read off the capabilities the session already holds. */
 function ServerPane({ rows }: { rows: SettingsRow[] }) {
     const session = useStore(sessionStore)
     const caps = session.capabilities
+    const subsonic = subsonicAddress(session.baseUrl, caps)
     const libraries = caps
         ? (['audio', 'video', 'books', 'radio'] as const).filter((library) => caps[library])
         : []
@@ -420,6 +469,35 @@ function ServerPane({ rows }: { rows: SettingsRow[] }) {
                             <span className="identifier break-all">
                                 {session.baseUrl === '' ? 'this origin' : session.baseUrl}
                             </span>
+                        </Row>
+                    )
+                }
+                if (row.id === 'server:subsonic') {
+                    return (
+                        <Row
+                            key={row.id}
+                            row={row}
+                            under={
+                                subsonic === null ? null : (
+                                    <p className="text-xs text-muted-foreground">
+                                        Amperfy, play:Sub, Symfonium and DSub all take this address, your
+                                        username and your password, and append their own{' '}
+                                        <code className="identifier">/rest</code>. Downloading an album in one
+                                        of them keeps it on the phone with no server in reach.
+                                    </p>
+                                )
+                            }
+                        >
+                            {subsonic === null ? (
+                                <span className="text-sm text-muted-foreground">
+                                    this server serves no music
+                                </span>
+                            ) : (
+                                <>
+                                    <span className="identifier break-all">{subsonic}</span>
+                                    <CopyButton text={subsonic} label="Copy the address" />
+                                </>
+                            )}
                         </Row>
                     )
                 }
