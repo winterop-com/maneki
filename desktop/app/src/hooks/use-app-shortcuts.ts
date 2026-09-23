@@ -15,7 +15,7 @@ import {
 import { paletteOpen } from '@/lib/palette'
 import { togglePanel, toggleRail } from '@/lib/panels'
 import { toggleLyrics } from '@/lib/lyrics'
-import { openSearch, searchOpen } from '@/lib/search'
+import { closeSearch, openSearch, searchOpen } from '@/lib/search'
 import { sessionStore } from '@/lib/session'
 import {
     adjustsVolume,
@@ -70,6 +70,10 @@ export function useAppShortcuts(onShortcuts: () => void): void {
             }
             if (opensPalette(press)) {
                 event.preventDefault()
+                // One dialog at a time: the chord is answered wherever focus is, so it is
+                // answered inside the search too, and two modals stacked is one scrim over
+                // the thing the other is about.
+                closeSearch()
                 paletteOpen.update((open) => !open)
                 return
             }
