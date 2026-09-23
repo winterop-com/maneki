@@ -10,7 +10,7 @@ import pytest
 from maneki.audio.enrich import _http
 from maneki.books.catalog import BookCatalog, align_chapters, choose, plain_text
 from maneki.books.models import CatalogBook, CatalogChapters, Chapter
-from maneki.books.names import clean_title, guess_from_name, looks_like_person
+from maneki.books.names import author_from_folder, clean_title, guess_from_name, looks_like_person, split_reader
 
 Handler = Callable[[httpx.Request], httpx.Response]
 
@@ -76,6 +76,39 @@ def test_part_numbers_are_not_narrators() -> None:
     guess = guess_from_name("Dune (Part One)")
     assert guess.narrator is None
     assert guess.title == "Dune (Part One)"
+
+
+@pytest.mark.parametrize(
+    ("name", "title", "narrator", "year"),
+    [
+        ("1985 - The Vampire Lestat (VC2 - read by Frank Muller)", "The Vampire Lestat", "Frank Muller", "1985"),
+        ("1994 - Taltos (MW3 - read by Laura Giannarelli)", "Taltos", "Laura Giannarelli", "1994"),
+        ("1982 - Different Seasons (4 novellas - read by Frank Muller)", "Different Seasons", "Frank Muller", "1982"),
+        ("2009 - Throttle (short story with Joe Hill - read by Stephen Lang)", "Throttle", "Stephen Lang", "2009"),
+        ("2002 - From a Buick 8 (read by a Full Cast)", "From a Buick 8", "a Full Cast", "2002"),
+        ("1978 - Night Shift (20 short stories)", "Night Shift", None, "1978"),
+        ("1977 - Rage", "Rage", None, "1977"),
+    ],
+)
+def test_year_title_and_a_coded_reader_note(name: str, title: str, narrator: str | None, year: str) -> None:
+    """`YYYY - Title (CODE - read by Narrator)`: the dash inside the note does not split the name."""
+    guess = guess_from_name(name)
+    assert (guess.title, guess.author, guess.narrator, guess.year) == (title, None, narrator, year)
+
+
+def test_split_reader_cleans_an_album_tag() -> None:
+    assert split_reader("The Witching Hour (MW1 - read by Laura Giannarelli)") == (
+        "The Witching Hour",
+        "Laura Giannarelli",
+    )
+    assert split_reader("Dune (Part One)") == ("Dune (Part One)", None)
+
+
+def test_author_from_folder() -> None:
+    assert author_from_folder("Anne Rice") == "Anne Rice"
+    assert author_from_folder("Stephen King - Collected") == "Stephen King"
+    for shelf in ("Audiobooks", "inbox", "-Alternate versions", "-Short fiction"):
+        assert author_from_folder(shelf) is None, shelf
 
 
 def test_looks_like_person() -> None:

@@ -10,8 +10,8 @@ from typer.testing import CliRunner
 
 from maneki.books import pipeline
 from maneki.books.catalog import BookCatalog
-from maneki.books.models import CatalogBook, CatalogChapters, Chapter, ChapterSource
-from maneki.books.pipeline import format_duration, import_books, looks_like_copies, separate_books
+from maneki.books.models import CatalogBook, CatalogChapters, Chapter, ChapterSource, SourceBook, SourceFile
+from maneki.books.pipeline import format_duration, guess_book, import_books, looks_like_copies, separate_books
 from maneki.books.probe import discover, is_part_name, load_book, natural_key, parts_of_one_book, probe_file
 from maneki.books.write import BookTags, file_names, write_book
 from maneki.cli import app
@@ -495,3 +495,33 @@ def test_books_side_by_side_in_the_inbox_are_never_merged(tmp_path: Path) -> Non
     reports = import_books(inbox, library, catalog=None, dry_run=True)
 
     assert sorted(r.status for r in reports) == ["plan", "skip"]
+
+
+# --- names shaped `YYYY - Title (CODE - read by Narrator)` ---------------------
+
+
+def test_a_book_in_an_author_folder_takes_its_author_from_it(tmp_path: Path) -> None:
+    inbox, library = tmp_path / "inbox", tmp_path / "Audiobooks"
+    make_silent_mp3(inbox / "Anne Rice" / "1985 - The Vampire Lestat (VC2 - read by Frank Muller)" / "01.mp3", 1.0)
+
+    [report] = import_books(inbox, library, catalog=None, dry_run=True)
+
+    assert (report.author, report.title, report.narrator, report.year) == (
+        "Anne Rice",
+        "The Vampire Lestat",
+        "Frank Muller",
+        "1985",
+    )
+
+
+def test_a_reader_note_in_the_album_tag_leaves_the_title() -> None:
+    folder = Path("/inbox/Anne Rice/1994 - Taltos (MW3 - read by Laura Giannarelli)")
+    tags = {"album": "Taltos (MW3 - read by Laura Giannarelli)", "artist": "Anne Rice"}
+    book = SourceBook(path=folder, files=[SourceFile(path=folder / "01.mp3", duration_s=1.0, tags=tags)])
+    guess = guess_book(book)
+    assert (guess.title, guess.author, guess.narrator, guess.year) == (
+        "Taltos",
+        "Anne Rice",
+        "Laura Giannarelli",
+        "1994",
+    )

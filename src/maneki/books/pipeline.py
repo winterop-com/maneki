@@ -30,7 +30,7 @@ from maneki.audio.cover import DEFAULT_MAX_EDGE, CoverCandidate, CoverSource, no
 from maneki.books.catalog import BookCatalog, align_chapters, choose, runtime_matches
 from maneki.books.library import file_chapters, majority
 from maneki.books.models import CatalogBook, Chapter, ChapterSource, NameGuess, SourceBook
-from maneki.books.names import clean_title, guess_from_name
+from maneki.books.names import author_from_folder, clean_title, guess_from_name, split_reader
 from maneki.books.probe import PART_NUMBER, ProbeError, audio_files, discover, is_audio, load_book, natural_key
 from maneki.books.write import BookTags, book_dir, part_title, write_book, writes_chapters
 
@@ -241,39 +241,47 @@ def guess_book(book: SourceBook) -> NameGuess:
     """
     if book.path.is_file():
         return _guess_one_file(book)
+    from_name = guess_from_name(book.name)
     album = majority(f.tags.get("album") for f in book.files)
     author = majority(f.tags.get("album_artist") or f.tags.get("artist") for f in book.files)
     if album and author:
-        title = clean_title(album)
+        title, reader = split_reader(clean_title(album))
         date = majority(f.tags.get("date") for f in book.files)
         return NameGuess(
             terms=f"{author} {title}",
             title=title,
             author=author,
-            narrator=majority(f.tags.get("composer") for f in book.files),
-            year=date[:4] if date and date[:4].isdigit() else None,
+            narrator=majority(f.tags.get("composer") for f in book.files) or reader or from_name.narrator,
+            year=(date[:4] if date and date[:4].isdigit() else None) or from_name.year,
         )
-    return guess_from_name(book.name)
+    if from_name.author is None:
+        # `Anne Rice/1990 - The Witching Hour (...)`: the folder a book sits
+        # in usually names its author when its own name does not.
+        author = author_from_folder(book.path.parent.name)
+        if author:
+            terms = " ".join(p for p in (author, from_name.title) if p)
+            return from_name.model_copy(update={"author": author, "terms": terms})
+    return from_name
 
 
 def _guess_one_file(book: SourceBook) -> NameGuess:
     """Identify a book that arrived as a single file."""
     tags = book.files[0].tags
     from_name = guess_from_name(part_title(book.path.name))
-    title_tag = clean_title(tags.get("title", ""))
-    album_tag = clean_title(tags.get("album", ""))
+    title_tag, title_reader = split_reader(clean_title(tags.get("title", "")))
+    album_tag, album_reader = split_reader(clean_title(tags.get("album", "")))
     # The album names the collection when the title disagrees with it.
     title = (title_tag if title_tag and title_tag != album_tag else album_tag) or from_name.title or book.name
     author = tags.get("album_artist") or tags.get("artist") or from_name.author
     if not author:
         # The folder a loose file sits in usually names its author.
-        author = guess_from_name(book.path.parent.name).author
+        author = author_from_folder(book.path.parent.name)
     date = tags.get("date")
     return NameGuess(
         terms=" ".join(p for p in (author, title) if p) or book.name,
         title=title,
         author=author,
-        narrator=tags.get("composer") or from_name.narrator,
+        narrator=tags.get("composer") or title_reader or album_reader or from_name.narrator,
         year=(date[:4] if date and date[:4].isdigit() else None) or from_name.year,
     )
 
