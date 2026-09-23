@@ -108,7 +108,10 @@ export function LcdDisplay({
                 </div>
 
                 <div className="ml-auto hidden shrink-0 items-end gap-3 sm:flex">
-                    <VuMeter active={playing && !muted} />
+                    {/* CHOSEN RATHER THAN HIDDEN, unlike everything else on this strip. A class
+                        would take the meters off a narrow bar and leave the loop driving them
+                        sixty times a second for a row nobody can see. */}
+                    {!small && <VuMeter active={playing && !muted} />}
                     <Readout label="ELAPSED" value={lcdClock(positionS)} />
                     <Readout label="REMAIN" value={lcdClock(left)} />
                     <div className="hidden items-end gap-3 lg:flex">
@@ -187,7 +190,7 @@ function Cells({ text }: { text: string }) {
 function VuMeter({ active }: { active: boolean }) {
     const levels = useVuLevels(active)
     return (
-        <div className="hidden flex-col gap-1 md:flex" aria-hidden>
+        <div className="flex flex-col gap-1" aria-hidden>
             <VuRow label="LO" level={levels.low} />
             <VuRow label="HI" level={levels.high} />
         </div>
