@@ -14,6 +14,7 @@
 
 import { ApiError, capabilities, defaultBaseUrl, setSession, setVideoMount, signIn } from '@/lib/api'
 import { noteRefusal } from '@/lib/connection'
+import { clear } from '@/lib/player'
 import { forgetMarks } from '@/lib/star'
 import { createStore } from '@/lib/store'
 import { type Credentials, makeCredentials, ping, SubsonicError } from '@/lib/subsonic'
@@ -193,6 +194,11 @@ export async function signInTo(baseUrl: string, username: string, password: stri
 /** Forget the credentials, keeping the server so the next sign-in is one field shorter. */
 export function signOut(): void {
     const { baseUrl, username } = sessionStore.get()
+    // THE MUSIC STOPS FIRST. The audio element is module state outside the tree, so a queue
+    // left running carries on streaming behind the door -- with the credentials it was handed
+    // still in the URLs it is pulling, and with no transport on screen to stop it, because the
+    // shell that draws one is not mounted on the sign-in screen.
+    clear()
     // What one account starred is not what the next one did, and this document outlives the
     // sign-out: the marks go with the credentials that wrote them.
     forgetMarks()

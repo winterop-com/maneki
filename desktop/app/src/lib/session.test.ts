@@ -2,7 +2,8 @@ import { beforeEach, describe, expect, test, vi } from 'vitest'
 
 import { ApiError } from '@/lib/api'
 import { connectionStore, dismissRefusal } from '@/lib/connection'
-import { connect, isAuthError, sessionStore } from '@/lib/session'
+import { playerStore } from '@/lib/player'
+import { connect, isAuthError, sessionStore, signOut } from '@/lib/session'
 import { SubsonicError } from '@/lib/subsonic'
 import type { Capabilities } from '@/lib/types'
 
@@ -151,6 +152,28 @@ describe('connecting to a server', () => {
             baseUrl: 'https://host',
             username: 'mort',
         })
+    })
+})
+
+describe('signing out', () => {
+    // Regression: the audio element is module state outside the tree, so what was playing
+    // carried on streaming behind the sign-in screen, which draws no transport to stop it.
+    test('takes the queue with it, so nothing is left playing behind the door', () => {
+        sessionStore.set({ phase: 'ready', baseUrl: 'https://host', username: 'mort' })
+        playerStore.update((state) => ({
+            ...state,
+            queue: [{ id: 'tr_1', title: 'One', duration: 100 }],
+            order: [0],
+            index: 0,
+            orderAt: 0,
+            playing: true,
+        }))
+
+        signOut()
+
+        expect(playerStore.get().queue).toEqual([])
+        expect(playerStore.get().playing).toBe(false)
+        expect(sessionStore.get().phase).toBe('signed-out')
     })
 })
 
