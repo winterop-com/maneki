@@ -226,7 +226,7 @@ export const BAR_ROOM_KEY = 'maneki.playerBarRoom'
 export const BAR_ROOM_MAX = 320
 /** The least the room can be: enough for a spectrum to read as one, never nothing. */
 export const BAR_ROOM_MIN = 72
-export const BAR_ROOM_DEFAULT = 96
+export const BAR_ROOM_DEFAULT = 72
 
 export function clampBarRoom(room: number): number {
     if (!Number.isFinite(room)) return BAR_ROOM_DEFAULT

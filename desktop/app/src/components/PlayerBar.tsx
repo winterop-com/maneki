@@ -12,7 +12,7 @@ import {
     Volume2,
     VolumeX,
 } from 'lucide-react'
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { NavLink } from 'react-router'
 
 import { CoverArt } from '@/components/CoverArt'
@@ -61,8 +61,24 @@ export const RESIZE_BAR_LABEL = 'Resize the player bar'
 /** How far one arrow key moves the bar's edge. */
 const KEYBOARD_STEP = 16
 
-/** How many bars the width of the window gets. */
-const WIDE_BANDS = 64
+/**
+ * How wide one bar and its gap are, in pixels, across the bar's spectrum.
+ *
+ * THE COUNT FOLLOWS THE WIDTH. A fixed count across a window is a wall of blocks on a wide one
+ * and a comb on a narrow one; what stays the same is how wide a bar is to the eye, so the
+ * count is the width over that, held between what still reads as a spectrum and what the
+ * analyser has bins for.
+ */
+const BAR_PITCH = 11
+const FEWEST_BANDS = 48
+/** The room's horizontal padding, which the canvas does not span. */
+const ROOM_PADDING = 24
+const MOST_BANDS = 192
+
+/** How many bars fit a canvas this wide at the pitch above. */
+export function bandsFor(width: number): number {
+    return Math.max(FEWEST_BANDS, Math.min(MOST_BANDS, Math.round(width / BAR_PITCH)))
+}
 
 /** The controls' row, in pixels: `--spacing-shell-foot`, which the sleeve is sized against. */
 const FOOT = 46
@@ -102,7 +118,24 @@ export function PlayerBar() {
     // controls spilled out under the status bar.
     const bar = useRef<HTMLDivElement | null>(null)
     const { dragging, beginResize } = useDragSize('y', room, -1, setBarRoom, clampBarRoom, bar)
-    const wide = useSpectrum(spectrumShown && player.playing, WIDE_BANDS)
+    // The room is measured for its band count, and re-measured as the window and the rail
+    // move; a change restarts the drawing loop at the new count, which is one frame. The room
+    // rather than the canvas, because the room is always there and the canvas is not.
+    const [bands, setBands] = useState(() =>
+        bandsFor(typeof window === 'undefined' ? 1280 : window.innerWidth),
+    )
+    const wide = useSpectrum(spectrumShown && player.playing, bands)
+    useEffect(() => {
+        const element = bar.current
+        if (element === null) return
+        const watcher = new ResizeObserver(() => {
+            setBands(bandsFor(element.clientWidth - ROOM_PADDING))
+        })
+        watcher.observe(element)
+        return () => {
+            watcher.disconnect()
+        }
+    }, [])
     // THE SCRUBBER MOVES EVERY FRAME, NOT FOUR TIMES A SECOND. The store publishes the position
     // on the element's own timeupdate, which is a quarter-second step; a thumb that jumps a
     // quarter second at a time reads as a stutter. So the input is uncontrolled and a frame
