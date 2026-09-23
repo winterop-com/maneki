@@ -12,7 +12,8 @@ import { clock } from '@/lib/format'
 import { registerActions, SCREEN_GROUP, type PaletteAction } from '@/lib/palette'
 import { clearScreenStatus, setScreenStatus, type StatusTone } from '@/lib/screen-status'
 import { sessionStore } from '@/lib/session'
-import type { YouTubeChannel, YouTubeCounts, YouTubeTab, YouTubeVideo } from '@/lib/types'
+import { countsHeld, rememberCounts, uncounted } from '@/lib/youtube-counts'
+import type { YouTubeChannel, YouTubeTab, YouTubeVideo } from '@/lib/types'
 import { cn } from '@/lib/utils'
 import {
     AUTO_HEIGHT,
@@ -110,7 +111,7 @@ const CHANNELS_READ = 'channels'
 
 function Channels() {
     const [channels, setChannels] = useState<YouTubeChannel[] | null>(null)
-    const [counts, setCounts] = useState<Record<string, YouTubeCounts | undefined>>({})
+    const counts = useStore(countsHeld)
     const [refusal, setRefusal] = useState<string | null>(null)
     const [problem, setProblem] = useState<string | null>(null)
     const [typed, setTyped] = useState('')
@@ -128,14 +129,21 @@ function Channels() {
      * so asking for all of them at once is a burst YouTube answers with its bot check -- and
      * waiting for them before drawing anything would leave the screen empty for the several
      * seconds they take. The list paints, and the numbers fill in under it.
+     *
+     * AND THE SWEEP IS NOT RUN TWICE FOR THE SAME ANSWER. What was counted is held in
+     * `lib/youtube-counts`, which outlives this screen, so Back out of a channel finds the
+     * numbers already there instead of spending another minute of somebody's rate limit on
+     * figures that have not moved. A refresh asks about every channel again, because that is
+     * the reader saying they think there is something new.
      */
     useEffect(() => {
         let live = true
+        const refreshing = ask.refreshing === CHANNELS_READ
 
         const load = async (): Promise<void> => {
             let listed: YouTubeChannel[]
             try {
-                listed = await youtubeApi.channels(ask.refreshing === CHANNELS_READ)
+                listed = await youtubeApi.channels(refreshing)
             } catch (error) {
                 if (live) {
                     setRefusal(error instanceof Error ? error.message : 'the server did not answer')
@@ -147,14 +155,16 @@ function Channels() {
             setChannels(listed)
             setRefusal(null)
             setReading(false)
-            setCounting(listed.length > 0)
-            for (const channel of listed) {
+            const ids = listed.map((channel) => channel.id)
+            const wanted = refreshing ? ids : uncounted(countsHeld.get(), ids)
+            setCounting(wanted.length > 0)
+            for (const id of wanted) {
                 if (!live) return
                 try {
                     // oxlint-disable-next-line no-await-in-loop -- the sequence is the point
-                    const held = await youtubeApi.counts(channel.id, ask.refreshing === CHANNELS_READ)
+                    const held = await youtubeApi.counts(id, refreshing)
                     if (!live) return
-                    setCounts((current) => ({ ...current, [channel.id]: held }))
+                    rememberCounts(id, held)
                 } catch {
                     // A channel whose numbers will not come just draws without them.
                 }
@@ -280,7 +290,7 @@ function Channels() {
             {channels !== null && channels.length > 0 && (
                 <ul className="min-h-0 flex-1 overflow-y-auto rounded-lg border">
                     {channels.map((channel) => {
-                        const held = counts[channel.id]
+                        const held = counts.get(channel.id)
                         return (
                             <li key={channel.id} className="row-hover flex items-center gap-3 pr-2">
                                 <button
@@ -680,7 +690,7 @@ function Watch({ id }: { id: string }) {
             {refusal !== null ? (
                 <Notice>{refusal}</Notice>
             ) : (
-                <div className="aspect-video w-full overflow-hidden rounded-lg bg-black">
+                <div className="aspect-video w-full overflow-hidden rounded-lg bg-background">
                     <VideoPlayer
                         key={height}
                         src={youtubeApi.hlsUrl(id, height === AUTO_HEIGHT ? undefined : height)}

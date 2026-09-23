@@ -1934,3 +1934,43 @@ html.dark[data-theme='neon'],
 
     --graph-edge: oklch(0.47 0.1 296);
 }
+
+/* ---------------------------------------------------------------------------
+   THE SHELL STANDS STILL FOR SOMEBODY WHO ASKED IT TO.
+
+   Four things in the chassis move under a transition of their own: the rail's width as it
+   folds, the drawer travelling in from the left edge, the right panel's width, and the
+   hairline over the player bar walking across as a track plays. Each is the result of a
+   decision somebody made with a click, and a reader who has told their machine they want less
+   motion has already said they would rather have the result than the travel.
+
+   They are named by the transition utilities they wear rather than by a class minted for
+   this: what is turned off is exactly the property being animated, and an element that puts
+   one of those utilities on tomorrow is covered the day it does. The drawer scrim's
+   cross-fade is left alone -- a change of opacity is not travel, and a drawer arriving over
+   nothing at all reads as a repaint.
+   --------------------------------------------------------------------------- */
+@media (prefers-reduced-motion: reduce) {
+    .transition-\[width\],
+    .transition-\[translate\] {
+        transition: none;
+    }
+}
+
+/* ---------------------------------------------------------------------------
+   A SLIDER IN THE SETTINGS SHEET IS A FINGER TARGET LIKE EVERYTHING ELSE.
+
+   Below the breakpoint the dialog is a full sheet and every control the design system draws
+   grows to `--spacing-finger`. A range input is the platform's own element: it carries no
+   slot for that rule to name and it is about sixteen pixels of hit area down the middle of
+   its track. Text size and the spectrum delay are both dragged there, and a thumb that misses
+   the track drags nothing.
+
+   The height is the target and the track stays the thin line it already is, because what a
+   control looks like is not what a finger has to land on.
+   --------------------------------------------------------------------------- */
+@media (max-width: 767px) {
+    [data-slot='dialog-content'] input[type='range'] {
+        height: var(--spacing-finger);
+    }
+}

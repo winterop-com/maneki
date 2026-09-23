@@ -1,8 +1,9 @@
-import { ChevronLeft, Pause, Play, Star } from 'lucide-react'
+import { ChevronLeft, Pause, Play, Star, Volume2 } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate, useParams } from 'react-router'
 
 import { CoverArt } from '@/components/CoverArt'
+import { Skeleton } from '@/components/Skeleton'
 import { Button } from '@/components/ui/button'
 import { useStore, useStoreValue } from '@/hooks/use-store'
 import { clock } from '@/lib/format'
@@ -60,62 +61,115 @@ function Favourites({ credentials }: { credentials: Credentials }) {
     const [refusal, setRefusal] = useState<string | null>(null)
     const navigate = useNavigate()
 
+    // An answer to a question nobody is asking any more is dropped rather than drawn, which is
+    // what `pages/Video` does with the same flag.
     useEffect(() => {
-        getStarred(credentials)
-            .then(setStarredList)
-            .catch((error: Error) => setRefusal(error.message))
+        let live = true
+        getStarred(credentials).then(
+            (answer) => {
+                if (live) setStarredList(answer)
+            },
+            (error: Error) => {
+                if (live) setRefusal(error.message)
+            },
+        )
+        return () => {
+            live = false
+        }
     }, [credentials])
 
     if (refusal) return <Notice>{refusal}</Notice>
-    if (!starred) return <Notice>Reading your favourites.</Notice>
+    if (!starred) {
+        return (
+            <div className="p-4">
+                <Skeleton rows={8} />
+            </div>
+        )
+    }
     const empty = !starred.albums.length && !starred.songs.length && !starred.artists.length
     if (empty) return <Notice>Nothing starred yet.</Notice>
 
+    // THREE SHELVES, EACH SAID ONCE. Two of them are lists of rows now, so each carries a
+    // heading: a shelf told apart from the one above it only by what the covers look like is a
+    // shelf that stops being told apart the moment neither has covers.
     return (
         <div className="p-4">
             <h1 className="mb-4 text-base">Favourites</h1>
+            {starred.artists.length > 0 && (
+                <section className="mb-6">
+                    <h2 className="mb-2 text-sm font-medium">Artists</h2>
+                    <ul>
+                        {starred.artists.map((artist) => (
+                            <li key={artist.id}>
+                                <button
+                                    type="button"
+                                    onClick={() => navigate(`/music/artist/${artist.id}`)}
+                                    className="row-hover flex min-h-finger w-full items-center gap-3 rounded-md px-3 text-left text-sm"
+                                >
+                                    <span className="min-w-0 flex-1 truncate">{artist.name}</span>
+                                    <span className="shrink-0 text-xs text-muted-foreground">
+                                        {artist.albumCount ?? 0}{' '}
+                                        {artist.albumCount === 1 ? 'album' : 'albums'}
+                                    </span>
+                                </button>
+                            </li>
+                        ))}
+                    </ul>
+                </section>
+            )}
             {starred.albums.length > 0 && (
-                <ul className="mb-6 grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
-                    {starred.albums.map((album) => (
-                        <li key={album.id}>
-                            <button
-                                type="button"
-                                onClick={() => navigate(`/music/album/${album.id}`)}
-                                className="row-hover w-full rounded-lg p-2 text-left"
-                            >
-                                <Cover
-                                    credentials={credentials}
-                                    id={album.id}
-                                    art={album.coverArt}
-                                    className="mb-2 w-full rounded-md"
-                                />
-                                <p className="truncate text-sm font-medium">{album.name}</p>
-                                <p className="truncate text-xs text-muted-foreground">{album.artist}</p>
-                            </button>
-                        </li>
-                    ))}
-                </ul>
+                <section className="mb-6">
+                    <h2 className="mb-2 text-sm font-medium">Albums</h2>
+                    <ul className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+                        {starred.albums.map((album) => (
+                            <li key={album.id}>
+                                <button
+                                    type="button"
+                                    onClick={() => navigate(`/music/album/${album.id}`)}
+                                    className="row-hover w-full rounded-lg p-2 text-left"
+                                >
+                                    <Cover
+                                        credentials={credentials}
+                                        id={album.id}
+                                        art={album.coverArt}
+                                        className="mb-2 w-full rounded-md"
+                                    />
+                                    <p className="truncate text-sm font-medium">{album.name}</p>
+                                    <p className="truncate text-xs text-muted-foreground">{album.artist}</p>
+                                </button>
+                            </li>
+                        ))}
+                    </ul>
+                </section>
             )}
             {starred.songs.length > 0 && (
-                <ol className="rounded-lg border">
-                    {starred.songs.map((song, index) => (
-                        <li key={song.id}>
-                            <button
-                                type="button"
-                                onClick={() => play(starred.songs, index)}
-                                className="row-hover flex min-h-finger w-full items-center gap-3 px-3 text-left text-sm"
-                            >
-                                <span className="min-w-0 flex-1 truncate">{song.title}</span>
-                                <span className="shrink-0 truncate text-xs text-muted-foreground">
-                                    {song.artist}
-                                </span>
-                                <span className="shrink-0 font-mono text-xs text-muted-foreground">
-                                    {clock(song.duration ?? 0)}
-                                </span>
-                            </button>
-                        </li>
-                    ))}
-                </ol>
+                <section>
+                    <h2 className="mb-2 text-sm font-medium">Tracks</h2>
+                    <ol className="rounded-lg border">
+                        {starred.songs.map((song, index) => (
+                            <li key={song.id} className="flex items-center">
+                                <button
+                                    type="button"
+                                    onClick={() => play(starred.songs, index)}
+                                    className="row-hover flex min-h-finger w-full items-center gap-3 px-3 text-left text-sm"
+                                >
+                                    <span className="min-w-0 flex-1 truncate">{song.title}</span>
+                                    <span className="shrink-0 truncate text-xs text-muted-foreground">
+                                        {song.artist}
+                                    </span>
+                                    <span className="shrink-0 font-mono text-xs text-muted-foreground">
+                                        {clock(song.duration ?? 0)}
+                                    </span>
+                                </button>
+                                {/* THE ONE SCREEN A STAR IS TAKEN OFF ON HAD NO WAY TO TAKE ONE
+                                    OFF. The same button the album rows wear, reading the same
+                                    marks, so a track unstarred here goes from the album screen
+                                    and from the player bar's own star in the same gesture. */}
+                                <StarButton credentials={credentials} song={song} />
+                            </li>
+                        ))}
+                    </ol>
+                </section>
             )}
         </div>
     )
@@ -145,16 +199,28 @@ function Artists({ credentials }: { credentials: Credentials }) {
      * asked as well: it searches albums and tracks, which the names on this
      * screen cannot answer for. A pause before asking keeps a burst of
      * keystrokes down to one search.
+     *
+     * The pause holds back a search nobody has finished typing; the flag drops one that was
+     * already out when they typed the next letter, which the timer cannot cancel.
      */
     useEffect(() => {
+        let live = true
         const text = query.trim()
         if (text.length < SEARCH_MIN) return
         const timer = setTimeout(() => {
-            searchLibrary(credentials, text)
-                .then(setFound)
-                .catch(() => setFound(null))
+            searchLibrary(credentials, text).then(
+                (answer) => {
+                    if (live) setFound(answer)
+                },
+                () => {
+                    if (live) setFound(null)
+                },
+            )
         }, SEARCH_DEBOUNCE_MS)
-        return () => clearTimeout(timer)
+        return () => {
+            live = false
+            clearTimeout(timer)
+        }
     }, [credentials, query])
 
     useEffect(() => {
@@ -178,7 +244,13 @@ function Artists({ credentials }: { credentials: Credentials }) {
     const ordered = useMemo(() => sortArtists(artists ?? [], sort, articles), [articles, artists, sort])
 
     if (refusal) return <Notice>{refusal}</Notice>
-    if (!artists) return <Notice>Reading the library.</Notice>
+    if (!artists) {
+        return (
+            <div className="p-2">
+                <Skeleton rows={12} />
+            </div>
+        )
+    }
     if (!artists.length) return <Notice>No artists.</Notice>
 
     // Folded on both sides, so "royk" finds Röyksopp the way the server's own index does.
@@ -265,20 +337,60 @@ function Artists({ credentials }: { credentials: Credentials }) {
     )
 }
 
+/**
+ * An answer, and the id it answers for.
+ *
+ * WHAT IS HELD IS TAGGED WITH WHAT WAS ASKED. The artist and the album screens are one
+ * component across a second click, so an answer kept loose would be the previous record's
+ * tracks standing under the new title until the read lands. Tagging it means the screen is
+ * empty because the key changed, rather than because an effect reached back and emptied it --
+ * which is also the one shape that does not put a setState inside an effect.
+ */
+interface Held<T> {
+    key: string
+    value: T | null
+    refusal: string | null
+}
+
 /** One artist's albums, oldest first. */
 function ArtistScreen({ credentials, id }: { credentials: Credentials; id: string }) {
-    const [data, setData] = useState<{ artist: Artist; albums: Album[] } | null>(null)
-    const [refusal, setRefusal] = useState<string | null>(null)
+    const [held, setHeld] = useState<Held<{ artist: Artist; albums: Album[] }>>({
+        key: id,
+        value: null,
+        refusal: null,
+    })
     const navigate = useNavigate()
 
+    // The flag is the other half: without it a slow first read lands on top of a fast second
+    // and puts the previous artist back, tag and all. `pages/Video` guards its own reads the
+    // same way.
     useEffect(() => {
-        getArtist(credentials, id)
-            .then(setData)
-            .catch((error: Error) => setRefusal(error.message))
+        let live = true
+        getArtist(credentials, id).then(
+            (answer) => {
+                if (live) setHeld({ key: id, value: answer, refusal: null })
+            },
+            (error: Error) => {
+                if (live) setHeld({ key: id, value: null, refusal: error.message })
+            },
+        )
+        return () => {
+            live = false
+        }
     }, [credentials, id])
 
+    const answered = held.key === id
+    const data = answered ? held.value : null
+    const refusal = answered ? held.refusal : null
+
     if (refusal) return <Notice>{refusal}</Notice>
-    if (!data) return <Notice>Opening the artist.</Notice>
+    if (!data) {
+        return (
+            <div className="p-4">
+                <Skeleton rows={10} kind="card" />
+            </div>
+        )
+    }
 
     return (
         <div className="p-4">
@@ -313,27 +425,58 @@ function ArtistScreen({ credentials, id }: { credentials: Credentials; id: strin
     )
 }
 
-/** One album's tracks. Picking one plays the album from there. */
-/** Which album the playing track belongs to, and whether it is sounding: two facts, not the store. */
+/**
+ * Which album the playing track belongs to, which track it is, and whether it is sounding.
+ *
+ * THREE FACTS, NOT THE STORE. The player publishes four times a second while a track plays,
+ * and a track list that read the whole of it would rebuild every row on every tick.
+ */
 const selectPlayingAlbum = (state: { queue: Song[]; index: number }) =>
     state.queue[state.index]?.albumId ?? null
+const selectPlayingId = (state: { queue: Song[]; index: number }) => state.queue[state.index]?.id ?? null
 const selectPlaying = (state: { playing: boolean }) => state.playing
 
+/** One album's tracks. Picking one plays the album from there. */
 function AlbumScreen({ credentials, id }: { credentials: Credentials; id: string }) {
-    const [data, setData] = useState<{ album: Album; songs: Song[] } | null>(null)
+    const [held, setHeld] = useState<Held<{ album: Album; songs: Song[] }>>({
+        key: id,
+        value: null,
+        refusal: null,
+    })
     const playingAlbumId = useStoreValue(playerStore, selectPlayingAlbum)
+    const playingId = useStoreValue(playerStore, selectPlayingId)
     const playing = useStoreValue(playerStore, selectPlaying)
-    const [refusal, setRefusal] = useState<string | null>(null)
     const navigate = useNavigate()
 
+    // Tagged and guarded, for the reason the artist screen states: the tracks on screen belong
+    // to the id in the address and to no other.
     useEffect(() => {
-        getAlbum(credentials, id)
-            .then(setData)
-            .catch((error: Error) => setRefusal(error.message))
+        let live = true
+        getAlbum(credentials, id).then(
+            (answer) => {
+                if (live) setHeld({ key: id, value: answer, refusal: null })
+            },
+            (error: Error) => {
+                if (live) setHeld({ key: id, value: null, refusal: error.message })
+            },
+        )
+        return () => {
+            live = false
+        }
     }, [credentials, id])
 
+    const answered = held.key === id
+    const data = answered ? held.value : null
+    const refusal = answered ? held.refusal : null
+
     if (refusal) return <Notice>{refusal}</Notice>
-    if (!data) return <Notice>Opening the album.</Notice>
+    if (!data) {
+        return (
+            <div className="p-4">
+                <Skeleton rows={10} />
+            </div>
+        )
+    }
     const { album, songs } = data
     // THE BUTTON KNOWS WHEN THIS IS THE ALBUM PLAYING. A button that said Play beside a track
     // list with one of its rows sounding was saying something false; here it pauses that, and
@@ -381,43 +524,59 @@ function AlbumScreen({ credentials, id }: { credentials: Credentials; id: string
                     className="hidden size-40 rounded-md sm:block @2xl:size-56 @5xl:size-72"
                 />
                 <ol className="min-w-0 flex-1 rounded-lg border">
-                    {songs.map((song, index) => (
-                        <li key={song.id} className="flex items-center">
-                            <button
-                                type="button"
-                                onClick={() => play(songs, index)}
-                                className={cn(
-                                    'row-hover flex min-h-finger w-full items-center gap-3 px-3 text-left text-sm',
-                                )}
+                    {songs.map((song, index) => {
+                        // THE ROW SAYS WHICH TRACK IS SOUNDING. A track list with a player bar
+                        // under it playing one of its own rows and marking none of them makes
+                        // somebody read the title along the foot and find it by eye.
+                        const current = song.id === playingId
+                        return (
+                            <li
+                                key={song.id}
+                                className={cn('flex items-center', current && 'bg-muted font-medium')}
                             >
-                                <span className="w-6 shrink-0 text-right text-xs text-muted-foreground">
-                                    {song.track ?? index + 1}
-                                </span>
-                                {/* ON A COMPILATION THE ARTIST IS PART OF WHAT THE ROW IS, so
+                                <button
+                                    type="button"
+                                    onClick={() => play(songs, index)}
+                                    aria-current={current ? 'true' : undefined}
+                                    className="row-hover flex min-h-finger w-full items-center gap-3 px-3 text-left text-sm"
+                                >
+                                    <span className="flex w-6 shrink-0 items-center justify-end text-xs text-muted-foreground tabular-nums">
+                                        {current ? (
+                                            playing ? (
+                                                <Volume2 className="size-3.5 text-primary" aria-hidden />
+                                            ) : (
+                                                <Play className="size-3.5 text-primary" aria-hidden />
+                                            )
+                                        ) : (
+                                            (song.track ?? index + 1)
+                                        )}
+                                    </span>
+                                    {/* ON A COMPILATION THE ARTIST IS PART OF WHAT THE ROW IS, so
                                     it sits under the title where a reader is already looking,
                                     not in a column against the far edge beside the clock. An
                                     album whose tracks are all the same artist says it once, in
                                     the heading, and the rows stay one line. */}
-                                <span className="min-w-0 flex-1">
-                                    <span className="block truncate" title={song.title}>
-                                        {song.title}
-                                    </span>
-                                    {song.artist && song.artist !== album.artist && (
-                                        <span
-                                            className="block truncate text-xs text-muted-foreground"
-                                            title={song.artist}
-                                        >
-                                            {song.artist}
+                                    <span className="min-w-0 flex-1">
+                                        <span className="block truncate" title={song.title}>
+                                            {song.title}
                                         </span>
-                                    )}
-                                </span>
-                                <span className="shrink-0 font-mono text-xs text-muted-foreground tabular-nums">
-                                    {clock(song.duration ?? 0)}
-                                </span>
-                            </button>
-                            <StarButton credentials={credentials} song={song} />
-                        </li>
-                    ))}
+                                        {song.artist && song.artist !== album.artist && (
+                                            <span
+                                                className="block truncate text-xs text-muted-foreground"
+                                                title={song.artist}
+                                            >
+                                                {song.artist}
+                                            </span>
+                                        )}
+                                    </span>
+                                    <span className="shrink-0 font-mono text-xs text-muted-foreground tabular-nums">
+                                        {clock(song.duration ?? 0)}
+                                    </span>
+                                </button>
+                                <StarButton credentials={credentials} song={song} />
+                            </li>
+                        )
+                    })}
                 </ol>
             </div>
         </div>

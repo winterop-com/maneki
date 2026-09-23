@@ -12,6 +12,7 @@ import {
     toggleMuted,
     toggleShuffle,
 } from '@/lib/player'
+import { dialogUp } from '@/lib/dialogs'
 import { paletteOpen } from '@/lib/palette'
 import { togglePanel, toggleRail } from '@/lib/panels'
 import { toggleLyrics } from '@/lib/lyrics'
@@ -88,10 +89,12 @@ export function useAppShortcuts(onShortcuts: () => void): void {
                 togglePanel()
                 return
             }
-            // A chord is answered wherever focus is; a bare key is not answered at all while the
-            // palette or the search is up, where every press belongs to its own box and the
-            // arrows walk the rows under it.
-            if (paletteOpen.get() || searchOpen.get()) return
+            // A chord is answered wherever focus is; a bare key is not answered at all while
+            // anything is standing over the app -- the palette or the search, where every press
+            // belongs to its own box and the arrows walk the rows under it, and the settings
+            // and shortcuts dialogs, where a key that opened a second surface would be two
+            // things at once in a place that can hold one.
+            if (paletteOpen.get() || searchOpen.get() || dialogUp()) return
             if (opensSearch(press, focused())) {
                 event.preventDefault()
                 openSearch()

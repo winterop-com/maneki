@@ -133,13 +133,6 @@ export function settingsRows(apple: boolean): SettingsRow[] {
             keywords: ['loud', 'level', 'mute', 'sound'],
         },
         {
-            id: 'general:times',
-            category: 'general',
-            label: 'Timezone',
-            description: 'How a date on an album or a book is read.',
-            keywords: ['timezone', 'utc', 'clock', 'local', 'zone'],
-        },
-        {
             id: 'general:now-playing',
             category: 'general',
             label: 'Now playing',

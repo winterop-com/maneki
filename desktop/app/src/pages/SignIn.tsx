@@ -69,8 +69,12 @@ export function SignIn() {
         event.preventDefault()
         setBusy(true)
         const server = baseUrl.replace(/\/+$/, '')
+        // A SUBMIT IS TOLD APART FROM A LOAD. Both fields are required, so the browser's own
+        // check is what usually answers an empty one; a submit that gets past it lands in
+        // `connect`, which now says what the server is missing rather than falling back to
+        // this same screen with nothing changed on it.
         if (username) await signInTo(server, username, password)
-        else await connect({ baseUrl: server })
+        else await connect({ baseUrl: server }, true)
         setBusy(false)
     }
 
@@ -119,6 +123,7 @@ export function SignIn() {
                         value={username}
                         onChange={(event) => setUsername(event.target.value)}
                         autoComplete="username"
+                        required
                     />
                 </div>
                 <div className="space-y-2">
@@ -129,6 +134,7 @@ export function SignIn() {
                         value={password}
                         onChange={(event) => setPassword(event.target.value)}
                         autoComplete="current-password"
+                        required
                     />
                 </div>
                 {session.refusal && (

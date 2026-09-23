@@ -141,27 +141,24 @@ export function homePath(caps: Capabilities | null): string {
     return caps?.audio ? MUSIC_PATH : BOOKS_PATH
 }
 
-/**
- * Whether an entry is marked only at its own address.
- *
- * `/music` has `/music/starred` beneath it, so without this the rail would mark Music while
- * Favourites is open and say the reader is in two places.
- */
-export function marksOnlyItself(path: string): boolean {
-    const below = path === '/' ? '/' : `${path}/`
-    return NAV.flatMap((section) => section.entries).some(
-        (entry) => entry.path !== path && entry.path.startsWith(below),
-    )
+/** Whether one address is inside a path, that path itself included. */
+function inside(at: string, path: string): boolean {
+    return at === path || at.startsWith(path === '/' ? '/' : `${path}/`)
 }
 
 /**
- * The entry one address is inside, or null.
+ * Whether the rail marks an entry while one address is open.
  *
- * Longest path first, so `/music/starred` answers Favourites rather than Music.
+ * PREFIX, EXCEPT WHERE A SIBLING CLAIMS IT. An artist and an album are Music read at a
+ * particular record, so `/music/artist/x` has to mark Music, which a rule matching Music at
+ * its own address alone left marking nothing at all -- a rail that says the reader is nowhere
+ * is worse than one that says they are in two places. The exception is the entries that sit
+ * beneath this one: `/music/starred` is Favourites' own address and belongs to Favourites, so
+ * Music lets it go and the two never light together.
  */
-export function entryAt(path: string): NavEntry | null {
-    const candidates = NAV.flatMap((section) => section.entries)
-        .filter((entry) => path === entry.path || path.startsWith(`${entry.path}/`))
-        .toSorted((left, right) => right.path.length - left.path.length)
-    return candidates[0] ?? null
+export function marks(path: string, at: string): boolean {
+    if (!inside(at, path)) return false
+    return !NAV.flatMap((section) => section.entries).some(
+        (entry) => entry.path !== path && inside(entry.path, path) && inside(at, entry.path),
+    )
 }
