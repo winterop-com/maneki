@@ -15,6 +15,11 @@
  * out and `getComputedStyle` forces it to recalculate style; doing both sixty times a second on
  * a page with a long list in it is felt as a pointer that will not keep up. Both are read when
  * the box actually changes, and again when the palette or the mode is written onto `<html>`.
+ *
+ * THE COLOUR IS A TOKEN UNLESS SOMEBODY ASKED OTHERWISE. What the canvas reads off its own
+ * element is the accent in the palette in force, and that is what the default theme paints
+ * with. `lib/spectrum-themes` is where a chosen ramp comes from, and where the reason a fixed
+ * colour is allowed there at all is written down.
  */
 
 import { useEffect, useRef, type RefObject } from 'react'
@@ -22,6 +27,7 @@ import { useEffect, useRef, type RefObject } from 'react'
 import { usePrefersReducedMotion } from '@/hooks/use-reduced-motion'
 import { useStore } from '@/hooks/use-store'
 import { spectrum } from '@/lib/player'
+import { spectrumTheme, themeGradient, themeSweep } from '@/lib/spectrum-themes'
 import {
     bars,
     barLayout,
@@ -42,6 +48,7 @@ import {
 export function useSpectrum(active: boolean, bands: number): RefObject<HTMLCanvasElement | null> {
     const canvas = useRef<HTMLCanvasElement | null>(null)
     const style = useStore(visualizerStyle)
+    const theme = useStore(spectrumTheme)
     // A reader who has asked their system for less movement gets the still bar the player
     // already has, and no loop at all.
     const still = usePrefersReducedMotion()
@@ -96,8 +103,14 @@ export function useSpectrum(active: boolean, bands: number): RefObject<HTMLCanva
             if (quiet && settled) return
             settled = quiet
             context.clearRect(0, 0, width, height)
-            context.fillStyle = ink
-            context.strokeStyle = ink
+            // Built once per theme, size and accent rather than per frame -- and `accent`, the
+            // theme every session starts on, is a gradient of the one colour the canvas read
+            // off its own element, which is a token.
+            const paintedIn = wave
+                ? themeSweep(theme, context, width, ink)
+                : themeGradient(theme, context, height, ink)
+            context.fillStyle = paintedIn
+            context.strokeStyle = paintedIn
             paint(context, style, frame, width, height, bands)
         }
 
@@ -108,7 +121,7 @@ export function useSpectrum(active: boolean, bands: number): RefObject<HTMLCanva
             painted.disconnect()
             context.clearRect(0, 0, width, height)
         }
-    }, [active, bands, still, style])
+    }, [active, bands, still, style, theme])
 
     return canvas
 }
