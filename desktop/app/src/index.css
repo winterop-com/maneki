@@ -94,6 +94,13 @@
     /* The fifth rung of the surface ladder: a line that has to separate two panels rather
        than merely divide rows inside one. */
     --color-border-strong: var(--border-strong);
+    /* The door's brand pane: dark in both modes and every palette, see `.login-brand`. */
+    --color-terminal: var(--terminal);
+    --color-terminal-foreground: var(--terminal-foreground);
+    --color-terminal-muted: var(--terminal-muted);
+    --color-terminal-faint: var(--terminal-faint);
+    --color-terminal-accent: var(--terminal-accent);
+    --color-terminal-bar: var(--terminal-bar);
     /* Text quieter than muted: a timestamp beside a name, a hint under a field. */
     --color-faint: var(--faint);
 
@@ -1990,4 +1997,27 @@ html.dark[data-theme='neon'],
 }
 .resize-handle-pane::after {
     background-color: var(--muted-foreground);
+}
+
+/* ---------------------------------------------------------------------------
+   THE DOOR'S BRAND PANE.
+
+   Dark in both modes and under every palette, because what the pane is is a ground the mark
+   sits on: turned over with the rest of the app it would read as one more card. The light mode
+   meets it as a hard edge against near-white, the dark mode as one rung below the shell. The
+   palettes leave these alone -- the pane is the brand's, not the palette's -- so they are set
+   once here rather than in each palette block, and only the mode moves them.
+   ------------------------------------------------------------------------- */
+:root {
+    --terminal: oklch(0.24 0.012 255);
+    --terminal-foreground: oklch(0.93 0.008 255);
+    --terminal-muted: oklch(0.72 0.015 255);
+    --terminal-faint: oklch(0.56 0.02 255);
+    --terminal-accent: oklch(0.82 0.13 80);
+    --terminal-bar: oklch(0.34 0.014 255);
+}
+
+.dark {
+    --terminal: oklch(0.105 0.012 255);
+    --terminal-bar: oklch(0.21 0.013 255);
 }
