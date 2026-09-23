@@ -115,6 +115,58 @@ export function cycleVisualizerStyle(): VisualizerStyle {
     return wanted
 }
 
+/**
+ * What is done to the drawing on the stage, over and above drawing it.
+ *
+ * AN EFFECT IS CHOSEN, NEVER IMPOSED. A bloom under every bar reads as heat to one person and
+ * as a smeared screen to the next, so it is one of a short list somebody picks from, kept
+ * between visits like the drawing itself, and the list starts on nothing. Only the stage
+ * applies it: a strip an inch tall has no room for a glow, and the pane on the panel is read
+ * beside a track list rather than looked at.
+ */
+export type SpectrumEffect = 'none' | 'glow' | 'trails'
+
+export const SPECTRUM_EFFECTS: readonly SpectrumEffect[] = ['none', 'glow', 'trails']
+
+export const SPECTRUM_EFFECT_LABELS: Record<SpectrumEffect, string> = {
+    none: 'No effect',
+    glow: 'Glow',
+    trails: 'Trails',
+}
+
+export const DEFAULT_EFFECT: SpectrumEffect = 'none'
+
+export const SPECTRUM_EFFECT_KEY = 'maneki.spectrum.effect'
+
+/** Whether a string names an effect this build has. */
+export function isSpectrumEffect(candidate: string | null): candidate is SpectrumEffect {
+    return candidate !== null && (SPECTRUM_EFFECTS as readonly string[]).includes(candidate)
+}
+
+function readEffect(): SpectrumEffect {
+    try {
+        const stored = localStorage.getItem(SPECTRUM_EFFECT_KEY)
+        return isSpectrumEffect(stored) ? stored : DEFAULT_EFFECT
+    } catch {
+        return DEFAULT_EFFECT
+    }
+}
+
+/** Which effect the stage wears. Kept between visits, like the drawing. */
+export const spectrumEffect = createStore<SpectrumEffect>(readEffect())
+
+/** Choose an effect by name; a name this build does not know is the plain drawing. */
+export function setSpectrumEffect(effect: string): SpectrumEffect {
+    const chosen = isSpectrumEffect(effect) ? effect : DEFAULT_EFFECT
+    try {
+        localStorage.setItem(SPECTRUM_EFFECT_KEY, chosen)
+    } catch {
+        // Storage denied: the choice holds for as long as this document is open.
+    }
+    spectrumEffect.set(chosen)
+    return chosen
+}
+
 /** Where the height of the panel's spectrum pane is kept between visits. */
 export const SPECTRUM_HEIGHT_KEY = 'maneki.spectrumHeight'
 

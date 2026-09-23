@@ -42,9 +42,16 @@ import {
     ridgeFromTops,
     settle,
     scopePoints,
+    spectrumEffect,
     visualizerStyle,
     type VisualizerStyle,
 } from '@/lib/visualizer'
+
+/** How far the glow reaches from a bar. */
+const GLOW_BLUR = 12
+
+/** The wash the trails effect lays over the last frame: the stage's ground, part strength. */
+const TRAIL_WASH = 'rgba(0, 0, 0, 0.35)'
 
 /**
  * Paint the analyser into a canvas for as long as `active` holds.
@@ -55,12 +62,14 @@ import {
 export function useSpectrum(
     active: boolean,
     bands: number,
-    /** Bloom under the drawing: the stage's, where the spectrum is the show. Costly, so opt-in. */
-    glow = false,
+    /** Whether the chosen effect is applied: the stage's, where the spectrum is the show. */
+    withEffect = false,
 ): RefObject<HTMLCanvasElement | null> {
     const canvas = useRef<HTMLCanvasElement | null>(null)
     const style = useStore(visualizerStyle)
     const theme = useStore(spectrumTheme)
+    const chosenEffect = useStore(spectrumEffect)
+    const effect = withEffect ? chosenEffect : 'none'
     // A reader who has asked their system for less movement gets the still bar the player
     // already has, and no loop at all.
     const still = usePrefersReducedMotion()
@@ -127,7 +136,17 @@ export function useSpectrum(
             const quiet = wave ? isFlat(shown) : isIdle(shown)
             if (quiet && settled) return
             settled = quiet
-            context.clearRect(0, 0, width, height)
+            // TRAILS ARE THE LAST FRAME NOT QUITE WIPED. Instead of clearing, the canvas is
+            // washed with the ground at part strength, so what was drawn a moment ago is still
+            // faintly there under what is drawn now. A quiet frame is cleared outright, so the
+            // floor is a floor rather than a slowly fading memory of the last note.
+            if (effect === 'trails' && !quiet) {
+                context.shadowBlur = 0
+                context.fillStyle = TRAIL_WASH
+                context.fillRect(0, 0, width, height)
+            } else {
+                context.clearRect(0, 0, width, height)
+            }
             // Built once per theme, size and accent rather than per frame -- and `accent`, the
             // theme every session starts on, is a gradient of the one colour the canvas read
             // off its own element, which is a token.
@@ -136,10 +155,10 @@ export function useSpectrum(
                 : themeGradient(theme, context, height, ink)
             context.fillStyle = ramp
             context.strokeStyle = ramp
-            // THE STAGE BURNS. A shadow in the ramp's own top colour under every bar reads as
-            // heat coming off the drawing, which a strip an inch tall has no room for.
-            context.shadowBlur = glow ? 24 : 0
-            context.shadowColor = glow ? themeStops(theme, ink)[0] : 'transparent'
+            // GLOW IS A SHADOW IN THE RAMP'S OWN TOP COLOUR under every bar, which reads as heat
+            // coming off the drawing. Kept modest: at twice this it read as a smeared screen.
+            context.shadowBlur = effect === 'glow' ? GLOW_BLUR : 0
+            context.shadowColor = effect === 'glow' ? themeStops(theme, ink)[0] : 'transparent'
             if (wave) {
                 paintScope(context, shown, width, height)
             } else {
@@ -155,7 +174,7 @@ export function useSpectrum(
             painted.disconnect()
             context.clearRect(0, 0, width, height)
         }
-    }, [active, bands, glow, still, style, theme])
+    }, [active, bands, effect, still, style, theme])
 
     return canvas
 }

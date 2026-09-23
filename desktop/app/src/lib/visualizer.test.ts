@@ -7,6 +7,11 @@ import {
     tilt,
     bars,
     CEILING,
+    DEFAULT_EFFECT,
+    setSpectrumEffect,
+    SPECTRUM_EFFECT_LABELS,
+    SPECTRUM_EFFECTS,
+    spectrumEffect,
     BAND_COUNT,
     barLayout,
     clampSpectrumHeight,
@@ -259,5 +264,24 @@ describe('the lean and the envelope', () => {
     test('a band that was not there last frame starts from the floor', () => {
         expect(settle([], [1])[0]).toBeCloseTo(ATTACK)
         expect(settle([1, 1, 1], [1])).toHaveLength(1)
+    })
+})
+
+describe('the effect the stage wears', () => {
+    test('starts on nothing, because an effect is a thing somebody adds', () => {
+        expect(DEFAULT_EFFECT).toBe('none')
+        expect(SPECTRUM_EFFECTS[0]).toBe('none')
+        expect(spectrumEffect.get()).toBe('none')
+    })
+
+    test('takes a name it knows and answers the plain drawing for one it does not', () => {
+        expect(setSpectrumEffect('glow')).toBe('glow')
+        expect(spectrumEffect.get()).toBe('glow')
+        expect(setSpectrumEffect('lens flare')).toBe('none')
+        expect(spectrumEffect.get()).toBe('none')
+    })
+
+    test('names every effect, because the control is a list of words', () => {
+        for (const effect of SPECTRUM_EFFECTS) expect(SPECTRUM_EFFECT_LABELS[effect]).toBeTruthy()
     })
 })

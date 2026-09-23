@@ -92,6 +92,12 @@ export function settingsRows(apple: boolean): SettingsRow[] {
             ],
         },
         {
+            id: 'general:spectrum-effect',
+            category: 'general',
+            label: 'Stage effect',
+            keywords: ['visualiser', 'visualizer', 'glow', 'bloom', 'trails', 'blur', 'effect', 'filter'],
+        },
+        {
             id: 'general:spectrum-theme',
             category: 'general',
             label: 'Spectrum colour',

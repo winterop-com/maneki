@@ -2184,3 +2184,16 @@ html.dark[data-theme='neon'],
     accent-color: var(--terminal-accent);
     height: 4px;
 }
+
+.stage-select {
+    height: 2rem;
+    border-radius: var(--radius-md);
+    border: 1px solid color-mix(in oklab, var(--terminal-foreground) 18%, transparent);
+    background-color: color-mix(in oklab, var(--terminal-foreground) 8%, transparent);
+    color: var(--terminal-muted);
+    padding: 0 0.5rem;
+    font-size: 0.75rem;
+}
+.stage-select:hover {
+    color: var(--terminal-foreground);
+}

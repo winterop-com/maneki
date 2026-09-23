@@ -1,4 +1,4 @@
-import { AudioLines, Pause, Play, SkipBack, SkipForward, Star, X } from 'lucide-react'
+import { Pause, Play, SkipBack, SkipForward, Star, X } from 'lucide-react'
 import { useRef } from 'react'
 
 import { Button } from '@/components/ui/button'
@@ -14,10 +14,15 @@ import { coverUrl } from '@/lib/subsonic'
 import { cn } from '@/lib/utils'
 import {
     closeStage,
-    cycleVisualizerStyle,
     nextStyle,
+    setSpectrumEffect,
+    setVisualizerStyle,
+    SPECTRUM_EFFECT_LABELS,
+    SPECTRUM_EFFECTS,
+    spectrumEffect,
     stageOpen,
     VISUALIZER_STYLE_LABELS,
+    VISUALIZER_STYLES,
     visualizerStyle,
     type VisualizerStyle,
 } from '@/lib/visualizer'
@@ -83,6 +88,7 @@ function Stage() {
     const session = useStore(sessionStore)
     const marks = useStore(starMarks)
     const style = useStore(visualizerStyle)
+    const effect = useStore(spectrumEffect)
     const stage = useRef<HTMLDivElement | null>(null)
     const song = currentSong()
     const playing = player.playing
@@ -233,18 +239,38 @@ function Stage() {
             {/* The two things the stage itself can do, in the corner and nowhere else: what a
                 stage is for is looking at it, so anything standing over the canvas has to have
                 earned the room. */}
-            <div className="absolute top-4 right-4 flex items-center gap-1">
-                <Button
-                    variant="ghost"
-                    size="icon"
-                    aria-label={nextStyleLabel(style)}
-                    onClick={() => {
-                        cycleVisualizerStyle()
+            <div className="absolute top-4 right-4 flex items-center gap-2">
+                {/* WHAT IS DRAWN AND WHAT IS DONE TO IT, AS TWO LISTS. A control that cycles has
+                    to be pressed to find out what is on it; a list says so, and the effect list
+                    starts on nothing, because an effect is a thing somebody adds. */}
+                <select
+                    aria-label="Drawing"
+                    value={style}
+                    onChange={(event) => {
+                        setVisualizerStyle(event.target.value as VisualizerStyle)
                     }}
-                    className="stage-button"
+                    className="stage-select"
                 >
-                    <AudioLines className="size-5" aria-hidden />
-                </Button>
+                    {VISUALIZER_STYLES.map((one) => (
+                        <option key={one} value={one}>
+                            {VISUALIZER_STYLE_LABELS[one]}
+                        </option>
+                    ))}
+                </select>
+                <select
+                    aria-label="Effect"
+                    value={effect}
+                    onChange={(event) => {
+                        setSpectrumEffect(event.target.value)
+                    }}
+                    className="stage-select"
+                >
+                    {SPECTRUM_EFFECTS.map((one) => (
+                        <option key={one} value={one}>
+                            {SPECTRUM_EFFECT_LABELS[one]}
+                        </option>
+                    ))}
+                </select>
                 <Button
                     variant="ghost"
                     size="icon"

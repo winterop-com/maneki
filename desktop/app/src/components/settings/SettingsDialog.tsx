@@ -58,7 +58,11 @@ import { cn } from '@/lib/utils'
 import { autoplayNext, setAutoplayNext } from '@/lib/watching'
 import {
     setVisualizer,
+    setSpectrumEffect,
     setVisualizerStyle,
+    SPECTRUM_EFFECT_LABELS,
+    SPECTRUM_EFFECTS,
+    spectrumEffect,
     VISUALIZER_STYLE_LABELS,
     VISUALIZER_STYLES,
     visualizerShown,
@@ -226,6 +230,7 @@ function GeneralPane({ rows }: { rows: SettingsRow[] }) {
     const player = useStore(playerStore)
     const spectrum = useStore(visualizerShown)
     const style = useStore(visualizerStyle)
+    const effect = useStore(spectrumEffect)
     const colours = useStore(spectrumTheme)
     const delay = useStore(spectrumDelayMs)
     // Read as the pane renders rather than held in state: what the browser reports changes the
@@ -370,6 +375,21 @@ function GeneralPane({ rows }: { rows: SettingsRow[] }) {
                                     label: VISUALIZER_STYLE_LABELS[one],
                                 }))}
                                 onChoose={setVisualizerStyle}
+                            />
+                        </Row>
+                    )
+                }
+                if (row.id === 'general:spectrum-effect') {
+                    return (
+                        <Row key={row.id} row={row}>
+                            <Segmented
+                                label={row.label}
+                                value={effect}
+                                options={SPECTRUM_EFFECTS.map((one) => ({
+                                    value: one,
+                                    label: SPECTRUM_EFFECT_LABELS[one],
+                                }))}
+                                onChoose={setSpectrumEffect}
                             />
                         </Row>
                     )
