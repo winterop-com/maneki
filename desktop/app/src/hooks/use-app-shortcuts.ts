@@ -16,7 +16,7 @@ import { dialogUp } from '@/lib/dialogs'
 import { paletteOpen } from '@/lib/palette'
 import { togglePanel, toggleRail } from '@/lib/panels'
 import { toggleLyrics } from '@/lib/lyrics'
-import { stageKeyClaim, transportClaim } from '@/lib/screen-keys'
+import { muteKeyClaim, stageKeyClaim, transportClaim } from '@/lib/screen-keys'
 import { closeSearch, openSearch, searchOpen } from '@/lib/search'
 import { sessionStore } from '@/lib/session'
 import {
@@ -175,7 +175,13 @@ export function useAppShortcuts(onShortcuts: () => void): void {
             }
             if (togglesMute(press, focused())) {
                 event.preventDefault()
-                toggleMuted()
+                // What `m` silences is whatever is making the sound, and only one thing is:
+                // a screen with a video on it claims this while it is open, so `m` muted the
+                // album under a film that went on talking, and the record somebody came back
+                // to was the silent one.
+                const claimed = muteKeyClaim()
+                if (claimed === null) toggleMuted()
+                else claimed()
                 return
             }
             if (opensLyrics(press, focused())) {

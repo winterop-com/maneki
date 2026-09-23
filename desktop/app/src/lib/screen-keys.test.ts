@@ -1,9 +1,11 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import {
+    claimMuteKey,
     claimStageKey,
     claimTransport,
     forgetKeyClaims,
+    muteKeyClaim,
     stageKeyClaim,
     transportClaim,
 } from '@/lib/screen-keys'
@@ -49,6 +51,54 @@ describe('claimStageKey', () => {
         releaseFirst()
         stageKeyClaim()?.()
         expect(second).toHaveBeenCalledOnce()
+    })
+})
+
+describe('claimMuteKey', () => {
+    it('means the album until a screen says otherwise', () => {
+        expect(muteKeyClaim()).toBeNull()
+    })
+
+    it('silences whatever the screen that claimed it is playing', () => {
+        const run = vi.fn()
+        claimMuteKey(run)
+        muteKeyClaim()?.()
+        expect(run).toHaveBeenCalledOnce()
+    })
+
+    it('gives the key back when the screen releases it', () => {
+        const release = claimMuteKey(vi.fn())
+        release()
+        expect(muteKeyClaim()).toBeNull()
+    })
+
+    it('lets a later claim win', () => {
+        const first = vi.fn()
+        const second = vi.fn()
+        claimMuteKey(first)
+        claimMuteKey(second)
+        muteKeyClaim()?.()
+        expect(first).not.toHaveBeenCalled()
+        expect(second).toHaveBeenCalledOnce()
+    })
+
+    it('does not let an earlier release take a later claim away', () => {
+        const second = vi.fn()
+        const releaseFirst = claimMuteKey(vi.fn())
+        claimMuteKey(second)
+        releaseFirst()
+        muteKeyClaim()?.()
+        expect(second).toHaveBeenCalledOnce()
+    })
+
+    it('is held apart from the other claims', () => {
+        // A screen takes the three it wants: claiming the mute is not claiming `f` or Space,
+        // and forgetting them all gives every one of them back.
+        claimMuteKey(vi.fn())
+        expect(stageKeyClaim()).toBeNull()
+        expect(transportClaim()).toBeNull()
+        forgetKeyClaims()
+        expect(muteKeyClaim()).toBeNull()
     })
 })
 

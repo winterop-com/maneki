@@ -10,9 +10,16 @@ import { clock } from '@/lib/format'
 import { useStore } from '@/hooks/use-store'
 import { registerActions, SCREEN_GROUP } from '@/lib/palette'
 import { inDesktopShell } from '@/lib/desktop'
-import { claimStageKey, claimTransport } from '@/lib/screen-keys'
+import { claimMuteKey, claimStageKey, claimTransport } from '@/lib/screen-keys'
 import { clearScreenStatus, setScreenStatus } from '@/lib/screen-status'
-import { seeks, togglesTheater, type FocusedField } from '@/lib/shortcuts'
+import {
+    cyclesRepeat,
+    opensLyrics,
+    seeks,
+    togglesShuffle,
+    togglesTheater,
+    type FocusedField,
+} from '@/lib/shortcuts'
 import type { VideoEntry, VideoSubtitleTrack } from '@/lib/types'
 import {
     browseHref,
@@ -61,8 +68,8 @@ export const LEAVE_FULLSCREEN_LABEL = 'Leave full screen'
  *
  * AND IT GOES AWAY ON ONE KEY. `t` takes the list off and the chrome with it, which is what
  * somebody watching rather than choosing wants; `f` fills the screen, claimed from the spectrum
- * for as long as this screen is open. Space, `n` and `p` are claimed the same way, because what
- * is playing while a video is on screen is the video.
+ * for as long as this screen is open. Space, `n`, `p` and `m` are claimed the same way, because
+ * what is playing while a video is on screen is the video.
  *
  * A ROW SAYS WHAT DIFFERS. Every file in a season begins with the same forty characters, so the
  * list beside the picture draws the frame, what the name does not share with its neighbours, and
@@ -204,13 +211,17 @@ function Watch({ id }: { id: string }) {
      * Segments are made speculatively either side of the one last asked for and each completion
      * starts the next, so closing the player without saying so leaves the machine encoding to
      * the end of the file. This is the one thing this screen has to tell the server.
+     *
+     * A PAUSE IS THE SAME THING FOR AS LONG AS IT LASTS. Somebody who stops a film to make
+     * dinner is somebody nothing is being watched by, and the prefetch would run to the end of
+     * the file while they were gone. Cancelling costs nothing to undo: the cancel drops the
+     * in-flight prefetch tasks and nothing else, and the next segment the player asks for finds
+     * the session still there -- or builds it again -- and starts it encoding from there.
      */
-    useEffect(
-        () => () => {
-            videoApi.cancelSession(id)
-        },
-        [id],
-    )
+    const stopEncoding = useCallback(() => {
+        videoApi.cancelSession(id)
+    }, [id])
+    useEffect(() => stopEncoding, [stopEncoding])
 
     // The bar's right-hand cell names what is playing. An id would be the honest machine's
     // string, but it means nothing to the person reading the foot of the window.
@@ -332,6 +343,13 @@ function Watch({ id }: { id: string }) {
     // `f` is the spectrum's everywhere else in the app; here it is the picture's.
     useEffect(() => claimStageKey(fullscreen), [fullscreen])
 
+    // And `m` is the album's everywhere else; here it silences the film rather than a record
+    // nobody can hear anyway -- only one of the two makes sound at a time.
+    const mute = useCallback(() => {
+        player.current?.toggleMute()
+    }, [])
+    useEffect(() => claimMuteKey(mute), [mute])
+
     /**
      * Space, `n` and `p` mean the picture while there is one.
      *
@@ -408,6 +426,20 @@ function Watch({ id }: { id: string }) {
                 event.preventDefault()
                 event.stopPropagation()
                 toggleTheater()
+                return
+            }
+            // THE ALBUM'S OTHER LETTERS MEAN NOTHING WHILE A PICTURE IS ON. `s` shuffles the
+            // queue, `r` cycles its repeat and `l` puts a song's words on screen, so pressing
+            // any of them here rearranged music nobody was listening to. Unlike `f`, Space and
+            // `m`, there is nothing for them to mean instead -- so they are swallowed rather
+            // than claimed: a key that does nothing beats a key that quietly moves the album.
+            if (
+                togglesShuffle(press, focused) ||
+                cyclesRepeat(press, focused) ||
+                opensLyrics(press, focused)
+            ) {
+                event.preventDefault()
+                event.stopPropagation()
                 return
             }
             const seek = seeks(press, focused)
@@ -567,6 +599,7 @@ function Watch({ id }: { id: string }) {
                             subtitles={subtitles}
                             autoplay
                             onEnded={onEnded}
+                            onPause={stopEncoding}
                             onFullscreenChange={onFilled}
                             onReady={onReady}
                         />

@@ -53,6 +53,8 @@ export interface VideoHandle {
     seekTo: (positionS: number) => void
     /** Full screen, asked of whoever can actually give it -- see `fill` below. */
     toggleFullscreen: () => void
+    /** Silence the picture, or give it its sound back. What `m` means while a video is open. */
+    toggleMute: () => void
     /**
      * What the source is actually at, or null before the first frame has been decoded.
      *
@@ -73,6 +75,8 @@ export interface VideoPlayerProps {
     autoplay?: boolean
     onEnded?: () => void
     onError?: (message: string) => void
+    /** Playback has stopped where it stands. Not called while the player is being taken down. */
+    onPause?: () => void
     /** Whether the picture is filling the screen right now, so a control can say which. */
     onFullscreenChange?: (on: boolean) => void
     /** Handed the player once there is one, and null when it goes. */
@@ -103,6 +107,11 @@ async function fill(live: Player): Promise<boolean> {
         const already = await isNativeFullscreen()
         return already ? !(await exitNativeFullscreen()) : await requestNativeFullscreen()
     }
+    // AND IN A BROWSER, NOT BEFORE THERE IS A PICTURE. With the poster still up there is no
+    // decoded frame and no source loaded, and `requestFullscreen` on the player root falls
+    // through to the poster image -- which Chrome answers by opening the image, which is `f`
+    // before play appearing to throw somebody out of the app. There is nothing to fill yet.
+    if (started(live) === false) return false
     if (live.isFullscreen() === true) {
         await live.exitFullscreen()
         return false
@@ -111,11 +120,25 @@ async function fill(live: Player): Promise<boolean> {
     return true
 }
 
+/**
+ * Whether playback has ever started, as far as the player will say.
+ *
+ * Asked through a cast because video.js declares `hasStarted` as the setter it also is, and a
+ * build that has dropped it answers `undefined` -- which is read as started rather than as not,
+ * so a missing method is a full screen that works rather than a key that does nothing.
+ */
+function started(live: Player): boolean {
+    return (live as unknown as HasStarted).hasStarted?.() !== false
+}
+
 /** How long a `waiting` is allowed to last before the buffer is nudged out of it. */
 const STALL_PATIENCE_MS = 5000
 
 /** One recovery per window per player: the reload can itself fail, and a loop is worse. */
 const RECOVERY_COOLDOWN_MS = 8000
+
+/** How often a filled desktop window is asked whether it is still filled -- see the poll below. */
+const FILLED_POLL_MS = 1000
 
 /** What the stage is shaped like before the first frame has been decoded. */
 const DEFAULT_ASPECT = 16 / 9
@@ -145,6 +168,7 @@ export function VideoPlayer({
     autoplay = false,
     onEnded,
     onError,
+    onPause,
     onFullscreenChange,
     onReady,
 }: VideoPlayerProps) {
@@ -154,15 +178,51 @@ export function VideoPlayer({
     const [videojs, setVideojs] = useState<VideoJs | null>(null)
     const [refusal, setRefusal] = useState<string | null>(null)
     const [aspect, setAspect] = useState<number | null>(null)
+    // Whether the picture is filling the screen, which this component has to know as well as
+    // say: it is what the poll below is armed by. See `report`.
+    const [filled, setFilled] = useState(false)
 
     // What the player has to be pointed at, readable from a handler that was registered once.
     const source = useRef({ src, kind })
     // The callbacks, likewise: a parent that re-renders must not tear the player down.
-    const told = useRef({ onEnded, onError, onFullscreenChange, onReady })
+    const told = useRef({ onEnded, onError, onPause, onFullscreenChange, onReady })
     useEffect(() => {
         source.current = { src, kind }
-        told.current = { onEnded, onError, onFullscreenChange, onReady }
+        told.current = { onEnded, onError, onPause, onFullscreenChange, onReady }
     })
+
+    /** The one way the picture is ever said to be filling the screen, or to have stopped. */
+    const report = useCallback((on: boolean): void => {
+        setFilled(on)
+        told.current.onFullscreenChange?.(on)
+    }, [])
+
+    /**
+     * A WINDOW THAT LEFT FULL SCREEN BY ITSELF SAYS NOTHING.
+     *
+     * Native window fullscreen is the shell's, not the document's, so nothing fires a
+     * `fullscreenchange` when somebody presses the green button or the Escape macOS answers
+     * itself -- and the screen around this player goes on believing it is filled, which is the
+     * picture still pinned over the whole app with the window back in its frame around it.
+     * There is no event to listen for, so the window is asked, about once a second, and only
+     * while it is supposed to be filled: nothing polls on any other screen or in a browser tab.
+     */
+    useEffect(() => {
+        if (!filled || !inDesktopShell()) return
+        const timer = setInterval(() => {
+            void isNativeFullscreen().then(
+                (on) => {
+                    if (!on) report(false)
+                },
+                () => {
+                    // A shell that will not answer is not a reason to unpin the picture.
+                },
+            )
+        }, FILLED_POLL_MS)
+        return () => {
+            clearInterval(timer)
+        }
+    }, [filled, report])
 
     /**
      * Point the player at the source it has.
@@ -321,7 +381,24 @@ export function VideoPlayer({
         // button and by pressing Escape, so what the button says about itself is read off the
         // player rather than remembered by whoever asked last.
         const onFilled = (): void => {
-            told.current.onFullscreenChange?.(built.isFullscreen() === true)
+            report(built.isFullscreen() === true)
+        }
+
+        /**
+         * A PAUSED FILM MUST NOT LEAVE FFMPEG ENCODING AHEAD OF IT.
+         *
+         * Segments are made speculatively either side of the one last asked for, so a player
+         * stopped mid-film goes on costing a core for as long as somebody is away. The screen
+         * around this is what knows which session that is, so it is told and decides.
+         *
+         * NOT WHILE THE PLAYER IS BEING TAKEN DOWN: `dispose` pauses on its way out, and a
+         * teardown that also ran this would be the screen's own unmount cancel twice over, on a
+         * handler the screen may already have swapped for the next video's.
+         */
+        let going = false
+        const onPaused = (): void => {
+            if (going) return
+            told.current.onPause?.()
         }
 
         /**
@@ -333,9 +410,16 @@ export function VideoPlayer({
          * playhead at all makes the engine throw away what it is holding and ask again.
          */
         const nudge = (): void => {
-            if (built.paused() || built.readyState() >= 3) return
-            const at = built.currentTime()
-            if (at !== undefined && Number.isFinite(at)) built.currentTime(at + 0.01)
+            // Inside a try because of where this is called from: a `visibilitychange` landing
+            // between the screen going and `dispose` finishing would otherwise throw out of a
+            // document-level listener, over a hundredth of a second nobody is waiting for.
+            try {
+                if (built.paused() || built.readyState() >= 3) return
+                const at = built.currentTime()
+                if (at !== undefined && Number.isFinite(at)) built.currentTime(at + 0.01)
+            } catch {
+                // A player taken down mid-tick. There is nothing left to nudge.
+            }
         }
 
         let stall: ReturnType<typeof setTimeout> | null = null
@@ -359,6 +443,7 @@ export function VideoPlayer({
         built.on('loadedmetadata', onMetadata)
         built.on('ended', onFinished)
         built.on('fullscreenchange', onFilled)
+        built.on('pause', onPaused)
         built.on('waiting', armStall)
         built.on('playing', cancelStall)
         built.on('pause', cancelStall)
@@ -386,15 +471,13 @@ export function VideoPlayer({
                 else built.one('loadedmetadata', () => built.currentTime(at))
             },
             toggleFullscreen: () => {
-                void fill(built).then(
-                    (on) => {
-                        told.current.onFullscreenChange?.(on)
-                    },
-                    () => {
-                        // Refused: see `fill`. The button goes back to saying what it says.
-                        told.current.onFullscreenChange?.(built.isFullscreen() === true)
-                    },
-                )
+                void fill(built).then(report, () => {
+                    // Refused: see `fill`. The button goes back to saying what it says.
+                    report(built.isFullscreen() === true)
+                })
+            },
+            toggleMute: () => {
+                built.muted(built.muted() !== true)
             },
             frameSize: () => {
                 const width = built.videoWidth()
@@ -405,14 +488,37 @@ export function VideoPlayer({
         })
 
         return () => {
+            going = true
             cancelStall()
             document.removeEventListener('visibilitychange', onVisible)
             unregister()
+            /**
+             * LEAVING THE PLAYER LEAVES FULL SCREEN.
+             *
+             * A shell asked to fill the display holds it until it is asked not to, and nothing
+             * about a navigation tells it anything -- so Back out of a film left the window
+             * over the whole screen with the library sitting in it, which reads as an app that
+             * will not close. The browser has nothing to undo here: its own fullscreen ends
+             * with the element that was in it.
+             */
+            if (inDesktopShell()) {
+                void isNativeFullscreen()
+                    .then(async (on) => {
+                        if (on) await exitNativeFullscreen()
+                    })
+                    .catch(() => {
+                        // A shell that will not say is a shell that will not be told either.
+                    })
+            }
+            // And the screen is told, because a screen that outlives one player -- the YouTube
+            // one rebuilds it to change quality -- would otherwise go on pinning a picture over
+            // an app whose window is back in its frame.
+            report(false)
             told.current.onReady?.(null)
             player.current = null
             built.dispose()
         }
-    }, [autoplay, load, videojs])
+    }, [autoplay, load, report, videojs])
 
     /**
      * A new source is a swap rather than a rebuild, so the player, its decoder and its control
@@ -504,6 +610,11 @@ export function VideoPlayer({
 /** What one part of the JS HLS engine exposes that nothing on the player itself does. */
 interface BandwidthTech {
     vhs?: { bandwidth?: number }
+}
+
+/** `hasStarted` read as the question it also is, which the player's own type does not offer. */
+interface HasStarted {
+    hasStarted?: () => boolean
 }
 
 /** The captions size control, which video.js ships and does not declare on its player type. */

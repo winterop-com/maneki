@@ -15,6 +15,11 @@
  * eyes are; a screen that claims none of them leaves all three to the album, which is every
  * other screen in this app.
  *
+ * AND `m` SILENCES WHATEVER IS MAKING THE SOUND. Only one thing in this app makes any at a time
+ * -- a player starting stops the other, through `lib/sound` -- so a mute that always meant the
+ * album meant the wrong player exactly when a video was the one playing, and somebody muting a
+ * film got a film still talking and a record they could not hear when they went back to it.
+ *
  * SO THE CLAIM IS A STORE AND THE PREDICATE STAYS PURE. A screen claims the key from an effect
  * and returns the release, the same shape as registering palette rows and for the same reason:
  * a key that still meant the video after the video had gone would be a key nothing answers.
@@ -44,6 +49,22 @@ export function claimStageKey(run: KeyAction): () => void {
 /** What `f` means right now, or null where nothing has claimed it. */
 export function stageKeyClaim(): KeyAction | null {
     return stageKey.get()
+}
+
+/** Who holds `m` right now, or null for the album's own meaning of it. */
+export const muteKey = createStore<KeyAction | null>(null)
+
+/** Take `m` until the returned function is called. */
+export function claimMuteKey(run: KeyAction): () => void {
+    muteKey.set(run)
+    return () => {
+        if (muteKey.get() === run) muteKey.set(null)
+    }
+}
+
+/** What `m` means right now, or null where nothing has claimed it. */
+export function muteKeyClaim(): KeyAction | null {
+    return muteKey.get()
 }
 
 /**
@@ -78,5 +99,6 @@ export function transportClaim(): Transport | null {
 /** Give the keys back to whoever holds them. Tests, and nothing else, call this. */
 export function forgetKeyClaims(): void {
     stageKey.set(null)
+    muteKey.set(null)
     transportKeys.set(null)
 }
