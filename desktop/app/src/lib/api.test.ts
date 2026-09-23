@@ -155,3 +155,12 @@ describe('the calls that go through fetch', () => {
         expect(new Headers(asked[0]?.init?.headers).get('authorization')).toBe(null)
     })
 })
+
+describe('a position as it is written down', () => {
+    test('is a tenth of a second, not the clock the element hands over', async () => {
+        const { tenths } = await import('@/lib/api')
+        expect(tenths(12.805374999999998)).toBe(12.8)
+        expect(tenths(0)).toBe(0)
+        expect(tenths(59.96)).toBe(60)
+    })
+})

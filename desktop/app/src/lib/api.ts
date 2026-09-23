@@ -83,6 +83,16 @@ export function defaultBaseUrl(): string {
 }
 
 /** An absolute URL for a path under the current server. */
+/**
+ * A position as it is worth writing down: to a tenth of a second.
+ *
+ * The element's clock is a double, and 12.805374999999998 stored for a place in a book is
+ * fourteen characters saying nothing the tenth does not.
+ */
+export function tenths(seconds: number): number {
+    return Math.round(seconds * 10) / 10
+}
+
 export function url(path: string): string {
     if (!path.startsWith('/')) throw new Error(`path must start with a slash: ${path}`)
     return `${session.baseUrl}${path}`
@@ -201,7 +211,7 @@ export const books = {
     detail: (id: string): Promise<BookDetail> => request(`/books/api/books/${id}`),
     /** Record where the listener is, in seconds on the book's own timeline. */
     saveProgress: (id: string, positionS: number, finished?: boolean): Promise<BookProgress> =>
-        send(`/books/api/books/${id}/progress`, 'PUT', { position_s: positionS, finished }),
+        send(`/books/api/books/${id}/progress`, 'PUT', { position_s: tenths(positionS), finished }),
     clearProgress: (id: string): Promise<void> => send(`/books/api/books/${id}/progress`, 'DELETE'),
     /** Whether the server is still reading the books folder, and how many it has so far. */
     scanStatus: (): Promise<{ scanning: boolean; books: number }> => request('/books/api/scan'),
@@ -330,7 +340,7 @@ export const video = {
      */
     saveProgress: (id: string, positionS: number, finished?: boolean): Promise<VideoProgress> =>
         send(`${videoMount}/videos/${encodeURIComponent(id)}/progress`, 'PUT', {
-            position_s: positionS,
+            position_s: tenths(positionS),
             finished,
         }),
     /** Every video this account has started. One request fills a folder with resume points. */
