@@ -230,6 +230,65 @@ let loadedFile = 0
 let savedAt = 0
 /** Whether a tab going away already keeps the place. Registered once, undone by `clear`. */
 let watchingPagehide = false
+/**
+ * Which source the element is on, counted rather than named.
+ *
+ * CLICKING THROUGH STATIONS IS A RACE. Assigning `src` aborts whatever `play()` was still in
+ * flight and makes the element fire `error` about the load it just gave up -- news about a
+ * source nobody is listening to any more. Every assignment bumps this, so a rejected play and
+ * a late error can both ask whether they are still about the thing playing.
+ */
+let loadSeq = 0
+
+/** Put a source on the element, counting it: see `loadSeq`. */
+function putSource(player: HTMLAudioElement, url: string): void {
+    loadSeq += 1
+    player.src = url
+}
+
+/** Whether a refused `play()` was refused because the source was changed under it. */
+function abortedPlay(reason: unknown): boolean {
+    return (
+        typeof reason === 'object' && reason !== null && (reason as { name?: unknown }).name === 'AbortError'
+    )
+}
+
+/** A frame from now, or a tick from now where there are no frames -- a test has none. */
+function nextFrame(run: () => void): void {
+    if (typeof requestAnimationFrame === 'function') requestAnimationFrame(run)
+    else setTimeout(run, 0)
+}
+
+/**
+ * Ask the element to play, and do not take the first no for an answer.
+ *
+ * A SOURCE SWITCH INTERRUPTS THE PLAY THAT WAS STILL IN FLIGHT. Clicking a second station while
+ * the first is still opening rejects the first `play()` with an `AbortError`, which is a fact
+ * about a source nothing is listening to any more: publishing it as silence is how a bar ends
+ * up saying "not playing" over a station that is playing perfectly well.
+ *
+ * AND WEBKIT DOES NOT PICK ITSELF UP. Where Chromium recovers from that abort and plays the new
+ * source anyway, WebKit and Electron leave the element paused -- which is how clicking a station
+ * while another one played used to do nothing at all unless you paused first. So the latest
+ * load, left paused, is asked once more on the next frame before the bar says it is not playing.
+ */
+function start(player: HTMLAudioElement): void {
+    const seq = loadSeq
+    void player.play().catch((reason: unknown) => {
+        const stale = seq !== loadSeq
+        // Superseded: a newer source is on the element, and its own play is what decides
+        // whether anything is sounding.
+        if (stale && abortedPlay(reason)) return
+        if (!stale && player.paused) {
+            nextFrame(() => {
+                if (seq !== loadSeq || !player.paused) return
+                void player.play().catch(() => patch({ playing: false }))
+            })
+            return
+        }
+        patch({ playing: false })
+    })
+}
 
 /** How often a station is asked what it is playing. Its own frames arrive about this often. */
 const ICY_POLL_MS = 10_000
@@ -346,6 +405,20 @@ function element(): HTMLAudioElement {
     return audio
 }
 
+/** `MEDIA_ERR_ABORTED`: the element gave a load up because it was told to go somewhere else. */
+const MEDIA_ERR_ABORTED = 1
+
+/** How long a refusal is given to be contradicted by whatever replaced the source that failed. */
+const REFUSAL_SETTLE_MS = 700
+
+/** The refusal waiting out its settle, if one is. */
+let refusing: ReturnType<typeof setTimeout> | null = null
+
+function stopRefusing(): void {
+    if (refusing !== null) clearTimeout(refusing)
+    refusing = null
+}
+
 /**
  * What the element giving up looks like from here.
  *
@@ -354,13 +427,28 @@ function element(): HTMLAudioElement {
  * "playing" over silence until somebody presses something. A blacklisted station, a 404 off a
  * moved file, a server that went away mid-track all arrive here.
  *
- * The station's poll stops with it. A now-playing question against a stream this listener is no
- * longer connected to is answered with nothing, every ten seconds, for as long as the tab is
- * open.
+ * BUT A SOURCE SOMEBODY CLICKED PAST IS NOT A DEAD SOURCE. Each station skipped through fires
+ * one of these as its load is abandoned and its proxy connection torn down, and publishing
+ * those made a run of quick clicks pop "No sound from ..." over the station that was by then
+ * playing. So an abort -- the element saying it was sent elsewhere -- is not news at all, and
+ * the rest is given a moment to be contradicted: it is published only if the source that failed
+ * is still the one on the element and the element is still not playing.
+ *
+ * The station's poll stops with the refusal rather than with the error, for the same reason: a
+ * poll stopped on the way past would be the new station's poll.
  */
 function onElementError(): void {
-    stopIcy()
-    patch({ playing: false, refusal: refusalOf() })
+    const failing = audio
+    if (failing === null) return
+    if (failing.error?.code === MEDIA_ERR_ABORTED) return
+    const seq = loadSeq
+    stopRefusing()
+    refusing = setTimeout(() => {
+        refusing = null
+        if (seq !== loadSeq || failing !== audio || !failing.paused) return
+        stopIcy()
+        patch({ playing: false, refusal: refusalOf() })
+    }, REFUSAL_SETTLE_MS)
 }
 
 /** What to say about it, which is as much as the element is willing to say. */
@@ -384,7 +472,7 @@ function load(index: number, autoplay: boolean, orderAt?: number): void {
     const song = queue[index]
     if (!song || !credentials) return
     const player = element()
-    player.src = streamUrl(credentials, song.id)
+    putSource(player, streamUrl(credentials, song.id))
     patch({
         index,
         orderAt: orderAt ?? order.indexOf(index),
@@ -398,7 +486,7 @@ function load(index: number, autoplay: boolean, orderAt?: number): void {
         announced = song.id
         void scrobble(credentials, song.id, false)
     }
-    if (autoplay) void player.play().catch(() => patch({ playing: false }))
+    if (autoplay) start(player)
 }
 
 /** Play `songs`, starting at `startIndex`. */
@@ -424,7 +512,7 @@ export function playStation(station: Station): void {
     const player = element()
     leaveBook()
     claimSound(silence)
-    player.src = stationStreamUrl(credentials, station)
+    putSource(player, stationStreamUrl(credentials, station))
     patch({
         queue: [],
         index: -1,
@@ -435,7 +523,7 @@ export function playStation(station: Station): void {
         positionS: 0,
         durationS: 0,
     })
-    void player.play().catch(() => patch({ playing: false }))
+    start(player)
     followIcy(station)
 }
 
@@ -535,7 +623,7 @@ function placeBook(at: number, resume: boolean): void {
     const wanted = booksApi.fileUrl(file.url)
     const changing = player.src !== wanted
     if (changing) {
-        player.src = wanted
+        putSource(player, wanted)
         loadedFile = index
     }
     dropHeldSeek()
@@ -557,7 +645,7 @@ function placeBook(at: number, resume: boolean): void {
     patch({ positionS: at, durationS: book.duration_s, refusal: null })
     if (resume) {
         claimSound(silence)
-        void player.play().catch(() => patch({ playing: false }))
+        start(player)
     }
 }
 
@@ -662,7 +750,7 @@ export function toggle(): void {
         // A book whose element holds nothing has been picked up rather than resumed -- the
         // source is put on before it is asked to play.
         if (book && !player.src) placeBook(state().positionS, true)
-        else void player.play().catch(() => patch({ playing: false }))
+        else start(player)
     } else player.pause()
 }
 
@@ -690,8 +778,7 @@ function onEnded(): void {
     // asked for the same src: it is rewound instead.
     if (moved === orderAt) {
         seek(0)
-        const player = element()
-        void player.play().catch(() => patch({ playing: false }))
+        start(element())
         return
     }
     loadAt(moved, true)
@@ -797,6 +884,11 @@ export function spectrum(): AnalyserNode | null {
     }
     try {
         graph = new AudioContext()
+        // A GRAPH IS BORN SUSPENDED where the browser has not yet counted a gesture, and a
+        // suspended graph reads silence: the bars stay flat while the music plays. The branch
+        // above resumes the second call and every call after it; this is the first one, which
+        // had nothing to resume and so was the one that never woke up.
+        if (graph.state === 'suspended') void graph.resume()
         const source = graph.createMediaElementSource(audio)
         analyser = graph.createAnalyser()
         analyser.fftSize = 256
@@ -841,7 +933,10 @@ export function clear(): void {
     unregister?.()
     unregister = null
     audio?.pause()
-    if (audio) audio.src = ''
+    // The element is going, so a refusal still waiting out its settle is about nothing: it
+    // would name whatever the store says is playing, which by then is nothing at all.
+    stopRefusing()
+    if (audio) putSource(audio, '')
     audio = null
     analyser = null
     void graph?.close()

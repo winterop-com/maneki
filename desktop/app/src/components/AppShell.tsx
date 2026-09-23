@@ -197,6 +197,12 @@ export function AppShell({ children }: { children: ReactNode }) {
     // chapters for the same reason and under the same heading -- what comes next -- and a book
     // carrying no chapter marks has nothing to list, so it does not.
     //
+    // A STATION FILLS IT TOO, WITH ONE TAB. It has no queue and no chapters, so for a long
+    // while it filled nothing at all: no Now playing, no Up next button on the bar, and the
+    // spectrum's own pane unreachable for the one thing people put a spectrum on. What it has
+    // is a now-playing, so that is the tab it gets, and the list of what comes next -- which
+    // for a station is nothing, forever -- is not offered rather than offered empty.
+    //
     // AND THE PANEL IS OPENED ONCE A SESSION, on what is playing. The panel defaults closed and
     // nothing on the screen says what is behind it, so the band nobody could find is put in
     // front of somebody the first time they play something -- once, guarded by a ref, because
@@ -204,11 +210,12 @@ export function AppShell({ children }: { children: ReactNode }) {
     // breakpoint: the panel is a sheet over the whole screen there, the tab bar across the foot
     // is already the way to it, and a sheet raised by pressing play is one to dismiss first.
     useEffect(() => {
-        if (!queued && chapterCount === 0) return
+        const listed = queued || chapterCount > 0
+        if (!listed && station === null) return
         const empty = fillPanel(
             [
                 { id: 'now', label: NOW_PLAYING_LABEL, render: () => <NowPlayingPanel /> },
-                { id: 'queue', label: QUEUE_LABEL, render: () => <QueuePanel /> },
+                ...(listed ? [{ id: 'queue', label: QUEUE_LABEL, render: () => <QueuePanel /> }] : []),
             ],
             { screen: 'shell', open: 'now' },
         )
@@ -217,7 +224,7 @@ export function AppShell({ children }: { children: ReactNode }) {
             openPanelTab('now')
         }
         return empty
-    }, [queued, chapterCount])
+    }, [queued, chapterCount, station])
 
     const actions = useMemo<PaletteAction[]>(() => {
         const pages: PaletteAction[] = entriesFor(caps).map((entry) => ({

@@ -1,4 +1,4 @@
-import { Maximize2, Star } from 'lucide-react'
+import { Maximize2, RadioTower, Star } from 'lucide-react'
 import { useRef } from 'react'
 import { NavLink } from 'react-router'
 
@@ -46,7 +46,7 @@ const KEYBOARD_STEP = 16
  */
 const PANE_BANDS = 48
 
-/** The three facts this panel reads off the player. Module scope, so each is one stable function. */
+/** The facts this panel reads off the player. Module scope, so each is one stable function. */
 const selectSongId = (state: { queue: { id: string }[]; index: number }) =>
     state.queue[state.index]?.id ?? null
 const selectPlaying = (state: { playing: boolean }) => state.playing
@@ -77,10 +77,14 @@ const selectPlaying = (state: { playing: boolean }) => state.playing
 const selectBookId = (state: { book: { id: string } | null }) => state.book?.id ?? null
 const selectChapterIndex = (state: { book: { chapter_list: Chapter[] } | null; positionS: number }) =>
     state.book === null ? -1 : chapterAt(state.book.chapter_list, state.positionS)
+const selectStationId = (state: { station: { id: string } | null }) => state.station?.id ?? null
+const selectStationTitle = (state: { stationTitle: string }) => state.stationTitle
 
 export function NowPlayingPanel() {
     const songId = useStoreValue(playerStore, selectSongId)
     const bookId = useStoreValue(playerStore, selectBookId)
+    const stationId = useStoreValue(playerStore, selectStationId)
+    const stationTitle = useStoreValue(playerStore, selectStationTitle)
     const chapterIndex = useStoreValue(playerStore, selectChapterIndex)
     const playing = useStoreValue(playerStore, selectPlaying)
     const marks = useStore(starMarks)
@@ -109,6 +113,8 @@ export function NowPlayingPanel() {
         <div className="flex h-full min-h-0 flex-col">
             {bookId !== null ? (
                 <BookSleeve chapterIndex={chapterIndex} />
+            ) : stationId !== null ? (
+                <StationSleeve announced={stationTitle} />
             ) : song === null ? (
                 <p className="p-4 text-sm text-muted-foreground">{NOTHING_PLAYING}</p>
             ) : (
@@ -259,6 +265,38 @@ function Sleeve({
                     <Star className={cn('size-4', starred && 'fill-current')} aria-hidden />
                 </Button>
             </div>
+        </div>
+    )
+}
+
+/**
+ * A station on the panel: the mast, the station's name, and what it says it is playing.
+ *
+ * A STATION HAS NO SLEEVE. It is not in the library, so there is no cover to ask for and no id
+ * to draw a mark from -- the square the cover would take carries the sign of the thing itself
+ * instead, at the size and the rounding a book's cover has, so the panel does not change shape
+ * between the two.
+ *
+ * WHAT IT ANNOUNCES IS THE SECOND LINE, where it has announced anything: the title is read off
+ * the stream and arrives a little after the sound does, and until it comes the only other true
+ * thing about a station is that it is live. Subscribed to by itself, because it is the one fact
+ * here that changes while the station plays.
+ */
+function StationSleeve({ announced }: { announced: string }) {
+    const station = playerStore.get().station
+    if (station === null) return null
+    const beneath = announced || 'Live'
+    return (
+        <div className="p-3">
+            <div className="flex aspect-square w-full items-center justify-center rounded-md bg-muted">
+                <RadioTower className="size-16 text-muted-foreground" aria-hidden />
+            </div>
+            <p className="mt-3 truncate text-sm font-medium" title={station.name}>
+                {station.name}
+            </p>
+            <p className="truncate text-xs text-muted-foreground" title={beneath}>
+                {beneath}
+            </p>
         </div>
     )
 }

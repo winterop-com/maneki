@@ -85,8 +85,10 @@ export function PlayerBar() {
     const onQueue = open && tab === 'queue'
     // ONE SPECTRUM AT A TIME. The Now playing tab carries a pane of the same drawing, and two
     // of them a hand's width apart is the same fact twice; the strip stands down while that
-    // pane is in front of somebody.
-    const paneShowing = open && tab === 'now'
+    // pane is in front of somebody -- and only then. The open tab is remembered by id across
+    // screens that offer no such tab, so a panel standing on somebody else's first tab still
+    // said 'now', and the strip stood down for a pane nobody was being shown.
+    const paneShowing = open && tab === 'now' && tabs.some((one) => one.id === 'now')
     const face = useStore(nowPlayingFace)
     const song = currentSong()
     const station = player.station

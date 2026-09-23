@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, test, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest'
 
 import {
     clear,
@@ -22,7 +22,7 @@ import {
     setPlayerCredentials,
     toggle,
 } from '@/lib/player'
-import type { Song } from '@/lib/subsonic'
+import type { Song, Station } from '@/lib/subsonic'
 import type { BookDetail } from '@/lib/types'
 
 /** Stands in for the browser's audio element: records what it was asked to do. */
@@ -34,6 +34,10 @@ class FakeAudio {
     playbackRate = 1
     /** `HAVE_NOTHING` until the metadata is said to have arrived; `arrive` is what says so. */
     readyState = 0
+    /** What the element is complaining about, as `HTMLMediaElement.error` has it. */
+    error: { code: number } | null = null
+    /** What the next `play()` is to refuse with, for the switch that interrupts one. */
+    refuse: Error | null = null
     private source = ''
     private listeners: Record<string, { handler: () => void; once: boolean }[]> = {}
 
@@ -45,6 +49,7 @@ class FakeAudio {
     set src(wanted: string) {
         this.source = wanted
         this.readyState = 0
+        this.error = null
     }
 
     addEventListener(event: string, handler: () => void, options?: { once?: boolean }): void {
@@ -68,6 +73,14 @@ class FakeAudio {
     }
 
     play(): Promise<void> {
+        const refused = this.refuse
+        if (refused !== null) {
+            // A play the browser interrupted leaves the element where it was -- paused, and
+            // saying nothing about it: no `pause` event, only the rejection.
+            this.refuse = null
+            this.paused = true
+            return Promise.reject(refused)
+        }
         this.paused = false
         this.emit('play')
         return Promise.resolve()
@@ -77,7 +90,41 @@ class FakeAudio {
         this.paused = true
         this.emit('pause')
     }
+
+    /**
+     * The element giving up on what it was handed.
+     *
+     * It goes quiet without firing `pause`, which is the whole reason the refusal has to be
+     * published off the error, and the code says whether it gave up or was sent elsewhere.
+     */
+    fail(code = 2): void {
+        this.error = { code }
+        this.paused = true
+        this.emit('error')
+    }
 }
+
+/** The rejection a browser hands back when a new source interrupts a play still in flight. */
+function abortError(): Error {
+    const refusal = new Error('The play() request was interrupted by a new load request.')
+    refusal.name = 'AbortError'
+    return refusal
+}
+
+/** Let the microtasks a rejected `play()` queued run. */
+async function settled(): Promise<void> {
+    await Promise.resolve()
+    await Promise.resolve()
+}
+
+/** The settle a refusal is given before it is published, and a hair more. */
+const SETTLE_MS = 800
+
+const stations: Station[] = [
+    { id: 'st_1', name: 'One FM', streamUrl: 'https://host/one' },
+    { id: 'st_2', name: 'Two FM', streamUrl: 'https://host/two' },
+    { id: 'st_3', name: 'Three FM', streamUrl: 'https://host/three' },
+]
 
 const songs: Song[] = [
     { id: 'tr_1', title: 'One', duration: 100 },
@@ -195,17 +242,35 @@ describe('next', () => {
 })
 
 describe('a source that will not play', () => {
+    beforeEach(() => {
+        vi.useFakeTimers()
+    })
+
+    afterEach(() => {
+        vi.useRealTimers()
+    })
+
     test('stops saying it is playing, and says why instead', () => {
         play(songs, 0)
         expect(playerStore.get().playing).toBe(true)
-        fake.emit('error')
+        fake.fail()
+        vi.advanceTimersByTime(SETTLE_MS)
         expect(playerStore.get().playing).toBe(false)
+        expect(playerStore.get().refusal).toBe('This track would not play.')
+    })
+
+    test('says nothing until the failure has had a moment to be contradicted', () => {
+        play(songs, 0)
+        fake.fail()
+        expect(playerStore.get().refusal).toBeNull()
+        vi.advanceTimersByTime(SETTLE_MS)
         expect(playerStore.get().refusal).toBe('This track would not play.')
     })
 
     test('the next thing that plays clears the line', () => {
         play(songs, 0)
-        fake.emit('error')
+        fake.fail()
+        vi.advanceTimersByTime(SETTLE_MS)
         next()
         expect(playerStore.get().refusal).toBeNull()
         expect(playerStore.get().playing).toBe(true)
@@ -213,7 +278,8 @@ describe('a source that will not play', () => {
 
     test('a station names itself, because the bar is about to say nothing else', () => {
         playStation({ id: 'st_1', name: 'A Station', streamUrl: 'https://host/stream' })
-        fake.emit('error')
+        fake.fail()
+        vi.advanceTimersByTime(SETTLE_MS)
         expect(playerStore.get().refusal).toBe('No sound from A Station.')
         expect(playerStore.get().playing).toBe(false)
     })
@@ -221,9 +287,66 @@ describe('a source that will not play', () => {
     test('a book says it is the file rather than the book, because the rest of it is fine', () => {
         playBook(book, 0)
         fake.arrive()
-        fake.emit('error')
+        fake.fail()
+        vi.advanceTimersByTime(SETTLE_MS)
         expect(playerStore.get().refusal).toBe('This part of the book would not play.')
         expect(playerStore.get().playing).toBe(false)
+    })
+
+    test('an aborted load is the element being sent elsewhere, which is not news', () => {
+        playStation(stations[0]!)
+        fake.fail(1)
+        vi.advanceTimersByTime(SETTLE_MS)
+        expect(playerStore.get().refusal).toBeNull()
+        expect(playerStore.get().playing).toBe(true)
+    })
+
+    test('the station clicked past does not speak for the one now playing', () => {
+        playStation(stations[0]!)
+        // The first station's load dies as it is abandoned; by then the element is already
+        // opening the station that was clicked instead.
+        fake.fail()
+        expect(playerStore.get().refusal).toBeNull()
+        playStation(stations[1]!)
+        vi.advanceTimersByTime(SETTLE_MS)
+        expect(playerStore.get().refusal).toBeNull()
+        expect(playerStore.get().playing).toBe(true)
+        expect(playerStore.get().station?.name).toBe('Two FM')
+    })
+})
+
+describe('switching stations faster than they open', () => {
+    test('a play the next station interrupted is not silence', async () => {
+        playStation(stations[0]!)
+        expect(playerStore.get().playing).toBe(true)
+        // The second station's play is still in flight when the third is clicked, so the
+        // browser rejects it with an AbortError about a source nobody is listening to.
+        fake.refuse = abortError()
+        playStation(stations[1]!)
+        playStation(stations[2]!)
+        await settled()
+        expect(playerStore.get().playing).toBe(true)
+        expect(playerStore.get().refusal).toBeNull()
+        expect(playerStore.get().station?.name).toBe('Three FM')
+    })
+
+    test('the latest load, left paused by the abort, is asked once more', async () => {
+        vi.useFakeTimers()
+        try {
+            playStation(stations[0]!)
+            fake.refuse = abortError()
+            playStation(stations[1]!)
+            await settled()
+            // WebKit does not pick itself up after the abort: the element sits paused on the
+            // station somebody actually asked for.
+            expect(fake.paused).toBe(true)
+            vi.advanceTimersByTime(SETTLE_MS)
+            expect(fake.paused).toBe(false)
+            expect(playerStore.get().playing).toBe(true)
+            expect(playerStore.get().refusal).toBeNull()
+        } finally {
+            vi.useRealTimers()
+        }
     })
 })
 
