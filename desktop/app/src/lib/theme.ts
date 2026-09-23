@@ -22,7 +22,7 @@
 import { createStore } from '@/lib/store'
 
 /** The name a palette is stored and written under: its `data-theme` value. */
-export type PaletteName = 'maneki' | 'paper' | 'contrast'
+export type PaletteName = 'maneki' | 'paper' | 'contrast' | 'tokyo' | 'vinyl' | 'cassette' | 'neon'
 
 /** One palette: what it is called on screen. What it looks like is the swatch, not a sentence. */
 export interface Palette {
@@ -30,11 +30,21 @@ export interface Palette {
     label: string
 }
 
-/** The palettes this build has, ordered quiet to loud. */
+/**
+ * The palettes this build has, ordered quiet to loud.
+ *
+ * The first three are the app's own. The four after them are the presets the client before this
+ * one shipped, each carrying the accent it was drawn around -- which is why there is no second
+ * control here: the old client's accent axis lives on as the spectrum's, in `lib/spectrum-themes`.
+ */
 export const PALETTES: Palette[] = [
     { name: 'maneki', label: 'Maneki' },
     { name: 'paper', label: 'Paper' },
     { name: 'contrast', label: 'Contrast' },
+    { name: 'tokyo', label: 'Tokyo' },
+    { name: 'vinyl', label: 'Vinyl' },
+    { name: 'cassette', label: 'Cassette' },
+    { name: 'neon', label: 'Neon' },
 ]
 
 export const DEFAULT_PALETTE: PaletteName = 'maneki'
