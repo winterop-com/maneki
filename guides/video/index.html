@@ -2157,7 +2157,7 @@ expiry. yt-dlp tracks YouTube closely — keep it current if extraction breaks.<
 </tr>
 <tr>
 <td><code>--rescan</code></td>
-<td>Wipe <code>&lt;root&gt;/.maneki/posters/</code> and <code>DELETE FROM videos</code> before scanning. The next browse / open regenerates from scratch. Audio's tables are untouched.</td>
+<td>Wipe <code>&lt;root&gt;/.maneki/posters/</code> and <code>DELETE FROM videos</code> before scanning, so the next browse / open regenerates from scratch. Since 0.19.20 it also rebuilds the music index and re-probes every book, in the background.</td>
 </tr>
 <tr>
 <td><code>--prewarm-cache</code></td>

@@ -1575,7 +1575,7 @@
 <a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a><span class="c1"># Video-side: opt into / out of cache prewarm + contact-sheet posters</span>
 <a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a>maneki<span class="w"> </span>serve<span class="w"> </span>~/library<span class="w"> </span>--ui<span class="w"> </span>--prewarm-cache<span class="w">         </span><span class="c1"># populate thumbs / posters / subs at startup</span>
 <a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a>maneki<span class="w"> </span>serve<span class="w"> </span>~/library<span class="w"> </span>--ui<span class="w"> </span>--no-cover-images<span class="w">       </span><span class="c1"># skip contact sheets; fall back to row thumbnail</span>
-<a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a>maneki<span class="w"> </span>serve<span class="w"> </span>~/library<span class="w"> </span>--ui<span class="w"> </span>--rescan<span class="w">                </span><span class="c1"># wipe the on-disk video cache + DB rows first</span>
+<a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a>maneki<span class="w"> </span>serve<span class="w"> </span>~/library<span class="w"> </span>--ui<span class="w"> </span>--rescan<span class="w">                </span><span class="c1"># rebuild every library from the files first</span>
 </code></pre></div>
 <p>Then:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>curl<span class="w"> </span>-s<span class="w"> </span>http://127.0.0.1:8765/capabilities<span class="w"> </span><span class="p">|</span><span class="w"> </span>jq
