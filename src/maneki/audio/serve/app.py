@@ -329,6 +329,22 @@ class _SubsonicAuthError(Exception):
     """Internal — translated to a Subsonic error 40 response by the handler."""
 
 
+def _route_path(scope: Any) -> str:
+    """The path relative to whatever this app is mounted under.
+
+    Starlette keeps the full request path on the scope and records the
+    mount prefix as `root_path`, so under `maneki serve` a ping arrives as
+    `/audio/rest/ping` with `root_path` `/audio`. A check against the full
+    path never matched there, which is how a client that POSTs its
+    credentials (play:Sub) was told it had sent no username.
+    """
+    path: str = scope.get("path", "")
+    root: str = scope.get("root_path", "")
+    if root and path.startswith(root):
+        return path[len(root) :]
+    return path
+
+
 class PostFormToQueryMiddleware:
     """Merge POST form-body params into the query string for `/rest/*` requests.
 
@@ -344,11 +360,7 @@ class PostFormToQueryMiddleware:
         self.app = app
 
     async def __call__(self, scope: Any, receive: Any, send: Any) -> None:
-        if (
-            scope.get("type") != "http"
-            or scope.get("method") != "POST"
-            or not scope.get("path", "").startswith("/rest/")
-        ):
+        if scope.get("type") != "http" or scope.get("method") != "POST" or not _route_path(scope).startswith("/rest/"):
             await self.app(scope, receive, send)
             return
 

@@ -262,3 +262,17 @@ def test_doubled_slash_in_path_reaches_the_subsonic_mount(library_root: Path) ->
     resp = client.get("/audio//rest/ping?u=admin&p=admin&v=1.16.1&c=test&f=json")
     assert resp.status_code == 200
     assert resp.json()["subsonic-response"]["status"] == "ok"
+
+
+def test_post_form_credentials_reach_the_subsonic_mount(library_root: Path) -> None:
+    """play:Sub POSTs its credentials as a form body. Under the /audio mount
+    Starlette keeps the full path on the scope, so the middleware that folds
+    the body into the query string has to look at the route path, not the
+    request path -- otherwise the mount answers "missing username"."""
+    client = TestClient(create_combined_app(root=library_root, audio_cfg=_TEST_AUDIO_CFG))
+    resp = client.post(
+        "/audio/rest/ping.view",
+        data={"u": "admin", "p": "admin", "v": "1.16.1", "c": "test", "f": "json"},
+    )
+    assert resp.status_code == 200
+    assert resp.json()["subsonic-response"]["status"] == "ok"
