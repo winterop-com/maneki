@@ -120,6 +120,13 @@ export function openPanel(): void {
     panelOpen.set(true)
 }
 
+/** Take the right panel down. What the panel's own close control and a press of Escape mean. */
+export function closePanel(): void {
+    if (!panelOpen.get()) return
+    write(PANEL_OPEN_KEY, 'false')
+    panelOpen.set(false)
+}
+
 /** Show or hide the right panel. */
 export function togglePanel(): void {
     panelOpen.update((open) => {

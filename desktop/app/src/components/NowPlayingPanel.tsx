@@ -9,6 +9,9 @@ import { useDragSize } from '@/hooks/use-drag-size'
 import { useSpectrum } from '@/hooks/use-spectrum'
 import { useStore, useStoreValue } from '@/hooks/use-store'
 import { currentSong, playerStore } from '@/lib/player'
+import { chapterAt } from '@/lib/book-timeline'
+import type { Chapter } from '@/lib/types'
+import { books as booksApi } from '@/lib/api'
 import { sessionStore } from '@/lib/session'
 import { starMarks, starredNow, toggleStar } from '@/lib/star'
 import { coverUrl, type Song } from '@/lib/subsonic'
@@ -71,8 +74,14 @@ const selectPlaying = (state: { playing: boolean }) => state.playing
  * track plays and none of that is this panel's business: which track, whether it is playing, and
  * whether it is starred are the whole of what it is subscribed to.
  */
+const selectBookId = (state: { book: { id: string } | null }) => state.book?.id ?? null
+const selectChapterIndex = (state: { book: { chapter_list: Chapter[] } | null; positionS: number }) =>
+    state.book === null ? -1 : chapterAt(state.book.chapter_list, state.positionS)
+
 export function NowPlayingPanel() {
     const songId = useStoreValue(playerStore, selectSongId)
+    const bookId = useStoreValue(playerStore, selectBookId)
+    const chapterIndex = useStoreValue(playerStore, selectChapterIndex)
     const playing = useStoreValue(playerStore, selectPlaying)
     const marks = useStore(starMarks)
     const session = useStore(sessionStore)
@@ -96,7 +105,9 @@ export function NowPlayingPanel() {
 
     return (
         <div className="flex min-h-0 flex-col">
-            {song === null ? (
+            {bookId !== null ? (
+                <BookSleeve chapterIndex={chapterIndex} />
+            ) : song === null ? (
                 <p className="p-4 text-sm text-muted-foreground">{NOTHING_PLAYING}</p>
             ) : (
                 <Sleeve
@@ -246,6 +257,38 @@ function Sleeve({
                     <Star className={cn('size-4', starred && 'fill-current')} aria-hidden />
                 </Button>
             </div>
+        </div>
+    )
+}
+
+/**
+ * A book on the panel: its cover, the chapter being read, and whose book it is.
+ *
+ * A book is not starred and carries no album, so the sleeve is its own rather than the song's
+ * with holes in it. The chapter index is what is subscribed to, so the words change when the
+ * chapter turns and not four times a second.
+ */
+function BookSleeve({ chapterIndex }: { chapterIndex: number }) {
+    const book = playerStore.get().book
+    if (book === null) return null
+    const chapter = chapterIndex >= 0 ? book.chapter_list[chapterIndex] : undefined
+    return (
+        <div className="p-3">
+            {book.has_cover ? (
+                <img
+                    src={booksApi.coverUrl(book.id, 600)}
+                    alt=""
+                    className="aspect-square w-full rounded-md object-cover"
+                />
+            ) : (
+                <CoverArt id={book.id} className="aspect-square w-full rounded-md" />
+            )}
+            <p className="mt-3 truncate text-sm font-medium" title={chapter?.title ?? book.title}>
+                {chapter?.title ?? book.title}
+            </p>
+            <p className="truncate text-xs text-muted-foreground" title={`${book.title} · ${book.author}`}>
+                {chapter ? `${book.title} · ${book.author}` : book.author}
+            </p>
         </div>
     )
 }

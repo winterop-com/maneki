@@ -42,7 +42,7 @@ import {
     toggleShuffle,
 } from '@/lib/player'
 import { REPEAT_LABELS } from '@/lib/queue'
-import { panelOpen, panelTabs, togglePanel } from '@/lib/panels'
+import { closePanel, openPanelTab, panelOpen, panelTab, panelTabs } from '@/lib/panels'
 import { sessionStore } from '@/lib/session'
 import { coverUrl } from '@/lib/subsonic'
 import { openStage, visualizerShown } from '@/lib/visualizer'
@@ -78,6 +78,11 @@ export function PlayerBar() {
     const session = useStore(sessionStore)
     const tabs = useStore(panelTabs)
     const open = useStore(panelOpen)
+    const tab = useStore(panelTab)
+    // THE BUTTON SAYS UP NEXT, SO IT SHOWS UP NEXT. The panel has other tabs, and a button that
+    // merely toggled the panel could open it on one of those; this one lands on the queue, and
+    // only when the queue is already the thing showing does pressing it again take the panel down.
+    const onQueue = open && tab === 'queue'
     const face = useStore(nowPlayingFace)
     const song = currentSong()
     const station = player.station
@@ -383,9 +388,12 @@ export function PlayerBar() {
                                 variant="ghost"
                                 size="icon-sm"
                                 aria-label={QUEUE_LABEL}
-                                aria-pressed={open}
+                                aria-pressed={onQueue}
                                 className="hidden shrink-0 md:inline-flex"
-                                onClick={togglePanel}
+                                onClick={() => {
+                                    if (onQueue) closePanel()
+                                    else openPanelTab('queue')
+                                }}
                             >
                                 <ListMusic className="size-4" aria-hidden />
                             </Button>

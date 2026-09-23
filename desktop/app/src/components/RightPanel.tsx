@@ -1,4 +1,7 @@
+import { X } from 'lucide-react'
 import { useRef } from 'react'
+
+import { Button } from '@/components/ui/button'
 
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useDragSize } from '@/hooks/use-drag-size'
@@ -6,6 +9,7 @@ import { useSmallScreen } from '@/hooks/use-small-screen'
 import { useStore } from '@/hooks/use-store'
 import {
     clampPanelWidth,
+    closePanel,
     PANEL_MAX_WIDTH,
     PANEL_MIN_WIDTH,
     panelOpen,
@@ -17,6 +21,7 @@ import {
 import { cn } from '@/lib/utils'
 
 export const RESIZE_PANEL_LABEL = 'Resize the side panel'
+export const CLOSE_PANEL_LABEL = 'Close the side panel'
 
 /** What the strip says when there are no tabs, which is a label rather than a tab. */
 export const EMPTY_HEADING = 'Panel'
@@ -135,6 +140,18 @@ export function RightPanel() {
                                         </TabsTrigger>
                                     ))}
                                 </TabsList>
+                                {/* A panel with no way to close it from itself is one somebody has
+                                    to know a chord for. The sheet below the breakpoint has the same
+                                    control in the same corner. */}
+                                <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    aria-label={CLOSE_PANEL_LABEL}
+                                    onClick={closePanel}
+                                    className="ml-auto shrink-0 text-muted-foreground"
+                                >
+                                    <X className="size-4" aria-hidden />
+                                </Button>
                             </div>
                             {tabs.map((tab) => (
                                 <TabsContent
