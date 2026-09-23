@@ -198,7 +198,10 @@ export function PlayerBar() {
                 onClick={openStage}
                 className="hidden shrink-0 rounded-sm focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none lg:block"
             >
-                <Visualizer className="h-7 w-28 text-primary/70" />
+                {/* The quiet is the element's opacity rather than an alpha on the token: a
+                    chosen spectrum ramp is spelled opaque, and every theme is to read as faint
+                    on the bar alike. */}
+                <Visualizer className="h-7 w-28 text-primary opacity-70" />
             </button>
 
             <div className="hidden shrink-0 items-center gap-1 md:flex">

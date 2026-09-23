@@ -123,11 +123,11 @@ export function useSpectrum(active: boolean, bands: number): RefObject<HTMLCanva
             // Built once per theme, size and accent rather than per frame -- and `accent`, the
             // theme every session starts on, is a gradient of the one colour the canvas read
             // off its own element, which is a token.
-            const paintedIn = wave
+            const ramp = wave
                 ? themeSweep(theme, context, width, ink)
                 : themeGradient(theme, context, height, ink)
-            context.fillStyle = paintedIn
-            context.strokeStyle = paintedIn
+            context.fillStyle = ramp
+            context.strokeStyle = ramp
             paint(context, style, shown, width, height, bands)
         }
 

@@ -85,7 +85,11 @@ export function FullscreenVisualizer() {
             aria-label="Spectrum"
             aria-modal="true"
         >
-            <canvas ref={canvas} aria-hidden className="absolute inset-0 size-full text-primary/40" />
+            {/* HOW FAINT IT IS BELONGS TO THE ELEMENT, NOT TO THE COLOUR. The canvas stands
+                behind the cover and the title, and a ramp somebody chose is spelled opaque --
+                so the quiet is `opacity`, which every theme wears alike, rather than an alpha
+                on a token only the accent would carry. */}
+            <canvas ref={canvas} aria-hidden className="absolute inset-0 size-full text-primary opacity-40" />
 
             <div className="relative flex min-h-0 flex-1 flex-col items-center justify-center gap-6 p-8">
                 {cover && (
