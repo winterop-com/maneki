@@ -1,17 +1,32 @@
-import { ChevronLeft, Pause, Play, RotateCcw, RotateCw } from 'lucide-react'
+import { ChevronLeft, Pause, Play } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router'
 
 import { CoverArt } from '@/components/CoverArt'
 import { Button } from '@/components/ui/button'
-import { SPEEDS, SKIP_S, useBookPlayer } from '@/hooks/use-book-player'
+import { useStoreValue } from '@/hooks/use-store'
 import { books as booksApi } from '@/lib/api'
+import { chapterAt } from '@/lib/book-timeline'
 import { clock, duration, progressRatio, remaining } from '@/lib/format'
+import { playBook, playerStore, toggle, type PlayerState } from '@/lib/player'
 import type { BookDetail, BookSummary } from '@/lib/types'
 import { cn } from '@/lib/utils'
 
 /** How often to look again while the server is still reading the books folder. */
 const SCAN_POLL_MS = 2000
+
+/**
+ * The three facts this screen reads off the player.
+ *
+ * Module scope, so each is one stable function, and one fact each rather than the whole store:
+ * the player publishes four times a second while something plays, and a chapter list that
+ * re-rendered on every tick is a list that will not keep up with the pointer. The chapter is a
+ * number, so the rows repaint when the chapter turns and not when the second does.
+ */
+const selectPlaying = (state: PlayerState) => state.playing
+const selectBookId = (state: PlayerState) => state.book?.id ?? null
+const selectChapterIndex = (state: PlayerState) =>
+    state.book === null ? -1 : chapterAt(state.book.chapter_list, state.positionS)
 
 export function BooksPage() {
     const { bookId } = useParams()
@@ -90,12 +105,20 @@ function Shelf() {
     )
 }
 
-/** One book: its chapters, and the player that keeps your place. */
+/**
+ * One book: what it is, and its chapters.
+ *
+ * THERE IS NO TRANSPORT HERE. A book plays on the same bar as everything else, so this screen
+ * has the one control an album screen has -- start it, or stop the thing it started -- and the
+ * chapter list, which is a list of places to start from rather than a table of contents.
+ */
 function Book({ id }: { id: string }) {
     const [book, setBook] = useState<BookDetail | null>(null)
     const [refusal, setRefusal] = useState<string | null>(null)
     const navigate = useNavigate()
-    const player = useBookPlayer(book)
+    const playing = useStoreValue(playerStore, selectPlaying)
+    const playingId = useStoreValue(playerStore, selectBookId)
+    const chapterIndex = useStoreValue(playerStore, selectChapterIndex)
 
     useEffect(() => {
         booksApi
@@ -106,6 +129,14 @@ function Book({ id }: { id: string }) {
 
     if (refusal) return <Notice>{refusal}</Notice>
     if (!book) return <Notice>Opening the book.</Notice>
+
+    // THE BUTTON KNOWS WHEN THIS IS THE BOOK PLAYING, as the album screen's does: it pauses
+    // that rather than saying Play beside a chapter that is sounding. And a book somebody is
+    // part way through says Resume before it is touched, because that is what pressing it
+    // does -- a half-read book offering Play would be promising the beginning.
+    const playingThis = playingId === book.id
+    const sounding = playingThis && playing
+    const started = book.position_s > 0 && !book.finished
 
     return (
         <div className="mx-auto flex h-full max-w-4xl flex-col gap-4 p-4">
@@ -131,35 +162,61 @@ function Book({ id }: { id: string }) {
                         {book.chapters ? ` · ${book.chapters} chapters` : ''}
                     </p>
                 </div>
+                <Button
+                    size="sm"
+                    onClick={() => {
+                        if (playingThis) toggle()
+                        else playBook(book)
+                    }}
+                    disabled={book.files.length === 0}
+                    aria-pressed={sounding}
+                >
+                    {sounding ? (
+                        <>
+                            <Pause className="size-4" aria-hidden /> Pause
+                        </>
+                    ) : (
+                        <>
+                            <Play className="size-4" aria-hidden />{' '}
+                            {playingThis || started ? 'Resume' : 'Play'}
+                        </>
+                    )}
+                </Button>
             </div>
-
-            <Transport book={book} player={player} />
 
             {book.chapter_list.length > 0 && (
                 <ol className="min-h-0 flex-1 overflow-y-auto rounded-lg border">
-                    {book.chapter_list.map((chapter, index) => (
-                        <li key={`${chapter.start_s}-${chapter.title}`}>
-                            <button
-                                type="button"
-                                onClick={() => player.seek(chapter.start_s)}
-                                aria-current={index === player.chapterIndex ? 'true' : undefined}
-                                className={cn(
-                                    'row-hover flex min-h-finger w-full items-center gap-3 px-3 text-left text-sm',
-                                    index === player.chapterIndex && 'bg-muted font-medium',
-                                )}
-                            >
-                                <span className="w-8 shrink-0 text-xs text-muted-foreground">
-                                    {index + 1}
-                                </span>
-                                <span className="min-w-0 flex-1 truncate" title={chapter.title}>
-                                    {chapter.title}
-                                </span>
-                                <span className="shrink-0 font-mono text-xs text-muted-foreground">
-                                    {clock(chapter.start_s)}
-                                </span>
-                            </button>
-                        </li>
-                    ))}
+                    {book.chapter_list.map((chapter, index) => {
+                        // A row plays from itself. Seeking a player that was not playing this
+                        // book is what the old screen did, and it is why a chapter click could
+                        // look like it did nothing at all.
+                        const current = playingThis && index === chapterIndex
+                        return (
+                            <li key={`${chapter.start_s}-${chapter.title}`}>
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        playBook(book, chapter.start_s)
+                                    }}
+                                    aria-current={current ? 'true' : undefined}
+                                    className={cn(
+                                        'row-hover flex min-h-finger w-full items-center gap-3 px-3 text-left text-sm',
+                                        current && 'bg-muted font-medium',
+                                    )}
+                                >
+                                    <span className="w-8 shrink-0 text-xs text-muted-foreground">
+                                        {index + 1}
+                                    </span>
+                                    <span className="min-w-0 flex-1 truncate" title={chapter.title}>
+                                        {chapter.title}
+                                    </span>
+                                    <span className="shrink-0 font-mono text-xs text-muted-foreground">
+                                        {clock(chapter.start_s)}
+                                    </span>
+                                </button>
+                            </li>
+                        )
+                    })}
                 </ol>
             )}
 
@@ -168,71 +225,6 @@ function Book({ id }: { id: string }) {
                     {book.description}
                 </p>
             )}
-        </div>
-    )
-}
-
-function Transport({ book, player }: { book: BookDetail; player: ReturnType<typeof useBookPlayer> }) {
-    return (
-        <div className="rounded-lg border p-3">
-            <div className="flex items-center gap-2">
-                <Button
-                    variant="ghost"
-                    size="sm"
-                    aria-label={`Back ${SKIP_S} seconds`}
-                    onClick={() => player.skip(-SKIP_S)}
-                >
-                    <RotateCcw className="size-4" aria-hidden />
-                </Button>
-                <Button
-                    size="sm"
-                    aria-label={player.playing ? 'Pause' : 'Play'}
-                    onClick={player.toggle}
-                    className="min-w-finger"
-                >
-                    {player.playing ? (
-                        <Pause className="size-4" aria-hidden />
-                    ) : (
-                        <Play className="size-4" aria-hidden />
-                    )}
-                </Button>
-                <Button
-                    variant="ghost"
-                    size="sm"
-                    aria-label={`Forward ${SKIP_S} seconds`}
-                    onClick={() => player.skip(SKIP_S)}
-                >
-                    <RotateCw className="size-4" aria-hidden />
-                </Button>
-                <span className="ml-2 font-mono text-xs text-muted-foreground">
-                    {clock(player.positionS)} / {clock(book.duration_s)}
-                </span>
-                <select
-                    aria-label="Playback speed"
-                    value={player.speed}
-                    onChange={(event) => player.setSpeed(Number(event.target.value))}
-                    className="ml-auto h-8 rounded-md border bg-field px-2 text-xs"
-                >
-                    {SPEEDS.map((speed) => (
-                        <option key={speed} value={speed}>
-                            {speed}x
-                        </option>
-                    ))}
-                </select>
-            </div>
-            <input
-                type="range"
-                aria-label="Position"
-                min={0}
-                max={Math.max(1, Math.floor(book.duration_s))}
-                step={1}
-                value={Math.floor(player.positionS)}
-                onChange={(event) => player.seek(Number(event.target.value))}
-                className="mt-3 w-full accent-primary"
-            />
-            <p className="mt-1 text-xs text-muted-foreground">
-                {remaining(book.duration_s, player.positionS)}
-            </p>
         </div>
     )
 }
