@@ -56,6 +56,7 @@ export function BrandPane({ server, version }: { server: string | null; version:
         // is inset far enough to clear them on its own.
         <aside
             data-shell-lights="pane"
+            data-window-drag
             className="relative flex items-center justify-between gap-4 overflow-hidden bg-terminal px-5 py-5 text-terminal-foreground lg:block lg:p-0"
         >
             <div className="hidden lg:absolute lg:inset-x-12 lg:top-12 lg:bottom-72 lg:flex lg:items-end xl:inset-x-18">

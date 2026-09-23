@@ -35,7 +35,10 @@ export default function App() {
         return (
             // The same lockup the door wears, on the door's ground, so the first second and the
             // sign-in read as one thing rather than a small mark and then a large one.
-            <div className="flex h-svh flex-col items-center justify-center gap-6 bg-terminal text-terminal-foreground">
+            <div
+                data-window-drag
+                className="flex h-svh flex-col items-center justify-center gap-6 bg-terminal text-terminal-foreground"
+            >
                 <div className="flex items-center gap-5">
                     <span className="flex size-16 shrink-0 items-center justify-center rounded-2xl bg-terminal-accent text-terminal">
                         <Cat className="size-9" aria-hidden />
