@@ -52,6 +52,7 @@ describe('the settings registry', () => {
         const described = ROWS.filter((row) => row.description !== undefined).map((row) => row.id)
         expect(described).toEqual([
             'general:visualizer',
+            'general:spectrum-delay',
             'general:times',
             'server:address',
             'server:subsonic',

@@ -1,6 +1,6 @@
 import { Check, Copy, Volume2, VolumeX } from 'lucide-react'
 import { useTheme } from 'next-themes'
-import { useMemo, useRef, useState, type ReactNode } from 'react'
+import { useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react'
 
 import { Segmented } from '@/components/Segmented'
 import { MODE_LABELS, MODES, type Mode } from '@/components/ThemeToggle'
@@ -10,8 +10,16 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Input } from '@/components/ui/input'
 import { Kbd, KbdGroup } from '@/components/ui/kbd'
 import { useStore } from '@/hooks/use-store'
-import { playerStore, setVolume, toggleMuted } from '@/lib/player'
+import { playerStore, setVolume, spectrumContext, toggleMuted } from '@/lib/player'
 import { sessionStore, signOut } from '@/lib/session'
+import {
+    chooseSpectrumTheme,
+    SPECTRUM_THEMES,
+    spectrumTheme,
+    spectrumThemeAfter,
+    type SpectrumTheme,
+} from '@/lib/spectrum-themes'
+import { outputDelayMs, setSpectrumDelay, SPECTRUM_DELAY_MAX_MS, spectrumDelayMs } from '@/lib/sync'
 import type { Capabilities } from '@/lib/types'
 import {
     categoriesWith,
@@ -26,7 +34,14 @@ import { applePlatform, shortcuts } from '@/lib/shortcuts'
 import { choosePalette, paletteAfter, PALETTES, paletteStore, type PaletteName } from '@/lib/theme'
 import { chooseTimes, TIMES_LABELS, TIMES_MODES, timesMode } from '@/lib/times'
 import { cn } from '@/lib/utils'
-import { setVisualizer, visualizerShown } from '@/lib/visualizer'
+import {
+    setVisualizer,
+    setVisualizerStyle,
+    VISUALIZER_STYLE_LABELS,
+    VISUALIZER_STYLES,
+    visualizerShown,
+    visualizerStyle,
+} from '@/lib/visualizer'
 
 export const SETTINGS_TITLE = 'Settings'
 
@@ -171,11 +186,31 @@ function Row({ row, children, under }: { row: SettingsRow; children?: ReactNode;
     )
 }
 
+/**
+ * What this browser reports about its own output, as a sentence.
+ *
+ * The figure is a fact the slider cannot show: what somebody is dialling in is what the browser
+ * failed to admit to, so knowing it already reports 190ms is the difference between dragging
+ * with a reason and dragging until it looks right.
+ */
+function delayNote(playing: boolean, auto: number): string {
+    if (!playing) return 'Nothing has played yet, so this browser has not said what its output is behind by.'
+    if (auto > 0) return `This output reports ${String(auto)} ms of its own, which is held back as well.`
+    return 'This output reports no delay of its own, which is the case this slider is for.'
+}
+
 /** Listening: the spectrum, how loud, and which clock a date is read against. */
 function GeneralPane({ rows }: { rows: SettingsRow[] }) {
     const times = useStore(timesMode)
     const player = useStore(playerStore)
     const spectrum = useStore(visualizerShown)
+    const style = useStore(visualizerStyle)
+    const colours = useStore(spectrumTheme)
+    const delay = useStore(spectrumDelayMs)
+    // Read as the pane renders rather than held in state: what the browser reports changes the
+    // moment somebody puts headphones on, and this dialog stands open for minutes.
+    const graph = spectrumContext()
+    const auto = Math.round(outputDelayMs(graph))
 
     return (
         <div>
@@ -222,6 +257,66 @@ function GeneralPane({ rows }: { rows: SettingsRow[] }) {
                         </Row>
                     )
                 }
+                if (row.id === 'general:visualizer-style') {
+                    return (
+                        <Row key={row.id} row={row}>
+                            <Segmented
+                                label={row.label}
+                                value={style}
+                                options={VISUALIZER_STYLES.map((one) => ({
+                                    value: one,
+                                    label: VISUALIZER_STYLE_LABELS[one],
+                                }))}
+                                onChoose={setVisualizerStyle}
+                            />
+                        </Row>
+                    )
+                }
+                if (row.id === 'general:spectrum-theme') {
+                    return (
+                        <Row
+                            key={row.id}
+                            row={row}
+                            under={
+                                <SpectrumSwatches
+                                    value={colours}
+                                    onChoose={(name) => {
+                                        chooseSpectrumTheme(name)
+                                    }}
+                                />
+                            }
+                        />
+                    )
+                }
+                if (row.id === 'general:spectrum-delay') {
+                    return (
+                        <Row
+                            key={row.id}
+                            row={row}
+                            under={
+                                <p className="text-xs text-muted-foreground">
+                                    {delayNote(graph !== null, auto)}
+                                </p>
+                            }
+                        >
+                            <span className="w-14 text-right font-mono text-xs text-muted-foreground tabular-nums">
+                                {delay} ms
+                            </span>
+                            <input
+                                type="range"
+                                aria-label={row.label}
+                                min={0}
+                                max={SPECTRUM_DELAY_MAX_MS}
+                                step={10}
+                                value={delay}
+                                onChange={(event) => {
+                                    setSpectrumDelay(Number(event.target.value))
+                                }}
+                                className="w-40 accent-primary"
+                            />
+                        </Row>
+                    )
+                }
                 return (
                     <Row key={row.id} row={row}>
                         <Button
@@ -239,6 +334,95 @@ function GeneralPane({ rows }: { rows: SettingsRow[] }) {
             })}
         </div>
     )
+}
+
+/**
+ * One card per spectrum theme, and the card is the ramp.
+ *
+ * THE SAME CONTROL THE PALETTE HAS, for the same reason: what a ramp is is what it looks like,
+ * and a row of names would be asking somebody to try each one to find out. The accent card is
+ * painted with the token itself, so it moves with the palette the way the spectrum does.
+ *
+ * The colours come from `lib/spectrum-themes` rather than being written here: that module is
+ * the one place in the app a colour is spelled, and a swatch that copied them would be a second
+ * place they could be wrong.
+ */
+function SpectrumSwatches({
+    value,
+    onChoose,
+}: {
+    value: SpectrumTheme
+    onChoose: (name: SpectrumTheme) => void
+}) {
+    const cards = useRef<(HTMLButtonElement | null)[]>([])
+    const at = Math.max(
+        0,
+        SPECTRUM_THEMES.findIndex((one) => one.name === value),
+    )
+
+    const move = (key: string) => {
+        const next = spectrumThemeAfter(value, key)
+        if (next === null) return false
+        onChoose(next)
+        cards.current[SPECTRUM_THEMES.findIndex((one) => one.name === next)]?.focus()
+        return true
+    }
+
+    return (
+        <div role="radiogroup" aria-label="Spectrum colour" className="flex flex-wrap gap-2">
+            {SPECTRUM_THEMES.map((theme, index) => {
+                const chosen = theme.name === value
+                return (
+                    <button
+                        key={theme.name}
+                        ref={(element) => {
+                            cards.current[index] = element
+                        }}
+                        type="button"
+                        role="radio"
+                        aria-checked={chosen}
+                        tabIndex={index === at ? 0 : -1}
+                        className={cn(
+                            'flex max-w-32 min-w-20 flex-1 flex-col gap-1.5 rounded-md border p-1.5 text-left',
+                            'focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none',
+                            chosen ? 'border-primary ring-2 ring-primary' : 'border-border hover:bg-accent',
+                        )}
+                        onClick={() => {
+                            onChoose(theme.name)
+                        }}
+                        onKeyDown={(event) => {
+                            if (move(event.key)) {
+                                event.preventDefault()
+                            } else if (event.key === ' ' || event.key === 'Enter') {
+                                event.preventDefault()
+                                onChoose(theme.name)
+                            }
+                        }}
+                    >
+                        <span
+                            className={cn(
+                                'h-6 rounded-sm border border-border',
+                                // A theme with no colours of its own is the accent, and the
+                                // accent is a token rather than something to paint by hand.
+                                theme.stops.length === 0 && 'bg-primary',
+                            )}
+                            style={ramp(theme.stops)}
+                        />
+                        <span className="flex items-center gap-1 text-xs">
+                            {theme.label}
+                            {chosen && <Check className="size-3 text-primary" aria-hidden />}
+                        </span>
+                    </button>
+                )
+            })}
+        </div>
+    )
+}
+
+/** The theme's own stops as a strip, quiet end first, or nothing for the one that has none. */
+function ramp(stops: readonly string[]): CSSProperties | undefined {
+    if (stops.length === 0) return undefined
+    return { backgroundImage: `linear-gradient(to right, ${stops.join(', ')})` }
 }
 
 /** The look: the two axes, one row each. */

@@ -76,6 +76,22 @@ export function chooseSpectrumTheme(theme: string): SpectrumTheme {
 }
 
 /**
+ * Which theme an arrow key moves to, or null for a key this control does not answer.
+ *
+ * The swatch cards are a radio group, the same as the palette's, so the arrows move and choose
+ * in one gesture and the ends wrap. What the keys decide is a pure function; focusing the card
+ * that won is the component's.
+ */
+export function spectrumThemeAfter(current: SpectrumTheme, key: string): SpectrumTheme | null {
+    const forward = key === 'ArrowRight' || key === 'ArrowDown'
+    const back = key === 'ArrowLeft' || key === 'ArrowUp'
+    if (!forward && !back) return null
+    const at = SPECTRUM_THEME_NAMES.indexOf(current)
+    const next = (at + (forward ? 1 : -1) + SPECTRUM_THEME_NAMES.length) % SPECTRUM_THEME_NAMES.length
+    return SPECTRUM_THEME_NAMES[next]
+}
+
+/**
  * The ramp a theme paints, floor first, given what the accent is at this moment.
  *
  * A theme with no colours of its own -- and a name from a build that had one this build does

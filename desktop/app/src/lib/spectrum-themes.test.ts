@@ -5,6 +5,7 @@ import {
     isSpectrumTheme,
     SPECTRUM_THEMES,
     spectrumTheme,
+    spectrumThemeAfter,
     themeGradient,
     themeStops,
     themeSweep,
@@ -52,6 +53,25 @@ describe('the themes on offer', () => {
         expect(isSpectrumTheme('fire')).toBe(true)
         expect(isSpectrumTheme('maneki')).toBe(false)
         expect(isSpectrumTheme(null)).toBe(false)
+    })
+})
+
+describe('moving through the swatches', () => {
+    test('goes either way and wraps at both ends, because the cards are a radio group', () => {
+        const last = SPECTRUM_THEMES.at(-1)!.name
+        expect(spectrumThemeAfter('accent', 'ArrowRight')).toBe('fire')
+        expect(spectrumThemeAfter('accent', 'ArrowLeft')).toBe(last)
+        expect(spectrumThemeAfter(last, 'ArrowRight')).toBe('accent')
+    })
+
+    test('answers down and up the same as right and left, for a row that has wrapped', () => {
+        expect(spectrumThemeAfter('accent', 'ArrowDown')).toBe('fire')
+        expect(spectrumThemeAfter('fire', 'ArrowUp')).toBe('accent')
+    })
+
+    test('says nothing about a key this control does not answer', () => {
+        expect(spectrumThemeAfter('fire', 'Enter')).toBeNull()
+        expect(spectrumThemeAfter('fire', 'Tab')).toBeNull()
     })
 })
 
