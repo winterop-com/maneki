@@ -1974,3 +1974,20 @@ html.dark[data-theme='neon'],
         height: var(--spacing-finger);
     }
 }
+
+/* ---------------------------------------------------------------------------
+   THE SPECTRUM PANE'S GRIP IS SEEN BEFORE IT IS HOVERED.
+
+   The shell's edges rest as a faint pill and show themselves under the pointer, which is right
+   for a column edge somebody already expects to drag. The pane under the sleeve is not an edge
+   anybody expects: a spectrum that can be made taller is a fact the panel has to state, so its
+   grip rests as a filled strip with its pill in ink rather than in the line colour.
+   --------------------------------------------------------------------------- */
+.resize-handle-pane {
+    background-color: var(--muted);
+    border-top: 1px solid var(--border);
+    border-bottom: 1px solid var(--border);
+}
+.resize-handle-pane::after {
+    background-color: var(--muted-foreground);
+}

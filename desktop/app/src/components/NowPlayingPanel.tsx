@@ -151,7 +151,7 @@ export function NowPlayingPanel() {
                             cycleVisualizerStyle()
                         }}
                         style={{ height }}
-                        className="block w-full shrink-0 px-2 focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none"
+                        className="block w-full shrink-0 focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none"
                     >
                         {/* How faint it is belongs to the element rather than to the colour: a
                             chosen ramp is spelled opaque, and every theme is to read alike. */}
@@ -174,7 +174,7 @@ export function NowPlayingPanel() {
                             else return
                             event.preventDefault()
                         }}
-                        className="resize-handle h-1.5 shrink-0 cursor-row-resize touch-none"
+                        className="resize-handle resize-handle-pane h-2 shrink-0 cursor-row-resize touch-none"
                     />
                 </div>
             )}
