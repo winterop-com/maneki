@@ -31,7 +31,7 @@ from maneki.books.catalog import BookCatalog, align_chapters, choose, runtime_ma
 from maneki.books.library import file_chapters, majority
 from maneki.books.models import CatalogBook, Chapter, ChapterSource, NameGuess, SourceBook
 from maneki.books.names import clean_title, guess_from_name
-from maneki.books.probe import ProbeError, discover, is_audio, load_book
+from maneki.books.probe import PART_NUMBER, ProbeError, audio_files, discover, is_audio, load_book, natural_key
 from maneki.books.write import BookTags, book_dir, part_title, write_book, writes_chapters
 
 UNKNOWN_AUTHOR = "Unknown Author"
@@ -42,8 +42,13 @@ SPLIT_MIN_DURATION_S = 45 * 60
 # whole books side by side. A chapterised book runs to dozens of files, each
 # named for its chapter and some of them long.
 SPLIT_MAX_FILES = 12
-# Names that say "part of something" outright.
-_CHAPTER_NAME_RE = re.compile(r"\b(?:chapter|chap|part|pt|track|disc|cd|side)\b[\s._-]*\d+", re.IGNORECASE)
+# Names that say "part of something" outright: `Chapter 3`, `CD2`, `Part II`, `Part One`.
+_CHAPTER_NAME_RE = re.compile(
+    rf"\b(?:(?:chapter|chap|track|disc|cd|side)\b[\s._-]*\d+|(?:part|pt)\b[._-]?{PART_NUMBER})", re.IGNORECASE
+)
+# Sibling pieces whose lengths all fall within this share of the longest are
+# copies of one recording rather than its parts.
+_COPY_LENGTH_SHARE = 0.95
 _CHAPTER_NAME_SHARE = 0.8
 # A name that is nothing but numbering once the digits come off ("1-01 1a").
 _NAME_RESIDUE_MIN = 3
@@ -114,6 +119,13 @@ def import_books(
             order.append(one.path)
             plans.append(plan_book(one, library, catalog=catalog))
         order.remove(path)
+
+    plans = _merge_split_parts(plans, library, catalog=catalog, inbox=inbox)
+    for plan in plans:
+        if plan.book.path not in order:
+            # A merged book takes the place of its first part.
+            first = next(p for p in order if plan.book.path in p.parents)
+            order.insert(order.index(first), plan.book.path)
 
     kept, dropped = _resolve_duplicates(plans)
     for plan, winner in dropped:
@@ -291,6 +303,48 @@ def _catalog_chapters(
     note = f"no edition's chapters match this recording ({format_duration(duration)}"
     note += f"; catalog: {runtimes})" if runtimes else ")"
     return candidates[0], [], ChapterSource.NONE, note
+
+
+def _merge_split_parts(
+    plans: list[BookPlan], library: Path, *, catalog: BookCatalog | None, inbox: Path
+) -> list[BookPlan]:
+    """Put back together a book that was taken apart into pieces that all identify as it.
+
+    A folder of parts can look like a folder of books: subfolders named for
+    their content, or a handful of long files with titled names. When every
+    piece under one folder then resolves to the same destination, the pieces
+    are that one book, and importing one while skipping the rest as copies
+    loses most of it. So they become one book again, in natural order.
+
+    Only a whole folder is put back together, never part of one, so removing
+    the source still takes exactly what was imported. Pieces of equal length
+    are copies of one recording rather than its parts, and the inbox itself
+    is a shelf of separate books; both are left to `_resolve_duplicates`.
+    """
+    by_parent: dict[Path, list[int]] = {}
+    for index, plan in enumerate(plans):
+        by_parent.setdefault(plan.book.path.parent, []).append(index)
+    merged: dict[int, BookPlan] = {}
+    absorbed: set[int] = set()
+    for parent, indexes in by_parent.items():
+        pieces = [plans[i] for i in indexes]
+        if parent == inbox or len(pieces) < 2 or len({str(p.dest).casefold() for p in pieces}) != 1:
+            continue
+        files = [f for p in pieces for f in p.book.files]
+        if {f.path for f in files} != set(audio_files(parent)) or looks_like_copies(
+            [p.book.duration_s for p in pieces]
+        ):
+            continue
+        files.sort(key=lambda f: natural_key(f.path.relative_to(parent)))
+        merged[indexes[0]] = plan_book(SourceBook(path=parent, files=files), library, catalog=catalog)
+        absorbed.update(indexes[1:])
+    return [merged.get(i, plan) for i, plan in enumerate(plans) if i not in absorbed]
+
+
+def looks_like_copies(durations: list[float]) -> bool:
+    """True when pieces this long are copies of one recording: every one close to the longest."""
+    longest = max(durations, default=0.0)
+    return longest > 0 and all(d >= longest * _COPY_LENGTH_SHARE for d in durations)
 
 
 def _resolve_duplicates(plans: list[BookPlan]) -> tuple[list[BookPlan], list[tuple[BookPlan, str]]]:

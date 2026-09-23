@@ -13,6 +13,7 @@ from pathlib import Path
 
 from maneki.audio.metadata import SUPPORTED_AUDIO_EXTS
 from maneki.books.models import Chapter, SourceBook, SourceFile
+from maneki.books.names import clean_title
 from maneki.ffmpeg import ffprobe_path
 
 _DIGITS_RE = re.compile(r"(\d+)")
@@ -22,6 +23,17 @@ _DIGITS_RE = re.compile(r"(\d+)")
 _MAX_SHELF_DEPTH = 3
 # A subfolder that names a disc of one recording rather than a book of its own.
 _DISC_NAME_RE = re.compile(r"^(?:cd|disc|disk|part|side|vol(?:ume)?)[\s._-]*\d+$|^\d{1,2}$", re.I)
+# A subfolder that names a part of one book: `Part I - Come Together`,
+# `Part 2`, `Part Two - Prom Night`, `Prologue`, `Epilogue`, once any leading
+# running number (`1| `, `01 - `, `3. `) is off. `Book 1` is left out: a
+# collection names its books that way too.
+_RUNNING_NUMBER_RE = re.compile(r"^\d{1,3}\s*(?:[|.)_-]\s*|\s+)")
+# A part's number: `2`, or after a space `II` or `Two`.
+PART_NUMBER = r"(?:\s*\d+|\s+(?:[ivxlc]+|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve)\b)"
+_PART_NAME_RE = re.compile(
+    rf"^(?:(?:part|pt)\.?{PART_NUMBER}|(?:prologue|epilogue|introduction|intro|afterword|foreword)\b)", re.I
+)
+_NOT_WORD_RE = re.compile(r"[^a-z]+")
 _TAG_KEYS = (
     "title",
     "album",
@@ -50,6 +62,32 @@ def is_audio(path: Path) -> bool:
 def _is_disc_name(name: str) -> bool:
     """True for a folder that names a disc of one recording: `CD1`, `Disc 2`, `Part 3`."""
     return bool(_DISC_NAME_RE.match(name.strip()))
+
+
+def is_part_name(name: str) -> bool:
+    """True for a folder that names a part of one book: `1| Part I - Come Together`, `Epilogue`."""
+    return bool(_PART_NAME_RE.match(_RUNNING_NUMBER_RE.sub("", name.strip())))
+
+
+def parts_of_one_book(names: list[str], albums: list[str | None]) -> bool:
+    """True when subfolders named `names`, whose files are tagged `albums`, are parts of one book.
+
+    Discs (`CD1`) and named parts (`Part I`, `Epilogue`) are, whatever their
+    tags. Otherwise the album tag decides: the subfolders are one book when
+    those that carry one agree on it and most of them carry it. A collection
+    tags each book with its own album, so it stays split. Two copies of one
+    book side by side agree on the album too, but their names say the same
+    thing once numbering and rip details are off, so they are not parts.
+    """
+    if len(names) < 2:
+        return False
+    if all(_is_disc_name(n) or is_part_name(n) for n in names):
+        return True
+    tagged = [clean_title(a).casefold() for a in albums if a and clean_title(a)]
+    if len(set(tagged)) != 1 or len(tagged) * 2 <= len(names):
+        return False
+    residues = [_NOT_WORD_RE.sub("", _DIGITS_RE.sub("", clean_title(n).casefold())) for n in names]
+    return len(set(residues)) == len(residues)
 
 
 def natural_key(path: Path) -> list[object]:
@@ -94,13 +132,30 @@ def _books_in(folder: Path, *, depth: int) -> list[Path]:
         return [folder]
     if not subdirs or depth <= 0:
         return [folder] if any(is_audio(p) for p in folder.rglob("*")) else []
-    if all(_is_disc_name(p.name) for p in subdirs):
-        # `CD1`, `CD2`: the discs of one recording, which `audio_files` walks in order.
+    names = [p.name for p in subdirs]
+    if all(_is_disc_name(n) or is_part_name(n) for n in names):
+        # `CD1`, `CD2` or `Part I`, `Epilogue`: the discs or parts of one
+        # recording, which `audio_files` walks in order.
+        return [folder]
+    if len(subdirs) > 1 and parts_of_one_book(names, [_album_of(p) for p in subdirs]):
+        # Parts named for their content (`Book 1 - Captain Trips`) that
+        # their tags say belong to one book.
         return [folder]
     found: list[Path] = []
     for subdir in subdirs:
         found.extend(_books_in(subdir, depth=depth - 1))
     return found
+
+
+def _album_of(folder: Path) -> str | None:
+    """The album tag of the first audio file under `folder`, if it has one."""
+    first = next(iter(audio_files(folder)), None)
+    if first is None:
+        return None
+    try:
+        return probe_file(first).tags.get("album")
+    except ProbeError:
+        return None
 
 
 def audio_files(book: Path) -> list[Path]:

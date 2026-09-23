@@ -137,14 +137,16 @@ def require_ffmpeg() -> None:
         pytest.skip("ffmpeg / ffprobe not on PATH")
 
 
-def make_silent_mp3(dst: Path, seconds: float, *, title: str | None = None) -> Path:
-    """Encode a small silent mono MP3 of `seconds` at `dst`, optionally with a title tag."""
+def make_silent_mp3(dst: Path, seconds: float, *, title: str | None = None, album: str | None = None) -> Path:
+    """Encode a small silent mono MP3 of `seconds` at `dst`, optionally with title and album tags."""
     require_ffmpeg()
     dst.parent.mkdir(parents=True, exist_ok=True)
     cmd = ["ffmpeg", "-y", "-nostdin", "-loglevel", "error", "-f", "lavfi", "-i", "anullsrc=r=22050:cl=mono"]
     cmd += ["-t", str(seconds), "-c:a", "libmp3lame", "-b:a", "32k"]
     if title:
         cmd += ["-metadata", f"title={title}"]
+    if album:
+        cmd += ["-metadata", f"album={album}"]
     subprocess.run([*cmd, str(dst)], check=True)
     return dst
 

@@ -8,10 +8,11 @@ import pytest
 from mutagen.id3 import ID3
 from typer.testing import CliRunner
 
+from maneki.books import pipeline
 from maneki.books.catalog import BookCatalog
 from maneki.books.models import CatalogBook, CatalogChapters, Chapter, ChapterSource
-from maneki.books.pipeline import format_duration, import_books, separate_books
-from maneki.books.probe import discover, load_book, natural_key, probe_file
+from maneki.books.pipeline import format_duration, import_books, looks_like_copies, separate_books
+from maneki.books.probe import discover, is_part_name, load_book, natural_key, parts_of_one_book, probe_file
 from maneki.books.write import BookTags, file_names, write_book
 from maneki.cli import app
 from tests.conftest import audio_md5, jpeg_bytes, make_silent_mp3, require_ffmpeg
@@ -389,3 +390,108 @@ def test_a_destination_with_no_audio_is_not_a_book(tmp_path: Path) -> None:
     assert report.status == "ok"
     assert any(p.suffix == ".mp3" for p in wreckage.iterdir())
     assert not (inbox / "Stephen King - It.mp3").exists()
+
+
+# --- a book in parts is one book ------------------------------------------------
+
+
+def test_part_names() -> None:
+    for name in ("1| Part I - Come Together", "Part 2", "Part Two - Prom Night", "Pt. 3", "5| Epilogue", "Prologue"):
+        assert is_part_name(name), name
+    for name in ("Book 1 - Captain Trips", "Participants", "Partial Recall", "1 - Book One", "The Body"):
+        assert not is_part_name(name), name
+
+
+def test_parts_of_one_book_by_name_or_by_album() -> None:
+    parts = ["1| Part I - Come Together", "2| Part II - The Mayfair Witches", "5| Epilogue"]
+    assert parts_of_one_book(parts, [None, None, None])
+    stand = ["Book 1 - Captain Trips", "Book 2 - On the Border", "Book 3 - The Stand"]
+    assert parts_of_one_book(stand, ["The Stand"] * 3)
+    # One piece without an album tag does not undo the others' agreement.
+    assert parts_of_one_book(stand, ["The Stand", "The Stand", None])
+
+
+def test_a_collection_or_two_copies_are_not_parts() -> None:
+    assert not parts_of_one_book(["1 - Book One", "2 - Book Two"], ["Book One", "Book Two"])
+    assert not parts_of_one_book(["1 - Book One", "2 - Book Two"], [None, None])
+    assert not parts_of_one_book(["Dune (mp3)", "Dune [64kbps]"], ["Dune", "Dune"])
+
+
+def test_part_folders_stay_one_book_in_natural_order(tmp_path: Path) -> None:
+    """`The Witching Hour/1| Part I - .../`, `.../5| Epilogue/`: one book, not five."""
+    book = tmp_path / "1990 - The Witching Hour"
+    for part in ("1| Part I - Come Together", "2| Part II - The Mayfair Witches", "10| Part X", "5| Epilogue"):
+        make_silent_mp3(book / part / f"{part} - Chapter 01.mp3", 0.5)
+    assert discover(tmp_path) == [book]
+    assert [f.path.parent.name for f in load_book(book).files] == [
+        "1| Part I - Come Together",
+        "2| Part II - The Mayfair Witches",
+        "5| Epilogue",
+        "10| Part X",
+    ]
+
+
+def test_folders_agreeing_on_one_album_stay_one_book(tmp_path: Path) -> None:
+    book = tmp_path / "1978 - The Stand"
+    for part in ("Book 1 - Captain Trips", "Book 2 - On the Border", "Book 3 - The Stand"):
+        make_silent_mp3(book / part / "01.mp3", 0.5, album="The Stand")
+    assert discover(tmp_path) == [book]
+
+
+def test_a_collection_tagged_book_by_book_stays_split(tmp_path: Path) -> None:
+    for title in ("Book One", "Book Two"):
+        make_silent_mp3(tmp_path / "Series" / f"1 - {title}" / "01.mp3", 0.5, album=title)
+    assert [p.name for p in discover(tmp_path)] == ["1 - Book One", "1 - Book Two"]
+
+
+def test_files_named_by_roman_or_spelled_part_stay_one_book(tmp_path: Path) -> None:
+    """`Part I - 1.mp3` ... `Part IV.mp3`: the parts of one book, however long they run."""
+    for names in (
+        ["Part I - 1.mp3", "Part I - 2.mp3", "Part II.mp3", "Part III - 1.mp3", "Part IV.mp3"],
+        ["1| Part One - Blood Sports 1.mp3", "2| Part Two - Prom Night 1.mp3", "3| Part Three - Wreckage.mp3"],
+    ):
+        folder = _folder(tmp_path, names[0], dict.fromkeys(names, 0.5))
+        book = load_book(folder)
+        long_files = [f.model_copy(update={"duration_s": 2 * 3600}) for f in book.files]
+        assert [b.path for b in separate_books(book.model_copy(update={"files": long_files}))] == [folder]
+
+
+def test_looks_like_copies() -> None:
+    assert looks_like_copies([36000.0, 35900.0])
+    assert not looks_like_copies([3600.0, 7200.0, 5400.0])
+    assert not looks_like_copies([])
+
+
+def test_pieces_that_all_identify_as_one_book_import_as_one(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Titled chapter files long enough to pass for books, all tagged as one album: one book."""
+    monkeypatch.setattr(pipeline, "SPLIT_MIN_DURATION_S", 0)
+    inbox, library = tmp_path / "inbox", tmp_path / "Audiobooks"
+    for name, seconds in (("01 - One Drop of Blood.mp3", 1.0), ("00 - Prologue.mp3", 0.5), ("02 - Crickets.mp3", 1.5)):
+        make_silent_mp3(inbox / "Stephen King" / "1995 - Rose Madder" / name, seconds, album="Rose Madder")
+    folder = inbox / "Stephen King" / "1995 - Rose Madder"
+
+    [report] = import_books(inbox, library, catalog=None, dry_run=True)
+
+    assert (report.status, report.source, report.title, report.files) == ("plan", folder, "Rose Madder", 3)
+    assert [f.path.name for f in load_book(folder).files][0] == "00 - Prologue.mp3"
+
+
+def test_two_copies_in_one_folder_still_import_once(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(pipeline, "SPLIT_MIN_DURATION_S", 0)
+    inbox, library = tmp_path / "inbox", tmp_path / "Audiobooks"
+    for name in ("Dune (Kindle rip).mp3", "Dune (Library copy).mp3"):
+        make_silent_mp3(inbox / "Frank Herbert" / name, 1.0, album="Dune")
+
+    reports = import_books(inbox, library, catalog=None, dry_run=True)
+
+    assert sorted(r.status for r in reports) == ["plan", "skip"]
+
+
+def test_books_side_by_side_in_the_inbox_are_never_merged(tmp_path: Path) -> None:
+    inbox, library = tmp_path / "inbox", tmp_path / "Audiobooks"
+    make_silent_mp3(inbox / "Dune" / "01.mp3", 1.0)
+    make_silent_mp3(inbox / "Dune.mp3", 2.0)
+
+    reports = import_books(inbox, library, catalog=None, dry_run=True)
+
+    assert sorted(r.status for r in reports) == ["plan", "skip"]
