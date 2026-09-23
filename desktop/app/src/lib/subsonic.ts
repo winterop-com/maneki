@@ -13,6 +13,7 @@
  * a screen can say what went wrong rather than "request failed".
  */
 
+import { NETWORK_REFUSAL, noteRecovered, noteRefusal } from '@/lib/connection'
 import { md5 } from '@/lib/md5'
 
 /** What a Subsonic server refused, in its own words. */
@@ -119,8 +120,13 @@ export async function call<T = Record<string, unknown>>(
     try {
         response = await fetch(withParams(credentials, endpoint, params))
     } catch {
-        throw new SubsonicError(0, 'the server did not answer')
+        // Same seam as `lib/api`'s: nothing came back, which is the whole app's problem rather
+        // than this call's, so the shell's banner is what says it.
+        const refusal = new SubsonicError(0, NETWORK_REFUSAL)
+        noteRefusal(refusal)
+        throw refusal
     }
+    noteRecovered()
     if (!response.ok) throw new SubsonicError(0, `the server answered ${response.status}`)
     const body = (await response.json()) as { 'subsonic-response'?: Record<string, unknown> }
     const inner = body['subsonic-response']

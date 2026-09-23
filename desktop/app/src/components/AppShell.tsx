@@ -23,6 +23,7 @@ import { useNavigate } from 'react-router'
 import { useTheme } from 'next-themes'
 
 import { CommandPalette } from '@/components/CommandPalette'
+import { ConnectionBanner } from '@/components/ConnectionBanner'
 import { FullscreenVisualizer } from '@/components/FullscreenVisualizer'
 import { NavDrawer, OPEN_NAV_LABEL } from '@/components/NavDrawer'
 import { PanelSheet } from '@/components/PanelSheet'
@@ -358,6 +359,10 @@ export function AppShell({ children }: { children: ReactNode }) {
                             one panel is one too many. */}
                         <ThemeToggle />
                     </header>
+
+                    {/* A server that has stopped answering is the app's news, not one screen's,
+                        so it is said once above the work rather than by each screen in turn. */}
+                    <ConnectionBanner />
 
                     <main className="flex min-h-0 w-full flex-1 flex-col overflow-y-auto">{children}</main>
 

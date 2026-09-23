@@ -11,6 +11,7 @@
  * sentence, so a screen can draw the reason rather than "request failed".
  */
 
+import { NETWORK_REFUSAL, noteRecovered, noteRefusal } from '@/lib/connection'
 import type { BookDetail, BookProgress, BookSummary, Capabilities } from '@/lib/types'
 
 /** A server's answer that was not a success. */
@@ -64,8 +65,15 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     try {
         response = await fetch(url(path), { ...init, headers })
     } catch {
-        throw new ApiError(0, 'the server did not answer')
+        // THE ONE PLACE THIS APP LEARNS THE WIRE IS DOWN. A status is the server answering and
+        // belongs to whoever asked; nothing coming back at all is everybody's, and that is the
+        // banner `lib/connection` raises across the shell.
+        const refusal = new ApiError(0, NETWORK_REFUSAL)
+        noteRefusal(refusal)
+        throw refusal
     }
+    // Any answer is proof the server is there, a refusal included.
+    noteRecovered()
     if (!response.ok) throw new ApiError(response.status, await refusalOf(response))
     if (response.status === 204) return undefined as T
     return (await response.json()) as T

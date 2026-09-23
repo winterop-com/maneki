@@ -12,9 +12,10 @@
  * once and dropped.
  */
 
-import { capabilities, defaultBaseUrl, setSession, signIn } from '@/lib/api'
+import { ApiError, capabilities, defaultBaseUrl, setSession, signIn } from '@/lib/api'
+import { noteRefusal } from '@/lib/connection'
 import { createStore } from '@/lib/store'
-import { type Credentials, makeCredentials, ping } from '@/lib/subsonic'
+import { type Credentials, makeCredentials, ping, SubsonicError } from '@/lib/subsonic'
 import type { Capabilities } from '@/lib/types'
 
 const STORAGE_KEY = 'maneki.session'
@@ -71,6 +72,28 @@ function restUrl(baseUrl: string, caps: Capabilities): string | null {
     return path ? `${baseUrl}${path}` : null
 }
 
+/** The Subsonic code for a username and password the server does not accept. */
+const SUBSONIC_WRONG_PASSWORD = 40
+
+/**
+ * Whether a refusal was the server saying who, rather than the wire saying nothing.
+ *
+ * THIS IS THE ONE QUESTION THAT DECIDES WHETHER CREDENTIALS ARE THROWN AWAY. A server that
+ * answered 401, or a Subsonic mount that answered code 40, is a server we are no longer allowed
+ * into: what is kept is no longer good and the door is the only honest screen. Anything else --
+ * a timeout, a refused connection, a 500, a laptop that woke up before its Wi-Fi did -- is a
+ * session that is still perfectly valid against a server that is momentarily not there, and
+ * signing somebody out over it means retyping a password to fix a router.
+ *
+ * Both grammars have to be read, because a maneki server checks two of them: the bearer token
+ * on its own endpoints and the salt-and-token pair on the Subsonic mount.
+ */
+export function isAuthError(error: unknown): boolean {
+    if (error instanceof ApiError) return error.status === 401 || error.status === 403
+    if (error instanceof SubsonicError) return error.code === SUBSONIC_WRONG_PASSWORD
+    return false
+}
+
 /**
  * Point at a server and find out what it has.
  *
@@ -102,11 +125,34 @@ export async function connect(stored: StoredSession = read()): Promise<void> {
             music,
         })
     } catch (error) {
+        const reason = error instanceof Error ? error.message : 'the server did not answer'
+        // AN AUTH REFUSAL CLEARS WHAT IS KEPT; A QUIET WIRE DOES NOT. The server saying we are
+        // not allowed in means the credentials in storage are no longer good, so they go and
+        // the door is the screen. Anything else is a session that is still valid against a
+        // server that is momentarily not there.
+        if (isAuthError(error)) {
+            write({ baseUrl: stored.baseUrl, username: stored.username })
+            sessionStore.set({
+                phase: 'signed-out',
+                baseUrl: stored.baseUrl,
+                username: stored.username,
+                refusal: reason,
+            })
+            return
+        }
+        noteRefusal(error)
+        // A SESSION ALREADY STANDING KEEPS STANDING. Every screen holds what it read, the queue
+        // keeps playing out of what is buffered, and the banner is what says the server went
+        // quiet -- with the retry on it. Signing somebody out here would empty the app to fix a
+        // router. A session that never got started has nothing to keep up: there is no library
+        // drawn and no mount to stream from, so it falls to the door, which states the same
+        // reason and asks nothing new.
+        if (sessionStore.get().phase === 'ready') return
         sessionStore.set({
             phase: 'signed-out',
             baseUrl: stored.baseUrl,
             username: stored.username,
-            refusal: error instanceof Error ? error.message : 'the server did not answer',
+            refusal: reason,
         })
     }
 }
