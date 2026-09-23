@@ -1,5 +1,5 @@
 import { Cat, PanelLeftClose, PanelLeftOpen } from 'lucide-react'
-import { NavLink } from 'react-router'
+import { Link, NavLink, useLocation } from 'react-router'
 
 import { Button } from '@/components/ui/button'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
@@ -8,7 +8,7 @@ import { useEffect, useRef, type PointerEvent as ReactPointerEvent } from 'react
 import { useDragSize } from '@/hooks/use-drag-size'
 import { useStore } from '@/hooks/use-store'
 import { sessionStore } from '@/lib/session'
-import { homePath, marksOnlyItself, sectionsFor, type NavEntry } from '@/lib/nav'
+import { homePath, marks, sectionsFor, type NavEntry } from '@/lib/nav'
 import {
     RAIL_COLLAPSED_WIDTH,
     RAIL_MAX_WIDTH,
@@ -213,26 +213,33 @@ export function Rail() {
     )
 }
 
+/**
+ * One row of the rail, and of the drawer, which draws the same component.
+ *
+ * WHAT IS MARKED IS `lib/nav`'S DECISION AND NOT THE ROUTER'S. `NavLink` offers a prefix match
+ * or an exact one, and this rail wants a prefix with the sibling entries cut out of it -- so
+ * the row is a plain link and `marks` is what lights it and what writes `aria-current`.
+ */
 export function RailEntry({ entry, collapsed }: { entry: NavEntry; collapsed: boolean }) {
+    const { pathname } = useLocation()
+    const active = marks(entry.path, pathname)
     const Icon = entry.icon
     const link = (
-        <NavLink
+        <Link
             to={entry.path}
-            end={marksOnlyItself(entry.path)}
             aria-label={entry.label}
-            className={({ isActive }) =>
-                cn(
-                    'control-link flex items-center gap-3 rounded-l-sm rounded-r-md border-l-2 px-3 py-2 text-sm transition-colors',
-                    collapsed && 'mx-auto size-9 justify-center rounded-md border-l-0 p-0',
-                    isActive
-                        ? 'border-sidebar-primary bg-sidebar-accent font-medium text-sidebar-accent-foreground'
-                        : 'border-transparent text-muted-foreground hover:bg-secondary hover:text-foreground',
-                )
-            }
+            aria-current={active ? 'page' : undefined}
+            className={cn(
+                'control-link flex items-center gap-3 rounded-l-sm rounded-r-md border-l-2 px-3 py-2 text-sm transition-colors',
+                collapsed && 'mx-auto size-9 justify-center rounded-md border-l-0 p-0',
+                active
+                    ? 'border-sidebar-primary bg-sidebar-accent font-medium text-sidebar-accent-foreground'
+                    : 'border-transparent text-muted-foreground hover:bg-secondary hover:text-foreground',
+            )}
         >
             <Icon className="size-4 shrink-0" aria-hidden />
             {!collapsed && <span>{entry.label}</span>}
-        </NavLink>
+        </Link>
     )
     if (!collapsed) return link
     return (
