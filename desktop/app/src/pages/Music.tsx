@@ -1,11 +1,11 @@
-import { ChevronLeft, Play, Star } from 'lucide-react'
+import { ChevronLeft, Pause, Play, Star } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate, useParams } from 'react-router'
 
 import { Button } from '@/components/ui/button'
-import { useStore } from '@/hooks/use-store'
+import { useStore, useStoreValue } from '@/hooks/use-store'
 import { clock } from '@/lib/format'
-import { play } from '@/lib/player'
+import { play, playerStore, toggle } from '@/lib/player'
 import { sessionStore } from '@/lib/session'
 import { Input } from '@/components/ui/input'
 import { Segmented } from '@/components/Segmented'
@@ -311,8 +311,15 @@ function ArtistScreen({ credentials, id }: { credentials: Credentials; id: strin
 }
 
 /** One album's tracks. Picking one plays the album from there. */
+/** Which album the playing track belongs to, and whether it is sounding: two facts, not the store. */
+const selectPlayingAlbum = (state: { queue: Song[]; index: number }) =>
+    state.queue[state.index]?.albumId ?? null
+const selectPlaying = (state: { playing: boolean }) => state.playing
+
 function AlbumScreen({ credentials, id }: { credentials: Credentials; id: string }) {
     const [data, setData] = useState<{ album: Album; songs: Song[] } | null>(null)
+    const playingAlbumId = useStoreValue(playerStore, selectPlayingAlbum)
+    const playing = useStoreValue(playerStore, selectPlaying)
     const [refusal, setRefusal] = useState<string | null>(null)
     const navigate = useNavigate()
 
@@ -325,6 +332,11 @@ function AlbumScreen({ credentials, id }: { credentials: Credentials; id: string
     if (refusal) return <Notice>{refusal}</Notice>
     if (!data) return <Notice>Opening the album.</Notice>
     const { album, songs } = data
+    // THE BUTTON KNOWS WHEN THIS IS THE ALBUM PLAYING. A button that said Play beside a track
+    // list with one of its rows sounding was saying something false; here it pauses that, and
+    // only on another album does it start this one from the top.
+    const playingThis = playingAlbumId === album.id
+    const sounding = playingThis && playing
 
     return (
         <div className="p-4">
@@ -333,8 +345,24 @@ function AlbumScreen({ credentials, id }: { credentials: Credentials; id: string
                 subtitle={`${album.artist}${album.year ? ` · ${album.year}` : ''}`}
                 onBack={() => navigate(album.artistId ? `/music/artist/${album.artistId}` : '/music')}
                 action={
-                    <Button size="sm" onClick={() => play(songs, 0)} disabled={!songs.length}>
-                        <Play className="size-4" aria-hidden /> Play
+                    <Button
+                        size="sm"
+                        onClick={() => {
+                            if (playingThis) toggle()
+                            else play(songs, 0)
+                        }}
+                        disabled={!songs.length}
+                        aria-pressed={sounding}
+                    >
+                        {sounding ? (
+                            <>
+                                <Pause className="size-4" aria-hidden /> Pause
+                            </>
+                        ) : (
+                            <>
+                                <Play className="size-4" aria-hidden /> {playingThis ? 'Resume' : 'Play'}
+                            </>
+                        )}
                     </Button>
                 }
             />

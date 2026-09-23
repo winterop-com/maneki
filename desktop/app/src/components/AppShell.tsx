@@ -353,25 +353,10 @@ export function AppShell({ children }: { children: ReactNode }) {
                             />
                             <TooltipContent side="bottom">{OPEN_PALETTE_LABEL}</TooltipContent>
                         </Tooltip>
+                        {/* No panel toggle up here: the queue is what fills the panel, and the
+                            player bar's own Up next button already opens it. Two controls for
+                            one panel is one too many. */}
                         <ThemeToggle />
-                        {queued && (
-                            <Tooltip>
-                                <TooltipTrigger
-                                    render={
-                                        <Button
-                                            variant="ghost"
-                                            size="icon-sm"
-                                            aria-label={TOGGLE_PANEL_LABEL}
-                                            className="hidden md:inline-flex"
-                                            onClick={togglePanel}
-                                        >
-                                            <PanelRight className="size-4" aria-hidden />
-                                        </Button>
-                                    }
-                                />
-                                <TooltipContent side="bottom">{TOGGLE_PANEL_LABEL}</TooltipContent>
-                            </Tooltip>
-                        )}
                     </header>
 
                     <main className="flex min-h-0 w-full flex-1 flex-col overflow-y-auto">{children}</main>
