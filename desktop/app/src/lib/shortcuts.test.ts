@@ -4,6 +4,7 @@ import {
     adjustsVolume,
     applePlatform,
     isTypingField,
+    opensLyrics,
     opensPalette,
     opensSearch,
     opensShortcuts,
@@ -234,10 +235,18 @@ describe('the rest of the listening keys', () => {
         expect(opensSearch(press('/', { metaKey: true }), null)).toBe(false)
     })
 
+    test('l puts the words on screen, bare and outside a box', () => {
+        expect(opensLyrics(press('l'), null)).toBe(true)
+        expect(opensLyrics(press('L'), null)).toBe(true)
+        expect(opensLyrics(press('l'), PROSE)).toBe(false)
+        expect(opensLyrics(press('l', { ctrlKey: true }), null)).toBe(false)
+    })
+
     test('no two of them answer the same press', () => {
-        for (const key of ['m', '*', '/', 'ArrowLeft', 'ArrowUp']) {
+        for (const key of ['m', 'l', '*', '/', 'ArrowLeft', 'ArrowUp']) {
             const answered = [
                 togglesMute(press(key), null),
+                opensLyrics(press(key), null),
                 starsCurrent(press(key), null),
                 opensSearch(press(key), null),
                 seeks(press(key), null) !== null,
@@ -248,7 +257,7 @@ describe('the rest of the listening keys', () => {
     })
 
     test('none of them is claimed by a key this app already bound', () => {
-        for (const key of ['m', '*', '/', 'ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown']) {
+        for (const key of ['m', 'l', '*', '/', 'ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown']) {
             expect(steps(press(key), null)).toBeNull()
             expect(togglesPlayback(press(key), null)).toBe(false)
             expect(togglesVisualizer(press(key), null)).toBe(false)

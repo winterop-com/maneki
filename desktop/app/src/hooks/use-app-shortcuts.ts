@@ -14,6 +14,7 @@ import {
 } from '@/lib/player'
 import { paletteOpen } from '@/lib/palette'
 import { togglePanel, toggleRail } from '@/lib/panels'
+import { toggleLyrics } from '@/lib/lyrics'
 import { openSearch, searchOpen } from '@/lib/search'
 import { sessionStore } from '@/lib/session'
 import {
@@ -21,6 +22,7 @@ import {
     applePlatform,
     opensPalette,
     cyclesRepeat,
+    opensLyrics,
     opensSearch,
     opensShortcuts,
     opensStage,
@@ -146,6 +148,11 @@ export function useAppShortcuts(onShortcuts: () => void): void {
             if (togglesMute(press, focused())) {
                 event.preventDefault()
                 toggleMuted()
+                return
+            }
+            if (opensLyrics(press, focused())) {
+                event.preventDefault()
+                toggleLyrics()
                 return
             }
             if (starsCurrent(press, focused())) {

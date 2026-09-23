@@ -55,6 +55,9 @@ export const STAR_KEY = '*'
 /** The character that opens the search over the whole library, pressed bare. */
 export const SEARCH_KEY = '/'
 
+/** The letter that puts the words of what is playing on screen, pressed bare. */
+export const LYRICS_KEY = 'l'
+
 /** How far one press of an arrow moves the position, in seconds. */
 export const SEEK_STEP_S = 5
 
@@ -277,6 +280,18 @@ export function opensSearch(press: KeyPress, focused: FocusedField | null): bool
 }
 
 /**
+ * Whether this press puts the words of what is playing on screen.
+ *
+ * `l` for lyrics, bare, beside the other listening letters -- it is reached for while a track
+ * is playing, which is when a chord is one more thing to remember.
+ */
+export function opensLyrics(press: KeyPress, focused: FocusedField | null): boolean {
+    if (press.key.toLowerCase() !== LYRICS_KEY) return false
+    if (press.ctrlKey || press.metaKey || press.altKey) return false
+    return !isTypingField(focused)
+}
+
+/**
  * Whether this press shows or hides the spectrum.
  *
  * A bare letter, the way the transport keys are: the visualizer is something somebody turns on
@@ -326,6 +341,7 @@ export function shortcuts(apple: boolean): Shortcut[] {
         { id: 'mute', action: 'Silence it, keeping the level', keys: ['M'] },
         { id: 'star', action: 'Star what is playing', keys: [STAR_KEY] },
         { id: 'search', action: 'Search the library', keys: [SEARCH_KEY] },
+        { id: 'lyrics', action: 'Show the words of what is playing', keys: ['L'] },
         { id: 'shortcuts', action: 'Open this list', keys: [SHORTCUTS_KEY] },
         { id: 'dismiss', action: 'Close a dialog, a menu, or the palette', keys: ['Esc'] },
         { id: 'choose', action: 'Open the row that has focus', keys: ['Enter'] },
