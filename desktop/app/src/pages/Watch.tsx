@@ -19,6 +19,7 @@ import {
     preferredSubtitles,
     resolutionLabel,
     subtitleLabel,
+    subtitleNote,
     watchHref,
 } from '@/lib/video'
 import { cn } from '@/lib/utils'
@@ -54,7 +55,9 @@ export function WatchPage() {
 function Watch({ id }: { id: string }) {
     const [video, setVideo] = useState<VideoEntry | null>(null)
     const [refusal, setRefusal] = useState<string | null>(null)
-    const [tracks, setTracks] = useState<VideoSubtitleTrack[]>([])
+    // Null until the server has answered: a file with no tracks and a file nobody has asked
+    // about yet say different things on the meta line, and one empty array cannot be both.
+    const [tracks, setTracks] = useState<VideoSubtitleTrack[] | null>(null)
     const [beside, setBeside] = useState<VideoEntry[]>([])
     const [size, setSize] = useState<{ width: number; height: number } | null>(null)
     const [posterToken, setPosterToken] = useState<number | undefined>(undefined)
@@ -91,6 +94,7 @@ function Watch({ id }: { id: string }) {
             () => {
                 // A file with no subtitles answers a refusal on some servers and an empty list
                 // on others, and either way there is nothing to put in the menu.
+                if (live) setTracks([])
             },
         )
         return () => {
@@ -283,7 +287,7 @@ function Watch({ id }: { id: string }) {
      */
     const subtitles = useMemo<PlayerSubtitle[]>(
         () =>
-            preferredSubtitles(tracks).map((track) => ({
+            preferredSubtitles(tracks ?? []).map((track) => ({
                 label: subtitleLabel(track.track_id, track.lang, track.label),
                 src: videoApi.subtitleUrl(id, track.track_id),
                 lang: track.lang === 'und' ? '' : track.lang,
@@ -300,7 +304,7 @@ function Watch({ id }: { id: string }) {
         video === null || video.duration_s === null ? null : clock(video.duration_s),
         size === null ? null : resolutionLabel(size.width, size.height),
         video === null ? null : fileSize(video.size_bytes),
-        tracks.length === 0 ? null : `${String(tracks.length)} subtitle${tracks.length === 1 ? '' : 's'}`,
+        subtitleNote(tracks),
     ].filter((fact) => fact !== null)
 
     return (

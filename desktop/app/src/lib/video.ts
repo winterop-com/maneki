@@ -148,6 +148,28 @@ export function subtitleLabel(trackId: string, lang?: string | null, given?: str
     return 'Subtitles'
 }
 
+/**
+ * What the meta line says about captions.
+ *
+ * NOTHING IS NOT AN ANSWER. A file with no usable track used to leave the fact off the line
+ * entirely, which reads as a screen that forgot to look -- and looking is exactly what somebody
+ * does when the control bar has no captions button on it. So an answered read with nothing in it
+ * says so, and only an unanswered one is silent.
+ *
+ * `null` while the read is in flight, because a line that said "no subtitles" for half a second
+ * on every open would be wrong more often than it was right.
+ *
+ * A Blu-ray rip commonly lands here: its only subtitle stream is `hdmv_pgs_subtitle`, which is
+ * pictures of words rather than words, and nothing short of OCR turns that into WebVTT. The
+ * server leaves those out of what it offers, so as far as this screen is concerned there are
+ * none.
+ */
+export function subtitleNote(tracks: readonly VideoSubtitleTrack[] | null): string | null {
+    if (tracks === null) return null
+    if (tracks.length === 0) return 'no subtitles'
+    return `${String(tracks.length)} subtitle${tracks.length === 1 ? '' : 's'}`
+}
+
 /** A subtitle track as the player takes one: a name, an address, and the tag it is in. */
 export interface SubtitleSource {
     label: string

@@ -29,6 +29,7 @@ import {
     streamVerdict,
     subtitleKey,
     subtitleLabel,
+    subtitleNote,
     subtitlePath,
     thumbnailPath,
     watchHref,
@@ -205,6 +206,23 @@ describe('subtitleLabel', () => {
 
     it('says Subtitles for a sidecar that named no language', () => {
         expect(subtitleLabel('sidecar:und', 'und')).toBe('Subtitles')
+    })
+})
+
+describe('subtitleNote', () => {
+    it('says nothing while the read is in flight', () => {
+        expect(subtitleNote(null)).toBeNull()
+    })
+
+    it('says so when the file offers none, rather than leaving the fact off', () => {
+        expect(subtitleNote([])).toBe('no subtitles')
+    })
+
+    it('counts what there is, singular for one', () => {
+        expect(subtitleNote([track({ track_id: 'embed:2' })])).toBe('1 subtitle')
+        expect(subtitleNote([track({ track_id: 'embed:2' }), track({ track_id: 'embed:3' })])).toBe(
+            '2 subtitles',
+        )
     })
 })
 
