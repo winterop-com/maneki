@@ -122,6 +122,8 @@ curl -H "Authorization: Bearer $TOKEN" http://localhost:8765/auth/me
 
 Tokens live in memory and expire after 24 hours (or when the server restarts).
 
+**Media URLs carry the token as `?token=<token>` instead of a header.** A `<video>` source, an `<img>` poster or cover, a `<track>` subtitle, an `<audio>` book file and an `EventSource` are all fetched by the browser out of an address, and an address has nowhere to put an `Authorization` header — so without a second way to present the token, `--auth` would leave the client signed in and every picture and stream under it answering 401. The same token in the query is validated exactly as the header is, but only on the routes one of those elements actually fetches (video `stream`, `play`, `poster`, `thumbnail`, `hls/*`, `subtitles/<track>` and `stats/stream`; books `cover` and `files/<n>`), and only on a GET. A token in a URL ends up in browser history and in anything that copies a link, so every JSON API keeps the header and answers 401 to `?token=` alone. An HLS manifest names its segments relatively and a relative URL does not inherit the manifest's query, so the server stamps the token back onto each segment URI itself. The access log records the path and never the query, which is what keeps this token — and Subsonic's `p=` and `t=` — out of the log line.
+
 The demo page at `/video/` does NOT yet drive the login flow, so when `--auth` is on the demo can't play videos. Use the API directly until the SPA video tab lands.
 
 Same credentials as the audio Subsonic mount — one password sourced from the same TOML.
