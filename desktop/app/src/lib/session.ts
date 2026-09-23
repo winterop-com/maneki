@@ -13,6 +13,7 @@
  */
 
 import { capabilities, defaultBaseUrl, setSession, signIn } from '@/lib/api'
+import { forgetMarks } from '@/lib/star'
 import { createStore } from '@/lib/store'
 import { type Credentials, makeCredentials, ping } from '@/lib/subsonic'
 import type { Capabilities } from '@/lib/types'
@@ -144,6 +145,9 @@ export async function signInTo(baseUrl: string, username: string, password: stri
 /** Forget the credentials, keeping the server so the next sign-in is one field shorter. */
 export function signOut(): void {
     const { baseUrl, username } = sessionStore.get()
+    // What one account starred is not what the next one did, and this document outlives the
+    // sign-out: the marks go with the credentials that wrote them.
+    forgetMarks()
     write({ baseUrl, username })
     setSession({ baseUrl })
     sessionStore.set({ phase: 'signed-out', baseUrl, username })

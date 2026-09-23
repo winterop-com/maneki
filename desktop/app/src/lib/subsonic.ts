@@ -312,6 +312,59 @@ export async function stationNowPlaying(credentials: Credentials, station: Stati
     }
 }
 
+/** One line of structured lyrics: when it is sung, in milliseconds, and what is sung. */
+export interface LyricsLine {
+    start?: number
+    value?: string
+}
+
+/** One set of words for one track, in the OpenSubsonic shape. */
+export interface StructuredLyrics {
+    displayArtist?: string
+    displayTitle?: string
+    lang?: string
+    /** Whether the lines carry timings. A server says so; `lib/lyrics` checks that they do. */
+    synced?: boolean
+    line?: LyricsLine[]
+}
+
+/**
+ * The words of one track, by its id.
+ *
+ * `getLyricsBySongId` is the OpenSubsonic extension, and the only call that can answer with
+ * timings -- which is the difference between words on a screen and words that follow the song.
+ * A track with none answers with an empty list rather than a refusal.
+ */
+export async function getStructuredLyrics(
+    credentials: Credentials,
+    id: string,
+): Promise<StructuredLyrics | null> {
+    const inner = await call<{ lyricsList?: { structuredLyrics?: StructuredLyrics[] } }>(
+        credentials,
+        'getLyricsBySongId',
+        { id },
+    )
+    return inner.lyricsList?.structuredLyrics?.[0] ?? null
+}
+
+/**
+ * The words of one track, as a server that has never heard of OpenSubsonic answers.
+ *
+ * The original call matches on the artist and the title rather than on an id, and answers one
+ * string -- which may itself be LRC, since what a server has is whatever was in the file.
+ */
+export async function getPlainLyrics(
+    credentials: Credentials,
+    artist: string,
+    title: string,
+): Promise<string> {
+    const inner = await call<{ lyrics?: { value?: string } }>(credentials, 'getLyrics', {
+        artist,
+        title,
+    })
+    return inner.lyrics?.value ?? ''
+}
+
 export interface Starred {
     artists: Artist[]
     albums: Album[]

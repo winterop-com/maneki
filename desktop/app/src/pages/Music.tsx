@@ -10,6 +10,7 @@ import { sessionStore } from '@/lib/session'
 import { Input } from '@/components/ui/input'
 import { Segmented } from '@/components/Segmented'
 import { articlesOf, fold, SORT_LABELS, SORT_MODES, sortArtists, type SortMode } from '@/lib/sorting'
+import { starMarks, starredNow, toggleStar } from '@/lib/star'
 import {
     coverUrl,
     getAlbum,
@@ -19,7 +20,6 @@ import {
     getStarred,
     musicFolderOf,
     search as searchLibrary,
-    setStarred,
     type Album,
     type Artist,
     type Credentials,
@@ -420,9 +420,16 @@ function AlbumScreen({ credentials, id }: { credentials: Credentials; id: string
     )
 }
 
-/** The star on a track. Its own state, because the server answers with nothing to redraw from. */
+/**
+ * The star on a track.
+ *
+ * WHAT THIS CLIENT WROTE IS HELD IN ONE PLACE, `lib/star`, rather than in this button's own
+ * state: the star key stars whatever is playing, which may be the row below this one, and two
+ * copies of the answer would have the row say one thing and the key another.
+ */
 function StarButton({ credentials, song }: { credentials: Credentials; song: Song }) {
-    const [starred, setStarredState] = useState(Boolean(song.starred))
+    const marks = useStore(starMarks)
+    const starred = starredNow(marks, song)
     return (
         <Button
             variant="ghost"
@@ -430,9 +437,7 @@ function StarButton({ credentials, song }: { credentials: Credentials; song: Son
             aria-label={starred ? `Unstar ${song.title}` : `Star ${song.title}`}
             aria-pressed={starred}
             onClick={() => {
-                const next = !starred
-                setStarredState(next)
-                void setStarred(credentials, song.id, next).catch(() => setStarredState(!next))
+                toggleStar(credentials, song)
             }}
         >
             <Star className={cn('size-4', starred && 'fill-primary text-primary')} aria-hidden />
