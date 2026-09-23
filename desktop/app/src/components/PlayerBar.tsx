@@ -13,6 +13,7 @@ import {
 } from 'lucide-react'
 import { NavLink } from 'react-router'
 
+import { CoverArt } from '@/components/CoverArt'
 import { Visualizer } from '@/components/Visualizer'
 import { Button } from '@/components/ui/button'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
@@ -87,7 +88,12 @@ export function PlayerBar() {
             {cover ? (
                 <img src={cover} alt="" className="size-9 shrink-0 rounded-sm object-cover" />
             ) : (
-                <span className="size-9 shrink-0 rounded-sm bg-muted" aria-hidden />
+                // The album's id rather than the track's, so every track off one record wears
+                // the same mark here that the record wears on the shelf.
+                <CoverArt
+                    id={song?.albumId ?? song?.id ?? station?.id ?? ''}
+                    className="size-9 shrink-0 rounded-sm"
+                />
             )}
 
             <div className="min-w-0 flex-1 md:max-w-64">

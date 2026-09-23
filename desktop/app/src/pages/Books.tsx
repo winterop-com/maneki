@@ -2,6 +2,7 @@ import { ChevronLeft, Pause, Play, RotateCcw, RotateCw } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router'
 
+import { CoverArt } from '@/components/CoverArt'
 import { Button } from '@/components/ui/button'
 import { SPEEDS, SKIP_S, useBookPlayer } from '@/hooks/use-book-player'
 import { books as booksApi } from '@/lib/api'
@@ -251,7 +252,7 @@ const BOOK_COVER = 640
 
 function Cover({ book, size, className }: { book: BookSummary; size: number; className?: string }) {
     if (!book.has_cover) {
-        return <div className={cn('aspect-square bg-muted', className)} aria-hidden />
+        return <CoverArt id={book.id} className={className} />
     }
     return (
         <img
