@@ -11,7 +11,17 @@
  * sentence, so a screen can draw the reason rather than "request failed".
  */
 
-import type { BookDetail, BookProgress, BookSummary, Capabilities } from '@/lib/types'
+import type {
+    BookDetail,
+    BookProgress,
+    BookSummary,
+    Capabilities,
+    VideoBrowse,
+    VideoEntry,
+    VideoScanState,
+    VideoSubtitleTrack,
+} from '@/lib/types'
+import { VIDEO_MOUNT, hlsPath, posterPath, streamPath, subtitlePath, thumbnailPath } from '@/lib/video'
 
 /** A server's answer that was not a success. */
 export class ApiError extends Error {
@@ -120,4 +130,77 @@ export const books = {
         url(`/books/api/books/${id}/cover${size === undefined ? '' : `?size=${String(size)}`}`),
     /** The stream URL of one file. `file.url` is relative to the books mount. */
     fileUrl: (path: string): string => url(`/books/${path}`),
+}
+
+/**
+ * Where the video API answers, which this instance states rather than this bundle assuming.
+ *
+ * `/capabilities` carries the mount, so a server that moved it is followed on the next connect
+ * instead of on the next release. Until it has answered, the default is what maneki mounts.
+ */
+let videoMount = VIDEO_MOUNT
+
+export function setVideoMount(mount: string | null | undefined): void {
+    videoMount = mount ?? VIDEO_MOUNT
+}
+
+export const video = {
+    /** Everything under the library root, flat. The folder browser reads `browse` instead. */
+    list: (): Promise<VideoEntry[]> => request(`${videoMount}/videos`),
+    /** One video by id, for a link somebody was sent rather than a folder they walked into. */
+    detail: (id: string): Promise<VideoEntry> => request(`${videoMount}/videos/${encodeURIComponent(id)}`),
+    /** One folder's immediate children. The empty path is the library root. */
+    browse: (path = ''): Promise<VideoBrowse> =>
+        request(`${videoMount}/browse${path === '' ? '' : `?path=${encodeURIComponent(path)}`}`),
+    /** Filename search across the whole library. The server caps what it answers with. */
+    search: (query: string): Promise<VideoEntry[]> => {
+        const trimmed = query.trim()
+        if (trimmed === '') return Promise.resolve([])
+        return request(`${videoMount}/search?q=${encodeURIComponent(trimmed)}`)
+    },
+    /** What the server is doing to the library, which a cold start is mostly made of. */
+    scanStatus: (): Promise<VideoScanState> => request(`${videoMount}/scan_status`),
+    /**
+     * Ask for the library to be read again.
+     *
+     * Fire and forget: the walk takes as long as the library is big, so the server answers at
+     * once with where it is and the screen watches `scanStatus` from there.
+     */
+    scan: (): Promise<{ started: boolean; status: VideoScanState }> => send(`${videoMount}/scan`, 'POST'),
+    /** Which ids have a still frame and which have a contact sheet, right now. */
+    thumbnailsReady: (): Promise<{ ready: string[]; posters_ready: string[] }> =>
+        request(`${videoMount}/thumbnails/ready`),
+    /** Every subtitle track a file offers, sidecars and embedded streams alike. */
+    subtitles: (id: string): Promise<VideoSubtitleTrack[]> =>
+        request(`${videoMount}/videos/${encodeURIComponent(id)}/subtitles`),
+    /**
+     * Drop whatever the server is still transcoding ahead of this video.
+     *
+     * Called when a player goes. Segments are transcoded speculatively either side of the last
+     * one asked for, and each completion starts the next -- so without this the machine keeps
+     * encoding a film nobody is watching for as long as it takes to reach the end of it.
+     * Best effort: a server that has already gone is not a failure worth reporting.
+     */
+    cancelSession: (id: string): void => {
+        try {
+            void fetch(url(`${videoMount}/videos/${encodeURIComponent(id)}/session`), {
+                method: 'DELETE',
+                // The call is made while a component is coming down, and often while the tab
+                // is closing with it, which is exactly the request a browser drops.
+                keepalive: true,
+                headers: session.token ? { authorization: `Bearer ${session.token}` } : undefined,
+            })
+        } catch {
+            // Nothing on this side is improved by knowing the cancel did not land.
+        }
+    },
+    /** The live transcode stats, which arrive as server-sent events rather than as an answer. */
+    statsStreamUrl: (): string => url(`${videoMount}/stats/stream`),
+    /** The HLS manifest, which is what the player is pointed at whatever the container is. */
+    hlsUrl: (id: string): string => url(hlsPath(videoMount, id)),
+    /** The file's own bytes, ranges and all. */
+    streamUrl: (id: string): string => url(streamPath(videoMount, id)),
+    thumbnailUrl: (id: string, token?: number): string => url(thumbnailPath(videoMount, id, token)),
+    posterUrl: (id: string, token?: number): string => url(posterPath(videoMount, id, token)),
+    subtitleUrl: (id: string, trackId: string): string => url(subtitlePath(videoMount, id, trackId)),
 }
