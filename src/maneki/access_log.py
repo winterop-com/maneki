@@ -57,6 +57,13 @@ def make_access_log_middleware(logger_name: str) -> type[BaseHTTPMiddleware]:
             # /video/* under auth=off, etc.). A future bearer-token
             # decoder can extend this without changing the call sites.
             user = request.query_params.get("u") or "-"
+            # `path` and never `url`: THE QUERY STRING IS WHERE THE SECRETS
+            # ARE. Subsonic sends the password as `?p=` and its challenge as
+            # `?t=`, and a media URL carries the house bearer token as
+            # `?token=` because a <video src> cannot carry a header. Logging
+            # the query would copy all three into a file that gets tailed,
+            # shipped and pasted. Anything added here that wants more of the
+            # URL has to mask those first.
             http_version = request.scope.get("http_version", "1.1")
             bytes_sent = response.headers.get("content-length", "-")
             access_log.info(

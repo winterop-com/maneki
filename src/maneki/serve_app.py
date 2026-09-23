@@ -17,8 +17,10 @@ for an empty root; only their local-library halves are empty there.
 
 Auth is opt-in: pass `enable_auth=True` (CLI: `maneki serve --auth`) to
 require a bearer token on /video/* (and future Maneki-native endpoints).
-The audio (Subsonic) mount always uses its own salt-token auth and is
-unaffected by this flag.
+The media routes underneath those prefixes also take that token as
+`?token=`, because a media element's URL cannot carry a header — see
+`BearerAuthMiddleware`. The audio (Subsonic) mount always uses its own
+salt-token auth and is unaffected by this flag.
 """
 
 from __future__ import annotations
@@ -26,6 +28,7 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import logging
+import re
 from collections.abc import MutableMapping
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
@@ -500,8 +503,71 @@ def _token_from_request(request: Request, store: TokenStore) -> Token:
     return token
 
 
+#: The query parameter a media URL carries its bearer token in.
+MEDIA_TOKEN_PARAM = "token"
+
+# The routes a media element or an EventSource fetches directly — the ones
+# whose URL is handed to the browser rather than to `fetch`, so no header can
+# ride along. Everything else, the JSON APIs included, is absent on purpose.
+#
+# A video id is a slug with every "/" replaced (see video.serve.scan), and a
+# book id is a hash, so one path segment is always exactly one id.
+_MEDIA_TOKEN_PATHS: tuple[re.Pattern[str], ...] = (
+    # <video src>, and the poster / thumbnail <img src> behind and beside it.
+    re.compile(r"^/video/api/videos/[^/]+/(?:stream|play|poster|thumbnail)$"),
+    # The HLS manifest and every segment it names, local files and YouTube alike.
+    re.compile(r"^/video/api/videos/[^/]+/hls/[^/]+$"),
+    re.compile(r"^/video/api/youtube/videos/[^/]+/hls/[^/]+$"),
+    # <track src>: one subtitle track as WebVTT. The listing above it
+    # (/subtitles, no key) is JSON and stays on the header.
+    re.compile(r"^/video/api/videos/[^/]+/subtitles/[^/]+$"),
+    # The stats EventSource, which cannot set a header either.
+    re.compile(r"^/video/api/stats/stream$"),
+    # <img src> for a book's cover and <audio src> for its files.
+    re.compile(r"^/books/api/books/[^/]+/cover$"),
+    re.compile(r"^/books/api/books/[^/]+/files/[^/]+$"),
+)
+
+
+def accepts_media_token(method: str, path: str) -> bool:
+    """Whether `?token=` is a valid way to authenticate this request.
+
+    Reads only — a GET or its HEAD. Nothing that changes state is reachable
+    with a token out of a URL, so a link somebody pasted somewhere can at
+    worst be read with.
+    """
+    return method in {"GET", "HEAD"} and any(pattern.match(path) for pattern in _MEDIA_TOKEN_PATHS)
+
+
 class BearerAuthMiddleware(BaseHTTPMiddleware):
-    """Require a valid bearer token for any request whose path starts with a protected prefix."""
+    """Require a valid bearer token for any request whose path starts with a protected prefix.
+
+    TWO WAYS TO PRESENT THE SAME TOKEN, AND ONE OF THEM IS THE URL. `fetch`
+    can set `Authorization: Bearer <token>` and every JSON call does. A
+    `<video src>`, an `<img src>`, a `<track src>`, an `<audio src>` and an
+    `EventSource` cannot: the browser issues those requests itself and there
+    is no hook to put a header on them. Without a second way to present the
+    token, `--auth` would leave the app signed in and every picture, stream
+    and subtitle 401 -- the library would be readable and unplayable.
+
+    So a GET of a media route may carry the token as `?token=<token>`
+    instead, validated by exactly the same `TokenStore.validate` the header
+    is. The header wins where both are present.
+
+    WHY ONLY THOSE ROUTES. A token in a URL is a token in a browser history,
+    a referer and anything that copies a link; the header is the safer
+    grammar and stays mandatory wherever it can be used. `_MEDIA_TOKEN_PATHS`
+    is therefore the exact list of paths a media element or an EventSource
+    fetches, and the JSON APIs are not on it -- `?token=` alone on one of
+    those is still a 401.
+
+    WHAT REACHES THE LOGS. `maneki.access_log` writes `request.url.path` and
+    never the query string, which is what keeps this token, Subsonic's `p=`
+    password and its `t=` challenge out of the access log line -- three
+    secrets, one rule, stated there so it survives the next edit. Nothing
+    else in the stack logs a URL: uvicorn's own access log is silenced by
+    `configure_logging()`.
+    """
 
     def __init__(
         self,
@@ -522,12 +588,17 @@ class BearerAuthMiddleware(BaseHTTPMiddleware):
         path = request.url.path
         if any(path.startswith(p) for p in self.protected_prefixes):
             header = request.headers.get("authorization", "")
-            if not header.lower().startswith("bearer "):
+            presented = header[7:].strip() if header.lower().startswith("bearer ") else None
+            from_url = False
+            if presented is None and accepts_media_token(request.method, path):
+                presented = request.query_params.get(MEDIA_TOKEN_PARAM) or None
+                from_url = presented is not None
+            if presented is None:
                 return JSONResponse(
                     {"detail": "missing Authorization: Bearer <token>"},
                     status_code=401,
                 )
-            token = self.token_store.validate(header[7:].strip())
+            token = self.token_store.validate(presented)
             if token is None:
                 return JSONResponse(
                     {"detail": "invalid or expired token"},
@@ -536,6 +607,13 @@ class BearerAuthMiddleware(BaseHTTPMiddleware):
             # Expose the authenticated account to video endpoints (per-user
             # video data scopes off this once it exists).
             request.state.username = token.username
+            if from_url:
+                # An HLS manifest names its segments relatively, and a relative
+                # URL does not inherit the query of the document it was found
+                # in -- so the video app has to stamp the token onto each
+                # segment URI itself. What it stamps is this, a token this
+                # middleware has already validated, and never the raw query.
+                request.state.media_token = presented
         return await call_next(request)
 
 

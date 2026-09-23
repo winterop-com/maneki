@@ -18,6 +18,7 @@ import time
 from collections.abc import AsyncGenerator
 from pathlib import Path
 from typing import TYPE_CHECKING, Iterator
+from urllib.parse import quote
 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import FileResponse, HTMLResponse, Response, StreamingResponse
@@ -674,7 +675,7 @@ def create_app(
             raise HTTPException(status_code=503, detail="cannot determine video duration for HLS")
 
         session = hls_manager.get_or_create(video_id, Path(entry.path), duration)
-        return await _hls_response(session, filename, request)
+        return await _hls_response(session, filename, request, seg_query=_media_token_query(request))
 
     async def _hls_response(session: OnDemandHLS, filename: str, request: Request, *, seg_query: str = "") -> Response:
         """Serve a manifest / segment from an already-resolved HLS session.
@@ -910,9 +911,31 @@ def create_app(
         session = hls_manager.get_or_create_source(f"yt:{video_id}@{max_height}", source, resolved.duration_s)
         # Pin segments to this quality cap: relative seg URIs don't inherit the
         # manifest's ?h=, so stamp it on so segments hit the matching session.
-        return await _hls_response(session, filename, request, seg_query=f"h={max_height}")
+        # The media token, when there is one, rides along for the same reason.
+        seg_query = f"h={max_height}"
+        media_token = _media_token_query(request)
+        if media_token:
+            seg_query = f"{seg_query}&{media_token}"
+        return await _hls_response(session, filename, request, seg_query=seg_query)
 
     return app
+
+
+def _media_token_query(request: Request) -> str:
+    """`token=<token>` when this request was authed by one, else the empty string.
+
+    A player is handed the manifest's URL and reads the segment names out of
+    the body, which are relative — and a relative URL does not inherit the
+    query of the document it came from. So a manifest fetched with `?token=`
+    would name segments nobody can fetch, and on an authed server every one
+    of them would 401 halfway into the first frame.
+
+    What is stamped on is what `BearerAuthMiddleware` put on the request
+    after validating it, never the raw query, so this can only ever echo
+    back a token the server has already accepted.
+    """
+    token = getattr(request.state, "media_token", "")
+    return f"token={quote(str(token), safe='')}" if token else ""
 
 
 async def _watch_disconnect(request: Request) -> None:
