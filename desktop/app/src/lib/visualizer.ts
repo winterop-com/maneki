@@ -115,6 +115,53 @@ export function cycleVisualizerStyle(): VisualizerStyle {
     return wanted
 }
 
+/** Where the height of the panel's spectrum pane is kept between visits. */
+export const SPECTRUM_HEIGHT_KEY = 'maneki.spectrumHeight'
+
+/** Shorter than this is a strip saying sound is coming out, which the player bar already is. */
+export const SPECTRUM_MIN_HEIGHT = 72
+
+/** Taller than this and the cover and the words above it are off the top of the panel. */
+export const SPECTRUM_MAX_HEIGHT = 420
+
+/** What the client this is restored from opened at. */
+export const SPECTRUM_DEFAULT_HEIGHT = 132
+
+/** Hold a dragged height inside what the panel can actually draw. */
+export function clampSpectrumHeight(height: number): number {
+    return Math.min(SPECTRUM_MAX_HEIGHT, Math.max(SPECTRUM_MIN_HEIGHT, Math.round(height)))
+}
+
+function readHeight(): number {
+    try {
+        const stored = Number(localStorage.getItem(SPECTRUM_HEIGHT_KEY))
+        return Number.isFinite(stored) && stored > 0 ? clampSpectrumHeight(stored) : SPECTRUM_DEFAULT_HEIGHT
+    } catch {
+        return SPECTRUM_DEFAULT_HEIGHT
+    }
+}
+
+/**
+ * How tall the panel's spectrum pane is.
+ *
+ * PX-INTENT, the way every dragged edge in this shell is kept -- see `lib/panels`. What
+ * somebody dragged this to was a decision about how much of the panel the spectrum is worth
+ * beside the cover, and a fraction would re-decide it every time the window changed height.
+ * Read out of storage as the store is built, so the pane opens at its settled size rather than
+ * snapping into it on the first paint.
+ */
+export const spectrumHeight = createStore(readHeight())
+
+export function setSpectrumHeight(height: number): void {
+    const held = clampSpectrumHeight(height)
+    try {
+        localStorage.setItem(SPECTRUM_HEIGHT_KEY, String(held))
+    } catch {
+        // Storage denied: the height holds for as long as this document is open.
+    }
+    spectrumHeight.set(held)
+}
+
 /**
  * Whether the spectrum is over the whole screen.
  *
