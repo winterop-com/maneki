@@ -102,6 +102,32 @@ export function capabilities(): Promise<Capabilities> {
     return request<Capabilities>('/capabilities')
 }
 
+/**
+ * Ask an address whether a maneki server is answering there, and take no for an answer.
+ *
+ * THIS IS A QUESTION, NOT A REQUEST, which is why it goes around `request` rather than through
+ * it. Nothing being at an address is the expected answer half the time -- the door asks the
+ * same question of two addresses and at most one of them is a server -- so it never raises the
+ * connection banner, never throws, and never touches the session. A probe that reported "lost
+ * connection to the server" for every address that turned out not to be one would be a banner
+ * over the sign-in screen the first time anybody opened the app in a shell.
+ *
+ * `cache: 'no-store'` because what is being asked is whether something is listening right now,
+ * and a cached yes from an earlier session is exactly the wrong answer.
+ */
+export async function probe(origin: string): Promise<Capabilities | null> {
+    try {
+        const response = await fetch(`${origin}/capabilities`, { cache: 'no-store' })
+        if (!response.ok) return null
+        const answered = (await response.json()) as Partial<Capabilities>
+        // Another server may well answer `/capabilities` with something of its own, so the
+        // name is checked: what the door is looking for is a maneki, not a 200.
+        return answered.server === 'maneki' ? (answered as Capabilities) : null
+    } catch {
+        return null
+    }
+}
+
 /** Trade a username and password for a bearer token. */
 export function signIn(username: string, password: string): Promise<{ token: string; username: string }> {
     return send('/auth/login', 'POST', { username, password })
