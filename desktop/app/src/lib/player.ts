@@ -493,10 +493,27 @@ function saveBook(at: number, finished?: boolean): void {
     })
 }
 
-/** Give the book up, keeping its place: something else is about to take the element. */
+/** The seek waiting on a file's metadata, if one is. See `placeBook`. */
+let heldSeek: (() => void) | null = null
+
+/** Forget a seek that was waiting on metadata, because the element is going elsewhere. */
+function dropHeldSeek(): void {
+    if (heldSeek === null) return
+    audio?.removeEventListener('loadedmetadata', heldSeek)
+    heldSeek = null
+}
+
+/**
+ * Give the book up, keeping its place: something else is about to take the element.
+ *
+ * Everything the book set on the element goes with it -- a seek still waiting on the file's
+ * metadata, and the reading speed, which a track played at 1.5x would otherwise inherit.
+ */
 function leaveBook(): void {
     if (!state().book) return
     saveBook(state().positionS)
+    dropHeldSeek()
+    if (audio) audio.playbackRate = 1
     patch({ book: null })
 }
 
@@ -521,16 +538,18 @@ function placeBook(at: number, resume: boolean): void {
         player.src = wanted
         loadedFile = index
     }
+    dropHeldSeek()
     if (!changing && player.readyState >= HAVE_METADATA) {
         player.currentTime = offsetS
     } else {
-        player.addEventListener(
-            'loadedmetadata',
-            () => {
-                player.currentTime = offsetS
-            },
-            { once: true },
-        )
+        // Held, and remembered: a source that takes the element before this file's metadata
+        // arrives must take the seek back with it, or the next track starts wherever the
+        // chapter was going to.
+        heldSeek = () => {
+            heldSeek = null
+            player.currentTime = offsetS
+        }
+        player.addEventListener('loadedmetadata', heldSeek, { once: true })
     }
     // Set on every placement rather than once: a new file is a fresh element state, and a book
     // that fell back to single speed at every file boundary would be read by nobody.

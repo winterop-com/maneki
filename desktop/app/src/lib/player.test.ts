@@ -51,6 +51,10 @@ class FakeAudio {
         ;(this.listeners[event] ??= []).push({ handler, once: options?.once === true })
     }
 
+    removeEventListener(event: string, handler: () => void): void {
+        this.listeners[event] = (this.listeners[event] ?? []).filter((one) => one.handler !== handler)
+    }
+
     emit(event: string): void {
         const held = this.listeners[event] ?? []
         this.listeners[event] = held.filter((one) => !one.once)
@@ -576,5 +580,33 @@ describe("a book's place and its speed", () => {
         fake.emit('ended')
         expect(fake.src).toContain('two.m4b')
         expect(fake.playbackRate).toBe(1.5)
+    })
+})
+
+describe('leaving a book for a track', () => {
+    beforeEach(() => {
+        vi.stubGlobal('localStorage', fakeStorage())
+    })
+
+    test('a seek still waiting on the book file does not land on the track', () => {
+        playBook(book, 0)
+        // Move into the second file while the element has no metadata for it: the seek is held.
+        seek(1900)
+        expect(fake.readyState).toBe(0)
+        play(songs, 0)
+        fake.currentTime = 0
+        // The track's metadata arrives now; the book's held seek must not fire on it.
+        fake.arrive()
+        expect(fake.currentTime).toBe(0)
+        expect(currentSong()?.title).toBe('One')
+        expect(playerStore.get().book).toBeNull()
+    })
+
+    test('the reading speed does not follow into the music', () => {
+        playBook(book, 0)
+        setSpeed(1.5)
+        expect(fake.playbackRate).toBe(1.5)
+        play(songs, 0)
+        expect(fake.playbackRate).toBe(1)
     })
 })
