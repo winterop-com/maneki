@@ -77,7 +77,16 @@ def serve_cmd(
             envvar="MANEKI_LIBRARY", help="Library root - scanned recursively for both audio and video files"
         ),
     ],
-    host: Annotated[str, typer.Option("--host", help="Interface to bind")] = "127.0.0.1",
+    host: Annotated[
+        str,
+        typer.Option(
+            "--host",
+            help=(
+                "Interface to bind. Every interface by default, so a phone on the LAN or the "
+                "tailnet reaches the server; pass 127.0.0.1 to keep it to this machine."
+            ),
+        ),
+    ] = "0.0.0.0",
     port: Annotated[int, typer.Option("--port", "-p", help="Port to bind")] = 8765,
     auth: Annotated[
         bool,
@@ -85,8 +94,8 @@ def serve_cmd(
     ] = False,
     ui: Annotated[
         bool,
-        typer.Option("--ui", help="Serve the Maneki SPA at / (from desktop/react/)"),
-    ] = False,
+        typer.Option("--ui/--no-ui", help="Serve the web client at /. On by default; --no-ui for an API-only server."),
+    ] = True,
     workers: Annotated[
         int,
         typer.Option(

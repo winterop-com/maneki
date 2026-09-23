@@ -56,7 +56,7 @@ See the [desktop guide](docs/guides/desktop.md) for the full walkthrough.
 # One process, one URL, both protocols. Point at any directory - maneki
 # scans recursively and only mounts the kinds with content.
 uvx maneki serve ~/Downloads/library                     # audio on /audio/rest/*, video on /video/*
-uvx maneki serve ~/Downloads/library --ui                # also serve the web SPA at /
+uvx maneki serve ~/Downloads/library                     # API and web client at http://<host>:8765/
 
 # Shared across audio + video:
 uvx maneki info    ~/Downloads/library           # kind counts (audio + video)

@@ -289,7 +289,7 @@ Try the things you'd expect from a Subsonic client:
 
 ## 6. Optional: browse + play locally on the Mac
 
-`maneki serve --ui` mounts the web SPA at the same origin as the API.
+`maneki serve` mounts the web client at the same origin as the API (`--no-ui` leaves it out).
 Open `http://127.0.0.1:8765/` in any browser and you get the full
 audio + video UI with the same login (admin / admin by default).
 

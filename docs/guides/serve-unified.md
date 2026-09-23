@@ -1,6 +1,6 @@
 # maneki serve
 
-`maneki serve <root>` is the only serve command. It scans `<root>` recursively and auto-mounts whichever kinds have content: the Subsonic API at `/audio/rest/*` when audio is present, the Maneki-native video API at `/video/api/*` when video is present, the audiobook API at `/books/api/*` when `<root>` has an `Audiobooks/` folder, the web SPA at `/` with `--ui`.
+`maneki serve <root>` is the only serve command. It scans `<root>` recursively and auto-mounts whichever kinds have content: the Subsonic API at `/audio/rest/*` when audio is present, the Maneki-native video API at `/video/api/*` when video is present, the audiobook API at `/books/api/*` when `<root>` has an `Audiobooks/` folder, and the web client at `/` (on by default; `--no-ui` for an API-only server).
 
 There is no `<root>/audio/` or `<root>/videos/` subdirectory convention. You can have everything flat under one root, or nested in any layout — the audio scanner picks up dirs containing audio files (treating the dir-above as the artist) and the video scanner picks up matching files at any depth. The SPA's AUDIO/VIDEO rail self-hides when only one kind is mounted.
 
@@ -12,12 +12,12 @@ maneki serve ~/Downloads/library
 # Uvicorn running on http://127.0.0.1:8765
 
 # With the web SPA at /:
-maneki serve ~/Downloads/library --ui
+maneki serve ~/Downloads/library
 
 # Video-side: opt into / out of cache prewarm + contact-sheet posters
-maneki serve ~/library --ui --prewarm-cache         # populate thumbs / posters / subs at startup
-maneki serve ~/library --ui --no-cover-images       # skip contact sheets; fall back to row thumbnail
-maneki serve ~/library --ui --rescan                # rebuild every library from the files first
+maneki serve ~/library --prewarm-cache              # populate thumbs / posters / subs at startup
+maneki serve ~/library --no-cover-images            # skip contact sheets; fall back to row thumbnail
+maneki serve ~/library --rescan                     # rebuild every library from the files first
 ```
 
 Then:
@@ -80,12 +80,12 @@ There is no kind-toggle flag: to serve only audio, point at an audio-only root; 
 ## Options
 
 ```
-maneki serve <root> [--host HOST] [--port PORT] [--ui] [--auth] [--workers N]
+maneki serve <root> [--host HOST] [--port PORT] [--no-ui] [--auth] [--workers N]
 
   <root>          Library root - scanned recursively for both audio and video
-  --host HOST     Interface to bind (default 127.0.0.1)
+  --host HOST     Interface to bind (default 0.0.0.0, every interface; 127.0.0.1 keeps it local)
   --port PORT     Port to bind (default 8765)
-  --ui            Mount the web SPA at /
+  --no-ui         Leave the web client out and serve the APIs alone
   --auth          Require bearer-token auth on /video/* endpoints
   --workers N     Background transcode workers (default 0 = cpu_count // 2, capped 4)
 ```
@@ -153,11 +153,6 @@ the machine is reached by:
     <string>/Users/you/.local/bin/maneki</string>
     <string>serve</string>
     <string>/Volumes/Media</string>
-    <string>--host</string>
-    <string>your-machine.tailnet.ts.net</string>
-    <string>--port</string>
-    <string>8765</string>
-    <string>--ui</string>
   </array>
   <key>RunAtLoad</key>
   <true/>
@@ -191,7 +186,7 @@ Description=maneki
 After=network-online.target
 
 [Service]
-ExecStart=%h/.local/bin/maneki serve /srv/media --host 0.0.0.0 --port 8765 --ui
+ExecStart=%h/.local/bin/maneki serve /srv/media
 Restart=always
 
 [Install]

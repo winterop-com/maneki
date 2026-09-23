@@ -7,12 +7,12 @@ When the library root contains video files, `maneki serve` mounts the video pipe
 - On-the-fly ffmpeg-piped fragmented-MP4 streaming at `/video/api/videos/{id}/play` (one-shot fMP4 — no seek, no total duration, but cheap).
 - On-the-fly HLS at `/video/api/videos/{id}/hls/{filename}` (MPEG-TS segments transcoded on demand from a synthesised VOD manifest; recommended for browser playback because it gives the player full duration, seek-anywhere, and re-encodes when needed).
 
-The SPA at `/` (mount with `--ui`) is the primary client; the demo page is kept for quick debugging.
+The web client at `/` (served by default; `--no-ui` leaves it out) is the primary client; the demo page is kept for quick debugging.
 
 ## Quick start
 
 ```bash
-maneki serve ~/Downloads/library --ui
+maneki serve ~/Downloads/library
 # maneki serve starting   flags='SPA at /, workers=auto' host=127.0.0.1 port=8765 root=/Users/morteoh/Downloads/library
 # Uvicorn running on http://127.0.0.1:8765
 ```
@@ -54,20 +54,20 @@ Note `rel_path` is relative to the library root, not a subdirectory — there's 
 # Wipe the on-disk poster / thumbnail cache and the SQLite videos table
 # before scanning. Use after renames / edits if the cached frames are
 # stale and you want a clean rebuild.
-maneki serve ~/library --ui --rescan
+maneki serve ~/library --rescan
 
 # Generate every video's thumbnail, contact-sheet poster, and embedded-
 # subtitle probe during startup. Otherwise these populate lazily on
 # first browse / open. Heavy on cold libraries; idempotent on warm ones.
-maneki serve ~/library --ui --prewarm-cache
+maneki serve ~/library --prewarm-cache
 
 # Skip contact-sheet poster generation entirely. /poster falls back to
 # the single-frame row thumbnail. Useful on slow disks or huge
 # libraries where the 9-frame contact sheet isn't worth the wait.
-maneki serve ~/library --ui --no-cover-images
+maneki serve ~/library --no-cover-images
 
 # Increase background-transcode worker cap. Default is min(8, cpu // 2).
-maneki serve ~/library --ui --workers 8
+maneki serve ~/library --workers 8
 ```
 
 ## Endpoints
@@ -307,7 +307,7 @@ The video pipeline rides on `maneki serve`. Relevant flags:
 
 | Flag | Effect |
 |---|---|
-| `--ui` | Mount the React SPA at `/`. |
+| `--no-ui` | Serve the APIs alone; the web client at `/` is on by default. |
 | `--rescan` | Wipe `<root>/.maneki/posters/` and `DELETE FROM videos` before scanning, so the next browse / open regenerates from scratch. Since 0.19.20 it also rebuilds the music index and re-probes every book, in the background. |
 | `--prewarm-cache` | Run the subtitle probe + thumbnail + contact-sheet poster generation passes at startup (background workers, yields to foreground player requests). Idempotent on a warm cache. Aliased as `--prewarm-images` was renamed in 0.9. |
 | `--no-cover-images` | Skip the contact-sheet poster phase entirely. `/poster` falls back to the row thumbnail. |
