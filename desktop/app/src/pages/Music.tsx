@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useNavigate, useParams } from 'react-router'
 
 import { CoverArt } from '@/components/CoverArt'
+import { Skeleton } from '@/components/Skeleton'
 import { Button } from '@/components/ui/button'
 import { useStore, useStoreValue } from '@/hooks/use-store'
 import { clock } from '@/lib/format'
@@ -78,7 +79,13 @@ function Favourites({ credentials }: { credentials: Credentials }) {
     }, [credentials])
 
     if (refusal) return <Notice>{refusal}</Notice>
-    if (!starred) return <Notice>Reading your favourites.</Notice>
+    if (!starred) {
+        return (
+            <div className="p-4">
+                <Skeleton rows={8} />
+            </div>
+        )
+    }
     const empty = !starred.albums.length && !starred.songs.length && !starred.artists.length
     if (empty) return <Notice>Nothing starred yet.</Notice>
 
@@ -237,7 +244,13 @@ function Artists({ credentials }: { credentials: Credentials }) {
     const ordered = useMemo(() => sortArtists(artists ?? [], sort, articles), [articles, artists, sort])
 
     if (refusal) return <Notice>{refusal}</Notice>
-    if (!artists) return <Notice>Reading the library.</Notice>
+    if (!artists) {
+        return (
+            <div className="p-2">
+                <Skeleton rows={12} />
+            </div>
+        )
+    }
     if (!artists.length) return <Notice>No artists.</Notice>
 
     // Folded on both sides, so "royk" finds Röyksopp the way the server's own index does.
@@ -371,7 +384,13 @@ function ArtistScreen({ credentials, id }: { credentials: Credentials; id: strin
     const refusal = answered ? held.refusal : null
 
     if (refusal) return <Notice>{refusal}</Notice>
-    if (!data) return <Notice>Opening the artist.</Notice>
+    if (!data) {
+        return (
+            <div className="p-4">
+                <Skeleton rows={10} kind="card" />
+            </div>
+        )
+    }
 
     return (
         <div className="p-4">
@@ -451,7 +470,13 @@ function AlbumScreen({ credentials, id }: { credentials: Credentials; id: string
     const refusal = answered ? held.refusal : null
 
     if (refusal) return <Notice>{refusal}</Notice>
-    if (!data) return <Notice>Opening the album.</Notice>
+    if (!data) {
+        return (
+            <div className="p-4">
+                <Skeleton rows={10} />
+            </div>
+        )
+    }
     const { album, songs } = data
     // THE BUTTON KNOWS WHEN THIS IS THE ALBUM PLAYING. A button that said Play beside a track
     // list with one of its rows sounding was saying something false; here it pauses that, and

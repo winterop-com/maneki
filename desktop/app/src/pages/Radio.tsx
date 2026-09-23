@@ -1,6 +1,7 @@
 import { Radio as RadioIcon } from 'lucide-react'
 import { useEffect, useState } from 'react'
 
+import { Skeleton } from '@/components/Skeleton'
 import { useStore } from '@/hooks/use-store'
 import { playerStore, playStation } from '@/lib/player'
 import { sessionStore } from '@/lib/session'
@@ -24,7 +25,13 @@ export function RadioPage() {
 
     if (!credentials) return <Notice>This server has no stations.</Notice>
     if (refusal) return <Notice>{refusal}</Notice>
-    if (!stations) return <Notice>Reading the stations.</Notice>
+    if (!stations) {
+        return (
+            <div className="p-2">
+                <Skeleton rows={8} />
+            </div>
+        )
+    }
     if (!stations.length) return <Notice>No stations.</Notice>
 
     return (
