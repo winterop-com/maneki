@@ -11,7 +11,17 @@
  * sentence, so a screen can draw the reason rather than "request failed".
  */
 
-import type { BookDetail, BookProgress, BookSummary, Capabilities } from '@/lib/types'
+import type {
+    BookDetail,
+    BookProgress,
+    BookSummary,
+    Capabilities,
+    YouTubeChannel,
+    YouTubeCounts,
+    YouTubeQuality,
+    YouTubeTab,
+    YouTubeVideo,
+} from '@/lib/types'
 
 /** A server's answer that was not a success. */
 export class ApiError extends Error {
@@ -120,4 +130,69 @@ export const books = {
         url(`/books/api/books/${id}/cover${size === undefined ? '' : `?size=${String(size)}`}`),
     /** The stream URL of one file. `file.url` is relative to the books mount. */
     fileUrl: (path: string): string => url(`/books/${path}`),
+}
+
+/**
+ * Where the native video API is mounted, which is what `capabilities.endpoints.video_api`
+ * answers with. Written here the way the books mount is: one constant rather than a prefix
+ * every call has to remember.
+ */
+const VIDEO_API = '/video/api'
+
+/** `?refresh=1` when a reader asked for it, which is what busts the server's listing cache. */
+function refreshQuery(refresh: boolean | undefined, separator = '?'): string {
+    return refresh === true ? `${separator}refresh=1` : ''
+}
+
+/**
+ * The YouTube half of the video API.
+ *
+ * SUBSCRIPTIONS ARE THE SERVER'S. A channel is resolved and persisted per account by yt-dlp
+ * behind these endpoints, and a video plays through the same HLS pipeline a local file does --
+ * so nothing in this client ever talks to YouTube except for a thumbnail, which is a URL
+ * derived from the video id and needs no round trip through maneki at all.
+ */
+export const youtube = {
+    /** The account's channels, each with the identity and avatar the last listing found. */
+    channels: (refresh?: boolean): Promise<YouTubeChannel[]> =>
+        request(`${VIDEO_API}/youtube/channels${refreshQuery(refresh)}`),
+    /** Subscribe. `url` must name a YouTube host, or the server refuses it with a 422. */
+    addChannel: (channelUrl: string): Promise<YouTubeChannel> =>
+        send(`${VIDEO_API}/youtube/channels`, 'POST', { url: channelUrl }),
+    /** Unsubscribe. Idempotent, so a second press is not a refusal. */
+    removeChannel: (channelId: string): Promise<{ removed: string }> =>
+        send(`${VIDEO_API}/youtube/channels/${encodeURIComponent(channelId)}`, 'DELETE'),
+    /** How many items the channel has on each tab, capped. Three listings, so it is slow. */
+    counts: (channelId: string, refresh?: boolean): Promise<YouTubeCounts> =>
+        request(
+            `${VIDEO_API}/youtube/channels/${encodeURIComponent(channelId)}/counts${refreshQuery(refresh)}`,
+        ),
+    /** One tab's recent items. A channel with no such tab answers with an empty list. */
+    videos: (channelId: string, tab: YouTubeTab, refresh?: boolean): Promise<YouTubeVideo[]> =>
+        request(
+            `${VIDEO_API}/youtube/channels/${encodeURIComponent(channelId)}/videos?tab=${tab}` +
+                refreshQuery(refresh, '&'),
+        ),
+    /** One video's title and length, which is what a deep link into the player has to ask for. */
+    video: (videoId: string): Promise<YouTubeVideo> =>
+        request(`${VIDEO_API}/youtube/videos/${encodeURIComponent(videoId)}`),
+    /** The heights this server offers and the one it uses when asked for none. */
+    quality: (): Promise<YouTubeQuality> => request(`${VIDEO_API}/youtube/quality`),
+    /** The HLS manifest, capped at `height` when one was chosen and at the server's when not. */
+    hlsUrl: (videoId: string, height?: number): string =>
+        url(
+            `${VIDEO_API}/youtube/videos/${encodeURIComponent(videoId)}/hls/index.m3u8` +
+                (height !== undefined && height > 0 ? `?h=${String(height)}` : ''),
+        ),
+    /**
+     * A thumbnail, straight from YouTube's CDN.
+     *
+     * Derivable from the id, so it costs no round trip through maneki and no ffmpeg: a grid of
+     * sixty of them is sixty requests the server never sees. `poster` is the larger one the
+     * player shows before the first frame arrives.
+     */
+    thumbUrl: (videoId: string): string =>
+        `https://i.ytimg.com/vi/${encodeURIComponent(videoId)}/hqdefault.jpg`,
+    posterUrl: (videoId: string): string =>
+        `https://i.ytimg.com/vi/${encodeURIComponent(videoId)}/maxresdefault.jpg`,
 }

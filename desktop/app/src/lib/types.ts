@@ -63,3 +63,55 @@ export interface BookProgress {
     finished: boolean
     updated_at: number
 }
+
+/**
+ * What a channel's item is: which tab it came from, said as a word.
+ *
+ * `live` covers a broadcast that has finished as well as one still running -- the tab holds
+ * both -- so `is_live` on the item is what says whether it is on air now.
+ */
+export type YouTubeKind = 'video' | 'short' | 'live'
+
+/** Which of a channel's three tabs a listing is asked for, spelled as the wire spells it. */
+export type YouTubeTab = 'videos' | 'shorts' | 'streams'
+
+/** One subscribed channel. `id` is the stable `UC...` the rest of the API is addressed by. */
+export interface YouTubeChannel {
+    id: string
+    title: string
+    url: string
+    handle: string | null
+    thumbnail_url: string | null
+}
+
+/** One item in a channel listing. Flat extraction, so there are no stream URLs on it. */
+export interface YouTubeVideo {
+    id: string
+    title: string
+    duration_s: number | null
+    thumbnail_url: string
+    kind: YouTubeKind
+    is_live: boolean
+    upload_date: string | null
+}
+
+/**
+ * How many items a channel has on each tab.
+ *
+ * The numbers are the size of a capped listing, so `*_capped` says the channel has at least
+ * that many rather than exactly that many. A true total costs a full extraction.
+ */
+export interface YouTubeCounts {
+    videos: number
+    shorts: number
+    live: number
+    videos_capped: boolean
+    shorts_capped: boolean
+    live_capped: boolean
+}
+
+/** The heights this server will transcode a YouTube video down to, and the one it picks itself. */
+export interface YouTubeQuality {
+    heights: number[]
+    default: number
+}

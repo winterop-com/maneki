@@ -12,12 +12,12 @@
  * next connect without this file changing.
  */
 
-import { BookAudio, Clapperboard, Music, Radio, Star, type LucideIcon } from 'lucide-react'
+import { BookAudio, Clapperboard, MonitorPlay, Music, Radio, Star, type LucideIcon } from 'lucide-react'
 
 import type { Capabilities } from '@/lib/types'
 
 /** The libraries an entry can hang off, spelled as `/capabilities` spells them. */
-export type Library = 'audio' | 'video' | 'books' | 'radio'
+export type Library = 'audio' | 'video' | 'books' | 'radio' | 'youtube'
 
 /** One entry in the rail: where it goes, what it is called, and the mark beside it. */
 export interface NavEntry {
@@ -50,6 +50,9 @@ export const MUSIC_PATH = '/music'
 
 /** Where they land when it has not: a books-only instance is a whole instance. */
 export const BOOKS_PATH = '/books'
+
+/** Where the subscribed channels are, which a channel and a video both sit under. */
+export const YOUTUBE_PATH = '/youtube'
 
 export const NAV: NavSection[] = [
     {
@@ -96,6 +99,13 @@ export const NAV: NavSection[] = [
                 hint: 'Films and series',
                 icon: Clapperboard,
                 requires: 'video',
+            },
+            {
+                path: YOUTUBE_PATH,
+                label: 'YouTube',
+                hint: 'Channels you subscribed to, and what they put out',
+                icon: MonitorPlay,
+                requires: 'youtube',
             },
         ],
     },

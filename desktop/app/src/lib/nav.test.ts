@@ -34,6 +34,15 @@ describe('the navigation', () => {
         expect(paths).toEqual(['/books'])
     })
 
+    test('offers YouTube on its own capability, not on there being local video', () => {
+        expect(entriesFor(server({ video: true })).map((entry) => entry.path)).toEqual(['/video'])
+        expect(entriesFor(server({ youtube: true })).map((entry) => entry.path)).toEqual(['/youtube'])
+        expect(entriesFor(server({ video: true, youtube: true })).map((entry) => entry.path)).toEqual([
+            '/video',
+            '/youtube',
+        ])
+    })
+
     test('drops a section left with no entries rather than drawing its heading', () => {
         const sections = sectionsFor(server({ audio: true }))
         expect(sections.map((section) => section.id)).toEqual(['listen'])
@@ -68,6 +77,12 @@ describe('what the rail marks', () => {
         expect(entryAt('/music/starred')?.label).toBe('Favourites')
         expect(entryAt('/music/album/al_1')?.label).toBe('Music')
         expect(entryAt('/books/bk_1')?.label).toBe('Audiobooks')
+    })
+
+    test('a channel and a video are both inside YouTube, which stays marked', () => {
+        expect(entryAt('/youtube/c/UC_x5XG1OV2P6uZZ5FSM9Ttw')?.label).toBe('YouTube')
+        expect(entryAt('/youtube/v/dQw4w9WgXcQ')?.label).toBe('YouTube')
+        expect(marksOnlyItself('/youtube')).toBe(false)
     })
 
     test('an address under no entry marks nothing', () => {
