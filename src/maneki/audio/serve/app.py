@@ -410,7 +410,10 @@ class SubsonicFormatMiddleware(BaseHTTPMiddleware):
     """
 
     async def dispatch(self, request: Request, call_next: Any) -> Response:  # noqa: D102
-        if not request.url.path.startswith("/rest/"):
+        # The route path, not the request path: under the /audio mount the
+        # latter never starts with /rest/, and this middleware stood aside
+        # while JSON went out to clients that had asked for XML by default.
+        if not _route_path(request.scope).startswith("/rest/"):
             return await call_next(request)  # type: ignore[no-any-return]
         wants_json = request.query_params.get("f") == "json"
         if wants_json:

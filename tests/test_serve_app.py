@@ -285,3 +285,16 @@ def test_bare_mount_prefix_answers_like_its_root(library_root: Path) -> None:
     client = TestClient(create_combined_app(root=library_root, audio_cfg=_TEST_AUDIO_CFG))
     assert client.get("/audio").status_code == 200
     assert client.get("/audio/").status_code == 200
+
+
+def test_subsonic_answers_xml_by_default_under_the_mount(library_root: Path) -> None:
+    """The Subsonic default is XML, and Amperfy parses nothing else: a JSON
+    body to a request without `f=json` reads to it as a failed login. Under
+    the /audio mount the format middleware saw the full path and stood
+    aside, so JSON went out regardless."""
+    client = TestClient(create_combined_app(root=library_root, audio_cfg=_TEST_AUDIO_CFG))
+    resp = client.get("/audio/rest/ping.view?u=admin&p=admin&v=1.16.1&c=test")
+    assert resp.status_code == 200
+    assert resp.headers["content-type"].startswith("application/xml")
+    assert b"<subsonic-response" in resp.content
+    assert b'status="ok"' in resp.content
