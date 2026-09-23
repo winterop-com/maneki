@@ -82,51 +82,87 @@ function Favourites({ credentials }: { credentials: Credentials }) {
     const empty = !starred.albums.length && !starred.songs.length && !starred.artists.length
     if (empty) return <Notice>Nothing starred yet.</Notice>
 
+    // THREE SHELVES, EACH SAID ONCE. Two of them are lists of rows now, so each carries a
+    // heading: a shelf told apart from the one above it only by what the covers look like is a
+    // shelf that stops being told apart the moment neither has covers.
     return (
         <div className="p-4">
             <h1 className="mb-4 text-base">Favourites</h1>
+            {starred.artists.length > 0 && (
+                <section className="mb-6">
+                    <h2 className="mb-2 text-sm font-medium">Artists</h2>
+                    <ul>
+                        {starred.artists.map((artist) => (
+                            <li key={artist.id}>
+                                <button
+                                    type="button"
+                                    onClick={() => navigate(`/music/artist/${artist.id}`)}
+                                    className="row-hover flex min-h-finger w-full items-center gap-3 rounded-md px-3 text-left text-sm"
+                                >
+                                    <span className="min-w-0 flex-1 truncate">{artist.name}</span>
+                                    <span className="shrink-0 text-xs text-muted-foreground">
+                                        {artist.albumCount ?? 0}{' '}
+                                        {artist.albumCount === 1 ? 'album' : 'albums'}
+                                    </span>
+                                </button>
+                            </li>
+                        ))}
+                    </ul>
+                </section>
+            )}
             {starred.albums.length > 0 && (
-                <ul className="mb-6 grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
-                    {starred.albums.map((album) => (
-                        <li key={album.id}>
-                            <button
-                                type="button"
-                                onClick={() => navigate(`/music/album/${album.id}`)}
-                                className="row-hover w-full rounded-lg p-2 text-left"
-                            >
-                                <Cover
-                                    credentials={credentials}
-                                    id={album.id}
-                                    art={album.coverArt}
-                                    className="mb-2 w-full rounded-md"
-                                />
-                                <p className="truncate text-sm font-medium">{album.name}</p>
-                                <p className="truncate text-xs text-muted-foreground">{album.artist}</p>
-                            </button>
-                        </li>
-                    ))}
-                </ul>
+                <section className="mb-6">
+                    <h2 className="mb-2 text-sm font-medium">Albums</h2>
+                    <ul className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+                        {starred.albums.map((album) => (
+                            <li key={album.id}>
+                                <button
+                                    type="button"
+                                    onClick={() => navigate(`/music/album/${album.id}`)}
+                                    className="row-hover w-full rounded-lg p-2 text-left"
+                                >
+                                    <Cover
+                                        credentials={credentials}
+                                        id={album.id}
+                                        art={album.coverArt}
+                                        className="mb-2 w-full rounded-md"
+                                    />
+                                    <p className="truncate text-sm font-medium">{album.name}</p>
+                                    <p className="truncate text-xs text-muted-foreground">{album.artist}</p>
+                                </button>
+                            </li>
+                        ))}
+                    </ul>
+                </section>
             )}
             {starred.songs.length > 0 && (
-                <ol className="rounded-lg border">
-                    {starred.songs.map((song, index) => (
-                        <li key={song.id}>
-                            <button
-                                type="button"
-                                onClick={() => play(starred.songs, index)}
-                                className="row-hover flex min-h-finger w-full items-center gap-3 px-3 text-left text-sm"
-                            >
-                                <span className="min-w-0 flex-1 truncate">{song.title}</span>
-                                <span className="shrink-0 truncate text-xs text-muted-foreground">
-                                    {song.artist}
-                                </span>
-                                <span className="shrink-0 font-mono text-xs text-muted-foreground">
-                                    {clock(song.duration ?? 0)}
-                                </span>
-                            </button>
-                        </li>
-                    ))}
-                </ol>
+                <section>
+                    <h2 className="mb-2 text-sm font-medium">Tracks</h2>
+                    <ol className="rounded-lg border">
+                        {starred.songs.map((song, index) => (
+                            <li key={song.id} className="flex items-center">
+                                <button
+                                    type="button"
+                                    onClick={() => play(starred.songs, index)}
+                                    className="row-hover flex min-h-finger w-full items-center gap-3 px-3 text-left text-sm"
+                                >
+                                    <span className="min-w-0 flex-1 truncate">{song.title}</span>
+                                    <span className="shrink-0 truncate text-xs text-muted-foreground">
+                                        {song.artist}
+                                    </span>
+                                    <span className="shrink-0 font-mono text-xs text-muted-foreground">
+                                        {clock(song.duration ?? 0)}
+                                    </span>
+                                </button>
+                                {/* THE ONE SCREEN A STAR IS TAKEN OFF ON HAD NO WAY TO TAKE ONE
+                                    OFF. The same button the album rows wear, reading the same
+                                    marks, so a track unstarred here goes from the album screen
+                                    and from the player bar's own star in the same gesture. */}
+                                <StarButton credentials={credentials} song={song} />
+                            </li>
+                        ))}
+                    </ol>
+                </section>
             )}
         </div>
     )
