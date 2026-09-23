@@ -12,6 +12,7 @@ import type {
 import type { PlaybackSample } from '@/lib/video'
 import {
     bitrateLabel,
+    browseHref,
     compareNames,
     crumbsOf,
     encoderOf,
@@ -30,6 +31,7 @@ import {
     subtitleLabel,
     subtitlePath,
     thumbnailPath,
+    watchHref,
 } from '@/lib/video'
 
 const MOUNT = '/video/api'
@@ -112,6 +114,22 @@ describe('crumbsOf', () => {
             { name: 'films', path: 'films' },
             { name: 'noir', path: 'films/noir' },
         ])
+    })
+})
+
+describe('browseHref', () => {
+    it('sends the root to the section rather than to an empty folder', () => {
+        expect(browseHref('')).toBe('/video')
+    })
+
+    it('escapes each segment on its own, so a separator survives', () => {
+        expect(browseHref('Star Trek & co/S01')).toBe('/video/browse/Star%20Trek%20%26%20co/S01')
+    })
+})
+
+describe('watchHref', () => {
+    it('escapes an id that holds separators', () => {
+        expect(watchHref('Star Trek-S01-one')).toBe('/video/v/Star%20Trek-S01-one')
     })
 })
 

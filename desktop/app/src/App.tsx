@@ -9,7 +9,7 @@ import { BooksPage } from '@/pages/Books'
 import { MusicPage } from '@/pages/Music'
 import { RadioPage } from '@/pages/Radio'
 import { SignIn } from '@/pages/SignIn'
-import { Soon } from '@/pages/Soon'
+import { VideoPage } from '@/pages/Video'
 
 export default function App() {
     const session = useStore(sessionStore)
@@ -36,7 +36,9 @@ export default function App() {
                 <Route path="/music/album/:albumId" element={<MusicPage />} />
                 <Route path="/music/starred" element={<MusicPage view="starred" />} />
                 <Route path="/radio" element={<RadioPage />} />
-                <Route path="/video/*" element={<Soon section="Video" />} />
+                <Route path="/video" element={<VideoPage />} />
+                {/* The splat carries the whole of a folder's path, so a season is a link. */}
+                <Route path="/video/browse/*" element={<VideoPage />} />
                 <Route
                     path="*"
                     element={<Navigate to={session.capabilities?.audio ? '/music' : '/books'} replace />}

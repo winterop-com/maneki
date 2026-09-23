@@ -45,6 +45,24 @@ export function crumbsOf(relPath: string): Crumb[] {
     return segments.map((name, index) => ({ name, path: segments.slice(0, index + 1).join('/') }))
 }
 
+/**
+ * Where a folder is read, as an address somebody can be sent.
+ *
+ * The root is the section's own address rather than a browse with an empty segment on the end,
+ * so the entry in the rail and the top of the trail are one place. Each segment is escaped on
+ * its own -- a folder called `Star Trek & co` is one segment of a path, not three.
+ */
+export function browseHref(relPath: string): string {
+    const segments = relPath.split('/').filter((segment) => segment !== '')
+    if (segments.length === 0) return '/video'
+    return `/video/browse/${segments.map((segment) => encodeURIComponent(segment)).join('/')}`
+}
+
+/** Where one video is watched. */
+export function watchHref(id: string): string {
+    return `/video/v/${encodeURIComponent(id)}`
+}
+
 /** The folder a path sits in. A path with no separator in it sits in the root, which is `''`. */
 export function parentOf(relPath: string): string {
     const trimmed = relPath.replace(/\/+$/, '')
