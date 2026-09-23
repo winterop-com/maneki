@@ -41,6 +41,15 @@ const selectPositionS = (state: { positionS: number }) => state.positionS
  */
 export function LyricsOverlay() {
     const open = useStore(lyricsOpen)
+    // NOTHING READS THE PLAYER UNTIL THE WORDS ARE UP. The position publishes four times a
+    // second, and a component subscribed to it to render nothing is the cost this app moved to
+    // `useStoreValue` to stop paying. The subscriptions are the inner component's, so they
+    // exist for exactly as long as it is on screen.
+    if (!open) return null
+    return <Words />
+}
+
+function Words() {
     const session = useStore(sessionStore)
     const songId = useStoreValue(playerStore, selectSongId)
     const positionS = useStoreValue(playerStore, selectPositionS)
@@ -56,7 +65,6 @@ export function LyricsOverlay() {
     const words = answer !== null && answer.songId === songId ? answer.words : null
 
     useEffect(() => {
-        if (!open) return
         const escape = (event: KeyboardEvent) => {
             if (event.key === 'Escape') closeLyrics()
         }
@@ -64,13 +72,13 @@ export function LyricsOverlay() {
         return () => {
             document.removeEventListener('keydown', escape)
         }
-    }, [open])
+    }, [])
 
     // Asked for when this goes up, and again on every change of track. The track is read inside
     // the effect rather than depended on: the player rebuilds its state four times a second and
     // the id is the only part of it that decides whether these are the same words.
     useEffect(() => {
-        if (!open || !credentials || songId === null) return
+        if (!credentials || songId === null) return
         const asked = currentSong()
         if (asked === null) return
         readLyrics(credentials, asked)
@@ -80,7 +88,7 @@ export function LyricsOverlay() {
             .catch(() => {
                 setAnswer({ songId: asked.id, words: NO_LYRICS })
             })
-    }, [credentials, open, songId])
+    }, [credentials, songId])
 
     const at = words?.synced === true ? lineAt(words.lines, positionS) : -1
 
@@ -90,8 +98,6 @@ export function LyricsOverlay() {
         if (at < 0) return
         active.current?.scrollIntoView({ block: 'center', behavior: still ? 'auto' : 'smooth' })
     }, [at, still])
-
-    if (!open) return null
 
     return (
         <div
