@@ -1562,7 +1562,7 @@
 
 
 <h1 id="maneki-serve">maneki serve<a class="headerlink" href="#maneki-serve" title="Permanent link">&para;</a></h1>
-<p><code>maneki serve &lt;root&gt;</code> is the only serve command. It scans <code>&lt;root&gt;</code> recursively and auto-mounts whichever kinds have content: the Subsonic API at <code>/audio/rest/*</code> when audio is present, the Maneki-native video API at <code>/video/api/*</code> when video is present, the audiobook API at <code>/books/api/*</code> when <code>&lt;root&gt;</code> has an <code>Audiobooks/</code> folder, the web SPA at <code>/</code> with <code>--ui</code>.</p>
+<p><code>maneki serve &lt;root&gt;</code> is the only serve command. It scans <code>&lt;root&gt;</code> recursively and auto-mounts whichever kinds have content: the Subsonic API at <code>/audio/rest/*</code> when audio is present, the Maneki-native video API at <code>/video/api/*</code> when video is present, the audiobook API at <code>/books/api/*</code> when <code>&lt;root&gt;</code> has an <code>Audiobooks/</code> folder, and the web client at <code>/</code> (on by default; <code>--no-ui</code> for an API-only server).</p>
 <p>There is no <code>&lt;root&gt;/audio/</code> or <code>&lt;root&gt;/videos/</code> subdirectory convention. You can have everything flat under one root, or nested in any layout — the audio scanner picks up dirs containing audio files (treating the dir-above as the artist) and the video scanner picks up matching files at any depth. The SPA's AUDIO/VIDEO rail self-hides when only one kind is mounted.</p>
 <h2 id="quick-start">Quick start<a class="headerlink" href="#quick-start" title="Permanent link">&para;</a></h2>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>maneki<span class="w"> </span>serve<span class="w"> </span>~/Downloads/library
@@ -1570,12 +1570,12 @@
 <a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="c1"># Uvicorn running on http://127.0.0.1:8765</span>
 <a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>
 <a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a><span class="c1"># With the web SPA at /:</span>
-<a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>maneki<span class="w"> </span>serve<span class="w"> </span>~/Downloads/library<span class="w"> </span>--ui
+<a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>maneki<span class="w"> </span>serve<span class="w"> </span>~/Downloads/library
 <a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>
 <a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a><span class="c1"># Video-side: opt into / out of cache prewarm + contact-sheet posters</span>
-<a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a>maneki<span class="w"> </span>serve<span class="w"> </span>~/library<span class="w"> </span>--ui<span class="w"> </span>--prewarm-cache<span class="w">         </span><span class="c1"># populate thumbs / posters / subs at startup</span>
-<a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a>maneki<span class="w"> </span>serve<span class="w"> </span>~/library<span class="w"> </span>--ui<span class="w"> </span>--no-cover-images<span class="w">       </span><span class="c1"># skip contact sheets; fall back to row thumbnail</span>
-<a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a>maneki<span class="w"> </span>serve<span class="w"> </span>~/library<span class="w"> </span>--ui<span class="w"> </span>--rescan<span class="w">                </span><span class="c1"># rebuild every library from the files first</span>
+<a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a>maneki<span class="w"> </span>serve<span class="w"> </span>~/library<span class="w"> </span>--prewarm-cache<span class="w">              </span><span class="c1"># populate thumbs / posters / subs at startup</span>
+<a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a>maneki<span class="w"> </span>serve<span class="w"> </span>~/library<span class="w"> </span>--no-cover-images<span class="w">            </span><span class="c1"># skip contact sheets; fall back to row thumbnail</span>
+<a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a>maneki<span class="w"> </span>serve<span class="w"> </span>~/library<span class="w"> </span>--rescan<span class="w">                     </span><span class="c1"># rebuild every library from the files first</span>
 </code></pre></div>
 <p>Then:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>curl<span class="w"> </span>-s<span class="w"> </span>http://127.0.0.1:8765/capabilities<span class="w"> </span><span class="p">|</span><span class="w"> </span>jq
@@ -1642,12 +1642,12 @@
 <p>Both mounts are always present, because each also hosts a remote source that needs nothing on disk: internet radio (<code>getInternetRadioStations</code>, the ICY proxy) on <code>/audio/rest/*</code>, YouTube on <code>/video/api/*</code>. What the scan decides is the <em>content</em> of the local half, reported by the <code>audio</code> / <code>video</code> flags — so a client can tell "nothing to browse here" from "this mount does not exist". The local library scan itself is still gated on finding files of that kind, so a radio-only root pays no walk and gets no <code>.maneki/index.db</code> written into it.</p>
 <p>There is no kind-toggle flag: to serve only audio, point at an audio-only root; to serve only video, point at a video-only root; to run Maneki as a pure radio player, point it at an empty directory. The single-library design is the whole point.</p>
 <h2 id="options">Options<a class="headerlink" href="#options" title="Permanent link">&para;</a></h2>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>maneki serve &lt;root&gt; [--host HOST] [--port PORT] [--ui] [--auth] [--workers N]
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>maneki serve &lt;root&gt; [--host HOST] [--port PORT] [--no-ui] [--auth] [--workers N]
 <a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>
 <a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>  &lt;root&gt;          Library root - scanned recursively for both audio and video
-<a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a>  --host HOST     Interface to bind (default 127.0.0.1)
+<a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a>  --host HOST     Interface to bind (default 0.0.0.0, every interface; 127.0.0.1 keeps it local)
 <a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a>  --port PORT     Port to bind (default 8765)
-<a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a>  --ui            Mount the web SPA at /
+<a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a>  --no-ui         Leave the web client out and serve the APIs alone
 <a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a>  --auth          Require bearer-token auth on /video/* endpoints
 <a id="__codelineno-3-8" name="__codelineno-3-8" href="#__codelineno-3-8"></a>  --workers N     Background transcode workers (default 0 = cpu_count // 2, capped 4)
 </code></pre></div>
@@ -1697,22 +1697,17 @@ the machine is reached by:</p>
 <a id="__codelineno-6-10" name="__codelineno-6-10" href="#__codelineno-6-10"></a><span class="w">    </span><span class="nt">&lt;string&gt;</span>/Users/you/.local/bin/maneki<span class="nt">&lt;/string&gt;</span>
 <a id="__codelineno-6-11" name="__codelineno-6-11" href="#__codelineno-6-11"></a><span class="w">    </span><span class="nt">&lt;string&gt;</span>serve<span class="nt">&lt;/string&gt;</span>
 <a id="__codelineno-6-12" name="__codelineno-6-12" href="#__codelineno-6-12"></a><span class="w">    </span><span class="nt">&lt;string&gt;</span>/Volumes/Media<span class="nt">&lt;/string&gt;</span>
-<a id="__codelineno-6-13" name="__codelineno-6-13" href="#__codelineno-6-13"></a><span class="w">    </span><span class="nt">&lt;string&gt;</span>--host<span class="nt">&lt;/string&gt;</span>
-<a id="__codelineno-6-14" name="__codelineno-6-14" href="#__codelineno-6-14"></a><span class="w">    </span><span class="nt">&lt;string&gt;</span>your-machine.tailnet.ts.net<span class="nt">&lt;/string&gt;</span>
-<a id="__codelineno-6-15" name="__codelineno-6-15" href="#__codelineno-6-15"></a><span class="w">    </span><span class="nt">&lt;string&gt;</span>--port<span class="nt">&lt;/string&gt;</span>
-<a id="__codelineno-6-16" name="__codelineno-6-16" href="#__codelineno-6-16"></a><span class="w">    </span><span class="nt">&lt;string&gt;</span>8765<span class="nt">&lt;/string&gt;</span>
-<a id="__codelineno-6-17" name="__codelineno-6-17" href="#__codelineno-6-17"></a><span class="w">    </span><span class="nt">&lt;string&gt;</span>--ui<span class="nt">&lt;/string&gt;</span>
-<a id="__codelineno-6-18" name="__codelineno-6-18" href="#__codelineno-6-18"></a><span class="w">  </span><span class="nt">&lt;/array&gt;</span>
-<a id="__codelineno-6-19" name="__codelineno-6-19" href="#__codelineno-6-19"></a><span class="w">  </span><span class="nt">&lt;key&gt;</span>RunAtLoad<span class="nt">&lt;/key&gt;</span>
-<a id="__codelineno-6-20" name="__codelineno-6-20" href="#__codelineno-6-20"></a><span class="w">  </span><span class="nt">&lt;true/&gt;</span>
-<a id="__codelineno-6-21" name="__codelineno-6-21" href="#__codelineno-6-21"></a><span class="w">  </span><span class="nt">&lt;key&gt;</span>KeepAlive<span class="nt">&lt;/key&gt;</span>
-<a id="__codelineno-6-22" name="__codelineno-6-22" href="#__codelineno-6-22"></a><span class="w">  </span><span class="nt">&lt;true/&gt;</span>
-<a id="__codelineno-6-23" name="__codelineno-6-23" href="#__codelineno-6-23"></a><span class="w">  </span><span class="nt">&lt;key&gt;</span>StandardOutPath<span class="nt">&lt;/key&gt;</span>
-<a id="__codelineno-6-24" name="__codelineno-6-24" href="#__codelineno-6-24"></a><span class="w">  </span><span class="nt">&lt;string&gt;</span>/tmp/maneki.log<span class="nt">&lt;/string&gt;</span>
-<a id="__codelineno-6-25" name="__codelineno-6-25" href="#__codelineno-6-25"></a><span class="w">  </span><span class="nt">&lt;key&gt;</span>StandardErrorPath<span class="nt">&lt;/key&gt;</span>
-<a id="__codelineno-6-26" name="__codelineno-6-26" href="#__codelineno-6-26"></a><span class="w">  </span><span class="nt">&lt;string&gt;</span>/tmp/maneki.log<span class="nt">&lt;/string&gt;</span>
-<a id="__codelineno-6-27" name="__codelineno-6-27" href="#__codelineno-6-27"></a><span class="nt">&lt;/dict&gt;</span>
-<a id="__codelineno-6-28" name="__codelineno-6-28" href="#__codelineno-6-28"></a><span class="nt">&lt;/plist&gt;</span>
+<a id="__codelineno-6-13" name="__codelineno-6-13" href="#__codelineno-6-13"></a><span class="w">  </span><span class="nt">&lt;/array&gt;</span>
+<a id="__codelineno-6-14" name="__codelineno-6-14" href="#__codelineno-6-14"></a><span class="w">  </span><span class="nt">&lt;key&gt;</span>RunAtLoad<span class="nt">&lt;/key&gt;</span>
+<a id="__codelineno-6-15" name="__codelineno-6-15" href="#__codelineno-6-15"></a><span class="w">  </span><span class="nt">&lt;true/&gt;</span>
+<a id="__codelineno-6-16" name="__codelineno-6-16" href="#__codelineno-6-16"></a><span class="w">  </span><span class="nt">&lt;key&gt;</span>KeepAlive<span class="nt">&lt;/key&gt;</span>
+<a id="__codelineno-6-17" name="__codelineno-6-17" href="#__codelineno-6-17"></a><span class="w">  </span><span class="nt">&lt;true/&gt;</span>
+<a id="__codelineno-6-18" name="__codelineno-6-18" href="#__codelineno-6-18"></a><span class="w">  </span><span class="nt">&lt;key&gt;</span>StandardOutPath<span class="nt">&lt;/key&gt;</span>
+<a id="__codelineno-6-19" name="__codelineno-6-19" href="#__codelineno-6-19"></a><span class="w">  </span><span class="nt">&lt;string&gt;</span>/tmp/maneki.log<span class="nt">&lt;/string&gt;</span>
+<a id="__codelineno-6-20" name="__codelineno-6-20" href="#__codelineno-6-20"></a><span class="w">  </span><span class="nt">&lt;key&gt;</span>StandardErrorPath<span class="nt">&lt;/key&gt;</span>
+<a id="__codelineno-6-21" name="__codelineno-6-21" href="#__codelineno-6-21"></a><span class="w">  </span><span class="nt">&lt;string&gt;</span>/tmp/maneki.log<span class="nt">&lt;/string&gt;</span>
+<a id="__codelineno-6-22" name="__codelineno-6-22" href="#__codelineno-6-22"></a><span class="nt">&lt;/dict&gt;</span>
+<a id="__codelineno-6-23" name="__codelineno-6-23" href="#__codelineno-6-23"></a><span class="nt">&lt;/plist&gt;</span>
 </code></pre></div>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>launchctl<span class="w"> </span>bootstrap<span class="w"> </span>gui/<span class="k">$(</span>id<span class="w"> </span>-u<span class="k">)</span><span class="w"> </span>~/Library/LaunchAgents/com.maneki.serve.plist
 <a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a>launchctl<span class="w"> </span>kickstart<span class="w"> </span>-k<span class="w"> </span>gui/<span class="k">$(</span>id<span class="w"> </span>-u<span class="k">)</span>/com.maneki.serve<span class="w">   </span><span class="c1"># restart after an upgrade</span>
@@ -1729,7 +1724,7 @@ is empty -- <code>launchctl kickstart -k</code> once the disk is mounted fixes i
 <a id="__codelineno-8-4" name="__codelineno-8-4" href="#__codelineno-8-4"></a><span class="na">After</span><span class="o">=</span><span class="s">network-online.target</span>
 <a id="__codelineno-8-5" name="__codelineno-8-5" href="#__codelineno-8-5"></a>
 <a id="__codelineno-8-6" name="__codelineno-8-6" href="#__codelineno-8-6"></a><span class="k">[Service]</span>
-<a id="__codelineno-8-7" name="__codelineno-8-7" href="#__codelineno-8-7"></a><span class="na">ExecStart</span><span class="o">=</span><span class="s">%h/.local/bin/maneki serve /srv/media --host 0.0.0.0 --port 8765 --ui</span>
+<a id="__codelineno-8-7" name="__codelineno-8-7" href="#__codelineno-8-7"></a><span class="na">ExecStart</span><span class="o">=</span><span class="s">%h/.local/bin/maneki serve /srv/media</span>
 <a id="__codelineno-8-8" name="__codelineno-8-8" href="#__codelineno-8-8"></a><span class="na">Restart</span><span class="o">=</span><span class="s">always</span>
 <a id="__codelineno-8-9" name="__codelineno-8-9" href="#__codelineno-8-9"></a>
 <a id="__codelineno-8-10" name="__codelineno-8-10" href="#__codelineno-8-10"></a><span class="k">[Install]</span>
