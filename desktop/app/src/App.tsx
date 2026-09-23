@@ -10,6 +10,7 @@ import { MusicPage } from '@/pages/Music'
 import { RadioPage } from '@/pages/Radio'
 import { SignIn } from '@/pages/SignIn'
 import { Soon } from '@/pages/Soon'
+import { YouTubePage } from '@/pages/YouTube'
 
 export default function App() {
     const session = useStore(sessionStore)
@@ -37,6 +38,9 @@ export default function App() {
                 <Route path="/music/starred" element={<MusicPage view="starred" />} />
                 <Route path="/radio" element={<RadioPage />} />
                 <Route path="/video/*" element={<Soon section="Video" />} />
+                <Route path="/youtube" element={<YouTubePage />} />
+                <Route path="/youtube/c/:channelId" element={<YouTubePage />} />
+                <Route path="/youtube/v/:videoId" element={<YouTubePage />} />
                 <Route
                     path="*"
                     element={<Navigate to={session.capabilities?.audio ? '/music' : '/books'} replace />}
