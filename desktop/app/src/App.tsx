@@ -8,6 +8,7 @@ import { connect, sessionStore } from '@/lib/session'
 import { setPlayerCredentials } from '@/lib/player'
 import { BooksPage } from '@/pages/Books'
 import { MusicPage } from '@/pages/Music'
+import { PlaylistsPage } from '@/pages/Playlists'
 import { RadioPage } from '@/pages/Radio'
 import { SignIn } from '@/pages/SignIn'
 import { VideoPage } from '@/pages/Video'
@@ -62,6 +63,8 @@ export default function App() {
                 <Route path="/music/artist/:artistId" element={<MusicPage />} />
                 <Route path="/music/album/:albumId" element={<MusicPage />} />
                 <Route path="/music/starred" element={<MusicPage view="starred" />} />
+                <Route path="/playlists" element={<PlaylistsPage />} />
+                <Route path="/playlists/:playlistId" element={<PlaylistsPage />} />
                 <Route path="/radio" element={<RadioPage />} />
                 <Route path="/video" element={<VideoPage />} />
                 {/* The splat carries the whole of a folder's path, so a season is a link. */}

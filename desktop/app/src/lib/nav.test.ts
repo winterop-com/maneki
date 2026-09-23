@@ -26,7 +26,7 @@ function server(has: Partial<Capabilities>): Capabilities {
 describe('the navigation', () => {
     test('offers only what this server has', () => {
         const paths = entriesFor(server({ audio: true, radio: true })).map((entry) => entry.path)
-        expect(paths).toEqual(['/music', '/music/starred', '/radio'])
+        expect(paths).toEqual(['/music', '/music/starred', '/playlists', '/radio'])
     })
 
     test('a books-only server is a whole server, not an empty music library', () => {
@@ -78,6 +78,8 @@ describe('what the rail marks', () => {
     test('a sibling keeps its own address, so favourites and music never light together', () => {
         expect(marks('/music', '/music/starred')).toBe(false)
         expect(marks('/music/starred', '/music/starred')).toBe(true)
+        expect(marks('/music', '/playlists/pl_1')).toBe(false)
+        expect(marks('/playlists', '/playlists/pl_1')).toBe(true)
         expect(marks('/music/starred', '/music')).toBe(false)
         expect(marks('/music/starred', '/music/artist/ar_1')).toBe(false)
     })

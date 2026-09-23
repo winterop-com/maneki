@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'vitest'
 
-import { clock, duration, progressRatio, remaining } from '@/lib/format'
+import { clock, duration, progressRatio, remaining, trackCount } from '@/lib/format'
 
 describe('clock', () => {
     test('writes hours when a book has them', () => {
@@ -33,5 +33,13 @@ describe('progressRatio', () => {
         expect(progressRatio(100, 25)).toBe(0.25)
         expect(progressRatio(100, 500)).toBe(1)
         expect(progressRatio(0, 10)).toBe(0)
+    })
+})
+
+describe('trackCount', () => {
+    test('says one track in the singular and none in words', () => {
+        expect(trackCount(0)).toBe('no tracks')
+        expect(trackCount(1)).toBe('1 track')
+        expect(trackCount(12)).toBe('12 tracks')
     })
 })

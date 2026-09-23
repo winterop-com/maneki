@@ -24,6 +24,12 @@ export function duration(seconds: number): string {
     return hours > 0 ? `${hours}h ${String(minutes % 60).padStart(2, '0')}m` : `${minutes}m`
 }
 
+/** How many tracks, in words: one is "1 track", and nothing is "no tracks". */
+export function trackCount(count: number): string {
+    if (count === 0) return 'no tracks'
+    return `${String(count)} ${count === 1 ? 'track' : 'tracks'}`
+}
+
 /** `3h 20m left`, the part of a book still ahead. */
 export function remaining(durationS: number, positionS: number): string {
     return `${duration(Math.max(0, durationS - positionS))} left`

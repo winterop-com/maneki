@@ -12,7 +12,16 @@
  * next connect without this file changing.
  */
 
-import { BookAudio, Clapperboard, MonitorPlay, Music, Radio, Star, type LucideIcon } from 'lucide-react'
+import {
+    BookAudio,
+    Clapperboard,
+    ListMusic,
+    MonitorPlay,
+    Music,
+    Radio,
+    Star,
+    type LucideIcon,
+} from 'lucide-react'
 
 import type { Capabilities } from '@/lib/types'
 
@@ -51,6 +60,9 @@ export const MUSIC_PATH = '/music'
 /** Where they land when it has not: a books-only instance is a whole instance. */
 export const BOOKS_PATH = '/books'
 
+/** Where this account's playlists are, which one playlist sits under. */
+export const PLAYLISTS_PATH = '/playlists'
+
 /** Where the subscribed channels are, which a channel and a video both sit under. */
 export const YOUTUBE_PATH = '/youtube'
 
@@ -71,6 +83,13 @@ export const NAV: NavSection[] = [
                 label: 'Favourites',
                 hint: 'Everything starred, on any client',
                 icon: Star,
+                requires: 'audio',
+            },
+            {
+                path: PLAYLISTS_PATH,
+                label: 'Playlists',
+                hint: 'Tracks somebody put together, in the order they chose',
+                icon: ListMusic,
                 requires: 'audio',
             },
             {

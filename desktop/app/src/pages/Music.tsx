@@ -1,12 +1,14 @@
-import { ChevronLeft, ChevronRight, Play, Star, Volume2 } from 'lucide-react'
+import { ChevronLeft, ChevronRight, ListPlus, Play, Star, Volume2 } from 'lucide-react'
 import { Fragment, useEffect, useMemo, useState } from 'react'
 import { NavLink, useNavigate, useParams } from 'react-router'
 
 import { CoverArt } from '@/components/CoverArt'
+import { AddToPlaylistDialog, type Adding } from '@/components/PlaylistDialogs'
 import { Skeleton } from '@/components/Skeleton'
 import { Button } from '@/components/ui/button'
 import { useStore, useStoreValue } from '@/hooks/use-store'
-import { clock } from '@/lib/format'
+import { clock, trackCount } from '@/lib/format'
+import { registerActions, SCREEN_GROUP } from '@/lib/palette'
 import { play, playerStore } from '@/lib/player'
 import { sessionStore } from '@/lib/session'
 import { Input } from '@/components/ui/input'
@@ -346,7 +348,7 @@ function Artists({ credentials }: { credentials: Credentials }) {
  * empty because the key changed, rather than because an effect reached back and emptied it --
  * which is also the one shape that does not put a setState inside an effect.
  */
-interface Held<T> {
+export interface Held<T> {
     key: string
     value: T | null
     refusal: string | null
@@ -435,8 +437,9 @@ function ArtistScreen({ credentials, id }: { credentials: Credentials; id: strin
  * THREE FACTS, NOT THE STORE. The player publishes four times a second while a track plays,
  * and a track list that read the whole of it would rebuild every row on every tick.
  */
-const selectPlayingId = (state: { queue: Song[]; index: number }) => state.queue[state.index]?.id ?? null
-const selectPlaying = (state: { playing: boolean }) => state.playing
+export const selectPlayingId = (state: { queue: Song[]; index: number }) =>
+    state.queue[state.index]?.id ?? null
+export const selectPlaying = (state: { playing: boolean }) => state.playing
 
 /** One album's tracks. Picking one plays the album from there. */
 function AlbumScreen({ credentials, id }: { credentials: Credentials; id: string }) {
@@ -447,6 +450,7 @@ function AlbumScreen({ credentials, id }: { credentials: Credentials; id: string
     })
     const playingId = useStoreValue(playerStore, selectPlayingId)
     const playing = useStoreValue(playerStore, selectPlaying)
+    const [adding, setAdding] = useState<Adding | null>(null)
     const navigate = useNavigate()
 
     // Tagged and guarded, for the reason the artist screen states: the tracks on screen belong
@@ -469,6 +473,28 @@ function AlbumScreen({ credentials, id }: { credentials: Credentials; id: string
     const answered = held.key === id
     const data = answered ? held.value : null
     const refusal = answered ? held.refusal : null
+
+    // THE WHOLE RECORD, AS ONE THING TO ADD. The header's button and the palette's row say the
+    // same sentence, so somebody who reached for either finds the same dialog.
+    const wholeAlbum = useMemo<Adding | null>(
+        () =>
+            data ? { songs: data.songs, what: `${data.album.name}, ${trackCount(data.songs.length)}` } : null,
+        [data],
+    )
+    useEffect(() => {
+        if (wholeAlbum === null) return
+        return registerActions([
+            {
+                id: 'album:add-to-playlist',
+                title: ADD_ALBUM_LABEL,
+                group: SCREEN_GROUP,
+                screen: true,
+                icon: ListPlus,
+                keywords: ['playlist', 'add', 'album'],
+                run: () => setAdding(wholeAlbum),
+            },
+        ])
+    }, [wholeAlbum])
 
     if (refusal) return <Notice>{refusal}</Notice>
     if (!data) {
@@ -493,6 +519,18 @@ function AlbumScreen({ credentials, id }: { credentials: Credentials; id: string
                         ? [{ label: album.artist, to: `/music/artist/${album.artistId}` }]
                         : []),
                 ]}
+                action={
+                    <Button
+                        variant="ghost"
+                        size="sm"
+                        aria-label={ADD_ALBUM_LABEL}
+                        title={ADD_ALBUM_LABEL}
+                        onClick={() => setAdding(wholeAlbum)}
+                    >
+                        <ListPlus aria-hidden />
+                        <span className="hidden sm:inline">Add to playlist</span>
+                    </Button>
+                }
             />
             {/* A CONTAINER, NOT THE VIEWPORT. What this screen has room for is decided by the
                 rail and the side panel as much as by the window, so the cover is sized against
@@ -565,6 +603,7 @@ function AlbumScreen({ credentials, id }: { credentials: Credentials; id: string
                                             {clock(song.duration ?? 0)}
                                         </span>
                                     </button>
+                                    <AddButton song={song} onAdd={setAdding} />
                                     <StarButton credentials={credentials} song={song} />
                                 </li>
                             </Fragment>
@@ -572,7 +611,27 @@ function AlbumScreen({ credentials, id }: { credentials: Credentials; id: string
                     })}
                 </ol>
             </div>
+            <AddToPlaylistDialog credentials={credentials} adding={adding} onClose={() => setAdding(null)} />
         </div>
+    )
+}
+
+/** What the album's own add says, on its header, in its tooltip and in the palette. */
+const ADD_ALBUM_LABEL = 'Add this album to a playlist'
+
+/** One track's way onto a playlist, beside its star. */
+function AddButton({ song, onAdd }: { song: Song; onAdd: (adding: Adding) => void }) {
+    const label = `Add ${song.title} to a playlist`
+    return (
+        <Button
+            variant="ghost"
+            size="sm"
+            aria-label={label}
+            title={label}
+            onClick={() => onAdd({ songs: [song], what: song.title })}
+        >
+            <ListPlus className="size-4" aria-hidden />
+        </Button>
     )
 }
 
@@ -583,7 +642,7 @@ function AlbumScreen({ credentials, id }: { credentials: Credentials; id: string
  * state: the star key stars whatever is playing, which may be the row below this one, and two
  * copies of the answer would have the row say one thing and the key another.
  */
-function StarButton({ credentials, song }: { credentials: Credentials; song: Song }) {
+export function StarButton({ credentials, song }: { credentials: Credentials; song: Song }) {
     const marks = useStore(starMarks)
     const starred = starredNow(marks, song)
     return (
@@ -605,7 +664,7 @@ function StarButton({ credentials, song }: { credentials: Credentials; song: Son
     is not a new array on every render. */
 const NO_TRAIL: { label: string; to: string }[] = []
 
-function Header({
+export function Header({
     title,
     subtitle,
     onBack,
@@ -651,7 +710,7 @@ function Header({
     )
 }
 
-function Cover({
+export function Cover({
     credentials,
     id,
     art,
@@ -668,7 +727,7 @@ function Cover({
     return <img src={src} alt="" loading="lazy" className={cn('aspect-square object-cover', className)} />
 }
 
-function Notice({ children }: { children: React.ReactNode }) {
+export function Notice({ children }: { children: React.ReactNode }) {
     return (
         <div className="flex h-full items-center justify-center p-8">
             <p className="text-sm text-muted-foreground">{children}</p>

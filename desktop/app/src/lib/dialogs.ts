@@ -18,8 +18,13 @@
 
 import { createStore } from '@/lib/store'
 
-/** The dialogs the shell raises. Named rather than counted, so a stuck flag has an owner. */
-export type DialogName = 'settings' | 'shortcuts'
+/**
+ * The dialogs standing over the app. Named rather than counted, so a stuck flag has an owner.
+ *
+ * `playlist` is the one a screen raises rather than the shell: choosing a playlist, naming
+ * one, or saying yes to deleting one. A bare key through it is the same two-things-at-once.
+ */
+export type DialogName = 'settings' | 'shortcuts' | 'playlist'
 
 /** Which of them are standing right now. */
 export const dialogsOpen = createStore<ReadonlySet<DialogName>>(new Set())
@@ -47,7 +52,7 @@ export function anyOpen(open: ReadonlySet<DialogName>): boolean {
     return open.size > 0
 }
 
-/** Say whether one dialog is standing. The shell is the only caller. */
+/** Say whether one dialog is standing: the shell for its own, the playlist dialogs for theirs. */
 export function setDialogOpen(name: DialogName, standing: boolean): void {
     dialogsOpen.update((open) => withDialog(open, name, standing))
 }
