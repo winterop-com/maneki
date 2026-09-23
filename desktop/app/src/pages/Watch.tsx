@@ -205,10 +205,12 @@ function Watch({ id }: { id: string }) {
         [id],
     )
 
-    // The id is a machine's string and belongs in the bar's mono cell, not in the heading.
+    // The bar's right-hand cell names what is playing. An id would be the honest machine's
+    // string, but it means nothing to the person reading the foot of the window.
+    const name = video?.name ?? null
     useEffect(() => {
-        setScreenStatus({ note: null, tone: 'quiet', identifier: id })
-    }, [id])
+        setScreenStatus({ note: null, tone: 'quiet', identifier: name })
+    }, [name])
     useEffect(() => clearScreenStatus, [])
 
     /**

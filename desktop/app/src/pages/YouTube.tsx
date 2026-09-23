@@ -54,7 +54,8 @@ export function YouTubePage() {
  * Say what this screen is doing along the foot of the shell, and stop saying it when it goes.
  *
  * Both facts the bar takes are the screen's: the note while something slow is in flight, and
- * the identifier, which here is the channel or video id the address is holding anyway.
+ * the identifier, which here is the channel's or the video's title -- the id the address holds
+ * is a machine's string and says nothing to whoever is reading the bar.
  */
 function useScreenNote(note: string | null, identifier: string | null): void {
     useEffect(() => {
@@ -412,7 +413,7 @@ function Channel({ id }: { id: string }) {
         }
     }, [ask.refreshing, id, key, read, tab])
 
-    useScreenNote(held === null ? 'reading the channel' : null, id)
+    useScreenNote(held === null ? 'reading the channel' : null, channel?.title ?? null)
 
     const refresh = useCallback(() => {
         setAsk(again(read))
@@ -639,7 +640,7 @@ function Watch({ id }: { id: string }) {
         }
     }, [id])
 
-    useScreenNote(held === null ? 'resolving the stream' : null, id)
+    useScreenNote(held === null ? 'resolving the stream' : null, video?.title ?? null)
 
     const ladder = qualityLadder(heights)
     const length = video === null || video.duration_s === null ? null : clock(video.duration_s)
@@ -654,7 +655,7 @@ function Watch({ id }: { id: string }) {
     }
 
     return (
-        <div className="mx-auto flex h-full w-full max-w-5xl flex-col gap-3 p-4">
+        <div className="flex h-full w-full flex-col gap-3 p-4">
             <div className="flex items-center gap-2">
                 <Button
                     variant="ghost"
@@ -669,6 +670,7 @@ function Watch({ id }: { id: string }) {
                 <h1 className="min-w-0 flex-1 truncate text-base" title={video?.title ?? id}>
                     {video?.title ?? id}
                 </h1>
+                {length !== null && <span className="font-mono text-xs text-muted-foreground">{length}</span>}
                 {ladder.length > 1 && (
                     <select
                         aria-label="Quality"
@@ -690,7 +692,10 @@ function Watch({ id }: { id: string }) {
             {refusal !== null ? (
                 <Notice>{refusal}</Notice>
             ) : (
-                <div className="aspect-video w-full overflow-hidden rounded-lg bg-background">
+                // The player takes the whole of the screen, as the local one does: the box is
+                // the room left under the heading, and the player keeps the picture's shape
+                // inside it rather than the box dictating a 16:9 that runs off the foot.
+                <div className="flex min-h-0 flex-1 overflow-hidden rounded-lg bg-black">
                     <VideoPlayer
                         key={height}
                         src={youtubeApi.hlsUrl(id, height === AUTO_HEIGHT ? undefined : height)}
@@ -703,8 +708,6 @@ function Watch({ id }: { id: string }) {
                     />
                 </div>
             )}
-
-            {length !== null && <p className="font-mono text-xs text-muted-foreground">{length}</p>}
         </div>
     )
 }
