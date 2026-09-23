@@ -430,13 +430,11 @@ function ArtistScreen({ credentials, id }: { credentials: Credentials; id: strin
 }
 
 /**
- * Which album the playing track belongs to, which track it is, and whether it is sounding.
+ * Which track is playing, and whether it is sounding.
  *
  * THREE FACTS, NOT THE STORE. The player publishes four times a second while a track plays,
  * and a track list that read the whole of it would rebuild every row on every tick.
  */
-const selectPlayingAlbum = (state: { queue: Song[]; index: number }) =>
-    state.queue[state.index]?.albumId ?? null
 const selectPlayingId = (state: { queue: Song[]; index: number }) => state.queue[state.index]?.id ?? null
 const selectPlaying = (state: { playing: boolean }) => state.playing
 
@@ -447,7 +445,6 @@ function AlbumScreen({ credentials, id }: { credentials: Credentials; id: string
         value: null,
         refusal: null,
     })
-    const playingAlbumId = useStoreValue(playerStore, selectPlayingAlbum)
     const playingId = useStoreValue(playerStore, selectPlayingId)
     const playing = useStoreValue(playerStore, selectPlaying)
     const navigate = useNavigate()
@@ -483,10 +480,6 @@ function AlbumScreen({ credentials, id }: { credentials: Credentials; id: string
     }
     const { album, songs } = data
     const discs = new Set(songs.map((song) => song.discNumber ?? 1)).size
-    // THE BUTTON STARTS THIS ALBUM, AND THAT IS ALL IT DOES. Once this is the album playing,
-    // pausing and resuming are the transport's along the foot of the window, and a second
-    // pause button up here was the same control drawn twice. So it goes.
-    const playingThis = playingAlbumId === album.id
 
     return (
         <div className="p-4">
@@ -500,19 +493,6 @@ function AlbumScreen({ credentials, id }: { credentials: Credentials; id: string
                         ? [{ label: album.artist, to: `/music/artist/${album.artistId}` }]
                         : []),
                 ]}
-                action={
-                    playingThis ? null : (
-                        <Button
-                            size="sm"
-                            onClick={() => {
-                                play(songs, 0)
-                            }}
-                            disabled={!songs.length}
-                        >
-                            <Play className="size-4" aria-hidden /> Play
-                        </Button>
-                    )
-                }
             />
             {/* A CONTAINER, NOT THE VIEWPORT. What this screen has room for is decided by the
                 rail and the side panel as much as by the window, so the cover is sized against
