@@ -55,6 +55,7 @@ import {
     registerActions,
     type PaletteAction,
 } from '@/lib/palette'
+import { setDialogOpen } from '@/lib/dialogs'
 import { fillPanel, railCollapsed, togglePanel, toggleRail } from '@/lib/panels'
 import { RESCAN_LABEL, rescan } from '@/lib/rescan'
 import { cycleRepeat, next, playerStore, previous, toggle, toggleShuffle } from '@/lib/player'
@@ -150,6 +151,11 @@ export function AppShell({ children }: { children: ReactNode }) {
             setShortcutsOpen(true)
         }, []),
     )
+
+    // A bare key belongs to whatever is in front of somebody, and while one of these is up
+    // that is the dialog rather than the app. `lib/dialogs` is what the key listener reads.
+    useEffect(() => setDialogOpen('settings', settingsOpen), [settingsOpen])
+    useEffect(() => setDialogOpen('shortcuts', shortcutsOpen), [shortcutsOpen])
 
     // The queue fills the panel for as long as there is one, and empties it when the queue
     // goes: a panel offering an empty tab is chrome that does nothing.
