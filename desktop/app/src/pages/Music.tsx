@@ -60,10 +60,21 @@ function Favourites({ credentials }: { credentials: Credentials }) {
     const [refusal, setRefusal] = useState<string | null>(null)
     const navigate = useNavigate()
 
+    // An answer to a question nobody is asking any more is dropped rather than drawn, which is
+    // what `pages/Video` does with the same flag.
     useEffect(() => {
-        getStarred(credentials)
-            .then(setStarredList)
-            .catch((error: Error) => setRefusal(error.message))
+        let live = true
+        getStarred(credentials).then(
+            (answer) => {
+                if (live) setStarredList(answer)
+            },
+            (error: Error) => {
+                if (live) setRefusal(error.message)
+            },
+        )
+        return () => {
+            live = false
+        }
     }, [credentials])
 
     if (refusal) return <Notice>{refusal}</Notice>
@@ -145,16 +156,28 @@ function Artists({ credentials }: { credentials: Credentials }) {
      * asked as well: it searches albums and tracks, which the names on this
      * screen cannot answer for. A pause before asking keeps a burst of
      * keystrokes down to one search.
+     *
+     * The pause holds back a search nobody has finished typing; the flag drops one that was
+     * already out when they typed the next letter, which the timer cannot cancel.
      */
     useEffect(() => {
+        let live = true
         const text = query.trim()
         if (text.length < SEARCH_MIN) return
         const timer = setTimeout(() => {
-            searchLibrary(credentials, text)
-                .then(setFound)
-                .catch(() => setFound(null))
+            searchLibrary(credentials, text).then(
+                (answer) => {
+                    if (live) setFound(answer)
+                },
+                () => {
+                    if (live) setFound(null)
+                },
+            )
         }, SEARCH_DEBOUNCE_MS)
-        return () => clearTimeout(timer)
+        return () => {
+            live = false
+            clearTimeout(timer)
+        }
     }, [credentials, query])
 
     useEffect(() => {
@@ -265,17 +288,51 @@ function Artists({ credentials }: { credentials: Credentials }) {
     )
 }
 
+/**
+ * An answer, and the id it answers for.
+ *
+ * WHAT IS HELD IS TAGGED WITH WHAT WAS ASKED. The artist and the album screens are one
+ * component across a second click, so an answer kept loose would be the previous record's
+ * tracks standing under the new title until the read lands. Tagging it means the screen is
+ * empty because the key changed, rather than because an effect reached back and emptied it --
+ * which is also the one shape that does not put a setState inside an effect.
+ */
+interface Held<T> {
+    key: string
+    value: T | null
+    refusal: string | null
+}
+
 /** One artist's albums, oldest first. */
 function ArtistScreen({ credentials, id }: { credentials: Credentials; id: string }) {
-    const [data, setData] = useState<{ artist: Artist; albums: Album[] } | null>(null)
-    const [refusal, setRefusal] = useState<string | null>(null)
+    const [held, setHeld] = useState<Held<{ artist: Artist; albums: Album[] }>>({
+        key: id,
+        value: null,
+        refusal: null,
+    })
     const navigate = useNavigate()
 
+    // The flag is the other half: without it a slow first read lands on top of a fast second
+    // and puts the previous artist back, tag and all. `pages/Video` guards its own reads the
+    // same way.
     useEffect(() => {
-        getArtist(credentials, id)
-            .then(setData)
-            .catch((error: Error) => setRefusal(error.message))
+        let live = true
+        getArtist(credentials, id).then(
+            (answer) => {
+                if (live) setHeld({ key: id, value: answer, refusal: null })
+            },
+            (error: Error) => {
+                if (live) setHeld({ key: id, value: null, refusal: error.message })
+            },
+        )
+        return () => {
+            live = false
+        }
     }, [credentials, id])
+
+    const answered = held.key === id
+    const data = answered ? held.value : null
+    const refusal = answered ? held.refusal : null
 
     if (refusal) return <Notice>{refusal}</Notice>
     if (!data) return <Notice>Opening the artist.</Notice>
@@ -320,17 +377,35 @@ const selectPlayingAlbum = (state: { queue: Song[]; index: number }) =>
 const selectPlaying = (state: { playing: boolean }) => state.playing
 
 function AlbumScreen({ credentials, id }: { credentials: Credentials; id: string }) {
-    const [data, setData] = useState<{ album: Album; songs: Song[] } | null>(null)
+    const [held, setHeld] = useState<Held<{ album: Album; songs: Song[] }>>({
+        key: id,
+        value: null,
+        refusal: null,
+    })
     const playingAlbumId = useStoreValue(playerStore, selectPlayingAlbum)
     const playing = useStoreValue(playerStore, selectPlaying)
-    const [refusal, setRefusal] = useState<string | null>(null)
     const navigate = useNavigate()
 
+    // Tagged and guarded, for the reason the artist screen states: the tracks on screen belong
+    // to the id in the address and to no other.
     useEffect(() => {
-        getAlbum(credentials, id)
-            .then(setData)
-            .catch((error: Error) => setRefusal(error.message))
+        let live = true
+        getAlbum(credentials, id).then(
+            (answer) => {
+                if (live) setHeld({ key: id, value: answer, refusal: null })
+            },
+            (error: Error) => {
+                if (live) setHeld({ key: id, value: null, refusal: error.message })
+            },
+        )
+        return () => {
+            live = false
+        }
     }, [credentials, id])
+
+    const answered = held.key === id
+    const data = answered ? held.value : null
+    const refusal = answered ? held.refusal : null
 
     if (refusal) return <Notice>{refusal}</Notice>
     if (!data) return <Notice>Opening the album.</Notice>
