@@ -1277,6 +1277,14 @@ html.dark[data-theme='contrast'],
    rule that does hold is the one under it: ONE accent per palette, spent on action and
    nothing else, on `--primary`, `--ring` and `--sidebar-primary` together.
 
+   AND THE RAIL'S CHOSEN ENTRY WEARS IT IN BOTH MODES. `--sidebar-accent` and its ink have one
+   consumer in this app and it is that row, and every one of these presets drew it the same
+   way: `background: var(--row-active)` with `color: var(--accent)` over it, which is the
+   accent at a tenth strength carrying the accent as ink. So the pair is this palette's
+   `--accent` and `--accent-foreground` in the dark half as well as the light one, rather than
+   a rung of the surface ladder under the page's own text. A palette whose rail said one thing
+   in daylight and another at night would be two palettes.
+
    THE SURFACE LADDER KEEPS ITS ORDER AND ROUGHLY ITS STEPS in all four, because every
    component in this app was drawn against those rungs: ground under rail under card under the
    filled control, the field a rung below the page in a dark mode and above it in a light one,
@@ -1415,8 +1423,8 @@ html.dark[data-theme='tokyo'],
     --sidebar-foreground: oklch(0.86 0.015 250);
     --sidebar-primary: oklch(0.72 0.132 264);
     --sidebar-primary-foreground: oklch(0.175 0.03 264);
-    --sidebar-accent: oklch(0.272 0.028 270);
-    --sidebar-accent-foreground: oklch(0.86 0.015 250);
+    --sidebar-accent: oklch(0.305 0.05 264);
+    --sidebar-accent-foreground: oklch(0.83 0.084 264);
     --sidebar-border: oklch(0.32 0.032 268);
     --sidebar-ring: oklch(0.72 0.132 264);
 
@@ -1572,8 +1580,8 @@ html.dark[data-theme='vinyl'],
     --sidebar-foreground: oklch(0.925 0.021 86);
     --sidebar-primary: oklch(0.7 0.145 32);
     --sidebar-primary-foreground: oklch(0.185 0.022 45);
-    --sidebar-accent: oklch(0.275 0.026 55);
-    --sidebar-accent-foreground: oklch(0.925 0.021 86);
+    --sidebar-accent: oklch(0.3 0.05 32);
+    --sidebar-accent-foreground: oklch(0.83 0.095 32);
     --sidebar-border: oklch(0.32 0.026 55);
     --sidebar-ring: oklch(0.7 0.145 32);
 
@@ -1723,8 +1731,8 @@ html.dark[data-theme='cassette'],
     --sidebar-foreground: oklch(0.875 0.025 86);
     --sidebar-primary: oklch(0.758 0.169 57);
     --sidebar-primary-foreground: oklch(0.15 0.012 60);
-    --sidebar-accent: oklch(0.242 0.009 286);
-    --sidebar-accent-foreground: oklch(0.875 0.025 86);
+    --sidebar-accent: oklch(0.285 0.045 57);
+    --sidebar-accent-foreground: oklch(0.83 0.141 73);
     --sidebar-border: oklch(0.3 0.011 286);
     --sidebar-ring: oklch(0.758 0.169 57);
 
@@ -1879,8 +1887,8 @@ html.dark[data-theme='neon'],
     --sidebar-foreground: oklch(0.93 0.037 299);
     --sidebar-primary: oklch(0.665 0.245 358);
     --sidebar-primary-foreground: oklch(0.14 0.045 296);
-    --sidebar-accent: oklch(0.235 0.08 297);
-    --sidebar-accent-foreground: oklch(0.93 0.037 299);
+    --sidebar-accent: oklch(0.3 0.07 240);
+    --sidebar-accent-foreground: oklch(0.85 0.14 209);
     --sidebar-border: oklch(0.3 0.105 294);
     --sidebar-ring: oklch(0.665 0.245 358);
 
