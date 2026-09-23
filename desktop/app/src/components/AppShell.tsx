@@ -30,6 +30,7 @@ import { PlayerBar, QUEUE_LABEL } from '@/components/PlayerBar'
 import { QueuePanel } from '@/components/QueuePanel'
 import { Rail } from '@/components/Rail'
 import { RightPanel } from '@/components/RightPanel'
+import { SearchOverlay, SEARCH_TITLE } from '@/components/SearchOverlay'
 import { ShortcutsDialog } from '@/components/ShortcutsDialog'
 import { StatusBar } from '@/components/StatusBar'
 import { MODES, MODE_LABELS, ThemeToggle } from '@/components/ThemeToggle'
@@ -51,6 +52,7 @@ import {
 import { fillPanel, railCollapsed, togglePanel, toggleRail } from '@/lib/panels'
 import { cycleRepeat, next, playerStore, previous, toggle, toggleShuffle } from '@/lib/player'
 import { nextRepeat, REPEAT_LABELS } from '@/lib/queue'
+import { openSearch } from '@/lib/search'
 import { sessionStore, signOut } from '@/lib/session'
 import { applePlatform, modifierLabel } from '@/lib/shortcuts'
 import { openStage, toggleVisualizer, visualizerShown } from '@/lib/visualizer'
@@ -230,6 +232,14 @@ export function AppShell({ children }: { children: ReactNode }) {
                 run: togglePanel,
             },
             {
+                id: 'view:search',
+                title: SEARCH_TITLE,
+                group: VIEW_GROUP,
+                icon: Search,
+                keywords: ['find', 'artist', 'album', 'track', 'song'],
+                run: openSearch,
+            },
+            {
                 id: 'view:visualizer',
                 title: spectrum ? 'Hide the spectrum' : 'Show the spectrum',
                 group: VIEW_GROUP,
@@ -378,6 +388,7 @@ export function AppShell({ children }: { children: ReactNode }) {
 
             <FullscreenVisualizer />
 
+            <SearchOverlay />
             <CommandPalette />
             <ShortcutsDialog open={shortcutsOpen} onOpenChange={setShortcutsOpen} />
             {settingsAsked && (

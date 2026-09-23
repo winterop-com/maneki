@@ -14,12 +14,14 @@ import {
 } from '@/lib/player'
 import { paletteOpen } from '@/lib/palette'
 import { togglePanel, toggleRail } from '@/lib/panels'
+import { openSearch, searchOpen } from '@/lib/search'
 import { sessionStore } from '@/lib/session'
 import {
     adjustsVolume,
     applePlatform,
     opensPalette,
     cyclesRepeat,
+    opensSearch,
     opensShortcuts,
     opensStage,
     seeks,
@@ -80,8 +82,14 @@ export function useAppShortcuts(onShortcuts: () => void): void {
                 return
             }
             // A chord is answered wherever focus is; a bare key is not answered at all while the
-            // palette is up, where every press belongs to its match box.
-            if (paletteOpen.get()) return
+            // palette or the search is up, where every press belongs to its own box and the
+            // arrows walk the rows under it.
+            if (paletteOpen.get() || searchOpen.get()) return
+            if (opensSearch(press, focused())) {
+                event.preventDefault()
+                openSearch()
+                return
+            }
             if (togglesPlayback(press, focused())) {
                 event.preventDefault()
                 toggle()

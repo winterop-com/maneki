@@ -52,6 +52,9 @@ export const MUTE_KEY = 'm'
 /** The character that stars what is playing, pressed bare. */
 export const STAR_KEY = '*'
 
+/** The character that opens the search over the whole library, pressed bare. */
+export const SEARCH_KEY = '/'
+
 /** How far one press of an arrow moves the position, in seconds. */
 export const SEEK_STEP_S = 5
 
@@ -260,6 +263,20 @@ export function starsCurrent(press: KeyPress, focused: FocusedField | null): boo
 }
 
 /**
+ * Whether this press opens the search over the whole library.
+ *
+ * `/`, which is what every app with a search box binds, matched as the character for the reason
+ * `*` is: it is Shift and the 7 on a Norwegian layout and a key of its own on a US one. It is
+ * refused while something is being typed into, where a slash is a slash -- including inside the
+ * search it opened.
+ */
+export function opensSearch(press: KeyPress, focused: FocusedField | null): boolean {
+    if (press.key !== SEARCH_KEY) return false
+    if (press.ctrlKey || press.metaKey || press.altKey) return false
+    return !isTypingField(focused)
+}
+
+/**
  * Whether this press shows or hides the spectrum.
  *
  * A bare letter, the way the transport keys are: the visualizer is something somebody turns on
@@ -308,6 +325,7 @@ export function shortcuts(apple: boolean): Shortcut[] {
         { id: 'volume', action: 'Turn it up or down', keys: ['↑', '↓'] },
         { id: 'mute', action: 'Silence it, keeping the level', keys: ['M'] },
         { id: 'star', action: 'Star what is playing', keys: [STAR_KEY] },
+        { id: 'search', action: 'Search the library', keys: [SEARCH_KEY] },
         { id: 'shortcuts', action: 'Open this list', keys: [SHORTCUTS_KEY] },
         { id: 'dismiss', action: 'Close a dialog, a menu, or the palette', keys: ['Esc'] },
         { id: 'choose', action: 'Open the row that has focus', keys: ['Enter'] },
