@@ -219,6 +219,17 @@ def create_combined_app(
         # watcher keeps it current from here on, so an album dropped into
         # the library shows up without a `startScan` or a restart. Radio-only
         # mounts (`audio_present` False) have no library to watch.
+        # ONE FILESYSTEM OBSERVER FOR THE WHOLE ROOT. Music, books and video all watch the
+        # same folder, and macOS refuses a second observer on a path it already has --
+        # "already scheduled", and the loser's thread dies quietly. The observer is started
+        # here and every watcher schedules on it; watchdog attaches a watch scheduled after
+        # the start to the running observer, which is what the video one, started later
+        # from the background task, relies on.
+        from watchdog.observers import Observer
+
+        observer: Any = Observer()
+        observer.start()
+
         audio_watcher: Any = None
         audio_sub_app: FastAPI | None = next(
             (cast(FastAPI, r.app) for r in app.routes if isinstance(r, Mount) and r.path == "/audio"),
@@ -227,7 +238,7 @@ def create_combined_app(
         if audio_present and audio_sub_app is not None:
             from maneki.audio.serve.watcher import LibraryWatcher
 
-            audio_watcher = LibraryWatcher(audio_sub_app.state.cache)
+            audio_watcher = LibraryWatcher(audio_sub_app.state.cache, observer=observer)
             audio_watcher.start()
 
         # Books: scan in the background (warm starts reuse the index rows),
@@ -242,7 +253,7 @@ def create_combined_app(
 
             books_index = books_sub_app.state.books_index
             books_index.start_background_rescan()
-            books_watcher = LibraryWatcher(books_index)
+            books_watcher = LibraryWatcher(books_index, observer=observer)
             books_watcher.start()
 
         async def _do_scan(*, do_prewarm_cache: bool) -> None:
@@ -339,7 +350,7 @@ def create_combined_app(
             from maneki.video.serve.watcher import VideoLibraryWatcher
 
             nonlocal watcher
-            watcher = VideoLibraryWatcher(video_sub.state.library_root, _rescan_callback)
+            watcher = VideoLibraryWatcher(video_sub.state.library_root, _rescan_callback, observer=observer)
             watcher.start(asyncio.get_running_loop())
 
         startup_task = asyncio.create_task(_background_startup())
@@ -359,6 +370,9 @@ def create_combined_app(
             if books_watcher is not None:
                 with contextlib.suppress(Exception):
                     books_watcher.stop()
+            with contextlib.suppress(Exception):
+                observer.stop()
+                observer.join(timeout=2.0)
             if video_index is not None:
                 with contextlib.suppress(Exception):
                     video_index.close()

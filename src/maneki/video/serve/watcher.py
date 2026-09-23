@@ -52,39 +52,51 @@ class VideoLibraryWatcher:
         rescan: Callable[[], Coroutine[object, object, None]],
         *,
         debounce_s: float = DEFAULT_DEBOUNCE_S,
+        observer: Any = None,
     ) -> None:
+        """Watch `root` for changes and ask for a rescan, debounced.
+
+        `observer` is a watchdog Observer to schedule on instead of owning one; see
+        `maneki.audio.serve.watcher.LibraryWatcher` for why one observer serves every library.
+        """
         self._root = root
         self._rescan = rescan
         self._debounce_s = debounce_s
-        self._observer: Any = None  # watchdog's Observer is a factory; runtime type
+        self._observer: Any = observer  # watchdog's Observer is a factory; runtime type
+        self._owns_observer = observer is None
+        self._scheduled = False
         self._timer: threading.Timer | None = None
         self._timer_lock = threading.Lock()
         self._loop: asyncio.AbstractEventLoop | None = None
 
     def start(self, loop: asyncio.AbstractEventLoop) -> None:
         """Begin watching the root. Captures the loop coroutines will run on."""
-        if self._observer is not None:
+        if self._scheduled:
             return
         if not self._root.exists():
             log.warning("video watcher: %s does not exist; not starting", self._root)
             return
         self._loop = loop
         handler = _Handler(self._on_event, root=self._root)
-        self._observer = Observer()
+        if self._owns_observer:
+            self._observer = Observer()
         self._observer.schedule(handler, str(self._root), recursive=True)
-        self._observer.start()
+        self._scheduled = True
+        if self._owns_observer:
+            self._observer.start()
         log.info("video watcher: watching %s (debounce=%.1fs)", self._root, self._debounce_s)
 
     def stop(self) -> None:
-        """Stop the observer + cancel any pending debounce timer."""
+        """Cancel any pending debounce timer, and stop the observer if this watcher owns it."""
         with self._timer_lock:
             if self._timer is not None:
                 self._timer.cancel()
                 self._timer = None
-        if self._observer is not None:
+        if self._observer is not None and self._owns_observer and self._scheduled:
             self._observer.stop()
             self._observer.join(timeout=2.0)
             self._observer = None
+        self._scheduled = False
 
     def _on_event(self, path: Path) -> None:
         """Called per relevant FS event (from a watchdog thread)."""

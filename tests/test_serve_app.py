@@ -219,7 +219,7 @@ def test_audio_root_still_scans_and_reports_audio(audio_only_root: Path) -> None
 class _FakeWatcher:
     instances: list[_FakeWatcher] = []
 
-    def __init__(self, cache: object) -> None:
+    def __init__(self, cache: object, *, observer: object = None) -> None:
         self.cache = cache
         self.started = False
         self.stopped = False

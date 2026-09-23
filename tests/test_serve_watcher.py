@@ -96,3 +96,46 @@ def test_watcher_asks_for_a_delta_rescan() -> None:
     cache = MagicMock()
     LibraryWatcher(cache)._rescan()
     cache.start_background_rescan.assert_called_once_with(force=False)
+
+
+def test_two_watchers_on_one_root_share_one_emitter(tmp_path: Path) -> None:
+    """Music and books watch the same folder through one observer.
+
+    Regression: each watcher owned an Observer, and on macOS the FSEvents
+    backend refuses a second observer on a path it already has ("already
+    scheduled"); the loser's thread died and that library stopped noticing
+    changes. One shared observer schedules the path once and hands both
+    handlers every event.
+    """
+    from watchdog.observers import Observer
+
+    first = IndexCache(tmp_path)
+    first.start_background_rescan = MagicMock()  # type: ignore[method-assign]
+    second = IndexCache(tmp_path)
+    second.start_background_rescan = MagicMock()  # type: ignore[method-assign]
+
+    observer = Observer()
+    observer.start()
+    one = LibraryWatcher(first, debounce_s=0.2, observer=observer)
+    two = LibraryWatcher(second, debounce_s=0.2, observer=observer)
+    try:
+        one.start()
+        two.start()
+        assert len(observer.emitters) == 1
+
+        (tmp_path / "fresh.m4a").write_bytes(b"\x00" * 16)
+        deadline = time.time() + 3.0
+        while time.time() < deadline and (
+            first.start_background_rescan.call_count == 0 or second.start_background_rescan.call_count == 0
+        ):
+            time.sleep(0.05)
+        assert first.start_background_rescan.call_count == 1
+        assert second.start_background_rescan.call_count == 1
+
+        # A watcher that was handed the observer does not take it down with itself.
+        one.stop()
+        assert observer.is_alive()
+    finally:
+        two.stop()
+        observer.stop()
+        observer.join(timeout=2.0)

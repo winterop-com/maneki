@@ -41,35 +41,57 @@ class Rescannable(Protocol):
 class LibraryWatcher:
     """Watch an index's root and trigger debounced rescans on FS changes."""
 
-    def __init__(self, cache: Rescannable, *, debounce_s: float = DEFAULT_DEBOUNCE_S) -> None:
+    def __init__(
+        self,
+        cache: Rescannable,
+        *,
+        debounce_s: float = DEFAULT_DEBOUNCE_S,
+        observer: Any = None,
+    ) -> None:
+        """`observer` is a watchdog Observer to schedule on instead of owning one.
+
+        ONE OBSERVER PER PROCESS, NOT PER LIBRARY. `maneki serve` watches one root for
+        music, for books and for video, and on macOS the FSEvents backend keeps a global
+        registry of watched paths: a second Observer scheduling the same path is refused
+        with "already scheduled" and its thread dies, so whichever library started second
+        stopped noticing changes. A shared Observer dedups the path to one emitter and hands
+        every handler the same events. The owner starts and stops it; a watcher given one
+        only schedules on it.
+        """
         self._cache = cache
         self._debounce_s = debounce_s
-        self._observer: Any = None  # watchdog's Observer is a factory; runtime type
+        self._observer: Any = observer  # watchdog's Observer is a factory; runtime type
+        self._owns_observer = observer is None
+        self._scheduled = False
         self._timer: threading.Timer | None = None
         self._timer_lock = threading.Lock()
 
     def start(self) -> None:
         """Begin watching `cache.root`. No-op if already running."""
-        if self._observer is not None:
+        if self._scheduled:
             return
         if not self._cache.root.exists():
             log.warning("library watcher: %s does not exist; not starting", self._cache.root)
             return
         handler = _Handler(self._on_event, root=self._cache.root)
-        self._observer = Observer()
+        if self._owns_observer:
+            self._observer = Observer()
         self._observer.schedule(handler, str(self._cache.root), recursive=True)
-        self._observer.start()
+        self._scheduled = True
+        if self._owns_observer:
+            self._observer.start()
 
     def stop(self) -> None:
-        """Stop the observer + cancel any pending debounce timer."""
+        """Cancel any pending debounce timer, and stop the observer if this watcher owns it."""
         with self._timer_lock:
             if self._timer is not None:
                 self._timer.cancel()
                 self._timer = None
-        if self._observer is not None:
+        if self._observer is not None and self._owns_observer and self._scheduled:
             self._observer.stop()
             self._observer.join(timeout=2.0)
             self._observer = None
+        self._scheduled = False
 
     def _on_event(self, path: Path) -> None:
         """Called per relevant FS event. Resets the debounce timer."""
