@@ -1273,3 +1273,664 @@ html.dark[data-theme='contrast'],
     background-color: var(--lcd-ink);
     box-shadow: 0 0 4px var(--lcd-glow);
 }
+
+/* ---------------------------------------------------------------------------
+   THE FOUR THE CLIENT BEFORE THIS ONE HAD.
+
+   The old web client offered four presets -- Tokyo Night, Vinyl, Cassette, Neon Synthwave --
+   and a second control under them offering four accents, which the panel itself labelled
+   "Accent (Tokyo only)". These are those four presets, and there is no second control: an
+   accent is part of a palette here.
+
+   THE ACCENT AXIS IS FOLDED IN, AND THE OLD CLIENT IS WHY. Its four accents wrote
+   `--mk-accent` and `--mk-highlight` onto the document and no rule in either stylesheet ever
+   read them; the one thing they really moved was the visualizer's gradient. That axis exists
+   in this client already and is a better version of itself -- `lib/spectrum-themes` holds the
+   ramps, Cool is Ice, Warm is Sunset, Mono is Mono, and the default follows whatever
+   `--primary` is in the palette in force. So a preset carries the accent it was drawn around,
+   four palettes carry four accents, and the spectrum keeps the axis that was always the real
+   one.
+
+   THE AMBER IS THE IDENTITY HUE IN THE THREE ABOVE, AND IN NONE OF THESE. That rule is what
+   holds Maneki, Paper and Contrast together as one app wearing three grounds. These four are
+   not that: each was a preset before it was a palette, and what makes one recognisable is the
+   colour it acts in -- Tokyo's blue, Vinyl's oxblood, Cassette's orange, Neon's magenta. The
+   rule that does hold is the one under it: ONE accent per palette, spent on action and
+   nothing else, on `--primary`, `--ring` and `--sidebar-primary` together.
+
+   AND THE RAIL'S CHOSEN ENTRY WEARS IT IN BOTH MODES. `--sidebar-accent` and its ink have one
+   consumer in this app and it is that row, and every one of these presets drew it the same
+   way: `background: var(--row-active)` with `color: var(--accent)` over it, which is the
+   accent at a tenth strength carrying the accent as ink. So the pair is this palette's
+   `--accent` and `--accent-foreground` in the dark half as well as the light one, rather than
+   a rung of the surface ladder under the page's own text. A palette whose rail said one thing
+   in daylight and another at night would be two palettes.
+
+   THE SURFACE LADDER KEEPS ITS ORDER AND ROUGHLY ITS STEPS in all four, because every
+   component in this app was drawn against those rungs: ground under rail under card under the
+   filled control, the field a rung below the page in a dark mode and above it in a light one,
+   then the two lines.
+
+   BOTH MODES, HONESTLY. Vinyl was light-only and Tokyo, Cassette and Neon were dark-only, so
+   the missing half of each is designed rather than inherited: Vinyl gets a night pressing,
+   Cassette a grey daylight, Tokyo the day its authors already drew, Neon a lilac noon. A
+   palette that left one mode on the base would be three palettes and one hole.
+
+   THE KIND FAMILIES ARE THE ONE SET NONE OF THESE NAMES. No screen in this app draws a kind
+   chip, and each of these grounds sits within a rung of the base's own, so the base's six
+   hues still read on all eight halves. They fall through, the way Paper's statuses do.
+   --------------------------------------------------------------------------- */
+
+/* ---------------------------------------------------------------------------
+   TOKYO, LIGHT.
+
+   Tokyo Night has a daylight of its own and this is it: the same blue-violet family with the
+   ladder turned over, a cool pale ground at hue 268 and an ink that is a very dark blue rather
+   than a grey. The accent is the night's `#7aa2f7` taken down until white sits on it, because a
+   fill is a ground with its own ink on it.
+   --------------------------------------------------------------------------- */
+html[data-theme='tokyo'],
+[data-palette='tokyo'] {
+    --background: oklch(0.945 0.009 268);
+    --foreground: oklch(0.255 0.045 268);
+    --card: oklch(0.985 0.004 268);
+    --card-foreground: oklch(0.255 0.045 268);
+    --popover: oklch(0.985 0.004 268);
+    --popover-foreground: oklch(0.255 0.045 268);
+
+    --primary: oklch(0.545 0.175 262);
+    --primary-foreground: oklch(0.985 0.004 268);
+    --primary-ink: oklch(0.5 0.18 262);
+
+    --secondary: oklch(0.915 0.013 268);
+    --secondary-foreground: oklch(0.29 0.045 268);
+    --muted: oklch(0.885 0.016 268);
+    --muted-foreground: oklch(0.465 0.04 268);
+    --faint: oklch(0.565 0.04 268);
+    --accent: oklch(0.915 0.04 262);
+    --accent-foreground: oklch(0.34 0.13 262);
+    --destructive: oklch(0.55 0.185 15);
+    --border: oklch(0.865 0.018 268);
+    --border-strong: oklch(0.805 0.023 268);
+    --input: oklch(0.825 0.023 268);
+    --field: oklch(0.985 0.004 268);
+    --ring: oklch(0.545 0.175 262);
+
+    --chart-1: oklch(0.545 0.175 262);
+    --chart-2: oklch(0.53 0.115 236);
+    --chart-3: oklch(0.55 0.13 132);
+    --chart-4: oklch(0.54 0.15 300);
+    --chart-5: oklch(0.55 0.185 15);
+
+    --sidebar: oklch(0.925 0.012 268);
+    --sidebar-foreground: oklch(0.255 0.045 268);
+    --sidebar-primary: oklch(0.545 0.175 262);
+    --sidebar-primary-foreground: oklch(0.985 0.004 268);
+    --sidebar-accent: oklch(0.915 0.04 262);
+    --sidebar-accent-foreground: oklch(0.34 0.13 262);
+    --sidebar-border: oklch(0.865 0.018 268);
+    --sidebar-ring: oklch(0.545 0.175 262);
+
+    /* The states in Tokyo Night's own signal set rather than the base's, and the reason is the
+       accent: this palette acts in blue, so the base's running and queued blues would be the
+       colour that means "press me". Running takes the night's cyan and queued stands one step
+       off the accent, which is exactly the distance the base keeps between its amber and its
+       completed-with-errors. */
+    --status-succeeded: oklch(0.56 0.13 132);
+    --status-succeeded-ink: oklch(0.43 0.12 132);
+    --status-failed: oklch(0.55 0.185 15);
+    --status-failed-ink: oklch(0.45 0.175 15);
+    --status-running: oklch(0.55 0.119 236);
+    --status-running-ink: oklch(0.43 0.094 236);
+    --status-waiting: oklch(0.58 0.099 200);
+    --status-waiting-ink: oklch(0.44 0.076 200);
+    --status-queued: oklch(0.54 0.14 258);
+    --status-queued-ink: oklch(0.43 0.13 258);
+    --status-pending: oklch(0.565 0.04 268);
+    --status-pending-ink: oklch(0.45 0.04 268);
+    --status-completed-with-errors: oklch(0.65 0.14 51);
+    --status-completed-with-errors-ink: oklch(0.48 0.127 51);
+    --status-cancelled: oklch(0.54 0.14 300);
+    --status-cancelled-ink: oklch(0.43 0.13 300);
+    --status-skipped: oklch(0.565 0.04 268);
+    --status-skipped-ink: oklch(0.45 0.04 268);
+
+    --graph-edge: oklch(0.735 0.022 268);
+}
+
+/* ---------------------------------------------------------------------------
+   TOKYO, DARK, WHICH IS THE ONE THE OLD CLIENT OPENED IN.
+
+   `#11131a` under `#14161e` under `#161922` under `#1c2030`, which is the old ladder rung for
+   rung, read back in oklch at hue 272. The ink is the night's own `#c9d1d9` and it is
+   deliberately softer than this app's white: Tokyo Night is a palette that does not shout at
+   the reader at two in the morning, and raising it to the base's 0.95 would be a different
+   theme wearing these surfaces.
+   --------------------------------------------------------------------------- */
+html.dark[data-theme='tokyo'],
+.dark [data-palette='tokyo'] {
+    --background: oklch(0.188 0.016 272);
+    --foreground: oklch(0.86 0.015 250);
+    --card: oklch(0.222 0.021 272);
+    --card-foreground: oklch(0.86 0.015 250);
+    --popover: oklch(0.222 0.021 272);
+    --popover-foreground: oklch(0.86 0.015 250);
+
+    --primary: oklch(0.72 0.132 264);
+    --primary-foreground: oklch(0.175 0.03 264);
+    --primary-ink: var(--primary);
+
+    --secondary: oklch(0.262 0.027 270);
+    --secondary-foreground: oklch(0.86 0.015 250);
+    --muted: oklch(0.262 0.027 270);
+    --muted-foreground: oklch(0.665 0.032 265);
+    --faint: oklch(0.555 0.034 268);
+    --accent: oklch(0.305 0.05 264);
+    --accent-foreground: oklch(0.83 0.084 264);
+    --destructive: oklch(0.7 0.165 12);
+    --border: oklch(0.32 0.032 268);
+    --border-strong: oklch(0.36 0.034 268);
+    --input: oklch(0.395 0.036 268);
+    --field: oklch(0.163 0.014 272);
+    --ring: oklch(0.72 0.132 264);
+
+    --chart-1: oklch(0.72 0.132 264);
+    --chart-2: oklch(0.82 0.104 236);
+    --chart-3: oklch(0.79 0.14 132);
+    --chart-4: oklch(0.75 0.134 300);
+    --chart-5: oklch(0.72 0.16 12);
+
+    --sidebar: oklch(0.205 0.018 272);
+    --sidebar-foreground: oklch(0.86 0.015 250);
+    --sidebar-primary: oklch(0.72 0.132 264);
+    --sidebar-primary-foreground: oklch(0.175 0.03 264);
+    --sidebar-accent: oklch(0.305 0.05 264);
+    --sidebar-accent-foreground: oklch(0.83 0.084 264);
+    --sidebar-border: oklch(0.32 0.032 268);
+    --sidebar-ring: oklch(0.72 0.132 264);
+
+    --status-succeeded: oklch(0.79 0.14 132);
+    --status-succeeded-ink: oklch(0.85 0.125 132);
+    --status-failed: oklch(0.72 0.16 12);
+    --status-failed-ink: oklch(0.8 0.116 12);
+    --status-running: oklch(0.82 0.104 236);
+    --status-running-ink: oklch(0.87 0.074 236);
+    --status-waiting: oklch(0.82 0.1 200);
+    --status-waiting-ink: oklch(0.88 0.09 200);
+    --status-queued: oklch(0.72 0.13 258);
+    --status-queued-ink: oklch(0.81 0.095 258);
+    --status-pending: oklch(0.555 0.034 268);
+    --status-pending-ink: oklch(0.7 0.034 268);
+    --status-completed-with-errors: oklch(0.79 0.135 51);
+    --status-completed-with-errors-ink: oklch(0.86 0.085 51);
+    --status-cancelled: oklch(0.75 0.134 300);
+    --status-cancelled-ink: oklch(0.83 0.099 300);
+    --status-skipped: oklch(0.555 0.034 268);
+    --status-skipped-ink: oklch(0.7 0.034 268);
+
+    --graph-edge: oklch(0.5 0.035 268);
+}
+
+/* ---------------------------------------------------------------------------
+   VINYL, LIGHT, WHICH IS THE ONE IT WAS DRAWN AS.
+
+   Warm paper and cream board: `#efe9dc` for the page, `#f5f1e8` for the card, ink at hue 67
+   rather than at a grey. It is a rung darker and a good deal warmer than Paper, which is the
+   difference between a page and a sleeve.
+
+   ONE COLOUR, AND IT IS THE OXBLOOD. `#8b2c20` is dark enough to be a fill under cream and an
+   ink on the page at once, so `--primary-ink` is the same value rather than a second one taken
+   further down -- the only palette in this file where that is true in a light mode.
+   --------------------------------------------------------------------------- */
+html[data-theme='vinyl'],
+[data-palette='vinyl'] {
+    --background: oklch(0.935 0.019 86);
+    --foreground: oklch(0.255 0.022 67);
+    --card: oklch(0.96 0.014 87);
+    --card-foreground: oklch(0.255 0.022 67);
+    --popover: oklch(0.96 0.014 87);
+    --popover-foreground: oklch(0.255 0.022 67);
+
+    --primary: oklch(0.435 0.131 30);
+    --primary-foreground: oklch(0.96 0.014 87);
+    --primary-ink: oklch(0.435 0.131 30);
+
+    --secondary: oklch(0.905 0.027 88);
+    --secondary-foreground: oklch(0.29 0.024 67);
+    --muted: oklch(0.875 0.031 88);
+    --muted-foreground: oklch(0.48 0.035 68);
+    --faint: oklch(0.56 0.034 74);
+    --accent: oklch(0.9 0.037 32);
+    --accent-foreground: oklch(0.36 0.11 30);
+    /* THE ONE PLACE THIS PALETTE HAS TO PUSH. The identity colour is a red, so a refusal drawn
+       in the base's red would be the colour this palette acts in. What tells them apart is not
+       the hue -- there is nowhere for it to go without leaving the sleeve -- but the chroma and
+       the lightness: the oxblood is dark and held back, the refusal is a scarlet at nearly
+       twice its chroma. */
+    --destructive: oklch(0.525 0.205 22);
+    --border: oklch(0.846 0.03 89);
+    --border-strong: oklch(0.79 0.034 89);
+    --input: oklch(0.81 0.034 89);
+    --field: oklch(0.968 0.014 89);
+    --ring: oklch(0.435 0.131 30);
+
+    --chart-1: oklch(0.435 0.131 30);
+    --chart-2: oklch(0.5 0.115 250);
+    --chart-3: oklch(0.53 0.108 138);
+    --chart-4: oklch(0.5 0.115 320);
+    --chart-5: oklch(0.62 0.115 70);
+
+    --sidebar: oklch(0.915 0.024 88);
+    --sidebar-foreground: oklch(0.255 0.022 67);
+    --sidebar-primary: oklch(0.435 0.131 30);
+    --sidebar-primary-foreground: oklch(0.96 0.014 87);
+    --sidebar-accent: oklch(0.9 0.037 32);
+    --sidebar-accent-foreground: oklch(0.36 0.11 30);
+    --sidebar-border: oklch(0.846 0.03 89);
+    --sidebar-ring: oklch(0.435 0.131 30);
+
+    /* The states at printing chroma rather than at screen chroma. A signal hue at 0.19 on this
+       ground reads as a sticker somebody put on the page; the sage green is the old preset's
+       own `#4a7a3a`, and the rest are pulled to meet it. Failed is the exception and keeps the
+       refusal's chroma, because a refusal that whispered would be the wrong restraint. */
+    --status-succeeded: oklch(0.53 0.108 138);
+    --status-succeeded-ink: oklch(0.43 0.1 138);
+    --status-failed: oklch(0.525 0.205 22);
+    --status-failed-ink: oklch(0.44 0.179 22);
+    --status-running: oklch(0.5 0.115 250);
+    --status-running-ink: oklch(0.42 0.11 250);
+    --status-waiting: oklch(0.55 0.094 200);
+    --status-waiting-ink: oklch(0.43 0.074 200);
+    --status-queued: oklch(0.5 0.105 268);
+    --status-queued-ink: oklch(0.42 0.1 268);
+    --status-pending: oklch(0.55 0.035 70);
+    --status-pending-ink: oklch(0.44 0.035 70);
+    --status-completed-with-errors: oklch(0.62 0.115 70);
+    --status-completed-with-errors-ink: oklch(0.47 0.104 70);
+    --status-cancelled: oklch(0.5 0.115 320);
+    --status-cancelled-ink: oklch(0.42 0.11 320);
+    --status-skipped: oklch(0.55 0.035 70);
+    --status-skipped-ink: oklch(0.44 0.035 70);
+
+    --graph-edge: oklch(0.72 0.032 88);
+}
+
+/* ---------------------------------------------------------------------------
+   VINYL, DARK: THE NIGHT PRESSING.
+
+   The preset had no dark half, so this is the sleeve photographed in the dark rather than the
+   light one inverted: a warm brown-black ground at hue 55, the cream kept as ink, and the
+   oxblood lifted to a terracotta -- because at 0.435 it is a fill for cream and on a ground
+   this deep it would be a hole. The accent goes up where the ground went down, which is the
+   same swap the base makes with its amber.
+   --------------------------------------------------------------------------- */
+html.dark[data-theme='vinyl'],
+.dark [data-palette='vinyl'] {
+    --background: oklch(0.175 0.018 55);
+    --foreground: oklch(0.925 0.021 86);
+    --card: oklch(0.225 0.022 55);
+    --card-foreground: oklch(0.925 0.021 86);
+    --popover: oklch(0.225 0.022 55);
+    --popover-foreground: oklch(0.925 0.021 86);
+
+    --primary: oklch(0.7 0.145 32);
+    --primary-foreground: oklch(0.185 0.022 45);
+    --primary-ink: var(--primary);
+
+    --secondary: oklch(0.265 0.025 55);
+    --secondary-foreground: oklch(0.925 0.021 86);
+    --muted: oklch(0.265 0.025 55);
+    --muted-foreground: oklch(0.655 0.03 80);
+    --faint: oklch(0.555 0.03 78);
+    --accent: oklch(0.3 0.05 32);
+    --accent-foreground: oklch(0.83 0.095 32);
+    --destructive: oklch(0.67 0.195 18);
+    --border: oklch(0.32 0.026 55);
+    --border-strong: oklch(0.36 0.028 55);
+    --input: oklch(0.395 0.03 55);
+    --field: oklch(0.152 0.016 55);
+    --ring: oklch(0.7 0.145 32);
+
+    --chart-1: oklch(0.7 0.145 32);
+    --chart-2: oklch(0.72 0.11 250);
+    --chart-3: oklch(0.75 0.12 138);
+    --chart-4: oklch(0.72 0.115 320);
+    --chart-5: oklch(0.78 0.12 70);
+
+    --sidebar: oklch(0.198 0.02 55);
+    --sidebar-foreground: oklch(0.925 0.021 86);
+    --sidebar-primary: oklch(0.7 0.145 32);
+    --sidebar-primary-foreground: oklch(0.185 0.022 45);
+    --sidebar-accent: oklch(0.3 0.05 32);
+    --sidebar-accent-foreground: oklch(0.83 0.095 32);
+    --sidebar-border: oklch(0.32 0.026 55);
+    --sidebar-ring: oklch(0.7 0.145 32);
+
+    --status-succeeded: oklch(0.75 0.12 138);
+    --status-succeeded-ink: oklch(0.83 0.11 138);
+    --status-failed: oklch(0.7 0.18 18);
+    --status-failed-ink: oklch(0.79 0.121 18);
+    --status-running: oklch(0.72 0.11 250);
+    --status-running-ink: oklch(0.81 0.099 250);
+    --status-waiting: oklch(0.76 0.095 200);
+    --status-waiting-ink: oklch(0.84 0.09 200);
+    --status-queued: oklch(0.7 0.1 268);
+    --status-queued-ink: oklch(0.8 0.095 268);
+    --status-pending: oklch(0.555 0.03 78);
+    --status-pending-ink: oklch(0.7 0.03 78);
+    --status-completed-with-errors: oklch(0.78 0.12 70);
+    --status-completed-with-errors-ink: oklch(0.85 0.11 70);
+    --status-cancelled: oklch(0.72 0.115 320);
+    --status-cancelled-ink: oklch(0.81 0.11 320);
+    --status-skipped: oklch(0.555 0.03 78);
+    --status-skipped-ink: oklch(0.7 0.03 78);
+
+    --graph-edge: oklch(0.5 0.03 60);
+}
+
+/* ---------------------------------------------------------------------------
+   CASSETTE, LIGHT.
+
+   The preset was a deck in the dark and this is the inlay card it came with: a near-achromatic
+   grey stock at hue 286, warm ink at hue 80, and the orange taken down until white sits on it.
+   The two hues staying apart is the whole look -- cool plastic, warm label -- and it is why the
+   surfaces here hold almost no chroma while the ink holds a little.
+   --------------------------------------------------------------------------- */
+html[data-theme='cassette'],
+[data-palette='cassette'] {
+    --background: oklch(0.945 0.003 286);
+    --foreground: oklch(0.235 0.02 80);
+    --card: oklch(0.985 0.002 286);
+    --card-foreground: oklch(0.235 0.02 80);
+    --popover: oklch(0.985 0.002 286);
+    --popover-foreground: oklch(0.235 0.02 80);
+
+    --primary: oklch(0.565 0.153 50);
+    --primary-foreground: oklch(0.99 0.002 286);
+    --primary-ink: oklch(0.51 0.148 45);
+
+    --secondary: oklch(0.915 0.004 286);
+    --secondary-foreground: oklch(0.27 0.02 80);
+    --muted: oklch(0.885 0.005 286);
+    --muted-foreground: oklch(0.455 0.022 82);
+    --faint: oklch(0.56 0.022 84);
+    --accent: oklch(0.925 0.04 62);
+    --accent-foreground: oklch(0.36 0.094 55);
+    --destructive: oklch(0.52 0.205 24);
+    --border: oklch(0.855 0.005 286);
+    --border-strong: oklch(0.795 0.007 286);
+    --input: oklch(0.815 0.007 286);
+    --field: oklch(0.985 0.002 286);
+    --ring: oklch(0.565 0.153 50);
+
+    --chart-1: oklch(0.565 0.153 50);
+    --chart-2: oklch(0.52 0.104 230);
+    --chart-3: oklch(0.54 0.13 148);
+    --chart-4: oklch(0.52 0.13 305);
+    --chart-5: oklch(0.52 0.205 24);
+
+    --sidebar: oklch(0.92 0.003 286);
+    --sidebar-foreground: oklch(0.235 0.02 80);
+    --sidebar-primary: oklch(0.565 0.153 50);
+    --sidebar-primary-foreground: oklch(0.99 0.002 286);
+    --sidebar-accent: oklch(0.925 0.04 62);
+    --sidebar-accent-foreground: oklch(0.36 0.094 55);
+    --sidebar-border: oklch(0.855 0.005 286);
+    --sidebar-ring: oklch(0.565 0.153 50);
+
+    /* A tape deck's meter runs green, amber, red, so those three are the states this palette
+       actually has a vocabulary for and they take it. The orange the palette acts in is at 50
+       and completed-with-errors is at 73, which is further apart than the base keeps its own
+       amber from the same state. */
+    --status-succeeded: oklch(0.54 0.13 148);
+    --status-succeeded-ink: oklch(0.42 0.12 148);
+    --status-failed: oklch(0.52 0.205 24);
+    --status-failed-ink: oklch(0.44 0.18 24);
+    --status-running: oklch(0.52 0.104 230);
+    --status-running-ink: oklch(0.42 0.085 230);
+    --status-waiting: oklch(0.56 0.095 200);
+    --status-waiting-ink: oklch(0.43 0.074 200);
+    --status-queued: oklch(0.52 0.12 268);
+    --status-queued-ink: oklch(0.42 0.115 268);
+    --status-pending: oklch(0.56 0.022 84);
+    --status-pending-ink: oklch(0.44 0.022 84);
+    --status-completed-with-errors: oklch(0.66 0.13 73);
+    --status-completed-with-errors-ink: oklch(0.485 0.105 73);
+    --status-cancelled: oklch(0.52 0.13 305);
+    --status-cancelled-ink: oklch(0.42 0.125 305);
+    --status-skipped: oklch(0.56 0.022 84);
+    --status-skipped-ink: oklch(0.44 0.022 84);
+
+    --graph-edge: oklch(0.72 0.006 286);
+}
+
+/* ---------------------------------------------------------------------------
+   CASSETTE, DARK, WHICH IS THE ONE IT WAS DRAWN AS.
+
+   `#0a0a0b` is as far down as this app's grounds go and the old preset put it there on
+   purpose: the deck is black plastic and everything on it is printed. The surfaces are the
+   only ones in this file with essentially no chroma; the ink is the label's warm `#ddd5c4`,
+   and the orange is the lamp behind the transport.
+   --------------------------------------------------------------------------- */
+html.dark[data-theme='cassette'],
+.dark [data-palette='cassette'] {
+    --background: oklch(0.145 0.003 286);
+    --foreground: oklch(0.875 0.025 86);
+    --card: oklch(0.192 0.006 286);
+    --card-foreground: oklch(0.875 0.025 86);
+    --popover: oklch(0.192 0.006 286);
+    --popover-foreground: oklch(0.875 0.025 86);
+
+    --primary: oklch(0.758 0.169 57);
+    --primary-foreground: oklch(0.15 0.012 60);
+    --primary-ink: var(--primary);
+
+    --secondary: oklch(0.232 0.009 286);
+    --secondary-foreground: oklch(0.875 0.025 86);
+    --muted: oklch(0.232 0.009 286);
+    --muted-foreground: oklch(0.655 0.031 85);
+    /* The preset's own `#5a5547` is 0.45, which is a timestamp nobody can read on a ground this
+       deep. Lifted to the rung the base gives a faint, and no further: it is still the quietest
+       ink on the deck. */
+    --faint: oklch(0.545 0.026 88);
+    --accent: oklch(0.285 0.045 57);
+    --accent-foreground: oklch(0.83 0.141 73);
+    --destructive: oklch(0.65 0.2 24);
+    --border: oklch(0.3 0.011 286);
+    --border-strong: oklch(0.345 0.012 286);
+    --input: oklch(0.378 0.014 286);
+    --field: oklch(0.125 0.003 286);
+    --ring: oklch(0.758 0.169 57);
+
+    --chart-1: oklch(0.758 0.169 57);
+    --chart-2: oklch(0.72 0.13 230);
+    --chart-3: oklch(0.76 0.145 148);
+    --chart-4: oklch(0.72 0.13 305);
+    --chart-5: oklch(0.67 0.195 24);
+
+    --sidebar: oklch(0.168 0.004 286);
+    --sidebar-foreground: oklch(0.875 0.025 86);
+    --sidebar-primary: oklch(0.758 0.169 57);
+    --sidebar-primary-foreground: oklch(0.15 0.012 60);
+    --sidebar-accent: oklch(0.285 0.045 57);
+    --sidebar-accent-foreground: oklch(0.83 0.141 73);
+    --sidebar-border: oklch(0.3 0.011 286);
+    --sidebar-ring: oklch(0.758 0.169 57);
+
+    --status-succeeded: oklch(0.76 0.145 148);
+    --status-succeeded-ink: oklch(0.84 0.13 148);
+    --status-failed: oklch(0.67 0.195 24);
+    --status-failed-ink: oklch(0.78 0.128 24);
+    --status-running: oklch(0.72 0.13 230);
+    --status-running-ink: oklch(0.81 0.115 230);
+    --status-waiting: oklch(0.76 0.11 200);
+    --status-waiting-ink: oklch(0.84 0.1 200);
+    --status-queued: oklch(0.7 0.115 268);
+    --status-queued-ink: oklch(0.8 0.099 268);
+    --status-pending: oklch(0.545 0.026 88);
+    --status-pending-ink: oklch(0.69 0.026 88);
+    --status-completed-with-errors: oklch(0.83 0.141 73);
+    --status-completed-with-errors-ink: oklch(0.89 0.088 73);
+    --status-cancelled: oklch(0.72 0.13 305);
+    --status-cancelled-ink: oklch(0.81 0.119 305);
+    --status-skipped: oklch(0.545 0.026 88);
+    --status-skipped-ink: oklch(0.69 0.026 88);
+
+    --graph-edge: oklch(0.49 0.012 286);
+}
+
+/* ---------------------------------------------------------------------------
+   NEON, LIGHT: NOON RATHER THAN MIDNIGHT.
+
+   The preset was a glow on near-black and a glow cannot be inverted, so what survives into a
+   light mode is the pair rather than the light: a pale lilac ground at hue 300, the magenta
+   taken down until white sits on it, and the cyan kept as the wash under a pointer, which is
+   the only job it can still do at this end of the ladder.
+   --------------------------------------------------------------------------- */
+html[data-theme='neon'],
+[data-palette='neon'] {
+    --background: oklch(0.96 0.014 300);
+    --foreground: oklch(0.225 0.05 300);
+    --card: oklch(0.995 0.003 300);
+    --card-foreground: oklch(0.225 0.05 300);
+    --popover: oklch(0.995 0.003 300);
+    --popover-foreground: oklch(0.225 0.05 300);
+
+    --primary: oklch(0.545 0.22 358);
+    --primary-foreground: oklch(0.99 0.006 300);
+    --primary-ink: oklch(0.5 0.205 358);
+
+    --secondary: oklch(0.925 0.024 300);
+    --secondary-foreground: oklch(0.26 0.05 300);
+    --muted: oklch(0.895 0.03 300);
+    --muted-foreground: oklch(0.465 0.06 300);
+    --faint: oklch(0.565 0.06 300);
+    --accent: oklch(0.915 0.05 215);
+    --accent-foreground: oklch(0.36 0.066 215);
+    --destructive: oklch(0.545 0.2 32);
+    --border: oklch(0.87 0.035 300);
+    --border-strong: oklch(0.81 0.045 300);
+    --input: oklch(0.83 0.045 300);
+    --field: oklch(0.995 0.003 300);
+    --ring: oklch(0.545 0.22 358);
+
+    --chart-1: oklch(0.545 0.22 358);
+    --chart-2: oklch(0.53 0.094 215);
+    --chart-3: oklch(0.56 0.115 167);
+    --chart-4: oklch(0.52 0.16 285);
+    --chart-5: oklch(0.65 0.133 85);
+
+    --sidebar: oklch(0.935 0.02 300);
+    --sidebar-foreground: oklch(0.225 0.05 300);
+    --sidebar-primary: oklch(0.545 0.22 358);
+    --sidebar-primary-foreground: oklch(0.99 0.006 300);
+    --sidebar-accent: oklch(0.915 0.05 215);
+    --sidebar-accent-foreground: oklch(0.36 0.066 215);
+    --sidebar-border: oklch(0.87 0.035 300);
+    --sidebar-ring: oklch(0.545 0.22 358);
+
+    /* Failed stands at 32 rather than at the base's 25, because the colour this palette acts in
+       is a magenta and a refusal drawn beside it has to be the other red. Queued and cancelled
+       move too: the ground itself is a violet, so the base's blue-violet and violet would be
+       two states read against their own surface. */
+    --status-succeeded: oklch(0.56 0.115 167);
+    --status-succeeded-ink: oklch(0.43 0.09 167);
+    --status-failed: oklch(0.545 0.2 32);
+    --status-failed-ink: oklch(0.45 0.175 32);
+    --status-running: oklch(0.53 0.094 215);
+    --status-running-ink: oklch(0.42 0.076 215);
+    --status-waiting: oklch(0.56 0.096 195);
+    --status-waiting-ink: oklch(0.43 0.075 195);
+    --status-queued: oklch(0.52 0.16 285);
+    --status-queued-ink: oklch(0.43 0.15 285);
+    --status-pending: oklch(0.565 0.06 300);
+    --status-pending-ink: oklch(0.45 0.06 300);
+    --status-completed-with-errors: oklch(0.65 0.133 85);
+    --status-completed-with-errors-ink: oklch(0.475 0.099 85);
+    --status-cancelled: oklch(0.53 0.17 318);
+    --status-cancelled-ink: oklch(0.43 0.16 318);
+    --status-skipped: oklch(0.565 0.06 300);
+    --status-skipped-ink: oklch(0.45 0.06 300);
+
+    --graph-edge: oklch(0.74 0.05 300);
+}
+
+/* ---------------------------------------------------------------------------
+   NEON, DARK, WHICH IS THE ONE IT WAS DRAWN AS.
+
+   `#0a0418` under `#0e0520` under `#140828` under `#1d0e36`: the old ladder, and the only
+   ground in this file whose surfaces carry real chroma -- 0.045 rising to 0.077, where every
+   other palette here holds a surface under 0.04. That is deliberate and it is the preset.
+
+   TWO VOICES, IN THE ROLES THE OLD CSS ACTUALLY GAVE THEM. The magenta was the play button and
+   the now-playing title, so it is `--primary` and `--ring`: the colour spent on action. The
+   cyan was the active rail entry and `--row-active`, so it is `--accent` and its ink -- the
+   wash under a pointer and on a chosen row -- and it is `--status-running` as well, because a
+   thing that is live is the one other place this app means "now". Nothing else gets either.
+   --------------------------------------------------------------------------- */
+html.dark[data-theme='neon'],
+.dark [data-palette='neon'] {
+    --background: oklch(0.134 0.045 296);
+    --foreground: oklch(0.93 0.037 299);
+    --card: oklch(0.182 0.063 297);
+    --card-foreground: oklch(0.93 0.037 299);
+    --popover: oklch(0.182 0.063 297);
+    --popover-foreground: oklch(0.93 0.037 299);
+
+    --primary: oklch(0.665 0.245 358);
+    --primary-foreground: oklch(0.14 0.045 296);
+    --primary-ink: var(--primary);
+
+    --secondary: oklch(0.225 0.077 297);
+    --secondary-foreground: oklch(0.93 0.037 299);
+    --muted: oklch(0.225 0.077 297);
+    --muted-foreground: oklch(0.735 0.091 304);
+    --faint: oklch(0.595 0.095 302);
+    --accent: oklch(0.3 0.07 240);
+    --accent-foreground: oklch(0.85 0.14 209);
+    --destructive: oklch(0.68 0.208 32);
+    /* The old `#2c1556` is 0.272, which on a ground this dark is a line that has to be looked
+       for. Up a rung, at the chroma the ground already carries, so the edge is violet rather
+       than grey. */
+    --border: oklch(0.3 0.105 294);
+    --border-strong: oklch(0.35 0.12 294);
+    --input: oklch(0.385 0.13 294);
+    --field: oklch(0.112 0.04 296);
+    --ring: oklch(0.665 0.245 358);
+
+    --chart-1: oklch(0.665 0.245 358);
+    --chart-2: oklch(0.845 0.145 209);
+    --chart-3: oklch(0.85 0.15 167);
+    --chart-4: oklch(0.75 0.133 285);
+    --chart-5: oklch(0.85 0.155 95);
+
+    --sidebar: oklch(0.155 0.055 296);
+    --sidebar-foreground: oklch(0.93 0.037 299);
+    --sidebar-primary: oklch(0.665 0.245 358);
+    --sidebar-primary-foreground: oklch(0.14 0.045 296);
+    --sidebar-accent: oklch(0.3 0.07 240);
+    --sidebar-accent-foreground: oklch(0.85 0.14 209);
+    --sidebar-border: oklch(0.3 0.105 294);
+    --sidebar-ring: oklch(0.665 0.245 358);
+
+    --status-succeeded: oklch(0.85 0.15 167);
+    --status-succeeded-ink: oklch(0.9 0.135 167);
+    --status-failed: oklch(0.68 0.208 32);
+    --status-failed-ink: oklch(0.79 0.122 32);
+    --status-running: oklch(0.845 0.145 209);
+    --status-running-ink: oklch(0.89 0.102 209);
+    --status-waiting: oklch(0.84 0.13 195);
+    --status-waiting-ink: oklch(0.89 0.12 195);
+    --status-queued: oklch(0.72 0.146 278);
+    --status-queued-ink: oklch(0.82 0.09 278);
+    --status-pending: oklch(0.615 0.06 300);
+    --status-pending-ink: oklch(0.75 0.055 300);
+    --status-completed-with-errors: oklch(0.85 0.16 90);
+    --status-completed-with-errors-ink: oklch(0.9 0.128 90);
+    --status-cancelled: oklch(0.76 0.17 318);
+    --status-cancelled-ink: oklch(0.85 0.115 318);
+    --status-skipped: oklch(0.615 0.06 300);
+    --status-skipped-ink: oklch(0.75 0.055 300);
+
+    --graph-edge: oklch(0.47 0.1 296);
+}
