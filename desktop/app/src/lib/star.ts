@@ -7,11 +7,18 @@
  * search or the album read said -- which is how the key and the button on the album row agree
  * about a track somebody starred from the player bar a minute ago.
  *
- * THE DECISIONS ARE PURE AND THE WRITE IS NOT. `starredNow` and `withMark` are the whole of
- * what is worth a test; `toggleStar` is the one line that needs credentials and a network, and
- * it hands the marks back the moment the server refuses rather than leaving a star that is not
- * there.
+ * THE DECISIONS ARE PURE AND THE WRITE IS NOT. `starredNow`, `withMark` and `refusedStar` are
+ * the whole of what is worth a test; `toggleStar` is the one line that needs credentials and a
+ * network, and it hands the marks back the moment the server refuses rather than leaving a
+ * star that is not there.
+ *
+ * A REFUSAL IS SAID, AND IT IS SAID AS A TOAST. A star is a row's own button, and on the
+ * player bar it is a glyph in a strip -- neither has room beside it for a sentence, which is
+ * the case the one notification this app raises exists for. Taking the mark back and saying
+ * nothing was the star going on under somebody's finger and quietly coming off again.
  */
+
+import { toast } from 'sonner'
 
 import { createStore } from '@/lib/store'
 import { setStarred, type Credentials, type Song } from '@/lib/subsonic'
@@ -37,6 +44,19 @@ export function withMark(
 }
 
 /**
+ * What a refused star says.
+ *
+ * The verb is what was asked for rather than what is true now, because what the reader has
+ * just seen come undone is their own gesture. The server's own sentence follows it where there
+ * is one: a refusal that names the reason is one somebody can do something about.
+ */
+export function refusedStar(song: Song, wanted: boolean, error: unknown): string {
+    const asked = wanted ? `Could not star ${song.title}` : `Could not unstar ${song.title}`
+    const reason = error instanceof Error ? error.message.trim() : ''
+    return reason ? `${asked}: ${reason}` : `${asked}.`
+}
+
+/**
  * Star a track, or take the mark off. Answers what the star now is, or null when there is none.
  *
  * The mark is written before the request is made and taken back if the request is refused: a
@@ -47,8 +67,9 @@ export function toggleStar(credentials: Credentials | undefined, song: Song | nu
     if (!credentials || song === null) return null
     const wanted = !starredNow(starMarks.get(), song)
     starMarks.update((marks) => withMark(marks, song.id, wanted))
-    void setStarred(credentials, song.id, wanted).catch(() => {
+    void setStarred(credentials, song.id, wanted).catch((error: unknown) => {
         starMarks.update((marks) => withMark(marks, song.id, !wanted))
+        toast.error(refusedStar(song, wanted, error))
     })
     return wanted
 }

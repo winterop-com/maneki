@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, test } from 'vitest'
 
-import { forgetMarks, starMarks, starredNow, withMark } from '@/lib/star'
-import type { Song } from '@/lib/subsonic'
+import { forgetMarks, refusedStar, starMarks, starredNow, withMark } from '@/lib/star'
+import { SubsonicError, type Song } from '@/lib/subsonic'
 
 function song(id: string, starred?: string): Song {
     return { id, title: id, starred }
@@ -45,5 +45,24 @@ describe('writing a mark', () => {
         starMarks.set(withMark(new Map(), 'a', true))
         forgetMarks()
         expect(starMarks.get().size).toBe(0)
+    })
+})
+
+// Regression: the mark was handed back with nothing said, so a star went on under somebody's
+// finger and quietly came off again.
+describe('a refused star', () => {
+    test('says what was asked for rather than what is true now', () => {
+        expect(refusedStar(song('Blue Monday'), true, new Error(''))).toBe('Could not star Blue Monday.')
+        expect(refusedStar(song('Blue Monday'), false, new Error(''))).toBe('Could not unstar Blue Monday.')
+    })
+
+    test("carries the server's own reason, which is what somebody can act on", () => {
+        expect(refusedStar(song('Blue Monday'), true, new SubsonicError(50, 'not allowed'))).toBe(
+            'Could not star Blue Monday: not allowed',
+        )
+    })
+
+    test('says it plainly when whatever was thrown has nothing to add', () => {
+        expect(refusedStar(song('Blue Monday'), true, 'nope')).toBe('Could not star Blue Monday.')
     })
 })

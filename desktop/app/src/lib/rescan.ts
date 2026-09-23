@@ -14,8 +14,8 @@
  * WHAT IT SAYS, IT SAYS ALONG THE FOOT. A progress note is a fact about work in flight, which is
  * what the status bar is for and what `scanNote` already spells; a toast per poll would be a
  * notification every two seconds. The one thing raised as a toast is a refusal, because the
- * palette row that asked has no room beside it to draw one -- which is the only toast this app
- * raises about a request at all.
+ * palette row that asked has no room beside it to draw one -- which is the only reason anything
+ * in this app raises one, and `lib/star` is the other write with nowhere to put a sentence.
  */
 
 import { toast } from 'sonner'
