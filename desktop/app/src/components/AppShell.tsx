@@ -1,5 +1,6 @@
 import {
     AudioLines,
+    Gauge,
     Keyboard,
     ListMusic,
     LogOut,
@@ -14,6 +15,8 @@ import {
     Maximize2,
     MicVocal,
     RefreshCw,
+    RotateCcw,
+    RotateCw,
     Search,
     Settings,
     Repeat,
@@ -57,7 +60,18 @@ import {
 } from '@/lib/palette'
 import { fillPanel, railCollapsed, togglePanel, toggleRail } from '@/lib/panels'
 import { RESCAN_LABEL, rescan } from '@/lib/rescan'
-import { cycleRepeat, next, playerStore, previous, toggle, toggleShuffle } from '@/lib/player'
+import {
+    cycleRepeat,
+    next,
+    playerStore,
+    previous,
+    setSpeed,
+    skipBy,
+    SKIP_S,
+    SPEEDS,
+    toggle,
+    toggleShuffle,
+} from '@/lib/player'
 import { openLyrics } from '@/lib/lyrics'
 import { nextRepeat, REPEAT_LABELS } from '@/lib/queue'
 import { openSearch } from '@/lib/search'
@@ -66,12 +80,15 @@ import { applePlatform, modifierLabel } from '@/lib/shortcuts'
 import { chooseSpectrumTheme, SPECTRUM_THEMES } from '@/lib/spectrum-themes'
 import { cycleVisualizerStyle, openStage, toggleVisualizer, visualizerShown } from '@/lib/visualizer'
 
-/** The three facts the shell reads off the player. Module scope, so each is one stable function. */
+/** The facts the shell reads off the player. Module scope, so each is one stable function. */
 const selectPlaying = (state: { playing: boolean }) => state.playing
 const selectQueueLength = (state: { queue: unknown[] }) => state.queue.length
 const selectStation = (state: { station: unknown }) => state.station
 const selectShuffle = (state: { shuffle: boolean }) => state.shuffle
 const selectRepeat = (state: { repeat: 'off' | 'all' | 'one' }) => state.repeat
+const selectBookId = (state: { book: { id: string } | null }) => state.book?.id ?? null
+const selectChapterCount = (state: { book: { chapter_list: unknown[] } | null }) =>
+    state.book?.chapter_list.length ?? 0
 
 export const SIGN_OUT_LABEL = 'Sign out'
 export const TOGGLE_PANEL_LABEL = 'Show or hide the side panel'
@@ -114,6 +131,8 @@ export function AppShell({ children }: { children: ReactNode }) {
     const station = useStoreValue(playerStore, selectStation)
     const shuffle = useStoreValue(playerStore, selectShuffle)
     const repeat = useStoreValue(playerStore, selectRepeat)
+    const bookId = useStoreValue(playerStore, selectBookId)
+    const chapterCount = useStoreValue(playerStore, selectChapterCount)
     const spectrum = useStore(visualizerShown)
     const navigate = useNavigate()
     const { setTheme } = useTheme()
@@ -152,14 +171,16 @@ export function AppShell({ children }: { children: ReactNode }) {
     )
 
     // The queue fills the panel for as long as there is one, and empties it when the queue
-    // goes: a panel offering an empty tab is chrome that does nothing.
+    // goes: a panel offering an empty tab is chrome that does nothing. A book fills it with its
+    // chapters for the same reason and under the same heading -- what comes next -- and a book
+    // carrying no chapter marks has nothing to list, so it does not.
     useEffect(() => {
-        if (!queued) return
+        if (!queued && chapterCount === 0) return
         return fillPanel([{ id: 'queue', label: QUEUE_LABEL, render: () => <QueuePanel /> }], {
             screen: 'shell',
             open: 'queue',
         })
-    }, [queued])
+    }, [queued, chapterCount])
 
     const actions = useMemo<PaletteAction[]>(() => {
         const pages: PaletteAction[] = entriesFor(caps).map((entry) => ({
@@ -173,8 +194,65 @@ export function AppShell({ children }: { children: ReactNode }) {
                 void navigate(entry.path)
             },
         }))
+        // WHAT THE PALETTE OFFERS IS WHAT IS PLAYING. A book steps by chapters and jumps by
+        // fifteen seconds and is read at a speed; a record shuffles and repeats. Offering both
+        // sets at once would be a list of rows half of which do nothing to the thing sounding.
+        const bookRows: PaletteAction[] = [
+            ...(chapterCount > 0
+                ? [
+                      {
+                          id: 'play:next',
+                          title: 'Next chapter',
+                          group: PLAYBACK_GROUP,
+                          icon: SkipForward,
+                          keywords: ['skip', 'forward', 'chapter'],
+                          run: next,
+                      },
+                      {
+                          id: 'play:previous',
+                          title: 'Previous chapter',
+                          group: PLAYBACK_GROUP,
+                          icon: SkipBack,
+                          keywords: ['back', 'again', 'chapter'],
+                          run: previous,
+                      },
+                  ]
+                : []),
+            {
+                id: 'play:forward',
+                title: `Forward ${String(SKIP_S)} seconds`,
+                group: PLAYBACK_GROUP,
+                icon: RotateCw,
+                keywords: ['skip', 'jump', 'ahead'],
+                run: () => {
+                    skipBy(SKIP_S)
+                },
+            },
+            {
+                id: 'play:back',
+                title: `Back ${String(SKIP_S)} seconds`,
+                group: PLAYBACK_GROUP,
+                icon: RotateCcw,
+                keywords: ['skip', 'jump', 'again', 'missed'],
+                run: () => {
+                    skipBy(-SKIP_S)
+                },
+            },
+            // Every speed rather than a row that cycles: a reader who wants it at one and a
+            // half is asking for one and a half, not for four presses of "a bit faster".
+            ...SPEEDS.map((speed) => ({
+                id: `play:speed-${String(speed)}`,
+                title: `Read at ${String(speed)}x`,
+                group: PLAYBACK_GROUP,
+                icon: Gauge,
+                keywords: ['speed', 'rate', 'faster', 'slower', 'narration'],
+                run: () => {
+                    setSpeed(speed)
+                },
+            })),
+        ]
         const transport: PaletteAction[] =
-            queuedCount > 0 || station !== null
+            queuedCount > 0 || station !== null || bookId !== null
                 ? [
                       {
                           id: 'play:toggle',
@@ -184,7 +262,8 @@ export function AppShell({ children }: { children: ReactNode }) {
                           keywords: ['stop', 'resume', 'transport'],
                           run: toggle,
                       },
-                      ...(station === null
+                      ...(bookId !== null ? bookRows : []),
+                      ...(bookId === null && station === null
                           ? [
                                 {
                                     id: 'play:next',
@@ -355,7 +434,9 @@ export function AppShell({ children }: { children: ReactNode }) {
             },
         ]
     }, [
+        bookId,
         caps,
+        chapterCount,
         collapsed,
         music,
         navigate,

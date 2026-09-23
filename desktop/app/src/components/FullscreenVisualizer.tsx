@@ -4,8 +4,9 @@ import { useEffect } from 'react'
 import { Button } from '@/components/ui/button'
 import { useSpectrum } from '@/hooks/use-spectrum'
 import { useStore } from '@/hooks/use-store'
+import { books as booksApi } from '@/lib/api'
 import { clock } from '@/lib/format'
-import { currentSong, playerStore } from '@/lib/player'
+import { currentChapter, currentSong, playerStore } from '@/lib/player'
 import { sessionStore } from '@/lib/session'
 import { coverUrl } from '@/lib/subsonic'
 import {
@@ -74,7 +75,17 @@ export function FullscreenVisualizer() {
 
     if (!open) return null
 
-    const cover = song && session.music ? coverUrl(session.music, song.coverArt, 600) : null
+    // A book is on this stage the way it is on the bar: the chapter is what is playing and the
+    // book is what it is out of, which is the same pair as a track and its artist.
+    const book = player.book
+    const chapter = currentChapter()
+    const cover = book
+        ? book.has_cover
+            ? booksApi.coverUrl(book.id, 600)
+            : null
+        : song && session.music
+          ? coverUrl(session.music, song.coverArt, 600)
+          : null
     const duration = player.durationS || song?.duration || 0
 
     return (
@@ -101,10 +112,16 @@ export function FullscreenVisualizer() {
                 )}
                 <div className="max-w-2xl text-center">
                     <p className="truncate text-2xl font-semibold md:text-4xl">
-                        {song?.title ?? player.station?.name}
+                        {book ? (chapter?.title ?? book.title) : (song?.title ?? player.station?.name)}
                     </p>
                     <p className="mt-2 truncate text-base text-muted-foreground md:text-lg">
-                        {player.station ? player.stationTitle || 'Live' : (song?.artist ?? '')}
+                        {book
+                            ? chapter
+                                ? `${book.title} · ${book.author}`
+                                : book.author
+                            : player.station
+                              ? player.stationTitle || 'Live'
+                              : (song?.artist ?? '')}
                     </p>
                     {player.station === null && duration > 0 && (
                         <p className="mt-4 font-mono text-sm text-muted-foreground tabular-nums">
