@@ -1,5 +1,35 @@
 import { useEffect, type RefObject } from 'react'
 
+/** The input that last happened, which is what the next focus is credited to. */
+let lastInput: 'pointer' | 'keyboard' = 'keyboard'
+
+/** Which input put focus on each element, for as long as the element lives. */
+const focusedBy = new WeakMap<Element, 'pointer' | 'keyboard'>()
+
+if (typeof document !== 'undefined') {
+    document.addEventListener(
+        'pointerdown',
+        () => {
+            lastInput = 'pointer'
+        },
+        true,
+    )
+    document.addEventListener(
+        'keydown',
+        () => {
+            lastInput = 'keyboard'
+        },
+        true,
+    )
+    document.addEventListener(
+        'focusin',
+        (event) => {
+            if (event.target instanceof Element) focusedBy.set(event.target, lastInput)
+        },
+        true,
+    )
+}
+
 /**
  * What a full-screen overlay does to the shell behind it.
  *
@@ -27,11 +57,12 @@ export function useOverlay(container: RefObject<HTMLElement | null>, close: () =
         if (!element) return
 
         const opener = document.activeElement
-        // WHETHER THE OPENER WAS WEARING A RING. A row that was clicked holds focus without one;
+        // HOW THE OPENER CAME TO BE FOCUSED. A row that was clicked holds focus without a ring;
         // focus handed back to it after a key press would draw one, because the browser judges
-        // by the last input rather than by how the element came to be focused. So what it wore
-        // going in is what it wears coming out.
-        const ringed = opener instanceof HTMLElement && opener.matches(':focus-visible')
+        // by the last input rather than by how the element came to be focused -- and pressing
+        // the key that opened this overlay is already a key press. So what is remembered is the
+        // input that put focus there, and a pointer's focus comes back without the ring.
+        const ringed = opener instanceof HTMLElement && focusedBy.get(opener) === 'keyboard'
         const muted: HTMLElement[] = []
         const siblings = element.parentElement?.children
         for (let at = 0; at < (siblings?.length ?? 0); at += 1) {
@@ -54,6 +85,10 @@ export function useOverlay(container: RefObject<HTMLElement | null>, close: () =
             // browser refuses.
             if (opener instanceof HTMLElement && opener.isConnected) {
                 opener.focus()
+                // The focus just given is credited to whatever input came last, which was the
+                // key that closed this; what is remembered is how the opener was focused before
+                // any of that, so a second overlay in a row makes the same decision.
+                focusedBy.set(opener, ringed ? 'keyboard' : 'pointer')
                 if (!ringed) quieten(opener)
             }
         }

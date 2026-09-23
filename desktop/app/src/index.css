@@ -2185,19 +2185,6 @@ html.dark[data-theme='neon'],
     height: 4px;
 }
 
-.stage-select {
-    height: 2rem;
-    border-radius: var(--radius-md);
-    border: 1px solid color-mix(in oklab, var(--terminal-foreground) 18%, transparent);
-    background-color: color-mix(in oklab, var(--terminal-foreground) 8%, transparent);
-    color: var(--terminal-muted);
-    padding: 0 0.5rem;
-    font-size: 0.75rem;
-}
-.stage-select:hover {
-    color: var(--terminal-foreground);
-}
-
 /* Focus handed back to a pointer-focused control after an overlay closes: held, but not
    drawn as a ring until the keyboard is used again. See `hooks/use-overlay`. */
 [data-focus-quiet]:focus-visible {

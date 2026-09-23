@@ -1,4 +1,4 @@
-import { Pause, Play, SkipBack, SkipForward, Star, X } from 'lucide-react'
+import { AudioLines, Pause, Play, SkipBack, SkipForward, Star, X } from 'lucide-react'
 import { useRef } from 'react'
 
 import { Button } from '@/components/ui/button'
@@ -14,15 +14,10 @@ import { coverUrl } from '@/lib/subsonic'
 import { cn } from '@/lib/utils'
 import {
     closeStage,
+    cycleVisualizerStyle,
     nextStyle,
-    setSpectrumEffect,
-    setVisualizerStyle,
-    SPECTRUM_EFFECT_LABELS,
-    SPECTRUM_EFFECTS,
-    spectrumEffect,
     stageOpen,
     VISUALIZER_STYLE_LABELS,
-    VISUALIZER_STYLES,
     visualizerStyle,
     type VisualizerStyle,
 } from '@/lib/visualizer'
@@ -88,7 +83,6 @@ function Stage() {
     const session = useStore(sessionStore)
     const marks = useStore(starMarks)
     const style = useStore(visualizerStyle)
-    const effect = useStore(spectrumEffect)
     const stage = useRef<HTMLDivElement | null>(null)
     const song = currentSong()
     const playing = player.playing
@@ -239,38 +233,21 @@ function Stage() {
             {/* The two things the stage itself can do, in the corner and nowhere else: what a
                 stage is for is looking at it, so anything standing over the canvas has to have
                 earned the room. */}
-            <div className="absolute top-4 right-4 flex items-center gap-2">
-                {/* WHAT IS DRAWN AND WHAT IS DONE TO IT, AS TWO LISTS. A control that cycles has
-                    to be pressed to find out what is on it; a list says so, and the effect list
-                    starts on nothing, because an effect is a thing somebody adds. */}
-                <select
-                    aria-label="Drawing"
-                    value={style}
-                    onChange={(event) => {
-                        setVisualizerStyle(event.target.value as VisualizerStyle)
+            <div className="absolute top-4 right-4 flex items-center gap-1">
+                {/* The drawing is stepped from here, because which drawing the spectrum is is
+                    a thing somebody decides while looking at it. What is done to the drawing --
+                    a glow, trails -- is chosen on the settings pane, where a list can be a list. */}
+                <Button
+                    variant="ghost"
+                    size="icon"
+                    aria-label={nextStyleLabel(style)}
+                    onClick={() => {
+                        cycleVisualizerStyle()
                     }}
-                    className="stage-select"
+                    className="stage-button"
                 >
-                    {VISUALIZER_STYLES.map((one) => (
-                        <option key={one} value={one}>
-                            {VISUALIZER_STYLE_LABELS[one]}
-                        </option>
-                    ))}
-                </select>
-                <select
-                    aria-label="Effect"
-                    value={effect}
-                    onChange={(event) => {
-                        setSpectrumEffect(event.target.value)
-                    }}
-                    className="stage-select"
-                >
-                    {SPECTRUM_EFFECTS.map((one) => (
-                        <option key={one} value={one}>
-                            {SPECTRUM_EFFECT_LABELS[one]}
-                        </option>
-                    ))}
-                </select>
+                    <AudioLines className="size-5" aria-hidden />
+                </Button>
                 <Button
                     variant="ghost"
                     size="icon"
