@@ -4,6 +4,7 @@ import type {
     VideoBrowse,
     VideoEntry,
     VideoFolder,
+    VideoProgress,
     VideoScanState,
     VideoSessionStats,
     VideoStatsFrame,
@@ -16,19 +17,25 @@ import {
     compareNames,
     crumbsOf,
     encoderOf,
+    episodeName,
     fileSize,
     hlsPath,
+    neighbours,
     otherStreams,
     parentOf,
     posterPath,
     preferredSubtitles,
     resolutionLabel,
+    resumeAt,
     rowsOf,
     scanProgress,
     sessionFor,
+    STARTED_AFTER_S,
+    started,
     streamVerdict,
     subtitleKey,
     subtitleLabel,
+    subtitleNote,
     subtitlePath,
     thumbnailPath,
     watchHref,
@@ -67,6 +74,10 @@ function track(partial: Partial<VideoSubtitleTrack>): VideoSubtitleTrack {
         url: '',
         ...partial,
     }
+}
+
+function saved(partial: Partial<VideoProgress>): VideoProgress {
+    return { video_id: 'v1', position_s: 0, finished: false, updated_at: 1, ...partial }
 }
 
 function sample(partial: Partial<PlaybackSample> = {}): PlaybackSample {
@@ -205,6 +216,111 @@ describe('subtitleLabel', () => {
 
     it('says Subtitles for a sidecar that named no language', () => {
         expect(subtitleLabel('sidecar:und', 'und')).toBe('Subtitles')
+    })
+})
+
+describe('where a video opens', () => {
+    it('opens at the top when nobody has watched it', () => {
+        expect(resumeAt(null)).toBe(0)
+        expect(started(null)).toBe(false)
+        expect(started(undefined)).toBe(false)
+    })
+
+    it('carries on from where somebody stopped', () => {
+        expect(resumeAt(saved({ position_s: 610 }))).toBe(610)
+        expect(started(saved({ position_s: 610 }))).toBe(true)
+    })
+
+    it('starts a finished video again rather than resuming into its credits', () => {
+        expect(resumeAt(saved({ position_s: 2650, finished: true }))).toBe(0)
+        expect(started(saved({ position_s: 2650, finished: true }))).toBe(false)
+    })
+
+    it('treats the first few seconds as never having started', () => {
+        expect(resumeAt(saved({ position_s: STARTED_AFTER_S - 1 }))).toBe(0)
+        expect(started(saved({ position_s: STARTED_AFTER_S - 1 }))).toBe(false)
+        expect(resumeAt(saved({ position_s: STARTED_AFTER_S }))).toBe(STARTED_AFTER_S)
+    })
+})
+
+describe('episodeName', () => {
+    const season = [
+        'Star Trek The Next Generation - S03E03 - The Survivors',
+        'Star Trek The Next Generation - S03E04 - Who Watches the Watchers',
+        'Star Trek The Next Generation - S03E05 - The Bonding',
+    ]
+
+    it('leads with the episode number, which is what somebody is looking for', () => {
+        expect(episodeName(season[1] ?? '', season)).toBe('S03E04 - Who Watches the Watchers')
+    })
+
+    it('finds the number whatever case the release wrote it in', () => {
+        expect(episodeName('The Wire s01e01 Pilot', [])).toBe('s01e01 Pilot')
+    })
+
+    it('takes off what every other name in the folder shares, at a word boundary', () => {
+        const parts = ['The Lord of the Rings - Part 1', 'The Lord of the Rings - Part 2']
+        expect(episodeName(parts[0] ?? '', parts)).toBe('Part 1')
+    })
+
+    it('cuts words rather than characters, so a shared first letter is not a cut', () => {
+        const titles = ['The Hunted', 'The High Ground']
+        expect(episodeName(titles[0] ?? '', titles)).toBe('Hunted')
+    })
+
+    it('keeps a name whose folder shares nothing with it', () => {
+        expect(episodeName('Arrival', ['Arrival', 'Dune', 'Solaris'])).toBe('Arrival')
+    })
+
+    it('keeps a name that is the only thing in its folder', () => {
+        const alone = 'Star Trek The Next Generation'
+        expect(episodeName(alone, [alone])).toBe(alone)
+        expect(episodeName(alone, [])).toBe(alone)
+    })
+
+    it('never answers with nothing, however much the names have in common', () => {
+        const same = ['A B C', 'A B C D']
+        expect(episodeName(same[0] ?? '', same)).toBe('A B C')
+    })
+
+    it('leaves a name that already starts with its number alone', () => {
+        expect(episodeName('S03E04 - Who Watches the Watchers', ['S03E05 - The Bonding'])).toBe(
+            'S03E04 - Who Watches the Watchers',
+        )
+    })
+})
+
+describe('neighbours', () => {
+    const season = [video('S01E10'), video('S01E02'), video('S01E01')]
+
+    it('steps in the order the listing draws, not the order the wire answered', () => {
+        const around = neighbours(season, 'S01E02')
+        expect(around.previous?.id).toBe('S01E01')
+        expect(around.next?.id).toBe('S01E10')
+    })
+
+    it('stops at either end rather than wrapping round', () => {
+        expect(neighbours(season, 'S01E01').previous).toBeNull()
+        expect(neighbours(season, 'S01E10').next).toBeNull()
+    })
+
+    it('answers nothing about a video the folder does not hold', () => {
+        expect(neighbours(season, 'nowhere')).toEqual({ previous: null, next: null })
+    })
+})
+
+describe('subtitleNote', () => {
+    it('says nothing while the read is in flight', () => {
+        expect(subtitleNote(null)).toBeNull()
+    })
+
+    it('says so when the file offers none, rather than leaving the fact off', () => {
+        expect(subtitleNote(0)).toBe('no subtitles')
+    })
+
+    it('counts what there is, singular for one', () => {
+        expect(subtitleNote(1)).toBe('1 subtitle')
+        expect(subtitleNote(2)).toBe('2 subtitles')
     })
 })
 

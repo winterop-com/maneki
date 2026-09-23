@@ -345,16 +345,20 @@ export function shortcuts(apple: boolean): Shortcut[] {
         { id: 'palette', action: 'Open the command palette', keys: [modifier, 'K'] },
         { id: 'rail', action: 'Collapse or expand the navigation', keys: [modifier, 'B'] },
         { id: 'panel', action: 'Show or hide the side panel', keys: [modifier, 'J'] },
+        // The transport means what somebody is looking at: a screen with a video on it claims
+        // these three for the video while it is open, and they are the queue's everywhere else.
         { id: 'play', action: 'Start or stop what is playing', keys: ['Space'] },
-        { id: 'next', action: 'Move to the next track', keys: ['N'] },
+        { id: 'next', action: 'Move to the next track, or the next video', keys: ['N'] },
         { id: 'shuffle', action: 'Shuffle the queue', keys: ['S'] },
         { id: 'repeat', action: 'Repeat the queue, or one track', keys: ['R'] },
-        { id: 'previous', action: 'Move to the previous track', keys: ['P'] },
+        { id: 'previous', action: 'Move to the previous track, or the previous video', keys: ['P'] },
         { id: 'visualizer', action: 'Show or hide the spectrum', keys: ['V'] },
         // One key, and what it puts on the whole screen is whatever is in front of somebody:
         // a screen playing a video claims it for that while it is open.
         { id: 'stage', action: 'Put the video, or the spectrum, over the whole screen', keys: ['F'] },
-        { id: 'theater', action: 'Hide the list beside a video', keys: ['T'] },
+        // Answered only while a video is on screen, and the row says so: a key listed flat
+        // beside the rest reads as one every screen takes.
+        { id: 'theater', action: 'While watching, hide the list beside the video', keys: ['T'] },
         { id: 'seek', action: 'Move five seconds back or forward', keys: ['←', '→'] },
         { id: 'volume', action: 'Turn it up or down', keys: ['↑', '↓'] },
         { id: 'mute', action: 'Silence it, keeping the level', keys: ['M'] },

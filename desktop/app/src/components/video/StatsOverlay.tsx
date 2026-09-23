@@ -48,11 +48,14 @@ export function StatsOverlay({
     videoId,
     sample,
     onClose,
+    below = false,
 }: {
     videoId: string
     /** How the player answers what it is doing, or null before there is a player. */
     sample: () => PlaybackSample | null
     onClose: () => void
+    /** Hung under the screen's own strip, for the theater case where that strip floats. */
+    below?: boolean
 }) {
     const [frame, setFrame] = useState<VideoStatsFrame | null>(null)
     const [reading, setReading] = useState<PlaybackSample | null>(null)
@@ -99,7 +102,12 @@ export function StatsOverlay({
             : `${String(reading.droppedFrames)} of ${String(reading.totalFrames ?? 0)}`
 
     return (
-        <div className="absolute top-2 left-2 z-10 w-72 max-w-[calc(100%-1rem)] rounded-md border bg-card/95 p-2">
+        <div
+            className={cn(
+                'absolute left-2 z-10 w-72 max-w-[calc(100%-1rem)] rounded-md border bg-card/95 p-2',
+                below ? 'top-14' : 'top-2',
+            )}
+        >
             <div className="flex items-start gap-2">
                 <p className={cn('min-w-0 flex-1 text-sm', TONE[verdict.level])}>{verdict.text}</p>
                 <Button variant="ghost" size="icon-sm" aria-label="Close the stream stats" onClick={onClose}>

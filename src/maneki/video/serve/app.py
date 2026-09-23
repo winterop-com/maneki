@@ -22,10 +22,11 @@ from urllib.parse import quote
 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import FileResponse, HTMLResponse, Response, StreamingResponse
-from pydantic import BaseModel, field_validator
+from pydantic import BaseModel, Field, field_validator
 
 if TYPE_CHECKING:
     from maneki.audio.serve.users import UserRegistry
+    from maneki.video.serve.progress import VideoProgressStore
     from maneki.video.serve.subscriptions import SubscriptionStore
 
 from maneki import __version__
@@ -35,6 +36,7 @@ from maneki.video.serve.demo import DEMO_HTML
 from maneki.video.serve.encoders import select_encoder
 from maneki.video.serve.hls import SEG_LEN, HLSManager, OnDemandHLS, SessionStats
 from maneki.video.serve.poster import PosterManager
+from maneki.video.serve.progress import VideoProgress
 from maneki.video.serve.scan import BrowseResponse, VideoEntry, browse_dir, scan_videos
 from maneki.video.serve.scan_state import ScanState, VideoScanTracker
 from maneki.video.serve.sources import RemoteSource
@@ -108,6 +110,14 @@ class VideoStatsResponse(BaseModel):
     sessions: list[SessionStats]
 
 
+class ProgressUpdate(BaseModel):
+    """A player reporting where it is in a video."""
+
+    position_s: float = Field(ge=0)
+    # Left unset, a position in the file's last minute and a half counts as finished.
+    finished: bool | None = None
+
+
 class AddChannelBody(BaseModel):
     """Body of POST /api/youtube/channels — the channel URL to subscribe to."""
 
@@ -164,8 +174,8 @@ def create_app(
             contact sheet. Same flag is honoured by the prewarm path
             to skip the poster phase entirely.
         users: shared account registry, used to scope YouTube channel
-            subscriptions per user. None (tests / audio-only embedders)
-            makes the YouTube endpoints return 503.
+            subscriptions and watching positions per user. None (tests /
+            audio-only embedders) makes those endpoints return 503.
     """
     app = FastAPI(title="maneki-video", version=__version__)
     # One structured access-log line per /video/* request — same shape
@@ -762,9 +772,9 @@ def create_app(
         raise HTTPException(status_code=404, detail=f"unknown hls resource {filename!r}")
 
     # ------------------------------------------------------------------
-    # YouTube channels (per-user subscriptions + playback via the same
-    # HLS pipeline). Resolution goes through yt-dlp; a resolved video is
-    # wrapped in a RemoteSource and streamed exactly like a local file.
+    # Where each viewer stopped. Modelled on the audiobook store: one row
+    # per video per account, written in place, so a player reporting on a
+    # timer leaves one row behind rather than one per report.
     # ------------------------------------------------------------------
     def _current_username(request: Request) -> str:
         """The authenticated user, or the single-user fallback when auth is off.
@@ -780,6 +790,51 @@ def create_app(
         admin = next((u for u in accounts if u.admin), None) or (accounts[0] if accounts else None)
         return admin.name if admin else "default"
 
+    def _progress(request: Request) -> VideoProgressStore:
+        if users is None:
+            raise HTTPException(status_code=503, detail="user registry unavailable; positions are not saved")
+        return users.video_progress_for(_current_username(request))
+
+    @app.get("/api/progress")
+    def list_progress(request: Request) -> list[VideoProgress]:
+        """Every video this user has started, most recent first.
+
+        One request fills a folder listing with resume points. Videos no
+        longer in the library are left out -- a row for a file nobody can
+        play is a row that leads nowhere.
+        """
+        known = {v.id for v in _videos()}
+        return [p for p in _progress(request).all() if p.video_id in known]
+
+    @app.get("/api/videos/{video_id}/progress")
+    def get_progress(video_id: str, request: Request) -> VideoProgress:
+        """Where this user stopped. A video never started reads as position 0."""
+        _find(app, video_id, root)
+        saved = _progress(request).get(video_id)
+        return saved or VideoProgress(video_id=video_id, position_s=0.0, finished=False, updated_at=0.0)
+
+    @app.put("/api/videos/{video_id}/progress")
+    def save_progress(video_id: str, update: ProgressUpdate, request: Request) -> VideoProgress:
+        """Record where this user is in the video. Safe to call every few seconds."""
+        entry = _find(app, video_id, root)
+        return _progress(request).save(
+            video_id,
+            update.position_s,
+            duration_s=entry.duration_s,
+            finished=update.finished,
+        )
+
+    @app.delete("/api/videos/{video_id}/progress", status_code=204)
+    def clear_progress(video_id: str, request: Request) -> None:
+        """Forget the position, so the video starts from the beginning."""
+        _find(app, video_id, root)
+        _progress(request).delete(video_id)
+
+    # ------------------------------------------------------------------
+    # YouTube channels (per-user subscriptions + playback via the same
+    # HLS pipeline). Resolution goes through yt-dlp; a resolved video is
+    # wrapped in a RemoteSource and streamed exactly like a local file.
+    # ------------------------------------------------------------------
     def _subs(request: Request) -> SubscriptionStore:
         if users is None:
             raise HTTPException(status_code=503, detail="user registry unavailable; YouTube disabled")

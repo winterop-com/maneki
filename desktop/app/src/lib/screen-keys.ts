@@ -1,5 +1,5 @@
 /**
- * A key the screen in front of somebody takes over for as long as it is there.
+ * The keys the screen in front of somebody takes over for as long as it is there.
  *
  * ONE KEY, ONE MEANING PER SCREEN, RATHER THAN TWO KEYS. `f` is full screen, and what it puts
  * on the whole screen is whatever somebody is looking at: the spectrum while they are listening
@@ -7,6 +7,13 @@
  * the second case would be asking a reader to remember which screen they are on before they
  * press anything, and `lib/shortcuts` would have to grow a rule about screens, which is exactly
  * what it is not for -- it decides presses, not context.
+ *
+ * THE TRANSPORT IS THE SAME ARGUMENT AGAIN. Space, `n` and `p` mean what is playing, and a
+ * screen with a video on it is a screen where what is playing is the video -- so Space stopped
+ * the album somebody was not listening to and `n` moved that album on, while the picture they
+ * were actually watching carried on regardless. The claim is what puts those three where the
+ * eyes are; a screen that claims none of them leaves all three to the album, which is every
+ * other screen in this app.
  *
  * SO THE CLAIM IS A STORE AND THE PREDICATE STAYS PURE. A screen claims the key from an effect
  * and returns the release, the same shape as registering palette rows and for the same reason:
@@ -39,7 +46,37 @@ export function stageKeyClaim(): KeyAction | null {
     return stageKey.get()
 }
 
-/** Give the key back whoever holds it. Tests, and nothing else, call this. */
+/**
+ * What Space, `n` and `p` do while a screen holds them.
+ *
+ * `next` and `previous` are nullable because a screen may be playing something with nothing
+ * either side of it -- one video in a folder -- and a key that did nothing is better than a key
+ * that quietly moved the album instead.
+ */
+export interface Transport {
+    play: KeyAction
+    next: KeyAction | null
+    previous: KeyAction | null
+}
+
+/** Who holds the transport right now, or null for the queue's own meaning of it. */
+export const transportKeys = createStore<Transport | null>(null)
+
+/** Take Space, `n` and `p` until the returned function is called. */
+export function claimTransport(transport: Transport): () => void {
+    transportKeys.set(transport)
+    return () => {
+        if (transportKeys.get() === transport) transportKeys.set(null)
+    }
+}
+
+/** What the transport means right now, or null where nothing has claimed it. */
+export function transportClaim(): Transport | null {
+    return transportKeys.get()
+}
+
+/** Give the keys back to whoever holds them. Tests, and nothing else, call this. */
 export function forgetKeyClaims(): void {
     stageKey.set(null)
+    transportKeys.set(null)
 }

@@ -16,6 +16,7 @@ import type {
     VideoBrowse,
     VideoEntry,
     VideoFolder,
+    VideoProgress,
     VideoScanState,
     VideoSessionStats,
     VideoStatsFrame,
@@ -111,6 +112,119 @@ export function rowsOf(browse: VideoBrowse): BrowseRow[] {
 }
 
 /**
+ * Under this, a position is not one worth coming back to.
+ *
+ * Opening a video, watching the titles and leaving again is not a decision to resume from, and a
+ * folder of rows each carrying a sliver of a meter is a folder saying nothing. The server stores
+ * whatever it is told; what counts as having started something is decided here, once, so the
+ * resume and the meter under a row cannot disagree about it.
+ */
+export const STARTED_AFTER_S = 15
+
+/** Where a player should open: what was saved, or the top. */
+export function resumeAt(progress: VideoProgress | null): number {
+    if (progress === null || progress.finished) return 0
+    return progress.position_s >= STARTED_AFTER_S ? progress.position_s : 0
+}
+
+/** Whether a row has a position worth drawing under it. A finished video says so instead. */
+export function started(progress: VideoProgress | null | undefined): boolean {
+    if (progress === undefined || progress === null || progress.finished) return false
+    return progress.position_s >= STARTED_AFTER_S
+}
+
+/** Where an episode number begins, which is where the name of an episode begins. */
+const EPISODE_MARK = /\bS\d{1,2}E\d{1,3}\b/i
+
+/** What a scene release puts between the parts of a filename, and what a trimmed name drops. */
+const LEADING_SEPARATORS = /^[\s\-–—_.·]+/
+
+/**
+ * What one video is called among the others in its folder.
+ *
+ * THE ROW HAS TO SAY THE ONE THING THAT DIFFERS. A season of television is twenty-six files
+ * whose names begin with the same forty characters, so a column of them reads "Star Trek The
+ * Next Generation ..." twenty-six times with the episode -- the only part anybody is looking
+ * for -- cut off past the edge of the row. The trail above the listing already says which show
+ * and which season; the row's job is the episode.
+ *
+ * SO WHAT THEY SHARE COMES OFF, AT A WORD BOUNDARY. The prefix is measured in whole words
+ * against every other name in the folder, which is what stops "The Hunted" and "The High
+ * Ground" losing their "The H". A folder whose names share nothing keeps its names.
+ *
+ * AND THE CUT PREFERS A SEPARATOR WHERE THE SHARED RUN HOLDS ONE, because that is where a
+ * release name's fields divide. Two parts of one film share "The Lord of the Rings - Part ",
+ * every word of it, and a cut at the end of that leaves a row reading "1".
+ *
+ * AND AN EPISODE NUMBER LEADS WHEREVER IT IS. `S03E04` is how somebody finds an episode and how
+ * a folder sorts, so a name carrying one starts there -- which also answers the single-file
+ * folder, where there is no sibling to measure a prefix against and the name is otherwise left
+ * whole.
+ *
+ * Never empty: a name that is entirely what its siblings share is returned as it was, because a
+ * blank row says less than a repeated one.
+ */
+export function episodeName(name: string, siblings: readonly string[]): string {
+    const marked = EPISODE_MARK.exec(name)
+    if (marked !== null && marked.index > 0) return name.slice(marked.index)
+    const own = name.split(' ')
+    const cut = cutAt(own, sharedWords(name, siblings))
+    if (cut === 0 || cut >= own.length) return name
+    const rest = own.slice(cut).join(' ').replace(LEADING_SEPARATORS, '').trim()
+    return rest === '' ? name : rest
+}
+
+/** Where to cut a shared run of words: after its last separator, or after all of it. */
+function cutAt(own: readonly string[], shared: number): number {
+    for (let at = shared; at > 0; at -= 1) {
+        if (SEPARATOR_WORD.test(own[at - 1] ?? '')) return at
+    }
+    return shared
+}
+
+/** A word that is only punctuation, which is a release name saying one field has ended. */
+const SEPARATOR_WORD = /^[-–—_.·|]+$/
+
+/** How many whole leading words every other name in the folder has in common with this one. */
+function sharedWords(name: string, siblings: readonly string[]): number {
+    const own = name.split(' ')
+    let shared = -1
+    for (const other of siblings) {
+        if (other === name) continue
+        const words = other.split(' ')
+        let count = 0
+        while (count < own.length && count < words.length && own[count] === words[count]) count += 1
+        shared = shared < 0 ? count : Math.min(shared, count)
+    }
+    return shared < 0 ? 0 : shared
+}
+
+/** What sits either side of one video in the folder it came out of. */
+export interface Neighbours {
+    previous: VideoEntry | null
+    next: VideoEntry | null
+}
+
+/**
+ * The video before and the video after, in the order the folder is read in.
+ *
+ * IN THE LISTING'S ORDER, NOT THE SERVER'S. The wire answers a folder in the filesystem's walk
+ * order, which is no order to a reader, and the screen sorts it -- so "the next one" has to be
+ * the next one on screen or `n` moves somewhere nobody was pointing at. Same comparison the
+ * listing uses, which is what keeps S2 before S10.
+ *
+ * A video the folder does not hold, and either end of it, answer null: there is nothing there,
+ * and a step that wrapped round to the first episode after the last would be a season that
+ * never ends.
+ */
+export function neighbours(videos: readonly VideoEntry[], id: string): Neighbours {
+    const ordered = videos.toSorted((left, right) => compareNames(left.name, right.name))
+    const at = ordered.findIndex((one) => one.id === id)
+    if (at < 0) return { previous: null, next: null }
+    return { previous: ordered[at - 1] ?? null, next: ordered[at + 1] ?? null }
+}
+
+/**
  * The tail a subtitle track is fetched by.
  *
  * The server takes a language tag for a sidecar and `embed-<index>` for a stream inside the
@@ -146,6 +260,28 @@ export function subtitleLabel(trackId: string, lang?: string | null, given?: str
         return index === '' ? 'Subtitles' : `Track ${index}`
     }
     return 'Subtitles'
+}
+
+/**
+ * What the meta line says about captions.
+ *
+ * NOTHING IS NOT AN ANSWER. A file with no usable track used to leave the fact off the line
+ * entirely, which reads as a screen that forgot to look -- and looking is exactly what somebody
+ * does when the control bar has no captions button on it. So an answered read with nothing in it
+ * says so, and only an unanswered one is silent.
+ *
+ * `null` while the read is in flight, because a line that said "no subtitles" for half a second
+ * on every open would be wrong more often than it was right.
+ *
+ * A Blu-ray rip commonly lands here: its only subtitle stream is `hdmv_pgs_subtitle`, which is
+ * pictures of words rather than words, and nothing short of OCR turns that into WebVTT. The
+ * server leaves those out of what it offers, so as far as this screen is concerned there are
+ * none.
+ */
+export function subtitleNote(count: number | null): string | null {
+    if (count === null) return null
+    if (count === 0) return 'no subtitles'
+    return `${String(count)} subtitle${count === 1 ? '' : 's'}`
 }
 
 /** A subtitle track as the player takes one: a name, an address, and the tag it is in. */

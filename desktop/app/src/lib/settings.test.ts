@@ -57,6 +57,7 @@ describe('the settings registry', () => {
             'general:now-playing',
             'general:density',
             'general:font-scale',
+            'general:autoplay-next',
             'server:address',
             'server:subsonic',
             'server:libraries',

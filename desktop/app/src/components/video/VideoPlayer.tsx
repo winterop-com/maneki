@@ -1,6 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 
 import { Button } from '@/components/ui/button'
+import {
+    exitNativeFullscreen,
+    inDesktopShell,
+    isNativeFullscreen,
+    requestNativeFullscreen,
+} from '@/lib/desktop'
 import { claimSound, registerSilencer } from '@/lib/sound'
 import type { PlaybackSample } from '@/lib/video'
 
@@ -39,9 +45,13 @@ export interface PlayerSubtitle {
 export interface VideoHandle {
     /** Where the playhead is, in seconds. */
     positionS: () => number
+    /** Start it, or stop it. What Space means while a video is the thing being played. */
+    togglePlay: () => void
     /** Move the playhead, clamped to the video's own ends. */
     seekBy: (deltaS: number) => void
-    /** Full screen on the player's own box, through the browser's API rather than a CSS trick. */
+    /** Put the playhead somewhere, held until the media can take it. */
+    seekTo: (positionS: number) => void
+    /** Full screen, asked of whoever can actually give it -- see `fill` below. */
     toggleFullscreen: () => void
     /**
      * What the source is actually at, or null before the first frame has been decoded.
@@ -63,8 +73,42 @@ export interface VideoPlayerProps {
     autoplay?: boolean
     onEnded?: () => void
     onError?: (message: string) => void
+    /** Whether the picture is filling the screen right now, so a control can say which. */
+    onFullscreenChange?: (on: boolean) => void
     /** Handed the player once there is one, and null when it goes. */
     onReady?: (handle: VideoHandle | null) => void
+}
+
+/**
+ * FULL SCREEN IS ASKED OF WHOEVER CAN ACTUALLY GIVE IT.
+ *
+ * Three things can fill a screen and only one of them is right per home. Inside a desktop shell
+ * it is the shell: the HTML5 API fills the window the page is in, which there is the shell's own
+ * window with its chrome still around it, so what somebody gets is a slightly larger picture in
+ * the same frame. In a browser tab it is video.js's own `requestFullscreen`, which is the vendor
+ * prefixes, the iOS case where only the video element can go full screen, and the player's own
+ * `fullscreenchange` event -- all of which a bare `element.requestFullscreen()` is missing, and
+ * which is why the button did nothing on a webview.
+ *
+ * AND SOMETIMES NOBODY WILL GIVE IT, WHICH IS NOT A BUG HERE. The Fullscreen API needs
+ * transient user activation, and a Chromium started under automation -- `--headless`, a
+ * WebDriver session, anything wearing the automation flag -- treats a click it synthesised as
+ * not one, so the promise rejects with a `TypeError` and the window does not change. Nothing on
+ * this side can fix that and there is nothing to chase: try the same press in an ordinary
+ * window. The rejection is swallowed rather than drawn, because a refusal to fill the screen is
+ * not something to put a banner over the picture for.
+ */
+async function fill(live: Player): Promise<boolean> {
+    if (inDesktopShell()) {
+        const already = await isNativeFullscreen()
+        return already ? !(await exitNativeFullscreen()) : await requestNativeFullscreen()
+    }
+    if (live.isFullscreen() === true) {
+        await live.exitFullscreen()
+        return false
+    }
+    await live.requestFullscreen()
+    return true
 }
 
 /** How long a `waiting` is allowed to last before the buffer is nudged out of it. */
@@ -78,6 +122,9 @@ const DEFAULT_ASPECT = 16 / 9
 
 /** The manifest type video.js cannot work out from a URL. */
 const HLS_TYPE = 'application/x-mpegURL'
+
+/** `HTMLMediaElement.HAVE_METADATA`: the point at which a seek is not thrown away. */
+const HAVE_METADATA = 1
 
 /**
  * Captions at video.js's own default size fill a third of a 1080p screen.
@@ -98,6 +145,7 @@ export function VideoPlayer({
     autoplay = false,
     onEnded,
     onError,
+    onFullscreenChange,
     onReady,
 }: VideoPlayerProps) {
     const frame = useRef<HTMLDivElement | null>(null)
@@ -110,10 +158,10 @@ export function VideoPlayer({
     // What the player has to be pointed at, readable from a handler that was registered once.
     const source = useRef({ src, kind })
     // The callbacks, likewise: a parent that re-renders must not tear the player down.
-    const told = useRef({ onEnded, onError, onReady })
+    const told = useRef({ onEnded, onError, onFullscreenChange, onReady })
     useEffect(() => {
         source.current = { src, kind }
-        told.current = { onEnded, onError, onReady }
+        told.current = { onEnded, onError, onFullscreenChange, onReady }
     })
 
     /**
@@ -192,6 +240,10 @@ export function VideoPlayer({
             fill: true,
             // Otherwise a browser keeps its URL bar over a player that says it is full screen.
             fullscreen: { options: { navigationUI: 'hide' } },
+            // Off, and said rather than left to a default. video.js would otherwise answer some
+            // of the same letters this app binds -- and it answers them at the player, where
+            // the screen's own listener has already decided what a press means.
+            userActions: { hotkeys: false },
             // What somebody picks in the captions menu -- size, colour, face -- survives the
             // video, and the next one, and a reload. Off by default in video.js, which is why
             // a caption size that was chosen never seemed to stick.
@@ -268,6 +320,13 @@ export function VideoPlayer({
             told.current.onEnded?.()
         }
 
+        // The picture can be put on the whole screen from the control bar, from the screen's own
+        // button and by pressing Escape, so what the button says about itself is read off the
+        // player rather than remembered by whoever asked last.
+        const onFilled = (): void => {
+            told.current.onFullscreenChange?.(built.isFullscreen() === true)
+        }
+
         /**
          * NUDGE THE PLAYHEAD BY A HUNDREDTH OF A SECOND.
          *
@@ -302,6 +361,7 @@ export function VideoPlayer({
         built.on('loadeddata', onRecovered)
         built.on('loadedmetadata', onMetadata)
         built.on('ended', onFinished)
+        built.on('fullscreenchange', onFilled)
         built.on('waiting', armStall)
         built.on('playing', cancelStall)
         built.on('pause', cancelStall)
@@ -310,17 +370,34 @@ export function VideoPlayer({
 
         told.current.onReady?.({
             positionS: () => built.currentTime() ?? 0,
+            togglePlay: () => {
+                if (built.paused()) void built.play()?.catch(() => undefined)
+                else built.pause()
+            },
             seekBy: (deltaS) => {
                 const at = built.currentTime() ?? 0
                 const end = built.duration() ?? 0
                 const next = at + deltaS
                 built.currentTime(Math.max(0, end > 0 ? Math.min(end, next) : next))
             },
+            seekTo: (positionS) => {
+                const at = Math.max(0, positionS)
+                // A write before the media has its metadata is discarded silently, and the
+                // player then sits at the top of the file looking like a resume that did not
+                // happen. So it is held until the element can take it.
+                if (built.readyState() >= HAVE_METADATA) built.currentTime(at)
+                else built.one('loadedmetadata', () => built.currentTime(at))
+            },
             toggleFullscreen: () => {
-                const box = frame.current
-                if (box === null) return
-                if (document.fullscreenElement === null) void box.requestFullscreen({ navigationUI: 'hide' })
-                else void document.exitFullscreen()
+                void fill(built).then(
+                    (on) => {
+                        told.current.onFullscreenChange?.(on)
+                    },
+                    () => {
+                        // Refused: see `fill`. The button goes back to saying what it says.
+                        told.current.onFullscreenChange?.(built.isFullscreen() === true)
+                    },
+                )
             },
             frameSize: () => {
                 const width = built.videoWidth()

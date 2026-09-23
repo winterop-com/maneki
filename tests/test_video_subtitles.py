@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import json
+import subprocess
 from pathlib import Path
 
 import pytest
@@ -150,3 +152,36 @@ def test_stream_subtitle_unknown_lang_is_404(client: TestClient) -> None:
 def test_stream_subtitle_unknown_video_is_404(client: TestClient) -> None:
     resp = client.get("/api/videos/does-not-exist/subtitles/en")
     assert resp.status_code == 404
+
+
+def test_list_subtitles_leaves_out_image_only_tracks(
+    monkeypatch: pytest.MonkeyPatch,
+    client: TestClient,
+) -> None:
+    """A file whose only subtitle stream is a bitmap answers with no tracks at all.
+
+    This is the common shape of a Blu-ray rip: one `hdmv_pgs_subtitle`
+    stream, which is pictures of words rather than words. ffmpeg cannot
+    turn it into WebVTT without OCR, so the endpoint answers an empty
+    list and the player draws no captions button. The test exists
+    because an empty answer looks like a bug from the outside, and it
+    is the correct one.
+    """
+    monkeypatch.setattr(
+        "maneki.video.serve.subtitles.shutil.which",
+        lambda _: "/usr/bin/ffprobe",
+    )
+    monkeypatch.setattr(
+        "maneki.video.serve.subtitles.subprocess.run",
+        lambda *_args, **_kwargs: subprocess.CompletedProcess(
+            args=[],
+            returncode=0,
+            stdout=json.dumps(
+                {"streams": [{"index": 2, "codec_name": "hdmv_pgs_subtitle", "tags": {"language": "eng"}}]}
+            ),
+            stderr="",
+        ),
+    )
+    videos = client.get("/api/videos").json()
+    lonely_id = next(v["id"] for v in videos if v["name"] == "lonely")
+    assert client.get(f"/api/videos/{lonely_id}/subtitles").json() == []

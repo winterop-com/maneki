@@ -1,6 +1,12 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
-import { claimStageKey, forgetKeyClaims, stageKeyClaim } from '@/lib/screen-keys'
+import {
+    claimStageKey,
+    claimTransport,
+    forgetKeyClaims,
+    stageKeyClaim,
+    transportClaim,
+} from '@/lib/screen-keys'
 
 afterEach(() => {
     forgetKeyClaims()
@@ -43,5 +49,43 @@ describe('claimStageKey', () => {
         releaseFirst()
         stageKeyClaim()?.()
         expect(second).toHaveBeenCalledOnce()
+    })
+})
+
+describe('claimTransport', () => {
+    it('means the queue until a screen says otherwise', () => {
+        expect(transportClaim()).toBeNull()
+    })
+
+    it('puts Space, N and P where the eyes are', () => {
+        const play = vi.fn()
+        const next = vi.fn()
+        const previous = vi.fn()
+        claimTransport({ play, next, previous })
+        transportClaim()?.play()
+        transportClaim()?.next?.()
+        transportClaim()?.previous?.()
+        expect(play).toHaveBeenCalledOnce()
+        expect(next).toHaveBeenCalledOnce()
+        expect(previous).toHaveBeenCalledOnce()
+    })
+
+    it('takes a step nowhere rather than stepping the queue instead', () => {
+        claimTransport({ play: vi.fn(), next: null, previous: null })
+        expect(transportClaim()?.next).toBeNull()
+    })
+
+    it('gives the keys back when the screen releases them', () => {
+        const release = claimTransport({ play: vi.fn(), next: null, previous: null })
+        release()
+        expect(transportClaim()).toBeNull()
+    })
+
+    it('does not let an earlier release take a later claim away', () => {
+        const second = { play: vi.fn(), next: null, previous: null }
+        const releaseFirst = claimTransport({ play: vi.fn(), next: null, previous: null })
+        claimTransport(second)
+        releaseFirst()
+        expect(transportClaim()).toBe(second)
     })
 })

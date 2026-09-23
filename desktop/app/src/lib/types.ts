@@ -161,6 +161,19 @@ export interface VideoBrowse {
     videos: VideoEntry[]
 }
 
+/**
+ * Where this account stopped in one video.
+ *
+ * `updated_at` is 0 for a video nobody has started, which is what the server answers rather
+ * than a 404: a player asking where to open wants a number, not a refusal to handle.
+ */
+export interface VideoProgress {
+    video_id: string
+    position_s: number
+    finished: boolean
+    updated_at: number
+}
+
 /** What the server is doing to the library right now. */
 export type ScanPhase = 'idle' | 'walking' | 'probing' | 'done'
 
