@@ -43,10 +43,10 @@ describe('the themes on offer', () => {
         for (const theme of SPECTRUM_THEMES) expect(theme.label).toBeTruthy()
     })
 
-    test('follows the accent by default, and offers that first', () => {
-        expect(DEFAULT_SPECTRUM_THEME).toBe('accent')
+    test('burns by default, and offers the accent first', () => {
+        expect(DEFAULT_SPECTRUM_THEME).toBe('fire')
         expect(SPECTRUM_THEMES[0].name).toBe('accent')
-        expect(spectrumTheme.get()).toBe('accent')
+        expect(spectrumTheme.get()).toBe('fire')
     })
 
     test('knows its own names and nothing else', () => {

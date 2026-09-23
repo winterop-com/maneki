@@ -86,7 +86,7 @@ function Stage() {
     const stage = useRef<HTMLDivElement | null>(null)
     const song = currentSong()
     const playing = player.playing
-    const canvas = useSpectrum(playing, STAGE_BANDS)
+    const canvas = useSpectrum(playing, STAGE_BANDS, true)
     useOverlay(stage, closeStage)
 
     // A book is on this stage the way it is on the bar: the chapter is what is playing and the
@@ -114,31 +114,29 @@ function Stage() {
             aria-label="Spectrum"
             aria-modal="true"
         >
-            {/* A STAGE IS A DARK ROOM, IN BOTH MODES AND UNDER EVERY PALETTE. The ground is
-                the same near-black the door's brand pane stands on (`[data-stage]` in
-                index.css takes it one rung deeper), and the spectrum is drawn at full strength
-                in the accent: it is the show, and a canvas faded to fit a light page was a show
-                with the lights half up. What sits over it is kept legible by a pool of the
-                ground behind the words rather than by dimming the drawing. */}
-            <canvas ref={canvas} aria-hidden className="absolute inset-0 size-full text-terminal-accent" />
-            <div
-                aria-hidden
-                className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_60%_55%_at_50%_45%,var(--terminal)_0%,color-mix(in_oklab,var(--terminal)_70%,transparent)_45%,transparent_75%)]"
-            />
+            {/* A STAGE IS A DARK ROOM, IN BOTH MODES AND UNDER EVERY PALETTE. The ground is the
+                same near-black the door's brand pane stands on (`[data-stage]` in index.css
+                takes it one rung deeper), and the spectrum is drawn at full strength: it is the
+                show, and a canvas faded to fit a light page was a show with the lights half up.
 
-            <div className="relative flex min-h-0 flex-1 flex-col items-center justify-center gap-8 p-8">
+                THREE BANDS, AS THE CLIENT BEFORE THIS ONE HAD THEM. What is playing is said
+                across the head, the spectrum has the whole of the room between, and the
+                transport stands along the foot with the scrubber the full width of the screen
+                above it -- so the drawing is never under the controls and the controls are
+                never over the drawing. */}
+            <div className="relative z-10 flex items-center gap-4 px-8 pt-6 pr-28 pb-2">
                 {cover && (
                     <img
                         src={cover}
                         alt=""
-                        className="size-56 rounded-xl object-cover shadow-[0_24px_80px_-20px_rgba(0,0,0,0.9)] ring-1 ring-white/10 md:size-80"
+                        className="size-16 shrink-0 rounded-lg object-cover shadow-lg ring-1 ring-white/10 md:size-20"
                     />
                 )}
-                <div className="max-w-3xl text-center">
-                    <p className="truncate text-3xl font-semibold tracking-tight md:text-5xl">
+                <div className="min-w-0">
+                    <p className="truncate text-2xl font-semibold tracking-tight md:text-3xl">
                         {book ? (chapter?.title ?? book.title) : (song?.title ?? player.station?.name)}
                     </p>
-                    <p className="mt-3 truncate text-lg text-terminal-muted md:text-xl">
+                    <p className="truncate text-base text-terminal-muted">
                         {book
                             ? chapter
                                 ? `${book.title} · ${book.author}`
@@ -147,29 +145,36 @@ function Stage() {
                               ? player.stationTitle || 'Live'
                               : (song?.artist ?? '')}
                     </p>
-                    {station === null && duration > 0 && (
-                        <div className="mx-auto mt-6 flex w-full max-w-xl items-center gap-3">
-                            <span className="shrink-0 font-mono text-sm text-terminal-muted tabular-nums">
-                                {clock(player.positionS)}
-                            </span>
-                            <input
-                                type="range"
-                                aria-label="Position"
-                                min={0}
-                                max={Math.max(1, Math.floor(duration))}
-                                value={Math.floor(player.positionS)}
-                                onChange={(event) => {
-                                    seek(Number(event.target.value))
-                                }}
-                                className="stage-range w-full"
-                            />
-                            <span className="shrink-0 font-mono text-sm text-terminal-muted tabular-nums">
-                                {clock(duration)}
-                            </span>
-                        </div>
-                    )}
+                </div>
+            </div>
 
-                    <div className="mt-6 flex items-center justify-center gap-3">
+            <div className="relative min-h-0 flex-1">
+                <canvas
+                    ref={canvas}
+                    aria-hidden
+                    className="absolute inset-0 size-full text-terminal-accent"
+                />
+            </div>
+
+            <div className="relative z-10 flex flex-col gap-3 px-8 pt-3 pb-6">
+                {station === null && duration > 0 && (
+                    <input
+                        type="range"
+                        aria-label="Position"
+                        min={0}
+                        max={Math.max(1, Math.floor(duration))}
+                        value={Math.floor(player.positionS)}
+                        onChange={(event) => {
+                            seek(Number(event.target.value))
+                        }}
+                        className="stage-range w-full"
+                    />
+                )}
+                <div className="flex items-center gap-4">
+                    <span className="w-16 shrink-0 font-mono text-sm text-terminal-muted tabular-nums">
+                        {station === null && duration > 0 ? clock(player.positionS) : ''}
+                    </span>
+                    <div className="flex flex-1 items-center justify-center gap-3">
                         <Button
                             variant="ghost"
                             size="icon-lg"
@@ -219,6 +224,9 @@ function Stage() {
                             </Button>
                         )}
                     </div>
+                    <span className="w-16 shrink-0 text-right font-mono text-sm text-terminal-muted tabular-nums">
+                        {station === null && duration > 0 ? clock(duration) : station !== null ? 'live' : ''}
+                    </span>
                 </div>
             </div>
 

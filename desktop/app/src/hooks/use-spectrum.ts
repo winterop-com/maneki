@@ -32,7 +32,7 @@ import { useEffect, useRef, type RefObject } from 'react'
 import { usePrefersReducedMotion } from '@/hooks/use-reduced-motion'
 import { useStore } from '@/hooks/use-store'
 import { spectrum, spectrumContext } from '@/lib/player'
-import { spectrumTheme, themeGradient, themeSweep } from '@/lib/spectrum-themes'
+import { spectrumTheme, themeGradient, themeStops, themeSweep } from '@/lib/spectrum-themes'
 import { makeDelayLine, outputDelayMs, spectrumDelayMs } from '@/lib/sync'
 import {
     bars,
@@ -52,7 +52,12 @@ import {
  * `bands` is how many bars the caller's width can carry: the strip is 112px and the stage is a
  * screen, and a band count that suited both would be wrong for one of them.
  */
-export function useSpectrum(active: boolean, bands: number): RefObject<HTMLCanvasElement | null> {
+export function useSpectrum(
+    active: boolean,
+    bands: number,
+    /** Bloom under the drawing: the stage's, where the spectrum is the show. Costly, so opt-in. */
+    glow = false,
+): RefObject<HTMLCanvasElement | null> {
     const canvas = useRef<HTMLCanvasElement | null>(null)
     const style = useStore(visualizerStyle)
     const theme = useStore(spectrumTheme)
@@ -131,6 +136,10 @@ export function useSpectrum(active: boolean, bands: number): RefObject<HTMLCanva
                 : themeGradient(theme, context, height, ink)
             context.fillStyle = ramp
             context.strokeStyle = ramp
+            // THE STAGE BURNS. A shadow in the ramp's own top colour under every bar reads as
+            // heat coming off the drawing, which a strip an inch tall has no room for.
+            context.shadowBlur = glow ? 24 : 0
+            context.shadowColor = glow ? themeStops(theme, ink)[0] : 'transparent'
             if (wave) {
                 paintScope(context, shown, width, height)
             } else {
@@ -146,7 +155,7 @@ export function useSpectrum(active: boolean, bands: number): RefObject<HTMLCanva
             painted.disconnect()
             context.clearRect(0, 0, width, height)
         }
-    }, [active, bands, still, style, theme])
+    }, [active, bands, glow, still, style, theme])
 
     return canvas
 }

@@ -40,7 +40,8 @@ export const SPECTRUM_THEMES: readonly SpectrumThemeEntry[] = [
     { name: 'mono', label: 'Mono', stops: ['#6b7280', '#c4c8ce', '#ffffff'] },
 ]
 
-export const DEFAULT_SPECTRUM_THEME: SpectrumTheme = 'accent'
+/** Fire, until somebody says otherwise: a spectrum that reads as heat is what a stage is for. */
+export const DEFAULT_SPECTRUM_THEME: SpectrumTheme = 'fire'
 
 /** Where the choice is kept between visits. */
 export const SPECTRUM_THEME_KEY = 'maneki.spectrum.theme'
