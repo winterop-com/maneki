@@ -46,6 +46,18 @@ export const SHUFFLE_KEY = 's'
 /** The letter that cycles what happens at the end of the queue, pressed bare. */
 export const REPEAT_KEY = 'r'
 
+/** The letter that silences the sound without forgetting how loud it was, pressed bare. */
+export const MUTE_KEY = 'm'
+
+/** The character that stars what is playing, pressed bare. */
+export const STAR_KEY = '*'
+
+/** How far one press of an arrow moves the position, in seconds. */
+export const SEEK_STEP_S = 5
+
+/** How much one press of an arrow moves the volume, of a level between 0 and 1. */
+export const VOLUME_STEP = 0.05
+
 /**
  * The tags a bare press activates rather than reaches this app.
  *
@@ -192,6 +204,62 @@ export function cyclesRepeat(press: KeyPress, focused: FocusedField | null): boo
 }
 
 /**
+ * Whether this press seeks, and by how many seconds: back on ArrowLeft, forward on ArrowRight.
+ *
+ * THE ARROWS BELONG TO WHATEVER HAS FOCUS FIRST. `isTypingField` refuses every `INPUT`, and a
+ * range input -- the scrubber, the volume slider -- is one: the arrows on a slider somebody is
+ * holding are that slider's own, and a transport that took them would move the track while
+ * they were setting the level. That is the rule rather than an accident of the tag list, so a
+ * control drawn as a range keeps its keys without asking anything here.
+ *
+ * THE PALETTE AND THE SEARCH ARE REFUSED A STEP EARLIER, in `use-app-shortcuts`, which answers
+ * no bare key at all while either is open -- there the arrows walk the rows, and a list nobody
+ * can move down is a list with no keyboard. It is decided there because a pure predicate over
+ * one press cannot see a store.
+ */
+export function seeks(press: KeyPress, focused: FocusedField | null): number | null {
+    if (press.ctrlKey || press.metaKey || press.altKey) return null
+    if (isTypingField(focused)) return null
+    if (press.key === 'ArrowLeft') return -SEEK_STEP_S
+    if (press.key === 'ArrowRight') return SEEK_STEP_S
+    return null
+}
+
+/**
+ * Whether this press turns it up or down, and by how much: up on ArrowUp, down on ArrowDown.
+ *
+ * `seeks`'s rule on the other axis, and for the same reasons -- a focused slider keeps its own
+ * arrows, and the palette is refused before this is asked.
+ */
+export function adjustsVolume(press: KeyPress, focused: FocusedField | null): number | null {
+    if (press.ctrlKey || press.metaKey || press.altKey) return null
+    if (isTypingField(focused)) return null
+    if (press.key === 'ArrowUp') return VOLUME_STEP
+    if (press.key === 'ArrowDown') return -VOLUME_STEP
+    return null
+}
+
+/** Whether this press silences the sound without forgetting how loud it was. */
+export function togglesMute(press: KeyPress, focused: FocusedField | null): boolean {
+    if (press.key.toLowerCase() !== MUTE_KEY) return false
+    if (press.ctrlKey || press.metaKey || press.altKey) return false
+    return !isTypingField(focused)
+}
+
+/**
+ * Whether this press stars what is playing.
+ *
+ * MATCHED AS THE CHARACTER, like `?`. Which physical key makes a `*` moves with the layout --
+ * Shift and the digit row here, a key of its own on the numeric pad -- so Shift is not a
+ * modifier this can refuse, while Ctrl, Cmd and Alt each mean something else somewhere.
+ */
+export function starsCurrent(press: KeyPress, focused: FocusedField | null): boolean {
+    if (press.key !== STAR_KEY) return false
+    if (press.ctrlKey || press.metaKey || press.altKey) return false
+    return !isTypingField(focused)
+}
+
+/**
  * Whether this press shows or hides the spectrum.
  *
  * A bare letter, the way the transport keys are: the visualizer is something somebody turns on
@@ -236,6 +304,10 @@ export function shortcuts(apple: boolean): Shortcut[] {
         { id: 'previous', action: 'Move to the previous track', keys: ['P'] },
         { id: 'visualizer', action: 'Show or hide the spectrum', keys: ['V'] },
         { id: 'stage', action: 'Put the spectrum over the whole screen', keys: ['F'] },
+        { id: 'seek', action: 'Move five seconds back or forward', keys: ['←', '→'] },
+        { id: 'volume', action: 'Turn it up or down', keys: ['↑', '↓'] },
+        { id: 'mute', action: 'Silence it, keeping the level', keys: ['M'] },
+        { id: 'star', action: 'Star what is playing', keys: [STAR_KEY] },
         { id: 'shortcuts', action: 'Open this list', keys: [SHORTCUTS_KEY] },
         { id: 'dismiss', action: 'Close a dialog, a menu, or the palette', keys: ['Esc'] },
         { id: 'choose', action: 'Open the row that has focus', keys: ['Enter'] },

@@ -1,17 +1,23 @@
 import { describe, expect, test } from 'vitest'
 
 import {
+    adjustsVolume,
     applePlatform,
     isTypingField,
     opensPalette,
     opensShortcuts,
     opensStage,
+    seeks,
     shortcuts,
+    starsCurrent,
+    togglesMute,
     togglesPanel,
     togglesPlayback,
     togglesRail,
     togglesVisualizer,
     steps,
+    SEEK_STEP_S,
+    VOLUME_STEP,
 } from '@/lib/shortcuts'
 
 function press(
@@ -174,5 +180,71 @@ describe('the platform', () => {
     test('is read off the user agent, which is what decides how a chord is spelled', () => {
         expect(applePlatform('Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)')).toBe(true)
         expect(applePlatform('Mozilla/5.0 (X11; Linux x86_64)')).toBe(false)
+    })
+})
+
+describe('the arrows', () => {
+    test('seek five seconds either way, and nothing else does', () => {
+        expect(seeks(press('ArrowLeft'), null)).toBe(-SEEK_STEP_S)
+        expect(seeks(press('ArrowRight'), null)).toBe(SEEK_STEP_S)
+        expect(seeks(press('ArrowUp'), null)).toBeNull()
+        expect(seeks(press('a'), null)).toBeNull()
+    })
+
+    test('move the volume the other way about, by a twentieth', () => {
+        expect(adjustsVolume(press('ArrowUp'), null)).toBe(VOLUME_STEP)
+        expect(adjustsVolume(press('ArrowDown'), null)).toBe(-VOLUME_STEP)
+        expect(adjustsVolume(press('ArrowLeft'), null)).toBeNull()
+    })
+
+    test('belong to a range input that has focus, which is the scrubber and the level', () => {
+        const slider = { tagName: 'INPUT', isContentEditable: false }
+        expect(seeks(press('ArrowLeft'), slider)).toBeNull()
+        expect(adjustsVolume(press('ArrowUp'), slider)).toBeNull()
+    })
+
+    test('belong to a box being typed into, and to the browser under a modifier', () => {
+        expect(seeks(press('ArrowLeft'), PROSE)).toBeNull()
+        expect(adjustsVolume(press('ArrowUp'), PROSE)).toBeNull()
+        expect(seeks(press('ArrowLeft', { metaKey: true }), null)).toBeNull()
+        expect(adjustsVolume(press('ArrowUp', { altKey: true }), null)).toBeNull()
+    })
+})
+
+describe('the rest of the listening keys', () => {
+    test('m silences it, bare and outside a box', () => {
+        expect(togglesMute(press('m'), null)).toBe(true)
+        expect(togglesMute(press('M'), null)).toBe(true)
+        expect(togglesMute(press('m'), TEXT_BOX)).toBe(false)
+        expect(togglesMute(press('m', { metaKey: true }), null)).toBe(false)
+    })
+
+    test('the star is the character, whatever the layout pressed to make it', () => {
+        expect(starsCurrent(press('*'), null)).toBe(true)
+        expect(starsCurrent(press('8'), null)).toBe(false)
+        expect(starsCurrent(press('*'), TEXT_BOX)).toBe(false)
+        expect(starsCurrent(press('*', { ctrlKey: true }), null)).toBe(false)
+    })
+
+    test('no two of them answer the same press', () => {
+        for (const key of ['m', '*', 'ArrowLeft', 'ArrowUp']) {
+            const answered = [
+                togglesMute(press(key), null),
+                starsCurrent(press(key), null),
+                seeks(press(key), null) !== null,
+                adjustsVolume(press(key), null) !== null,
+            ].filter(Boolean)
+            expect(answered).toHaveLength(1)
+        }
+    })
+
+    test('none of them is claimed by a key this app already bound', () => {
+        for (const key of ['m', '*', 'ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown']) {
+            expect(steps(press(key), null)).toBeNull()
+            expect(togglesPlayback(press(key), null)).toBe(false)
+            expect(togglesVisualizer(press(key), null)).toBe(false)
+            expect(opensStage(press(key), null)).toBe(false)
+            expect(opensShortcuts(press(key), null)).toBe(false)
+        }
     })
 })

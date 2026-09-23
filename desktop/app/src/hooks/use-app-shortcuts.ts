@@ -1,15 +1,31 @@
 import { useEffect } from 'react'
 
-import { cycleRepeat, next, previous, toggle, toggleShuffle } from '@/lib/player'
+import {
+    currentSong,
+    cycleRepeat,
+    next,
+    playerStore,
+    previous,
+    seek,
+    setVolume,
+    toggle,
+    toggleMuted,
+    toggleShuffle,
+} from '@/lib/player'
 import { paletteOpen } from '@/lib/palette'
 import { togglePanel, toggleRail } from '@/lib/panels'
+import { sessionStore } from '@/lib/session'
 import {
+    adjustsVolume,
     applePlatform,
     opensPalette,
     cyclesRepeat,
     opensShortcuts,
     opensStage,
+    seeks,
+    starsCurrent,
     steps,
+    togglesMute,
     togglesShuffle,
     togglesPanel,
     togglesPlayback,
@@ -17,6 +33,7 @@ import {
     togglesVisualizer,
     type FocusedField,
 } from '@/lib/shortcuts'
+import { toggleStar } from '@/lib/star'
 import { toggleStage, toggleVisualizer } from '@/lib/visualizer'
 
 /**
@@ -95,6 +112,37 @@ export function useAppShortcuts(onShortcuts: () => void): void {
             if (cyclesRepeat(press, focused())) {
                 event.preventDefault()
                 cycleRepeat()
+                return
+            }
+            // The player's own numbers, read at the instant of the press rather than held: the
+            // store publishes four times a second and a hook that subscribed to it would bind
+            // this listener again as often.
+            const moved = seeks(press, focused())
+            if (moved !== null) {
+                const { positionS, durationS, station } = playerStore.get()
+                // A station has no length and nothing to scrub, and a seek against nothing
+                // would build an audio element for a press with no track behind it.
+                if (station !== null || currentSong() === null) return
+                event.preventDefault()
+                const wanted = positionS + moved
+                seek(durationS > 0 ? Math.min(durationS, Math.max(0, wanted)) : Math.max(0, wanted))
+                return
+            }
+            const louder = adjustsVolume(press, focused())
+            if (louder !== null) {
+                event.preventDefault()
+                // setVolume unmutes, which is what asking to hear more of it means.
+                setVolume(playerStore.get().volume + louder)
+                return
+            }
+            if (togglesMute(press, focused())) {
+                event.preventDefault()
+                toggleMuted()
+                return
+            }
+            if (starsCurrent(press, focused())) {
+                event.preventDefault()
+                toggleStar(sessionStore.get().music, currentSong())
                 return
             }
             if (opensShortcuts(press, focused())) {
