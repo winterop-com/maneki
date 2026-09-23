@@ -82,22 +82,32 @@ def song_payload(album: LibraryAlbum, track: LibraryTrack) -> dict[str, Any]:
     """Subsonic `song`/`child` dict — used everywhere a track appears."""
     al_id = album_id(album)
     ar_id = artist_id(album.artist_dir)
+    album_artist = album.tag_album_artist or album.artist_dir
+    track_artist = track.artist or album_artist
     payload: dict[str, Any] = {
         "id": track_id(track),
         "parent": al_id,
         "isDir": False,
         "title": track.title or track.path.stem,
         "album": album.tag_album or album.album_dir,
-        "artist": track.artist or album.artist_dir,
+        "artist": track_artist,
         "isVideo": False,
         "type": "music",
         "albumId": al_id,
-        "artistId": ar_id,
         "coverArt": al_id,
         "duration": int(track.duration_s) if track.duration_s else 0,
         "size": track_size_bytes(track),
         "suffix": suffix(track),
         "contentType": content_type(track),
+    }
+    # THE ARTIST ID IS THE ALBUM ARTIST'S, AND ONLY A TRACK BY THEM CARRIES IT. On a
+    # compilation every track names its own artist, and a client that follows the
+    # id rather than the name (Amperfy) drew "Absolute Music" under Joyride when
+    # the id pointed at the album's artist. There is no artist entry for Roxette
+    # here -- artists are folders -- so the track keeps the name and drops the id.
+    if track_artist.casefold() == album_artist.casefold():
+        payload["artistId"] = ar_id
+    payload |= {
         "path": (
             str(track.path.relative_to(album.path.parent.parent))
             if track.path.is_relative_to(album.path.parent.parent)
