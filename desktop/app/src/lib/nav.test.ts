@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'vitest'
 
-import { entriesFor, entryAt, homePath, marks, NAV, sectionsFor } from '@/lib/nav'
+import { entriesFor, homePath, marks, NAV, sectionsFor } from '@/lib/nav'
 import type { Capabilities } from '@/lib/types'
 
 function server(has: Partial<Capabilities>): Capabilities {
@@ -84,28 +84,14 @@ describe('what the rail marks', () => {
 
     test('an entry with nothing beneath it is a plain prefix', () => {
         expect(marks('/books', '/books/bk_1')).toBe(true)
-        expect(marks('/youtube', '/youtube/c/UC_x5XG1OV2P6uZZ5FSM9Ttw')).toBe(true)
         expect(marks('/video', '/video/browse/Films/Alien')).toBe(true)
+        // A channel and a video are both inside YouTube, which stays marked on each.
+        expect(marks('/youtube', '/youtube/c/UC_x5XG1OV2P6uZZ5FSM9Ttw')).toBe(true)
+        expect(marks('/youtube', '/youtube/v/dQw4w9WgXcQ')).toBe(true)
     })
 
     test('an address outside an entry marks nothing, and a near miss is not a prefix', () => {
         expect(marks('/music', '/radio')).toBe(false)
         expect(marks('/video', '/videos')).toBe(false)
-    })
-
-    test('the longest path wins, so favourites is not read as music', () => {
-        expect(entryAt('/music/starred')?.label).toBe('Favourites')
-        expect(entryAt('/music/album/al_1')?.label).toBe('Music')
-        expect(entryAt('/books/bk_1')?.label).toBe('Audiobooks')
-    })
-
-    test('a channel and a video are both inside YouTube, which stays marked', () => {
-        expect(entryAt('/youtube/c/UC_x5XG1OV2P6uZZ5FSM9Ttw')?.label).toBe('YouTube')
-        expect(entryAt('/youtube/v/dQw4w9WgXcQ')?.label).toBe('YouTube')
-        expect(marks('/youtube', '/youtube/v/dQw4w9WgXcQ')).toBe(true)
-    })
-
-    test('an address under no entry marks nothing', () => {
-        expect(entryAt('/nowhere')).toBeNull()
     })
 })

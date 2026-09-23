@@ -162,15 +162,3 @@ export function marks(path: string, at: string): boolean {
         (entry) => entry.path !== path && inside(entry.path, path) && inside(at, entry.path),
     )
 }
-
-/**
- * The entry one address is inside, or null.
- *
- * Longest path first, so `/music/starred` answers Favourites rather than Music.
- */
-export function entryAt(path: string): NavEntry | null {
-    const candidates = NAV.flatMap((section) => section.entries)
-        .filter((entry) => path === entry.path || path.startsWith(`${entry.path}/`))
-        .toSorted((left, right) => right.path.length - left.path.length)
-    return candidates[0] ?? null
-}

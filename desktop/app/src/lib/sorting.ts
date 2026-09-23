@@ -100,14 +100,3 @@ export function sortArtists<T extends Sortable>(
             )
     }
 }
-
-/**
- * The letter a name is filed under, for an index down the side of a long list.
- *
- * Anything that does not start with a letter is filed under `#`: a library of 80 artists has a
- * few that begin with a digit or a bracket, and they are one group rather than several of one.
- */
-export function initialOf(name: string, articles: readonly string[] = DEFAULT_ARTICLES): string {
-    const first = sortName(name, articles).trim().charAt(0).toLocaleUpperCase()
-    return /\p{Letter}/u.test(first) ? first : '#'
-}

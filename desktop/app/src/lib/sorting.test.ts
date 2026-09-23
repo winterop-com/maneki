@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'vitest'
 
-import { articlesOf, DEFAULT_ARTICLES, fold, initialOf, sortArtists, sortName } from '@/lib/sorting'
+import { articlesOf, DEFAULT_ARTICLES, fold, sortArtists, sortName } from '@/lib/sorting'
 
 const artists = [
     { name: 'The Beatles', albumCount: 12 },
@@ -94,19 +94,6 @@ describe('ordering a list of artists', () => {
         const original = [...artists]
         sortArtists(artists, 'name-desc')
         expect(artists).toEqual(original)
-    })
-})
-
-describe('the letter a name is filed under', () => {
-    test('ignores the article, the way the sort does', () => {
-        expect(initialOf('The Beatles')).toBe('B')
-        expect(initialOf('röyksopp')).toBe('R')
-    })
-
-    test('anything that is not a letter is one group', () => {
-        expect(initialOf('50 Cent')).toBe('#')
-        expect(initialOf('[dunkelbunt]')).toBe('#')
-        expect(initialOf('')).toBe('#')
     })
 })
 

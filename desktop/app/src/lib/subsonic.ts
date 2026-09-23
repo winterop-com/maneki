@@ -234,34 +234,6 @@ export async function getAlbum(
     return { album, songs: album.song ?? [] }
 }
 
-export interface AlbumListOptions {
-    type?:
-        | 'alphabeticalByName'
-        | 'alphabeticalByArtist'
-        | 'newest'
-        | 'recent'
-        | 'frequent'
-        | 'random'
-        | 'starred'
-    size?: number
-    offset?: number
-    musicFolderId?: number
-}
-
-/** A flat list of albums, for a shelf. */
-export async function getAlbumList(
-    credentials: Credentials,
-    options: AlbumListOptions = {},
-): Promise<Album[]> {
-    const inner = await call<{ albumList2?: { album?: Album[] } }>(credentials, 'getAlbumList2', {
-        type: options.type ?? 'alphabeticalByName',
-        size: options.size ?? 100,
-        offset: options.offset ?? 0,
-        musicFolderId: options.musicFolderId,
-    })
-    return inner.albumList2?.album ?? []
-}
-
 export interface SearchResult {
     artists: Artist[]
     albums: Album[]
