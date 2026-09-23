@@ -3,7 +3,11 @@ import { describe, expect, test } from 'vitest'
 import {
     ALBUMS_SHELF,
     ARTISTS_SHELF,
+    closeSearch,
+    openSearch,
     rankOf,
+    searchOpen,
+    searchSeed,
     shelveResults,
     TRACKS_SHELF,
     TRACK_LIMIT,
@@ -120,5 +124,21 @@ describe('the order inside a shelf', () => {
         const found = answer({ songs: [song('Wonderwall', 'Oasis', 'Love Sux')] })
         const [tracks] = shelveResults(found, 'love')
         expect(tracks?.rows).toHaveLength(1)
+    })
+})
+
+describe('opening the search', () => {
+    test('carries what was typed into the strip over to the box', () => {
+        openSearch('röyk')
+        expect(searchOpen.get()).toBe(true)
+        expect(searchSeed.get()).toBe('röyk')
+    })
+
+    test('opens empty for everything that hands it nothing', () => {
+        closeSearch()
+        openSearch()
+        expect(searchOpen.get()).toBe(true)
+        expect(searchSeed.get()).toBe('')
+        closeSearch()
     })
 })

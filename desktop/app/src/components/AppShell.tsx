@@ -37,6 +37,7 @@ import { PlayerBar, QUEUE_LABEL } from '@/components/PlayerBar'
 import { QueuePanel } from '@/components/QueuePanel'
 import { Rail } from '@/components/Rail'
 import { RightPanel } from '@/components/RightPanel'
+import { SearchBox } from '@/components/SearchBox'
 import { SearchOverlay, SEARCH_TITLE } from '@/components/SearchOverlay'
 import { ShortcutsDialog } from '@/components/ShortcutsDialog'
 import { StatusBar } from '@/components/StatusBar'
@@ -415,6 +416,9 @@ export function AppShell({ children }: { children: ReactNode }) {
                         >
                             <Menu className="size-4" aria-hidden />
                         </Button>
+                        {/* Where the client this replaces kept it. It holds nothing and opens
+                            the overlay with whatever was typed into it -- see `SearchBox`. */}
+                        <SearchBox />
                         <div className="flex-1" />
                         {caps !== null && (
                             <span className="hidden font-mono text-xs text-muted-foreground sm:inline">

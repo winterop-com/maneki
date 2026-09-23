@@ -29,7 +29,20 @@ import { createStore } from '@/lib/store'
  */
 export const searchOpen = createStore(false)
 
-export function openSearch(): void {
+/**
+ * What the box opens holding.
+ *
+ * THE STRIP'S FIELD IS A DOOR RATHER THAN A BOX. Somebody typing into the top strip is asking
+ * the library a question, and the answer is this overlay -- so the letters already typed are
+ * carried over rather than typed again into a second field. It is a store because the two are
+ * not inside one another: the field is in the shell's header and the overlay is at the foot of
+ * the same tree, and everything else that opens the search hands over nothing and gets an empty
+ * box, which is what it was.
+ */
+export const searchSeed = createStore('')
+
+export function openSearch(query = ''): void {
+    searchSeed.set(query)
     searchOpen.set(true)
 }
 
