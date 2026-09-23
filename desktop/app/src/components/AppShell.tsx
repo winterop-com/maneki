@@ -10,6 +10,7 @@ import {
     PanelRight,
     Play,
     Maximize2,
+    RefreshCw,
     Search,
     Settings,
     Repeat,
@@ -50,6 +51,7 @@ import {
     type PaletteAction,
 } from '@/lib/palette'
 import { fillPanel, railCollapsed, togglePanel, toggleRail } from '@/lib/panels'
+import { RESCAN_LABEL, rescan } from '@/lib/rescan'
 import { cycleRepeat, next, playerStore, previous, toggle, toggleShuffle } from '@/lib/player'
 import { nextRepeat, REPEAT_LABELS } from '@/lib/queue'
 import { sessionStore, signOut } from '@/lib/session'
@@ -114,6 +116,7 @@ export function AppShell({ children }: { children: ReactNode }) {
     const menu = useRef<HTMLButtonElement | null>(null)
     const wasOpen = useRef(false)
     const caps = session.capabilities ?? null
+    const music = session.music ?? null
     const queued = queuedCount > 0
 
     useEffect(() => {
@@ -254,6 +257,22 @@ export function AppShell({ children }: { children: ReactNode }) {
                 keywords: ['preferences', 'appearance', 'volume', 'account', 'server'],
                 run: openSettings,
             },
+            // Offered only where there is a library to walk: a row that asked a server with no
+            // music to reindex its music would be a row that can only fail.
+            ...(music
+                ? [
+                      {
+                          id: 'view:rescan',
+                          title: RESCAN_LABEL,
+                          group: VIEW_GROUP,
+                          icon: RefreshCw,
+                          keywords: ['scan', 'refresh', 'reindex', 'library', 'reload', 'new albums'],
+                          run: () => {
+                              void rescan(music)
+                          },
+                      },
+                  ]
+                : []),
             {
                 id: 'view:shortcuts',
                 title: 'Keyboard shortcuts',
@@ -286,6 +305,7 @@ export function AppShell({ children }: { children: ReactNode }) {
     }, [
         caps,
         collapsed,
+        music,
         navigate,
         openSettings,
         playing,
