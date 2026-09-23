@@ -139,10 +139,12 @@ export function useAppShortcuts(onShortcuts: () => void): void {
             // this listener again as often.
             const moved = seeks(press, focused())
             if (moved !== null) {
-                const { positionS, durationS, station } = playerStore.get()
+                const { positionS, durationS, station, book } = playerStore.get()
                 // A station has no length and nothing to scrub, and a seek against nothing
-                // would build an audio element for a press with no track behind it.
-                if (station !== null || currentSong() === null) return
+                // would build an audio element for a press with no track behind it. A book is
+                // not a track and answers `currentSong` with nothing, so it is asked for by
+                // name.
+                if (station !== null || (book === null && currentSong() === null)) return
                 event.preventDefault()
                 const wanted = positionS + moved
                 seek(durationS > 0 ? Math.min(durationS, Math.max(0, wanted)) : Math.max(0, wanted))
