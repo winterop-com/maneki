@@ -33,14 +33,18 @@ export default function App() {
     // hoping the answer lands before anybody looks.
     if (session.phase === 'unknown') {
         return (
-            <div className="flex h-svh flex-col items-center justify-center gap-3 bg-background text-foreground">
-                <div className="flex items-center gap-2">
-                    <span className="flex size-7 shrink-0 items-center justify-center rounded-md bg-primary text-primary-foreground">
-                        <Cat className="size-4" aria-hidden />
+            // The same lockup the door wears, on the door's ground, so the first second and the
+            // sign-in read as one thing rather than a small mark and then a large one.
+            <div className="flex h-svh flex-col items-center justify-center gap-6 bg-terminal text-terminal-foreground">
+                <div className="flex items-center gap-5">
+                    <span className="flex size-16 shrink-0 items-center justify-center rounded-2xl bg-terminal-accent text-terminal">
+                        <Cat className="size-9" aria-hidden />
                     </span>
-                    <span className="text-base font-semibold tracking-tight">Maneki</span>
+                    <span className="text-wordmark">maneki</span>
                 </div>
-                <p className="text-sm text-muted-foreground">Connecting</p>
+                <p className="font-mono text-xs tracking-[0.18em] text-terminal-muted uppercase">
+                    Connecting
+                </p>
             </div>
         )
     }
