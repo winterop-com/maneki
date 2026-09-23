@@ -260,7 +260,7 @@ function Browser({ path }: { path: string }) {
                     variant="outline"
                     size="sm"
                     aria-label={RESCAN_LABEL}
-                    title={RESCAN_LABEL}
+                    title={scanning ? 'A scan is already running' : RESCAN_LABEL}
                     disabled={scanning}
                     onClick={rescan}
                 >
@@ -269,7 +269,7 @@ function Browser({ path }: { path: string }) {
             </div>
 
             {searching ? (
-                <SearchResults query={query.trim()} rows={results} navigate={navigate} tokens={tokens} />
+                <SearchResults query={query.trim()} rows={results} tokens={tokens} />
             ) : (
                 <>
                     <Crumbs path={path} />
@@ -331,15 +331,14 @@ function SearchResults({
     query,
     rows,
     tokens,
-    navigate,
 }: {
     query: string
     rows: VideoEntry[] | null
     tokens: Record<string, number>
-    navigate: ReturnType<typeof useNavigate>
 }) {
+    const navigate = useNavigate()
     if (rows === null) return <Notice>Searching.</Notice>
-    if (rows.length === 0) return <Notice>Nothing in the library matches {query}.</Notice>
+    if (rows.length === 0) return <Notice>Nothing in the library matches &ldquo;{query}&rdquo;.</Notice>
     return (
         <ul className="min-h-0 flex-1 overflow-y-auto">
             {rows.map((one) => (
