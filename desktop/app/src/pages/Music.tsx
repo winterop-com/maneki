@@ -619,12 +619,16 @@ function StarButton({ credentials, song }: { credentials: Credentials; song: Son
     )
 }
 
+/** A screen at the top of its shelf has nothing above it: one stable empty list, so the prop
+    is not a new array on every render. */
+const NO_TRAIL: { label: string; to: string }[] = []
+
 function Header({
     title,
     subtitle,
     onBack,
     action,
-    trail = [],
+    trail = NO_TRAIL,
 }: {
     title: string
     subtitle?: string
