@@ -100,12 +100,23 @@ function authQuery(credentials: Credentials): URLSearchParams {
     })
 }
 
-type Params = Record<string, string | number | boolean | undefined | null>
+/**
+ * What an endpoint is asked with.
+ *
+ * A LIST IS THE SAME KEY SAID AGAIN, `songId=a&songId=b`, which is how the Subsonic grammar
+ * spells more than one of a thing. An empty list is no parameter at all.
+ */
+type Params = Record<string, string | number | boolean | readonly (string | number)[] | undefined | null>
 
 function withParams(credentials: Credentials, endpoint: string, params?: Params): string {
     const query = authQuery(credentials)
     for (const [key, value] of Object.entries(params ?? {})) {
-        if (value !== undefined && value !== null) query.set(key, String(value))
+        if (value === undefined || value === null) continue
+        if (Array.isArray(value)) {
+            for (const item of value as readonly (string | number)[]) query.append(key, String(item))
+        } else {
+            query.set(key, String(value))
+        }
     }
     return `${credentials.restUrl}/${endpoint}?${query.toString()}`
 }
@@ -406,4 +417,106 @@ export async function scrobble(credentials: Credentials, id: string, submission:
     } catch {
         // Nothing to say and nothing to do: the track plays either way.
     }
+}
+
+/**
+ * One playlist, as a listing carries it: what it is called and how much is on it.
+ *
+ * A PLAYLIST IS A THING SOMEBODY MADE, and it belongs to one account: the server keeps each
+ * account's apart, so what this list holds is this account's and nobody else's.
+ */
+export interface Playlist {
+    id: string
+    name: string
+    owner?: string
+    songCount: number
+    /** In seconds, summed over the tracks the server could still find. */
+    duration: number
+    created?: string
+    changed?: string
+    coverArt?: string
+}
+
+type PlaylistAnswer = Playlist & { entry?: Song[] }
+
+/** The playlists out of a `getPlaylists` answer, in the order the server gave them. */
+export function playlistsOf(inner: { playlists?: { playlist?: Playlist[] } }): Playlist[] {
+    return inner.playlists?.playlist ?? []
+}
+
+/**
+ * One playlist and its tracks out of a `getPlaylist` or `createPlaylist` answer.
+ *
+ * THE TRACKS ARE `entry`, not `song` as on an album, which is the grammar's own spelling. A
+ * track whose file has gone is left out by the server rather than sent broken, so what comes
+ * back is always playable -- and the positions it is removed by are positions in this list.
+ */
+export function playlistOf(
+    inner: { playlist?: PlaylistAnswer },
+    id: string,
+): {
+    playlist: Playlist
+    songs: Song[]
+} {
+    const answer = inner.playlist
+    if (!answer) throw new SubsonicError(70, `no playlist ${id}`)
+    const { entry, ...playlist } = answer
+    return { playlist, songs: entry ?? [] }
+}
+
+/** This account's playlists, the most recently changed first. */
+export async function getPlaylists(credentials: Credentials): Promise<Playlist[]> {
+    return playlistsOf(await call<{ playlists?: { playlist?: Playlist[] } }>(credentials, 'getPlaylists'))
+}
+
+/** One playlist with its tracks, in the order they were put there. */
+export async function getPlaylist(
+    credentials: Credentials,
+    id: string,
+): Promise<{ playlist: Playlist; songs: Song[] }> {
+    return playlistOf(await call<{ playlist?: PlaylistAnswer }>(credentials, 'getPlaylist', { id }), id)
+}
+
+/** Make a playlist, empty or with these tracks on it, and answer it as the server now holds it. */
+export async function createPlaylist(
+    credentials: Credentials,
+    name: string,
+    songIds: readonly string[] = [],
+): Promise<{ playlist: Playlist; songs: Song[] }> {
+    const inner = await call<{ playlist?: PlaylistAnswer }>(credentials, 'createPlaylist', {
+        name,
+        songId: songIds,
+    })
+    return playlistOf(inner, name)
+}
+
+/**
+ * What one change to a playlist says: a new name, tracks to put on the end, positions to take off.
+ *
+ * THE SERVER TAKES OFF BEFORE IT ADDS, so a position is always a position in the list as it
+ * stood before this change, whatever is being added in the same breath.
+ */
+export interface PlaylistChange {
+    name?: string
+    add?: readonly string[]
+    remove?: readonly number[]
+}
+
+/** Rename a playlist, add to its end, or take tracks off it by position. */
+export async function updatePlaylist(
+    credentials: Credentials,
+    id: string,
+    change: PlaylistChange,
+): Promise<void> {
+    await call(credentials, 'updatePlaylist', {
+        playlistId: id,
+        name: change.name,
+        songIdToAdd: change.add,
+        songIndexToRemove: change.remove,
+    })
+}
+
+/** Delete a playlist. The tracks on it are not touched: they are the library's. */
+export async function deletePlaylist(credentials: Credentials, id: string): Promise<void> {
+    await call(credentials, 'deletePlaylist', { id })
 }

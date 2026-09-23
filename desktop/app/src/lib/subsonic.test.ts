@@ -1,8 +1,13 @@
 import { afterEach, describe, expect, test, vi } from 'vitest'
 
 import {
+    createPlaylist,
     getAlbum,
+    getPlaylist,
     musicFolderOf,
+    playlistOf,
+    playlistsOf,
+    updatePlaylist,
     getArtists,
     makeCredentials,
     SubsonicError,
@@ -176,5 +181,82 @@ describe('which folder the music screens mean', () => {
             },
         })
         expect((await getArtists(credentials)).ignoredArticles).toBe('The El La')
+    })
+})
+
+describe('playlists', () => {
+    test('a listing with none is an empty list, not a missing one', () => {
+        expect(playlistsOf({})).toEqual([])
+        expect(playlistsOf({ playlists: {} })).toEqual([])
+    })
+
+    test('the tracks are the entries, held apart from what the playlist is', () => {
+        const read = playlistOf(
+            {
+                playlist: {
+                    id: 'pl_1',
+                    name: 'Road trip',
+                    songCount: 1,
+                    duration: 200,
+                    entry: [{ id: 'tr_1', title: 'One' }],
+                },
+            },
+            'pl_1',
+        )
+        expect(read.playlist).toEqual({ id: 'pl_1', name: 'Road trip', songCount: 1, duration: 200 })
+        expect(read.songs.map((song) => song.id)).toEqual(['tr_1'])
+    })
+
+    test('an empty playlist has no tracks rather than no list', () => {
+        const read = playlistOf({ playlist: { id: 'pl_1', name: 'New', songCount: 0, duration: 0 } }, 'pl_1')
+        expect(read.songs).toEqual([])
+    })
+
+    test('an answer without a playlist is a refusal', () => {
+        expect(() => playlistOf({}, 'pl_9')).toThrow(SubsonicError)
+    })
+
+    test('reading one asks for it by id', async () => {
+        answer({
+            'subsonic-response': {
+                status: 'ok',
+                playlist: { id: 'pl_1', name: 'A', songCount: 0, duration: 0 },
+            },
+        })
+        await getPlaylist(credentials, 'pl_1')
+        expect(lastUrl().pathname).toBe('/audio/rest/getPlaylist')
+        expect(lastUrl().searchParams.get('id')).toBe('pl_1')
+    })
+
+    test('making one says every track, one key each, in order', async () => {
+        answer({
+            'subsonic-response': {
+                status: 'ok',
+                playlist: { id: 'pl_1', name: 'A', songCount: 2, duration: 0 },
+            },
+        })
+        await createPlaylist(credentials, 'A', ['tr_1', 'tr_2'])
+        const url = lastUrl()
+        expect(url.pathname).toBe('/audio/rest/createPlaylist')
+        expect(url.searchParams.get('name')).toBe('A')
+        expect(url.searchParams.getAll('songId')).toEqual(['tr_1', 'tr_2'])
+    })
+
+    test('a change carries only what it changes', async () => {
+        answer({ 'subsonic-response': { status: 'ok' } })
+        await updatePlaylist(credentials, 'pl_1', { remove: [3] })
+        const url = lastUrl()
+        expect(url.searchParams.get('playlistId')).toBe('pl_1')
+        expect(url.searchParams.getAll('songIndexToRemove')).toEqual(['3'])
+        expect(url.searchParams.has('name')).toBe(false)
+        expect(url.searchParams.has('songIdToAdd')).toBe(false)
+    })
+
+    test('adding and renaming go in one request', async () => {
+        answer({ 'subsonic-response': { status: 'ok' } })
+        await updatePlaylist(credentials, 'pl_1', { name: 'B', add: ['tr_1', 'tr_2'] })
+        const url = lastUrl()
+        expect(url.searchParams.get('name')).toBe('B')
+        expect(url.searchParams.getAll('songIdToAdd')).toEqual(['tr_1', 'tr_2'])
     })
 })
