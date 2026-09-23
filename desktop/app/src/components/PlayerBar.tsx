@@ -45,7 +45,7 @@ import { REPEAT_LABELS } from '@/lib/queue'
 import { panelOpen, panelTabs, togglePanel } from '@/lib/panels'
 import { sessionStore } from '@/lib/session'
 import { coverUrl } from '@/lib/subsonic'
-import { openStage } from '@/lib/visualizer'
+import { openStage, visualizerShown } from '@/lib/visualizer'
 import { cn } from '@/lib/utils'
 
 export const QUEUE_LABEL = 'Up next'
@@ -74,6 +74,7 @@ export const STAGE_LABEL = 'Put the spectrum over the whole screen'
  */
 export function PlayerBar() {
     const player = useStore(playerStore)
+    const spectrumShown = useStore(visualizerShown)
     const session = useStore(sessionStore)
     const tabs = useStore(panelTabs)
     const open = useStore(panelOpen)
@@ -334,18 +335,22 @@ export function PlayerBar() {
                 </select>
             )}
 
-            {/* The strip is the way to the stage with a pointer, as the F key is without one. */}
-            <button
-                type="button"
-                aria-label={STAGE_LABEL}
-                onClick={openStage}
-                className="hidden shrink-0 rounded-sm focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none lg:block"
-            >
-                {/* The quiet is the element's opacity rather than an alpha on the token: a
+            {/* The strip is the way to the stage with a pointer, as the F key is without one. It is
+                drawn only while the spectrum is: `Visualizer` answers nothing when it is off, and a
+                button around nothing is an empty stop in the tab order with a name and no face. */}
+            {spectrumShown && (
+                <button
+                    type="button"
+                    aria-label={STAGE_LABEL}
+                    onClick={openStage}
+                    className="hidden shrink-0 rounded-sm focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none lg:block"
+                >
+                    {/* The quiet is the element's opacity rather than an alpha on the token: a
                     chosen spectrum ramp is spelled opaque, and every theme is to read as faint
                     on the bar alike. */}
-                <Visualizer className="h-7 w-28 text-primary opacity-70" />
-            </button>
+                    <Visualizer className="h-7 w-28 text-primary opacity-70" />
+                </button>
+            )}
 
             <div className="hidden shrink-0 items-center gap-1 md:flex">
                 <Button
