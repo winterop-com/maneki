@@ -598,7 +598,7 @@ wheels = [
 
 [[package]]
 name = "maneki"
-version = "0.19.8"
+version = "0.19.9"
 source = { editable = "." }
 dependencies = [
     { name = "fastapi" },
