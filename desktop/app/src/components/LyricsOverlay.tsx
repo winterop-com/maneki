@@ -2,6 +2,7 @@ import { X } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 
 import { Button } from '@/components/ui/button'
+import { useOverlay } from '@/hooks/use-overlay'
 import { usePrefersReducedMotion } from '@/hooks/use-reduced-motion'
 import { useStore, useStoreValue } from '@/hooks/use-store'
 import { closeLyrics, lineAt, lyricsOpen, NO_LYRICS, readLyrics, type Lyrics } from '@/lib/lyrics'
@@ -56,23 +57,18 @@ function Words() {
     const still = usePrefersReducedMotion()
     const [answer, setAnswer] = useState<{ songId: string; words: Lyrics } | null>(null)
     const active = useRef<HTMLParagraphElement | null>(null)
+    const page = useRef<HTMLDivElement | null>(null)
     const song = currentSong()
     const credentials = session.music
+
+    // Escape leaves, the shell behind it is inert while this stands, and the control that
+    // opened it gets the focus back. See `hooks/use-overlay`: the stage is the same dialog.
+    useOverlay(page, closeLyrics)
 
     // WHICH TRACK THE WORDS ARE FOR IS CARRIED ON THEM, and read during render: a queue moves
     // on while this is up, and the previous song's chorus under the new song's title is worse
     // than the sentence saying the words are being read.
     const words = answer !== null && answer.songId === songId ? answer.words : null
-
-    useEffect(() => {
-        const escape = (event: KeyboardEvent) => {
-            if (event.key === 'Escape') closeLyrics()
-        }
-        document.addEventListener('keydown', escape)
-        return () => {
-            document.removeEventListener('keydown', escape)
-        }
-    }, [])
 
     // Asked for when this goes up, and again on every change of track. The track is read inside
     // the effect rather than depended on: the player rebuilds its state four times a second and
@@ -101,8 +97,10 @@ function Words() {
 
     return (
         <div
+            ref={page}
             data-lyrics
-            className="fixed inset-0 z-50 flex flex-col bg-background"
+            tabIndex={-1}
+            className="fixed inset-0 z-50 flex flex-col bg-background outline-none"
             role="dialog"
             aria-label="Lyrics"
             aria-modal="true"
