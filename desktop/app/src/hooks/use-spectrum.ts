@@ -20,14 +20,20 @@
  * element is the accent in the palette in force, and that is what the default theme paints
  * with. `lib/spectrum-themes` is where a chosen ramp comes from, and where the reason a fixed
  * colour is allowed there at all is written down.
+ *
+ * WHAT IS DRAWN IS WHAT IS AUDIBLE, NOT WHAT THE ANALYSER JUST READ. The two are the same thing
+ * over a cable and a third of a second apart over Bluetooth, so every frame goes through the
+ * delay line in `lib/sync` and what gets painted is the frame from as long ago as the output is
+ * behind.
  */
 
 import { useEffect, useRef, type RefObject } from 'react'
 
 import { usePrefersReducedMotion } from '@/hooks/use-reduced-motion'
 import { useStore } from '@/hooks/use-store'
-import { spectrum } from '@/lib/player'
+import { spectrum, spectrumContext } from '@/lib/player'
 import { spectrumTheme, themeGradient, themeSweep } from '@/lib/spectrum-themes'
+import { makeDelayLine, outputDelayMs, spectrumDelayMs } from '@/lib/sync'
 import {
     bars,
     barLayout,
@@ -66,6 +72,11 @@ export function useSpectrum(active: boolean, bands: number): RefObject<HTMLCanva
         // frequency data is the transform, and asking for both is paying for it twice.
         const wave = style === 'scope'
         const frame = new Uint8Array(wave ? analyser.fftSize : analyser.frequencyBinCount)
+        // What is read off the analyser is not what is audible yet -- see `lib/sync`. Every
+        // frame goes through the line whatever the delay is, so dialling one in mid-track has a
+        // history to read back from rather than starting empty.
+        const line = makeDelayLine(frame.length)
+        const graph = spectrumContext()
         let request = 0
 
         let width = element.clientWidth
@@ -99,7 +110,13 @@ export function useSpectrum(active: boolean, bands: number): RefObject<HTMLCanva
             request = requestAnimationFrame(draw)
             if (wave) analyser.getByteTimeDomainData(frame)
             else analyser.getByteFrequencyData(frame)
-            const quiet = wave ? isFlat(frame) : isIdle(frame)
+            // The graph's own clock, because that is what the latency is measured against; a
+            // page clock where there is no graph, which only happens before anything has played.
+            line.push(frame, graph === null ? performance.now() : graph.currentTime * 1000)
+            // Read again every frame rather than held: the setting moves under a dragged slider,
+            // and what the browser reports changes the moment the output device does.
+            const shown = line.read(outputDelayMs(graph) + spectrumDelayMs.get())
+            const quiet = wave ? isFlat(shown) : isIdle(shown)
             if (quiet && settled) return
             settled = quiet
             context.clearRect(0, 0, width, height)
@@ -111,7 +128,7 @@ export function useSpectrum(active: boolean, bands: number): RefObject<HTMLCanva
                 : themeGradient(theme, context, height, ink)
             context.fillStyle = paintedIn
             context.strokeStyle = paintedIn
-            paint(context, style, frame, width, height, bands)
+            paint(context, style, shown, width, height, bands)
         }
 
         request = requestAnimationFrame(draw)

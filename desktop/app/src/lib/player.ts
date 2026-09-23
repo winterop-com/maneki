@@ -403,6 +403,16 @@ export function spectrum(): AnalyserNode | null {
     return analyser
 }
 
+/**
+ * The graph the spectrum is tapped off, for what only the graph itself knows.
+ *
+ * Its clock is what a frame is stamped with, and what it says about its own latency is how far
+ * behind the analyser the speakers are -- see `lib/sync`. Null until something has played.
+ */
+export function spectrumContext(): AudioContext | null {
+    return graph
+}
+
 /** Stop, forget the queue, and let the element go. Used when the session goes away. */
 export function clear(): void {
     stopIcy()
