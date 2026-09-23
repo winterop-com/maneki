@@ -1,5 +1,5 @@
 import { ChevronLeft, ChevronRight, Play, Star, Volume2 } from 'lucide-react'
-import { useEffect, useMemo, useState } from 'react'
+import { Fragment, useEffect, useMemo, useState } from 'react'
 import { NavLink, useNavigate, useParams } from 'react-router'
 
 import { CoverArt } from '@/components/CoverArt'
@@ -536,56 +536,58 @@ function AlbumScreen({ credentials, id }: { credentials: Credentials; id: string
                         const newDisc =
                             discs > 1 && (index === 0 || (songs[index - 1]?.discNumber ?? 1) !== disc)
                         return (
-                            <li
-                                key={song.id}
-                                className={cn('flex flex-col', current && 'bg-muted font-medium')}
-                            >
+                            <Fragment key={song.id}>
                                 {newDisc && (
-                                    <span className="border-b px-3 py-1.5 text-xs font-semibold tracking-wide text-faint uppercase">
+                                    <li
+                                        role="presentation"
+                                        className="border-b px-3 py-1.5 text-xs font-semibold tracking-wide text-faint uppercase"
+                                    >
                                         Disc {disc}
-                                    </span>
+                                    </li>
                                 )}
-                                <button
-                                    type="button"
-                                    onClick={() => play(songs, index)}
-                                    aria-current={current ? 'true' : undefined}
-                                    className="row-hover flex min-h-finger w-full items-center gap-3 px-3 text-left text-sm"
-                                >
-                                    <span className="flex w-6 shrink-0 items-center justify-end text-xs text-muted-foreground tabular-nums">
-                                        {current ? (
-                                            playing ? (
-                                                <Volume2 className="size-3.5 text-primary" aria-hidden />
+                                <li className={cn('flex items-center', current && 'bg-muted font-medium')}>
+                                    <button
+                                        type="button"
+                                        onClick={() => play(songs, index)}
+                                        aria-current={current ? 'true' : undefined}
+                                        className="row-hover flex min-h-finger w-full items-center gap-3 px-3 text-left text-sm"
+                                    >
+                                        <span className="flex w-6 shrink-0 items-center justify-end text-xs text-muted-foreground tabular-nums">
+                                            {current ? (
+                                                playing ? (
+                                                    <Volume2 className="size-3.5 text-primary" aria-hidden />
+                                                ) : (
+                                                    <Play className="size-3.5 text-primary" aria-hidden />
+                                                )
                                             ) : (
-                                                <Play className="size-3.5 text-primary" aria-hidden />
-                                            )
-                                        ) : (
-                                            (song.track ?? index + 1)
-                                        )}
-                                    </span>
-                                    {/* ON A COMPILATION THE ARTIST IS PART OF WHAT THE ROW IS, so
+                                                (song.track ?? index + 1)
+                                            )}
+                                        </span>
+                                        {/* ON A COMPILATION THE ARTIST IS PART OF WHAT THE ROW IS, so
                                     it sits under the title where a reader is already looking,
                                     not in a column against the far edge beside the clock. An
                                     album whose tracks are all the same artist says it once, in
                                     the heading, and the rows stay one line. */}
-                                    <span className="min-w-0 flex-1">
-                                        <span className="block truncate" title={song.title}>
-                                            {song.title}
-                                        </span>
-                                        {song.artist && song.artist !== album.artist && (
-                                            <span
-                                                className="block truncate text-xs text-muted-foreground"
-                                                title={song.artist}
-                                            >
-                                                {song.artist}
+                                        <span className="min-w-0 flex-1">
+                                            <span className="block truncate" title={song.title}>
+                                                {song.title}
                                             </span>
-                                        )}
-                                    </span>
-                                    <span className="shrink-0 font-mono text-xs text-muted-foreground tabular-nums">
-                                        {clock(song.duration ?? 0)}
-                                    </span>
-                                </button>
-                                <StarButton credentials={credentials} song={song} />
-                            </li>
+                                            {song.artist && song.artist !== album.artist && (
+                                                <span
+                                                    className="block truncate text-xs text-muted-foreground"
+                                                    title={song.artist}
+                                                >
+                                                    {song.artist}
+                                                </span>
+                                            )}
+                                        </span>
+                                        <span className="shrink-0 font-mono text-xs text-muted-foreground tabular-nums">
+                                            {clock(song.duration ?? 0)}
+                                        </span>
+                                    </button>
+                                    <StarButton credentials={credentials} song={song} />
+                                </li>
+                            </Fragment>
                         )
                     })}
                 </ol>
