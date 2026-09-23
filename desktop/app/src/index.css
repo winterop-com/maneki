@@ -1252,3 +1252,24 @@ html.dark[data-theme='contrast'],
     color: var(--lcd-ink);
     text-shadow: 0 0 6px var(--lcd-glow);
 }
+
+/* THE METERS. A segment is lit or it is not, the way a pill is, and a row is eighteen of them at
+   a size of their own: a bar whose segments grew with the window would be a meter that reads
+   differently on two screens. An unlit segment is the same dim ink the ghost 8 behind a cell is,
+   because a meter with nothing on it is still an instrument with its face showing. What is
+   metered -- two bands rather than two channels, which is why the labels read LO and HI -- is
+   decided in `lib/lcd`. */
+.mk-lcd-vu {
+    display: inline-flex;
+    gap: 1px;
+}
+.mk-lcd-vu-seg {
+    width: 3px;
+    height: 6px;
+    border-radius: 1px;
+    background-color: var(--lcd-dim);
+}
+.mk-lcd-vu-seg[data-on='true'] {
+    background-color: var(--lcd-ink);
+    box-shadow: 0 0 4px var(--lcd-glow);
+}

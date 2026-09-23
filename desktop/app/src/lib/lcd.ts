@@ -88,6 +88,76 @@ export function trackCell(track: number | undefined, isStation: boolean): string
     return track > 99 ? String(track) : pad(track)
 }
 
+/** How many segments one meter has. Eighteen is what the deck this is ported from had. */
+export const VU_SEGMENTS = 18
+
+/** The share of the analyser's bins the low meter reads. The rest is the high one's. */
+export const VU_SPLIT = 0.25
+
+/** What the high meter's reading is multiplied by before it is drawn -- see `vuLevels`. */
+export const VU_HIGH_GAIN = 2.5
+
+/** What the two meters are showing, each between 0 and 1. */
+export interface VuLevels {
+    low: number
+    high: number
+}
+
+/** Both needles at rest. A module constant, so a store publishing it twice re-renders nothing. */
+export const VU_QUIET: VuLevels = { low: 0, high: 0 }
+
+/**
+ * The two meters, read off one frame of the analyser.
+ *
+ * THERE ARE NO CHANNELS HERE TO METER. The graph is a media element into a single AnalyserNode
+ * -- see `lib/player` -- and an analyser mixes what it is handed down to one channel before it
+ * transforms it, so a left and a right would need a splitter and two graphs, which is not what
+ * the spectrum is tapped off. What the deck's pair of needles reads instead is the bottom of the
+ * spectrum and the top of it, which is the other thing two meters on a front panel are used for.
+ *
+ * SO THEY ARE LABELLED FOR WHAT THEY READ. A meter named for a channel it is not reading is a
+ * lie in the one place on the bar that is read literally, and the display already says the
+ * things it knows -- the elapsed, the remaining, the format -- exactly.
+ *
+ * THE HIGH ONE IS LIFTED. Almost every mix is fifteen to twenty dB down above a few kilohertz,
+ * so a high band read at the low band's gain is a bar that never lights at all. The lift is a
+ * constant stated here rather than a curve discovered in a component: what a meter is for is
+ * movement somebody reads at a glance, and both of these are levels rather than measurements.
+ */
+export function vuLevels(frequencies: Uint8Array): VuLevels {
+    if (frequencies.length === 0) return VU_QUIET
+    const split = Math.max(1, Math.min(frequencies.length, Math.round(frequencies.length * VU_SPLIT)))
+    return {
+        low: meanLevel(frequencies, 0, split, 1),
+        high: meanLevel(frequencies, split, frequencies.length, VU_HIGH_GAIN),
+    }
+}
+
+/**
+ * The average of one stretch of bins, as a fraction of full scale.
+ *
+ * An average rather than the loudest bin in the stretch: a peak makes the meter jump to whatever
+ * one bin did and the needle flickers, while an average moves the way the music does -- which is
+ * the same reason `lib/visualizer` averages a band.
+ */
+function meanLevel(frequencies: Uint8Array, from: number, to: number, gain: number): number {
+    if (to <= from) return 0
+    let total = 0
+    for (let bin = from; bin < to; bin += 1) total += frequencies[bin] ?? 0
+    return Math.min(1, (total / (to - from) / 255) * gain)
+}
+
+/**
+ * How many segments a level lights, out of the meter's own.
+ *
+ * Rounded rather than rounded up, so a room tone that never quite reaches nothing leaves the
+ * meter dark instead of lighting its first segment for the whole of a quiet track.
+ */
+export function vuSegments(level: number, segments = VU_SEGMENTS): number {
+    if (!Number.isFinite(level) || level <= 0) return 0
+    return Math.round(Math.min(1, level) * segments)
+}
+
 /** Which face the player bar wears. */
 export type NowPlayingFace = 'standard' | 'lcd'
 
