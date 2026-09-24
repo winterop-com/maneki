@@ -16,7 +16,11 @@ from maneki.audio.discover import AlbumDir
 from maneki.audio.metadata import MusicBrainzIds, SourceTrack, clean_album_title, read_source, summarize_album
 from maneki.audio.pipeline.acoustid import _enrich_with_acoustid
 from maneki.audio.pipeline.dedupe import _dedupe_duplicate_tracks
-from maneki.audio.pipeline.disc import _maybe_apply_filename_disc_track, _maybe_apply_scene_encoded_disc_track
+from maneki.audio.pipeline.disc import (
+    _maybe_apply_filename_disc_track,
+    _maybe_apply_scene_encoded_disc_track,
+    disc_total_from_tags,
+)
 from maneki.audio.pipeline.filenames import _parse_filename_for_va, _track_no_from_filename
 from maneki.audio.pipeline.footprint import _input_footprint
 from maneki.audio.pipeline.progress import ProgressContext
@@ -168,6 +172,15 @@ def _process_album(
             summary.year = folder_year
     if album_dir.disc_total and not summary.disc_total:
         summary.disc_total = album_dir.disc_total
+    # THE TAGS SAY WHICH DISC, NOT HOW MANY. Where no folder or filename said, the disc
+    # numbers in the tags do, and the total is what puts the disc prefix on the output names.
+    if not summary.disc_total:
+        tagged_total = disc_total_from_tags(tracks)
+        if tagged_total is not None:
+            summary.disc_total = tagged_total
+            for track in tracks:
+                if track.disc_no and not track.disc_total:
+                    track.disc_total = tagged_total
     if not summary.year:
         warnings.append("missing year")
 

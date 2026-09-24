@@ -837,3 +837,17 @@ def test_case_insensitive_album_dedup_keeps_track_reservation_exact(silent_flac_
     assert reports[0].ok is True
     files = {p.name for p in (out_root / "Solo" / "2024 - Case Album").glob("*.m4a")}
     assert files == {"01 - Same.m4a", "01 - Other.m4a"}
+
+
+def test_disc_total_comes_from_the_disc_tags_when_nothing_totals_them(tmp_path: Path) -> None:
+    """A rip tagged disc=1..3 with no total is a three-disc album, and the total is what
+    puts the disc prefix on the output names; without it the same titles on each disc
+    collided and came out as "(2)" and "(3)"."""
+    from maneki.audio.metadata import SourceTrack
+    from maneki.audio.pipeline.disc import disc_total_from_tags
+
+    three = [SourceTrack(path=tmp_path / f"{d} 02 Title.flac", disc_no=d) for d in (1, 2, 3)]
+    assert disc_total_from_tags(three) == 3
+    one = [SourceTrack(path=tmp_path / "02 Title.flac", disc_no=1)]
+    assert disc_total_from_tags(one) is None
+    assert disc_total_from_tags([SourceTrack(path=tmp_path / "02 Title.flac")]) is None

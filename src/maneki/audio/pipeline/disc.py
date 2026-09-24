@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import re
+from collections.abc import Sequence
 
 from maneki.audio.discover import AlbumDir
 from maneki.audio.metadata import SourceTrack
@@ -100,3 +101,18 @@ def _maybe_apply_scene_encoded_disc_track(album_dir: AlbumDir, tracks: list[Sour
         track.disc_no = tn // 100
         track.track_no = tn % 100
         track.disc_total = disc_total
+
+
+def disc_total_from_tags(tracks: Sequence[SourceTrack]) -> int | None:
+    """How many discs the tags say there are, when they number the discs but never total them.
+
+    A rip tagged `disc=1`, `disc=2`, `disc=3` with no total is a three-disc album. Without
+    the total the output names carry no disc prefix, so the same six titles on each disc
+    collide and come out as "(2)" and "(3)" -- or, on a case-folding volume, overwrite each
+    other. One disc numbered 1 says nothing and answers None.
+    """
+    numbered = [track.disc_no for track in tracks if track.disc_no]
+    if not numbered:
+        return None
+    highest = max(numbered)
+    return highest if highest > 1 else None
