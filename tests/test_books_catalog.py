@@ -2,14 +2,14 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable
+from collections.abc import Callable, Mapping, Sequence
 
 import httpx2 as httpx
 import pytest
 
 from maneki.audio.enrich import _http
 from maneki.books.catalog import BookCatalog, align_chapters, choose, plain_text
-from maneki.books.models import CatalogBook, CatalogChapters, Chapter
+from maneki.books.models import CatalogBook, CatalogChapters, Chapter, NameGuess
 from maneki.books.names import author_from_folder, clean_title, guess_from_name, looks_like_person, split_reader
 
 Handler = Callable[[httpx.Request], httpx.Response]
@@ -163,6 +163,26 @@ def test_choose_without_an_author_needs_the_whole_title() -> None:
     assert choose(guess_from_name("The Hobbit"), 0.0, [longer, hobbit]) == [hobbit]
 
 
+@pytest.mark.parametrize(
+    ("name", "title", "writer"),
+    [
+        ("Richard Bachman - Thinner", "Thinner", "Stephen King"),
+        ("A. N. Roquelaure - Beauty's Release", "Beauty's Release", "Anne Rice"),
+        ("Anne Rampling - Exit to Eden", "Exit to Eden", "Anne Rice"),
+    ],
+)
+def test_choose_matches_a_pen_name_to_the_writer_the_catalog_lists(name: str, title: str, writer: str) -> None:
+    """Audible lists Richard Bachman's novels as Stephen King's, and Anne Rice's pen names as hers."""
+    edition = CatalogBook(source="audible", title=title, authors=[writer])
+    assert choose(guess_from_name(name), 0.0, [edition]) == [edition]
+
+
+def test_a_pen_name_still_needs_the_title() -> None:
+    other_king = CatalogBook(source="audible", title="Roadwork", authors=["Stephen King"])
+    namesake = CatalogBook(source="audible", title="Rage", authors=["Bob Woodward"])
+    assert choose(guess_from_name("Richard Bachman - Rage"), 0.0, [other_king, namesake]) == []
+
+
 # --- aligning chapters ---------------------------------------------------------
 
 
@@ -245,6 +265,85 @@ def test_audible_search_parses_products() -> None:
     assert book.year == "2011"
     assert book.description == "A book."
     assert (book.series, book.series_position) == ("Series", "1")
+
+
+def _dark_tower(asin: str, title: str, subtitle: str | None, series: str = "The Dark Tower") -> dict[str, object]:
+    return {
+        "asin": asin,
+        "title": title,
+        "subtitle": subtitle,
+        "authors": [{"name": "Stephen King"}],
+        "series": [{"title": series, "sequence": "1"}],
+    }
+
+
+def test_audible_search_takes_the_title_from_a_series_numbered_edition() -> None:
+    """`Dark Tower I` subtitled `The Gunslinger` is the book `The Gunslinger`, as Audible lists it."""
+    products = [
+        _dark_tower("B019NNU7XE", "Dark Tower I", "The Gunslinger"),
+        _dark_tower("B008ALC7JS", "The Dark Tower I: The Gunslinger", "(Volume 1)"),
+        _dark_tower("B002VA3PBI", "The Dark Tower", "The Dark Tower, Book 7"),
+        _dark_tower("8401026873", "El pistolero (La Torre Oscura 1)", "La Torre Oscura 1", series="La Torre Oscura"),
+        _dark_tower("B007SXGJ9S", "The Wind Through the Keyhole", "The Dark Tower"),
+    ]
+    books = _catalog(lambda r: httpx.Response(200, json={"products": products})).audible_search("x")
+    assert [(b.title, b.subtitle) for b in books] == [
+        ("The Gunslinger", None),
+        ("The Gunslinger", "(Volume 1)"),
+        ("The Dark Tower", "The Dark Tower, Book 7"),
+        ("El pistolero (La Torre Oscura 1)", "La Torre Oscura 1"),
+        ("The Wind Through the Keyhole", "The Dark Tower"),
+    ]
+    assert (books[0].series, books[0].series_position) == ("The Dark Tower", "1")
+    guess = guess_from_name("Stephen King - The Gunslinger")
+    assert [b.asin for b in choose(guess, 0.0, books)] == ["B019NNU7XE", "B008ALC7JS"]
+
+
+def _search_answers(audible: Mapping[str, Sequence[Mapping[str, object]]]) -> tuple[Handler, list[str]]:
+    """A catalog answering Audible searches from `audible` by keywords, and the searches it saw."""
+    seen: list[str] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.host == "itunes.apple.com":
+            seen.append("itunes: " + request.url.params["term"])
+            return httpx.Response(200, json={"results": []})
+        seen.append(request.url.params["keywords"])
+        return httpx.Response(200, json={"products": list(audible.get(request.url.params["keywords"], []))})
+
+    return handler, seen
+
+
+def test_identify_searches_the_title_alone_when_author_and_title_find_nothing() -> None:
+    """Nothing comes back for "Anne Rampling Belinda"; "Belinda" lists Anne Rice's edition among others."""
+    belinda = [
+        {"asin": "B0BS2J6S4Z", "title": "Belinda", "authors": [{"name": "Maria Edgeworth"}]},
+        {"asin": "B002UZDTUG", "title": "Belinda", "authors": [{"name": "Anne Rice"}]},
+    ]
+    handler, seen = _search_answers({"Belinda": belinda})
+    guess = NameGuess(terms="Anne Rampling Belinda", title="Belinda", author="Anne Rampling")
+    assert [b.asin for b in _catalog(handler).identify(guess, 0.0)] == ["B002UZDTUG"]
+    assert seen == ["Anne Rampling Belinda", "Belinda"]
+
+
+def test_identify_keeps_to_the_author_when_searching_the_title_alone() -> None:
+    """Audible's full `Night Shift` hides behind its author's other books; others' `Night Shift`s stay out."""
+    by_author = [{"asin": "B002VACGY0", "title": "Graveyard Shift", "authors": [{"name": "Stephen King"}]}]
+    by_title = [
+        {"asin": "B01017HMOS", "title": "Night Shift", "authors": [{"name": "Nora Roberts"}]},
+        {"asin": "B0093PXYXI", "title": "Night Shift", "subtitle": "Selections", "authors": [{"name": "Stephen King"}]},
+    ]
+    handler, seen = _search_answers({"Stephen King Night Shift": by_author, "Night Shift": by_title})
+    guess = NameGuess(terms="Stephen King Night Shift", title="Night Shift", author="Stephen King")
+    assert [b.asin for b in _catalog(handler).identify(guess, 0.0)] == ["B0093PXYXI"]
+
+    handler, seen = _search_answers({"Stephen King Storm of the Century": by_author, "Night Shift": by_title})
+    guess = NameGuess(terms="Stephen King Storm of the Century", title="Storm of the Century", author="Stephen King")
+    assert _catalog(handler).identify(guess, 0.0) == []
+    assert seen == [
+        "Stephen King Storm of the Century",
+        "Storm of the Century",
+        "itunes: Stephen King Storm of the Century",
+    ]
 
 
 def test_itunes_search_strips_the_edition_and_asks_for_large_art() -> None:

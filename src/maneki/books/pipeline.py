@@ -27,7 +27,7 @@ from PIL import Image
 from pydantic import BaseModel
 
 from maneki.audio.cover import DEFAULT_MAX_EDGE, CoverCandidate, CoverSource, normalize
-from maneki.books.catalog import BookCatalog, align_chapters, choose, runtime_matches
+from maneki.books.catalog import BookCatalog, align_chapters, runtime_matches
 from maneki.books.library import file_chapters, majority
 from maneki.books.models import CatalogBook, Chapter, ChapterSource, NameGuess, SourceBook
 from maneki.books.names import author_from_folder, clean_title, guess_from_name, split_reader
@@ -152,9 +152,7 @@ def plan_book(book: SourceBook, library: Path, *, catalog: BookCatalog | None) -
 
     match: CatalogBook | None = None
     if catalog is not None:
-        candidates = choose(guess, duration, catalog.audible_search(guess.terms))
-        if not candidates:
-            candidates = choose(guess, duration, catalog.itunes_search(guess.terms))
+        candidates = catalog.identify(guess, duration)
         if candidates:
             match = candidates[0]
             if chapter_source is ChapterSource.NONE:

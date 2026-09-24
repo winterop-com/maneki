@@ -49,6 +49,15 @@ _WORD_RE = re.compile(r"[a-z0-9]+")
 _TAG_RE = re.compile(r"<[^>]+>")
 _PARAGRAPH_END_RE = re.compile(r"</p\s*>|<br\s*/?>", re.I)
 _EDITION_SUFFIX_RE = re.compile(r"\s*\((?:un)?abridged\)\s*$", re.I)
+# A book's number in its series, `2` or `IV`, and the words that may come with it (`Book 2`).
+_NUMBER_RE = re.compile(r"^(?:\d+|(?=[ivxlc])c{0,3}(?:xc|xl|l?x{0,3})(?:ix|iv|v?i{0,3}))$")
+_NUMBER_WORDS = frozenset({"book", "volume", "vol", "part", "no"})
+# Pen names, by the name's words, with the writer the catalogs list the books under.
+_PEN_NAMES: dict[frozenset[str], str] = {
+    frozenset({"richard", "bachman"}): "Stephen King",
+    frozenset({"a", "n", "roquelaure"}): "Anne Rice",
+    frozenset({"anne", "rampling"}): "Anne Rice",
+}
 
 
 class BookCatalog:
@@ -71,6 +80,25 @@ class BookCatalog:
         data = self._json(AUDIBLE_SEARCH_URL, host_key="api.audible.com", params=params)
         products = data.get("products") if isinstance(data, dict) else None
         return [_audible_book(p) for p in products or [] if isinstance(p, dict) and p.get("title")]
+
+    def identify(self, guess: NameGuess, duration_s: float) -> list[CatalogBook]:
+        """The editions that are this book, best first; see `choose`.
+
+        Asks Audible for the author and title, then for the title alone,
+        then iTunes. The title alone finds books the keyword search buries
+        under the author's better sellers, and books filed under a pen name
+        other than the one searched: nothing comes back for
+        "Anne Rampling Belinda", while "Belinda" lists Anne Rice's edition.
+        """
+        searches = [(self.audible_search, guess.terms)]
+        if guess.title and guess.title.casefold() != guess.terms.casefold():
+            searches.append((self.audible_search, guess.title))
+        searches.append((self.itunes_search, guess.terms))
+        for search, terms in searches:
+            candidates = choose(guess, duration_s, search(terms))
+            if candidates:
+                return candidates
+        return []
 
     def itunes_search(self, terms: str) -> list[CatalogBook]:
         params = {"term": terms, "media": "audiobook", "limit": "10"}
@@ -145,6 +173,10 @@ def choose(guess: NameGuess, duration_s: float, candidates: list[CatalogBook]) -
     guess scores the same as the right order.
     """
     name_words = _words(" ".join(p for p in (guess.terms, guess.title, guess.author) if p))
+    # A pen name in the rip's name also names the writer the catalog lists.
+    for pen_name, writer in _PEN_NAMES.items():
+        if pen_name <= name_words:
+            name_words |= _words(writer)
     narrator_words = _words(guess.narrator or "")
     scored: list[tuple[float, int, CatalogBook]] = []
     for order, book in enumerate(candidates):
@@ -222,23 +254,54 @@ def _audible_book(product: dict[str, object]) -> CatalogBook:
         cover = str(images[max(images, key=lambda k: int(k) if str(k).isdigit() else 0)])
     series = product.get("series")
     first_series = series[0] if isinstance(series, list) and series and isinstance(series[0], dict) else {}
+    series_title = str(first_series.get("title") or "").strip() or None
     runtime = product.get("runtime_length_min")
     summary = product.get("publisher_summary") or product.get("merchandising_summary")
+    title, subtitle = _book_title(
+        str(product.get("title")).strip(), str(product.get("subtitle") or "").strip() or None, series_title
+    )
     return CatalogBook(
         source="audible",
         asin=str(product.get("asin") or "") or None,
-        title=str(product.get("title")).strip(),
-        subtitle=str(product.get("subtitle") or "").strip() or None,
+        title=title,
+        subtitle=subtitle,
         authors=_names(product.get("authors")),
         narrators=_names(product.get("narrators")),
         year=str(product.get("release_date") or "")[:4] or None,
         runtime_s=float(str(runtime)) * 60 if runtime else None,
         cover_url=cover,
         description=plain_text(str(summary)) if summary else None,
-        series=str(first_series.get("title") or "").strip() or None,
+        series=series_title,
         series_position=str(first_series.get("sequence") or "").strip() or None,
         language=str(product.get("language") or "") or None,
     )
+
+
+def _book_title(title: str, subtitle: str | None, series: str | None) -> tuple[str, str | None]:
+    """The book's own title and subtitle, when the edition's title leads with its place in a series.
+
+    Audible titles some series books by their number: `Dark Tower I` with
+    the subtitle `The Gunslinger`, or `The Dark Tower I: The Gunslinger`.
+    Both are the book `The Gunslinger`; the series and its number are kept
+    in `series` and `series_position`.
+    """
+    if not series:
+        return title, subtitle
+    if subtitle and _is_series_label(title, series):
+        return subtitle, None
+    head, colon, tail = title.partition(":")
+    if colon and tail.strip() and _is_series_label(head, series):
+        return tail.strip(), subtitle
+    return title, subtitle
+
+
+def _is_series_label(text: str, series: str) -> bool:
+    """True when `text` is the series' name and a number: `Dark Tower IV` in `The Dark Tower`."""
+    words = _WORD_RE.findall(text.casefold())
+    series_words = _words(series)
+    rest = [w for w in words if w not in series_words]
+    numbers = [w for w in rest if _NUMBER_RE.match(w)]
+    return bool(numbers) and len(rest) < len(words) and all(w in _NUMBER_WORDS or _NUMBER_RE.match(w) for w in rest)
 
 
 def _itunes_book(result: dict[str, object]) -> CatalogBook:
