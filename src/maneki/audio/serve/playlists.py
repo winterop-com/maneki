@@ -45,6 +45,10 @@ class Playlist(BaseModel):
     track_ids: tuple[str, ...] = ()
 
 
+class PlaylistStoreError(RuntimeError):
+    """The playlist folder refused a write: a read-only root, or one that is not mounted."""
+
+
 class PlaylistStore:
     """Read / mutate a user's playlist TOML files with file-level locking."""
 
@@ -125,9 +129,9 @@ class PlaylistStore:
                 return False
             try:
                 path.unlink()
-            except OSError as exc:  # pragma: no cover - read-only mount
+            except OSError as exc:
                 log.warning("playlists: failed to delete %s (%s)", path, exc)
-                return False
+                raise PlaylistStoreError(f"could not delete the playlist: {exc}") from exc
             return True
 
     # -- file I/O ------------------------------------------------------------
@@ -157,5 +161,9 @@ class PlaylistStore:
             tmp = self._path(pl.id).with_suffix(".toml.tmp")
             tmp.write_text(_toml_dump.dumps(payload), encoding="utf-8")
             tmp.replace(self._path(pl.id))
-        except OSError as exc:  # pragma: no cover - read-only mount
+        except OSError as exc:
+            # A playlist that could not be written does not exist, and the client that just
+            # made it must be told so rather than handed an id that answers "not found" on
+            # the next call -- which is what a read-only or unmounted root looked like.
             log.warning("playlists: failed to write %s (%s)", self._path(pl.id), exc)
+            raise PlaylistStoreError(f"could not save the playlist: {exc}") from exc

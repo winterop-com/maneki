@@ -16,7 +16,7 @@ from fastapi import APIRouter, Query, Request
 from maneki.audio.serve.app import envelope, error_envelope
 from maneki.audio.serve.index import IndexCache
 from maneki.audio.serve.payloads import song_payload
-from maneki.audio.serve.playlists import Playlist, PlaylistStore
+from maneki.audio.serve.playlists import Playlist, PlaylistStore, PlaylistStoreError
 from maneki.audio.serve.stars import StarStore
 
 router = APIRouter()
@@ -90,12 +90,15 @@ async def create_playlist(
 ) -> dict:
     """Create a playlist, or (with `playlistId`) replace an existing one's songs."""
     store = _store(request)
-    if playlistId is not None:
-        pl = store.update(playlistId, name=name, set_ids=list(songId))
-        if pl is None:
-            return error_envelope(70, f"Playlist not found: {playlistId}")
-    else:
-        pl = store.create(name or "Untitled", list(songId))
+    try:
+        if playlistId is not None:
+            pl = store.update(playlistId, name=name, set_ids=list(songId))
+            if pl is None:
+                return error_envelope(70, f"Playlist not found: {playlistId}")
+        else:
+            pl = store.create(name or "Untitled", list(songId))
+    except PlaylistStoreError as exc:
+        return error_envelope(0, str(exc))
     entries = _entries(pl, _cache(request), _stars(request))
     return envelope("playlist", {**_summary(pl, entries), "entry": entries})
 
@@ -110,12 +113,15 @@ async def update_playlist(
     songIndexToRemove: list[int] = Query(default=[]),
 ) -> dict:
     """Rename and/or add/remove songs in a playlist."""
-    pl = _store(request).update(
-        playlistId,
-        name=name,
-        add_ids=list(songIdToAdd),
-        remove_indices=list(songIndexToRemove),
-    )
+    try:
+        pl = _store(request).update(
+            playlistId,
+            name=name,
+            add_ids=list(songIdToAdd),
+            remove_indices=list(songIndexToRemove),
+        )
+    except PlaylistStoreError as exc:
+        return error_envelope(0, str(exc))
     if pl is None:
         return error_envelope(70, f"Playlist not found: {playlistId}")
     return envelope()
@@ -125,6 +131,9 @@ async def update_playlist(
 @router.api_route("/deletePlaylist.view", methods=["GET", "POST", "HEAD"], include_in_schema=False)
 async def delete_playlist(request: Request, id: str = Query(...)) -> dict:
     """Delete a playlist owned by the current user."""
-    if not _store(request).delete(id):
-        return error_envelope(70, f"Playlist not found: {id}")
+    try:
+        if not _store(request).delete(id):
+            return error_envelope(70, f"Playlist not found: {id}")
+    except PlaylistStoreError as exc:
+        return error_envelope(0, str(exc))
     return envelope()

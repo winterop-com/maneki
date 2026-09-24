@@ -115,3 +115,17 @@ def test_get_unknown_playlist_errors(tmp_path: Path) -> None:
     body = client.get("/rest/getPlaylist", params={**_alice(), "id": "pl_nope"}).json()
     assert body["subsonic-response"]["status"] == "failed"
     assert body["subsonic-response"]["error"]["code"] == 70
+
+
+def test_a_playlist_that_cannot_be_written_is_refused_not_invented(tmp_path: Path) -> None:
+    """A store whose folder refuses writes used to log a warning and hand back a playlist
+    that the next call could not find. It raises now, and the endpoints answer an error."""
+    import pytest
+
+    from maneki.audio.serve.playlists import PlaylistStoreError
+
+    blocked = tmp_path / "playlists"
+    blocked.write_text("a file where the folder should be")
+    store = PlaylistStore(blocked, owner="alice")
+    with pytest.raises(PlaylistStoreError):
+        store.create("Mixtape", ["tr_1"])
