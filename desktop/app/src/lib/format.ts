@@ -40,3 +40,15 @@ export function progressRatio(durationS: number, positionS: number): number {
     if (durationS <= 0) return 0
     return Math.min(1, Math.max(0, positionS / durationS))
 }
+
+/**
+ * The line under a track's title: `Artist · Album · 1983`, leaving out whatever the tags lack.
+ *
+ * The title says what is playing; this says what it is out of, which is the record as much as
+ * the person. A part the tags do not carry is dropped rather than drawn as a gap.
+ */
+export function songLine(song: { artist?: string; album?: string; year?: number }): string {
+    return [song.artist, song.album, song.year ? String(song.year) : undefined]
+        .filter((part): part is string => Boolean(part))
+        .join(' · ')
+}

@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'vitest'
 
-import { clock, duration, progressRatio, remaining, trackCount } from '@/lib/format'
+import { clock, duration, progressRatio, remaining, songLine, trackCount } from '@/lib/format'
 
 describe('clock', () => {
     test('writes hours when a book has them', () => {
@@ -41,5 +41,19 @@ describe('trackCount', () => {
         expect(trackCount(0)).toBe('no tracks')
         expect(trackCount(1)).toBe('1 track')
         expect(trackCount(12)).toBe('12 tracks')
+    })
+})
+
+describe('the line under a track', () => {
+    test('names the artist, the album and the year', () => {
+        expect(songLine({ artist: 'New Order', album: 'Power, Corruption & Lies', year: 1983 })).toBe(
+            'New Order · Power, Corruption & Lies · 1983',
+        )
+    })
+
+    test('drops what the tags do not carry rather than drawing a gap', () => {
+        expect(songLine({ artist: 'New Order', year: 1983 })).toBe('New Order · 1983')
+        expect(songLine({ album: 'Substance' })).toBe('Substance')
+        expect(songLine({})).toBe('')
     })
 })

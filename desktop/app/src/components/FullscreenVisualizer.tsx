@@ -6,7 +6,7 @@ import { useOverlay } from '@/hooks/use-overlay'
 import { useSpectrum } from '@/hooks/use-spectrum'
 import { useStore } from '@/hooks/use-store'
 import { books as booksApi } from '@/lib/api'
-import { clock } from '@/lib/format'
+import { clock, songLine } from '@/lib/format'
 import { currentChapter, currentSong, next, playerStore, previous, seek, toggle } from '@/lib/player'
 import { sessionStore } from '@/lib/session'
 import { starMarks, starredNow, toggleStar } from '@/lib/star'
@@ -143,7 +143,9 @@ function Stage() {
                                 : book.author
                             : station
                               ? player.stationTitle || 'Live'
-                              : (song?.artist ?? '')}
+                              : song
+                                ? songLine(song)
+                                : ''}
                     </p>
                 </div>
             </div>

@@ -22,7 +22,7 @@ import { useDragSize } from '@/hooks/use-drag-size'
 import { useSpectrum } from '@/hooks/use-spectrum'
 import { useStore } from '@/hooks/use-store'
 import { books as booksApi } from '@/lib/api'
-import { clock } from '@/lib/format'
+import { clock, songLine } from '@/lib/format'
 import { nowPlayingFace } from '@/lib/lcd'
 import {
     currentChapter,
@@ -193,7 +193,9 @@ export function PlayerBar() {
             : book.author
         : station
           ? player.stationTitle || 'Live'
-          : song?.artist
+          : song
+            ? songLine(song)
+            : undefined
 
     return (
         <div
