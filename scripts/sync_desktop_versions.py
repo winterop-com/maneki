@@ -55,11 +55,9 @@ def update_json_version(path: Path, version: str) -> bool:
     return True
 
 
-# NOTE: index.html no longer carries a `<meta name=mk-version>` or `?v=`
-# cache-busters — the SPA is a Vite build (content-hashed filenames) and the
-# version label compiles in from a Vite define that reads pyproject.toml
-# directly (see desktop/react/vite.config.js). So this script no longer
-# touches index.html.
+# NOTE: index.html carries no version meta or `?v=` cache-busters: the client
+# is a Vite build (content-hashed filenames), and the version it shows is the
+# one the server reports. So this script does not touch index.html.
 
 
 # The `[package].version` line is the first `version = "..."` in Cargo.toml

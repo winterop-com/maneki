@@ -75,9 +75,8 @@ jobs:
       - name: Build sdist + wheel
         # Goes via `make build-python`, NOT `uv build` directly, because
         # the Makefile target depends on `ui-static-sync`, which builds
-        # both clients and copies `desktop/app/dist` -> `src/maneki/_ui_static/`
-        # (what `/` serves) and `desktop/react/dist` -> `_ui_static_classic/`
-        # (what `/classic` serves). A raw `uv build` would publish a wheel
+        # the client and copies `desktop/app/dist` -> `src/maneki/_ui_static/`
+        # (what `/` serves). A raw `uv build` would publish a wheel
         # where `maneki serve --ui` refuses to start for want of a client.
         run: make build-python
 

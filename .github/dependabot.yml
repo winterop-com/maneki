@@ -1,7 +1,7 @@
 # Dependabot update PRs. Alerts are already on; this opens grouped update
 # PRs on a weekly cadence so deps don't drift. Keep ecosystems aligned with
 # every manifest in the repo: Python (pyproject), the GitHub Actions
-# workflows, the two desktop wrappers (Electron / Tauri), and the React SPA
+# workflows, the two desktop wrappers (Electron / Tauri), and the client
 # that both wrappers embed and the wheel ships.
 version: 2
 updates:
@@ -31,31 +31,19 @@ updates:
         patterns: ["*"]
         update-types: ["minor", "patch"]
 
-  # The React SPA is not just a desktop concern: scripts/copy_ui_static.py
-  # copies desktop/react/dist into src/maneki/_ui_static, so this tree ships
-  # inside the published wheel. It was previously unregistered here, meaning
-  # no update PRs at all for the code served to every user.
+  # The client is not just a desktop concern: scripts/copy_ui_static.py
+  # copies desktop/app/dist into src/maneki/_ui_static, so this tree ships
+  # inside the published wheel.
   #
-  # Majors are deliberately NOT grouped. The first run here opened a single
-  # PR carrying react 18 -> 19, react-router 6 -> 7 and vite 6 -> 8 at once
+  # Majors are deliberately NOT grouped. One run once opened a single PR
+  # carrying react 18 -> 19, react-router 6 -> 7 and vite 6 -> 8 at once
   # (#84); five breaking upgrades in one diff is not reviewable, and if it
   # regresses there is no way to tell which one did it. Minor and patch
-  # updates still batch into one PR; each major now arrives on its own.
+  # updates still batch into one PR; each major arrives on its own.
   #
-  # The three JS trees are Bun projects (bun.lock, no package-lock.json), so
-  # they use the "bun" ecosystem, which rewrites bun.lock itself. Under "npm"
+  # The JS trees are Bun projects (bun.lock, no package-lock.json), so they
+  # use the "bun" ecosystem, which rewrites bun.lock itself. Under "npm"
   # Dependabot refuses a tree with a bun.lock and every update job fails.
-  - package-ecosystem: "bun"
-    directory: "/desktop/react"
-    schedule:
-      interval: "weekly"
-    groups:
-      react:
-        patterns: ["*"]
-        update-types: ["minor", "patch"]
-
-  # The new client, on the same terms as the SPA above: minor and patch
-  # updates batch, majors arrive one at a time.
   - package-ecosystem: "bun"
     directory: "/desktop/app"
     schedule:

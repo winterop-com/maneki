@@ -13,7 +13,6 @@ desktop/
 ├── app/                      the client: TypeScript, React, Tailwind, shadcn
 │   ├── src/lib/desktop.ts       which shell this is, and the shell's fullscreen
 │   └── dist/                    what `bun run build` produces and the shells load
-├── react/                    the client before this one; served at /classic
 ├── tauri/src-tauri/          Rust shell: window bounds, plugins
 └── electron/src/             Node main + sandboxed preload bridge
 ```

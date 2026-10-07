@@ -105,10 +105,10 @@ def create_combined_app(
         enable_auth: if True, require Authorization: Bearer <token> on
             /video/* (Subsonic at /audio/rest/* keeps its own auth). Default
             False so the existing demo page keeps working unchanged.
-        enable_ui: if True, mount the React SPA at /. The SPA lives at
-            desktop/react/ in the repo tree.
-        ui_dir: explicit path to the SPA directory. Default: auto-discover
-            desktop/react/ relative to the repo root.
+        enable_ui: if True, mount the client at /. The client lives at
+            desktop/app/ in the repo tree.
+        ui_dir: explicit path to the built client. Default: the wheel's
+            bundled copy, else desktop/app/dist/ relative to the repo root.
         audio_use_cache: forwarded to the audio Subsonic app's SQLite index cache.
         audio_cfg: explicit ServeConfig for credentials. When None (the default),
             credentials are resolved from ~/.config/maneki/maneki.toml,
@@ -588,7 +588,7 @@ class CollapseSlashesMiddleware:
     """
 
     #: The prefixes `create_combined_app` mounts sub-apps under.
-    MOUNTS = ("/audio", "/video", "/books", "/classic")
+    MOUNTS = ("/audio", "/video", "/books")
 
     def __init__(self, app: Any) -> None:
         self.app = app
@@ -766,19 +766,13 @@ class _SPAStaticFiles(StaticFiles):
 
 
 def _mount_ui(combined: FastAPI, ui_dir: Path | None) -> None:
-    """Mount the built clients: the current one at "/", the one it replaces at "/classic".
+    """Mount the built client at "/".
 
     Must be the LAST mount registered - StaticFiles at "/" catches every
     path not already claimed by a higher-priority route (/capabilities,
     /auth/*, /audio/*, /video/*), so those must be in place before this
     runs. `html=True` serves index.html for "/" and the matching file
     for asset paths.
-
-    TWO CLIENTS, BECAUSE ONE OF THEM CAN STILL DO SOMETHING THE OTHER CANNOT.
-    The current client has the library, the radio and the books; the one it
-    replaces still has the video and YouTube screens. Serving both costs one
-    mount and means the newer client can land before it has grown everything,
-    without anybody losing a screen they were using.
     """
     chosen = ui_dir if ui_dir is not None else _discover_ui_dir()
     if chosen is None or not (chosen / "index.html").is_file():
@@ -787,9 +781,6 @@ def _mount_ui(combined: FastAPI, ui_dir: Path | None) -> None:
             "(or `cd desktop/app && bun install && bun run build`), which produces "
             "desktop/app/dist/. (Installed wheels bundle it automatically.)"
         )
-    classic = _discover_classic_dir()
-    if classic is not None:
-        combined.mount("/classic", _SPAStaticFiles(directory=classic, html=True), name="spa-classic")
     combined.mount("/", _SPAStaticFiles(directory=chosen, html=True), name="spa")
 
 
@@ -805,11 +796,6 @@ def _discover_ui_dir() -> Path | None:
       so fall back to `desktop/app/dist/` relative to the repo root.
     """
     return _bundled_or_built("_ui_static", ("desktop", "app", "dist"))
-
-
-def _discover_classic_dir() -> Path | None:
-    """The client this one replaces, which still carries the video screens."""
-    return _bundled_or_built("_ui_static_classic", ("desktop", "react", "dist"))
 
 
 def _bundled_or_built(bundled_name: str, built: tuple[str, ...]) -> Path | None:

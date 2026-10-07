@@ -19,7 +19,11 @@
 /** The port `maneki serve` listens on when nobody said otherwise. */
 export const DEFAULT_PORT = 8765
 
-/** The mounts a pasted address may end in, which are not where the client signs in. */
+/**
+ * The mounts a pasted address may end in, which are not where the client signs in.
+ *
+ * `/classic` is no longer served, but an address bookmarked while it was still names the server.
+ */
 const MOUNTS = ['/audio', '/video', '/books', '/classic']
 
 /** The addresses to try for what was typed, first the most likely, with nothing repeated. */

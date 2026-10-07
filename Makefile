@@ -1,4 +1,4 @@
-.PHONY: help install lint check test app app-dev app-fmt app-gate coverage docs docs-serve docs-build build build-python dist-collect desktop-build-frontend classic-build desktop-sync-frontend desktop-sync-version desktop-tauri desktop-tauri-dev desktop-tauri-build _wipe-tauri-userdata desktop-electron desktop-electron-dev desktop-electron-build _wipe-electron-userdata ui-static-sync clean
+.PHONY: help install lint check test app app-dev app-fmt app-gate coverage docs docs-serve docs-build build build-python dist-collect desktop-build-frontend desktop-sync-frontend desktop-sync-version desktop-tauri desktop-tauri-dev desktop-tauri-build _wipe-tauri-userdata desktop-electron desktop-electron-dev desktop-electron-build _wipe-electron-userdata ui-static-sync clean
 
 UV := $(shell command -v uv 2> /dev/null)
 
@@ -23,9 +23,9 @@ help:
 	@echo "  coverage     Run pytest with coverage"
 	@echo "  docs-serve   Serve documentation locally with live reload"
 	@echo "  docs-build   Build static documentation site to ./site"
-	@echo "  app          Build the new client (desktop/app)"
-	@echo "  app-dev      Serve the new client with hot reload"
-	@echo "  app-gate     Format, lint, typecheck and test the new client"
+	@echo "  app          Build the client (desktop/app)"
+	@echo "  app-dev      Serve the client with hot reload"
+	@echo "  app-gate     Format, lint, typecheck and test the client"
 	@echo "  docs         Alias for docs-serve"
 	@echo "  build        Build release versions of everything; collect into ./dist"
 	@echo "  build-python Build Python wheel + sdist via uv build (-> ./dist)"
@@ -84,8 +84,7 @@ docs: docs-serve
 #
 # `desktop/app/` is the client. Both the Tauri and the Electron wrapper load
 # its Vite build (`desktop/app/dist/`) in their native webview, and the same
-# build goes into the Python wheel via `scripts/copy_ui_static.py`, beside
-# the classic client (`desktop/react/`) that the wheel still serves at /classic.
+# build goes into the Python wheel via `scripts/copy_ui_static.py`.
 # ---------------------------------------------------------------------------
 
 # ---------------------------------------------------------------------------
@@ -125,30 +124,24 @@ build-python: ui-static-sync
 # The bundle the desktop shells load is the current client, desktop/app.
 desktop-build-frontend: app
 
-# The client this one replaces, still served at /classic by the wheel.
-classic-build:
-	@echo ">>> Building the classic client -> desktop/react/dist/"
-	@cd desktop/react && (test -d node_modules || bun install --frozen-lockfile) && bun run build
-
 app:
-	@echo ">>> Building the new client -> desktop/app/dist/"
+	@echo ">>> Building the client -> desktop/app/dist/"
 	@cd desktop/app && (test -d node_modules || bun install --frozen-lockfile) && bun run build
 
 app-dev:
-	@echo ">>> Serving the new client with hot reload"
+	@echo ">>> Serving the client with hot reload"
 	@cd desktop/app && (test -d node_modules || bun install) && bun run dev
 
 app-fmt:
 	@cd desktop/app && bun run fmt
 
 app-gate:
-	@echo ">>> Checking the new client (format, lint, types, tests)"
+	@echo ">>> Checking the client (format, lint, types, tests)"
 	@cd desktop/app && (test -d node_modules || bun install --frozen-lockfile) \
 		&& bun run fmt:check && bun run lint && bun run typecheck && bun run test
 
-# Both clients go into the wheel: the current one is served at "/", the one it
-# replaces stays at "/classic" for the video screens it still owns.
-ui-static-sync: app classic-build
+# The client goes into the wheel, which serves it at "/".
+ui-static-sync: app
 	@$(UV) run python scripts/copy_ui_static.py
 
 # Copy desktop artifacts into ./dist alongside the Python wheel + sdist
@@ -178,7 +171,7 @@ dist-collect:
 		cp -R desktop/electron/dist/mac-arm64/Maneki.app dist/Maneki-Electron.app; \
 	fi
 
-# The React frontend at `desktop/react/` owns its own CSS / JS — nothing
+# The client at `desktop/app/` owns its own CSS / JS - nothing
 # to sync from the Python web/static tree any more. Target kept as a
 # no-op so existing build chains (`desktop-tauri-build` etc.) and CI
 # don't break on the dropped dependency; safe to remove once we're
@@ -282,7 +275,6 @@ clean:
 	@rm -rf site
 	@# Desktop build outputs and installed deps.
 	@rm -rf desktop/app/dist desktop/app/node_modules
-	@rm -rf desktop/react/dist desktop/react/node_modules
 	@rm -rf desktop/electron/dist desktop/electron/node_modules
 	@rm -rf desktop/tauri/src-tauri/target
 

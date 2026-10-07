@@ -40,9 +40,9 @@ def _resolve_static_dir() -> Path:
     Two layouts to support:
       - PyPI install: `maneki/_ui_static/` (copied in by
         `scripts/copy_ui_static.py` at `make build` time).
-      - Source checkout: `desktop/react/dist/` from the repo root - useful
+      - Source checkout: `desktop/app/dist/` from the repo root - useful
         for `uv run maneki ui` during development once the bundle has been
-        built (`make desktop-build-frontend`).
+        built (`make app`).
     """
     bundled = files("maneki") / "_ui_static"
     bundled_path = Path(str(bundled))
@@ -51,14 +51,14 @@ def _resolve_static_dir() -> Path:
     here = Path(__file__).resolve()
     # ui.py -> cli/ -> maneki/ -> src/ -> repo root
     repo_root = here.parents[3]
-    dev_dir = repo_root / "desktop" / "react" / "dist"
+    dev_dir = repo_root / "desktop" / "app" / "dist"
     if dev_dir.is_dir() and (dev_dir / "index.html").exists():
         return dev_dir
     raise FileNotFoundError(
         "Couldn't find the SPA static files. Install maneki via pip (the wheel "
         "bundles them), or from a source checkout build the SPA first: "
-        "`make desktop-build-frontend` (or `cd desktop/react && bun install && "
-        "bun run build`) to produce desktop/react/dist/."
+        "`make app` (or `cd desktop/app && bun install && "
+        "bun run build`) to produce desktop/app/dist/."
     )
 
 

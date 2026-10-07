@@ -24,18 +24,18 @@ make test        # pytest -q
 make coverage    # pytest with coverage report
 make docs-serve  # mkdocs live-reload at http://127.0.0.1:8000
 make docs-build  # build static site to ./site
-make app         # build the new client -> desktop/app/dist/
-make app-dev     # serve the new client with hot reload
+make app         # build the client -> desktop/app/dist/
+make app-dev     # serve the client with hot reload
 make app-gate    # its format, lint, types and unit tests
 ```
 
-Both `make lint` and `make test` must pass before commit, and `make app-gate` when the new client changed.
+Both `make lint` and `make test` must pass before commit, and `make app-gate` when the client changed.
 
-### The two clients
+### The client
 
-`desktop/app` is the client: the one `maneki serve` serves at `/` and the one the Tauri and Electron shells load. It is on the shared UI template this family of apps uses (TypeScript, Tailwind, shadcn on Base UI, oxlint and oxfmt, vitest): see [dirigent's `docs/ui-conventions.md`][conventions], which is the design system it is built to. `desktop/react` is the client it replaced, in plain JSX with hand-written CSS; the wheel still carries it at `/classic` until nobody needs it.
+`desktop/app` is the client: the one `maneki serve` serves at `/` and the one the Tauri and Electron shells load. It is on the shared UI template this family of apps uses (TypeScript, Tailwind, shadcn on Base UI, oxlint and oxfmt, vitest): see [dirigent's `docs/ui-conventions.md`][conventions], which is the design system it is built to.
 
-Both are hash-routed with relative asset URLs, because the desktop shells load the bundle from disk.
+It is hash-routed with relative asset URLs, because the desktop shells load the bundle from disk.
 
 [conventions]: https://github.com/winterop-com/dirigent/blob/main/docs/ui-conventions.md
 

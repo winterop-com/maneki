@@ -32,30 +32,18 @@ jobs:
       - name: Install bun
         uses: oven-sh/setup-bun@v2
 
-      # The SPA is a required check, not a nicety: scripts/copy_ui_static.py
-      # copies desktop/react/dist into src/maneki/_ui_static, so this build
-      # ships inside the published wheel. `make check` and `make coverage`
-      # are Python-only and cannot see it.
-      #
-      # `--frozen-lockfile` is the point of the step. Dependabot updates
-      # package.json but never bun.lock (GitHub does not parse that format),
-      # so a dependency PR arrives with the manifest and lockfile out of
-      # sync. That mismatch shipped once already: the react major bump in
-      # #84 passed this job, merged, and then broke every release build with
-      # "lockfile had changes, but lockfile is frozen". Failing here means a
-      # desynced lockfile can never reach main again - regenerate it with
-      # `cd desktop/react && bun install` and commit the result.
-      - name: Build the SPA (the wheel ships it)
-        run: |
-          cd desktop/react
-          bun install --frozen-lockfile
-          bun run build
-
-      # The new client (desktop/app) is being moved onto the shared UI
-      # template one screen at a time. It does not ship in the wheel yet, so
-      # it is gated on its own: format, lint, types and unit tests.
-      - name: Check the new client
+      # The client is a required check, not a nicety: scripts/copy_ui_static.py
+      # copies desktop/app/dist into src/maneki/_ui_static, so it ships inside
+      # the published wheel, and `make check` and `make coverage` are
+      # Python-only and cannot see it. Format, lint, types and unit tests,
+      # then the build itself. `make app-gate` installs with
+      # `--frozen-lockfile`, so a desynced bun.lock fails here rather than in
+      # a release build.
+      - name: Check the client
         run: make app-gate
+
+      - name: Build the client (the wheel ships it)
+        run: cd desktop/app && bun run build
 
       - name: Install ffmpeg + libportaudio
         run: |
@@ -71,15 +59,15 @@ jobs:
       - name: make coverage
         run: make coverage
 
-      # GitHub's dependency graph does not parse bun.lock, so the React
-      # SPA's resolved tree is invisible to Dependabot alerts even with the
+      # GitHub's dependency graph does not parse bun.lock, so the client's
+      # resolved tree is invisible to Dependabot alerts even with the
       # manifest registered in dependabot.yml. That tree ships inside the
       # wheel (scripts/copy_ui_static.py), so audit it here instead.
       # Advisory only: `|| true` keeps a fresh upstream advisory from
       # blocking unrelated PRs. Read the step output, don't trust the tick.
       - name: Audit JavaScript dependencies
         run: |
-          for dir in desktop/react desktop/electron; do
+          for dir in desktop/app desktop/electron; do
             echo "::group::bun audit $dir"
             (cd "$dir" && bun install --frozen-lockfile && bun audit) || true
             echo "::endgroup::"
