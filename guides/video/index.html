@@ -2136,7 +2136,7 @@ expiry. yt-dlp tracks YouTube closely — keep it current if extraction breaks.<
 <tr>
 <td>(HLS lives at <code>&lt;tempdir&gt;/maneki-hls/&lt;sha256(id)[:32]&gt;/seg-NNNN.ts</code>, not under the library root — segments are large and explicit RAM-disk / <code>/tmp</code> placement is the right tradeoff.)</td>
 <td></td>
-<td>Wiped on <code>HLS_CACHE_VERSION</code> mismatch. Per-id directories swept on startup for orphaned ids.</td>
+<td>Wiped on <code>HLS_CACHE_VERSION</code> mismatch. Per-id directories swept on startup for orphaned ids. Capped by <code>--hls-cache-gb</code> (default 20 GB), least recently watched segments first.</td>
 </tr>
 </tbody>
 </table>
@@ -2166,6 +2166,10 @@ expiry. yt-dlp tracks YouTube closely — keep it current if extraction breaks.<
 <tr>
 <td><code>--no-cover-images</code></td>
 <td>Skip the contact-sheet poster phase entirely. <code>/poster</code> falls back to the row thumbnail.</td>
+</tr>
+<tr>
+<td><code>--hls-cache-gb N</code></td>
+<td>Cap the HLS segment cache at N GB (default 20, or <code>[media] hls_cache_gb</code> in <code>maneki.toml</code>; 0 = no cap). Past the cap the least recently watched segments are evicted; anything watched in the last two minutes is kept.</td>
 </tr>
 <tr>
 <td><code>--workers N</code></td>
