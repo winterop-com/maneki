@@ -32,6 +32,7 @@ import {
     playerStore,
     positionNow,
     previous,
+    retry,
     seek,
     setSpeed,
     setVolume,
@@ -57,6 +58,7 @@ import {
 import { cn } from '@/lib/utils'
 
 export const RESIZE_BAR_LABEL = 'Resize the player bar'
+export const RETRY_LABEL = 'Retry'
 
 /** How far one arrow key moves the bar's edge. */
 const KEYBOARD_STEP = 16
@@ -309,17 +311,26 @@ export function PlayerBar() {
                         AND A SOURCE THAT DIED TAKES THAT LINE. Why it went quiet is the only
                         thing anybody wants off this bar at that moment, it is one line either
                         way so the strip does not move, and it is where the eye already is. */}
-                                <p
-                                    className={cn(
-                                        'truncate text-xs',
-                                        player.refusal === null
-                                            ? 'text-muted-foreground'
-                                            : 'text-critical-ink',
-                                    )}
-                                    title={player.refusal ?? beneath}
-                                >
-                                    {player.refusal ?? beneath}
-                                </p>
+                                {player.refusal === null ? (
+                                    <p className="truncate text-xs text-muted-foreground" title={beneath}>
+                                        {beneath}
+                                    </p>
+                                ) : (
+                                    <p className="flex min-w-0 items-baseline gap-2 text-xs">
+                                        <span className="truncate text-critical-ink" title={player.refusal}>
+                                            {player.refusal}
+                                        </span>
+                                        {/* Beside the sentence it answers: a refusal is most often the
+                                            network, and the same source asked again usually plays. */}
+                                        <button
+                                            type="button"
+                                            onClick={retry}
+                                            className="control-link shrink-0 text-primary-ink underline-offset-2 hover:underline"
+                                        >
+                                            {RETRY_LABEL}
+                                        </button>
+                                    </p>
+                                )}
                             </div>
                         )}
 

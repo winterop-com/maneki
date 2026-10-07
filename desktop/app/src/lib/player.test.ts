@@ -18,6 +18,7 @@ import {
     playerStore,
     playStation,
     previous,
+    retry,
     seek,
     setPlayerCredentials,
     toggle,
@@ -38,6 +39,8 @@ class FakeAudio {
     error: { code: number } | null = null
     /** What the next `play()` is to refuse with, for the switch that interrupts one. */
     refuse: Error | null = null
+    /** How many times a source was put on, so a reload of the same one can be told apart. */
+    loads = 0
     private source = ''
     private listeners: Record<string, { handler: () => void; once: boolean }[]> = {}
 
@@ -47,6 +50,7 @@ class FakeAudio {
 
     /** A new source has had nothing read off it yet, which is what makes a seek wait. */
     set src(wanted: string) {
+        this.loads += 1
         this.source = wanted
         this.readyState = 0
         this.error = null
@@ -269,6 +273,64 @@ describe('a source that will not play', () => {
         next()
         expect(playerStore.get().refusal).toBeNull()
         expect(playerStore.get().playing).toBe(true)
+    })
+
+    test('retry asks for the same track again, from the second it stopped', () => {
+        play(songs, 1)
+        fake.currentTime = 42
+        fake.emit('timeupdate')
+        fake.fail()
+        vi.advanceTimersByTime(SETTLE_MS)
+        const loads = fake.loads
+        retry()
+        expect(fake.loads).toBe(loads + 1)
+        expect(fake.src).toContain('id=tr_2')
+        expect(playerStore.get().refusal).toBeNull()
+        expect(playerStore.get().playing).toBe(true)
+        fake.arrive()
+        expect(fake.currentTime).toBe(42)
+        expect(playerStore.get().positionS).toBe(42)
+    })
+
+    test('play on a refused track tries it again rather than asking the dead load', () => {
+        play(songs, 0)
+        fake.fail()
+        vi.advanceTimersByTime(SETTLE_MS)
+        const loads = fake.loads
+        toggle()
+        expect(fake.loads).toBe(loads + 1)
+        expect(playerStore.get().playing).toBe(true)
+    })
+
+    test('retry does nothing when nothing was refused', () => {
+        play(songs, 0)
+        const loads = fake.loads
+        retry()
+        expect(fake.loads).toBe(loads)
+    })
+
+    test('retry reloads a station from now', () => {
+        playStation(stations[0]!)
+        fake.fail()
+        vi.advanceTimersByTime(SETTLE_MS)
+        const loads = fake.loads
+        retry()
+        expect(fake.loads).toBe(loads + 1)
+        expect(playerStore.get().refusal).toBeNull()
+        expect(playerStore.get().station?.id).toBe('st_1')
+    })
+
+    test('retry reloads the book file it already held, rather than keeping the dead load', () => {
+        playBook(book, 0)
+        fake.arrive()
+        fake.fail()
+        vi.advanceTimersByTime(SETTLE_MS)
+        const loads = fake.loads
+        const src = fake.src
+        retry()
+        expect(fake.loads).toBe(loads + 1)
+        expect(fake.src).toBe(src)
+        expect(playerStore.get().refusal).toBeNull()
     })
 
     test('a station names itself, because the bar is about to say nothing else', () => {

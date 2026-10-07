@@ -618,7 +618,7 @@ function leaveBook(): void {
  * writes that position back into the store, and picking a chapter looks like it did nothing at
  * all. So the write is held until `loadedmetadata` whenever the element is not ready for it.
  */
-function placeBook(at: number, resume: boolean): void {
+function placeBook(at: number, resume: boolean, reload = false): void {
     const { book } = state()
     if (!book) return
     const player = element()
@@ -626,7 +626,9 @@ function placeBook(at: number, resume: boolean): void {
     const file = book.files.find((one) => one.index === index)
     if (!file) return
     const wanted = booksApi.fileUrl(file.url)
-    const changing = player.src !== wanted
+    // A retry reloads the file it already holds: the source on the element is the one that
+    // failed, and keeping it would be asking the same dead load to play.
+    const changing = reload || player.src !== wanted
     if (changing) {
         putSource(player, wanted)
         loadedFile = index
@@ -746,10 +748,54 @@ function onPagehide(): void {
     if (state().book) saveBook(state().positionS)
 }
 
+/**
+ * Try again what refused to play, from where it stopped.
+ *
+ * A REFUSAL IS OFTEN THE NETWORK, NOT THE FILE. A server that blinked, a laptop that slept, a
+ * station whose relay dropped: the same source asked again a moment later usually plays. So
+ * the bar offers this beside the refusal, and it asks for the same thing rather than skipping
+ * on -- a track resumes at the second it stopped, a book at its place on its own timeline, and
+ * a station from now, because a station has no place to return to.
+ */
+export function retry(): void {
+    const { refusal, station, book, index, orderAt, positionS } = state()
+    if (refusal === null) return
+    if (station) {
+        playStation(station)
+        return
+    }
+    if (book) {
+        placeBook(positionS, true, true)
+        return
+    }
+    if (index < 0 || !credentials) return
+    claimSound(silence)
+    load(index, true, orderAt)
+    if (positionS <= 0) return
+    const player = element()
+    const seq = loadSeq
+    player.addEventListener(
+        'loadedmetadata',
+        () => {
+            // A track picked while this one was still loading owns the element now.
+            if (seq !== loadSeq) return
+            player.currentTime = positionS
+            patch({ positionS })
+        },
+        { once: true },
+    )
+}
+
 export function toggle(): void {
     const player = element()
     const { station, book } = state()
     if (!currentSong() && !station && !book) return
+    // Play on a refused source is a request to try it again: asking the element to play the
+    // load it already gave up on would do nothing at all.
+    if (state().refusal !== null) {
+        retry()
+        return
+    }
     if (player.paused) {
         claimSound(silence)
         // A book whose element holds nothing has been picked up rather than resumed -- the
