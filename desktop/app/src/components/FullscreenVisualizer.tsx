@@ -234,8 +234,12 @@ function Stage() {
 
             {/* The two things the stage itself can do, in the corner and nowhere else: what a
                 stage is for is looking at it, so anything standing over the canvas has to have
-                earned the room. */}
-            <div className="absolute top-4 right-4 flex items-center gap-1">
+                earned the room.
+
+                ABOVE THE TITLE STRIP, WHICH SPANS THE WIDTH. Its `z-10` box runs under this
+                corner whatever its padding does to its text, and at the same level it took
+                every click meant for these two. */}
+            <div className="absolute top-4 right-4 z-20 flex items-center gap-1">
                 {/* The drawing is stepped from here, because which drawing the spectrum is is
                     a thing somebody decides while looking at it. What is done to the drawing --
                     a glow, trails -- is chosen on the settings pane, where a list can be a list. */}
@@ -243,6 +247,7 @@ function Stage() {
                     variant="ghost"
                     size="icon"
                     aria-label={nextStyleLabel(style)}
+                    title={nextStyleLabel(style)}
                     onClick={() => {
                         cycleVisualizerStyle()
                     }}
@@ -254,6 +259,7 @@ function Stage() {
                     variant="ghost"
                     size="icon"
                     aria-label={LEAVE_STAGE_LABEL}
+                    title={LEAVE_STAGE_LABEL}
                     onClick={closeStage}
                     className="stage-button"
                 >
