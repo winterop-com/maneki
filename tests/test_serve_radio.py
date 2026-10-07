@@ -148,7 +148,9 @@ def test_station_ids_are_stable_whatever_the_order(tmp_path: Path, monkeypatch: 
         assert after[url] == sid
 
 
-def test_adding_a_station_writes_it_to_radio_toml(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_adding_a_station_keeps_it_without_touching_radio_toml(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    hand_written = '# my notes\n[[stations]]\nname = "Mine"\nurl = "https://mine.example/s"\n'
+    (tmp_path / "radio.toml").write_text(hand_written, encoding="utf-8")
     client = _client(tmp_path, monkeypatch)
     body = client.get(
         "/rest/createInternetRadioStation",
@@ -163,10 +165,10 @@ def test_adding_a_station_writes_it_to_radio_toml(tmp_path: Path, monkeypatch: p
     added = next(s for s in _stations(client) if s["name"] == "New One")
     assert added["custom"] is True
     assert added["coverArt"].startswith("rs_")
-    written = radio._load_user_stations(tmp_path / "radio.toml")
-    assert written[0].logo == "https://new.example/logo.png"
-    # The format comment stays at the top for somebody editing the file by hand.
-    assert (tmp_path / "radio.toml").read_text(encoding="utf-8").startswith("# maneki radio stations")
+    added_rows = radio._load_added_stations(tmp_path / "radio.toml")
+    assert added_rows[0].logo == "https://new.example/logo.png"
+    # The hand-written file is read, never written: notes and comments in it stay.
+    assert (tmp_path / "radio.toml").read_text(encoding="utf-8") == hand_written
 
 
 def test_adding_a_station_twice_is_refused(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -186,13 +188,18 @@ def test_a_station_that_was_added_can_be_removed(tmp_path: Path, monkeypatch: py
     assert all(s["name"] != "X" for s in _stations(client))
 
 
-def test_a_built_in_station_cannot_be_removed(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_a_built_in_or_hand_written_station_is_not_removed_here(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    (tmp_path / "radio.toml").write_text(
+        '[[stations]]\nname = "Mine"\nurl = "https://mine.example/s"\n', encoding="utf-8"
+    )
     client = _client(tmp_path, monkeypatch)
-    built_in = _stations(client)[0]
-    assert "custom" not in built_in
-    body = client.get("/rest/deleteInternetRadioStation", params=_params(id=built_in["id"])).json()
-    assert body["subsonic-response"]["error"]["code"] == 50
-    assert len(_stations(client)) == len(DEFAULT_STATIONS)
+    for station in _stations(client)[:2]:  # the hand-written one, then a built-in one
+        assert "custom" not in station
+        body = client.get("/rest/deleteInternetRadioStation", params=_params(id=station["id"])).json()
+        assert body["subsonic-response"]["error"]["code"] == 50
+    assert len(_stations(client)) == len(DEFAULT_STATIONS) + 1
 
 
 def test_search_returns_radio_browser_results_marked_when_already_added(

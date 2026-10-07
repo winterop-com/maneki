@@ -8,6 +8,8 @@ success no-ops — stations are managed in the TOML file, not via the API.
 
 from __future__ import annotations
 
+import sqlite3
+
 from fastapi import APIRouter, Query
 from fastapi.responses import JSONResponse, Response
 
@@ -31,7 +33,7 @@ def _station_payload() -> list[dict[str, str | bool]]:
             # albums; clients that do not know it ignore it, and ours shows it.
             item["coverArt"] = radio.station_cover_id(station)
         if station.url in user:
-            # Maneki extension: added on this server (radio.toml), so it can be removed.
+            # Maneki extension: added from a client (radio.db), so it can be removed.
             item["custom"] = True
         out.append(item)
     return out
@@ -52,7 +54,7 @@ async def create_internet_radio_station(
     homepageUrl: str | None = Query(default=None),  # noqa: N803
     logo: str | None = Query(default=None),
 ) -> dict:
-    """Add a station to `radio.toml`. `logo` (an image URL) is a Maneki extension."""
+    """Keep a station on this server (radio.db). `logo` (an image URL) is a Maneki extension."""
     if not streamUrl.startswith(("http://", "https://")):
         return error_envelope(10, "streamUrl must be an http(s) URL")
     station = radio.RadioStation(
@@ -65,8 +67,8 @@ async def create_internet_radio_station(
         radio.add_station(station)
     except radio.StationExistsError:
         return error_envelope(0, f"{station.name} is already in the list")
-    except OSError as exc:
-        return error_envelope(0, f"radio.toml could not be written: {exc}")
+    except (OSError, sqlite3.Error) as exc:
+        return error_envelope(0, f"The station could not be saved: {exc}")
     return envelope()
 
 
@@ -80,16 +82,16 @@ async def update_internet_radio_station() -> dict:
 @router.api_route("/deleteInternetRadioStation", methods=["GET", "POST", "HEAD"])
 @router.api_route("/deleteInternetRadioStation.view", methods=["GET", "POST", "HEAD"], include_in_schema=False)
 async def delete_internet_radio_station(id: str = Query(...)) -> dict:
-    """Remove a station added on this server. The built-in stations stay."""
+    """Remove a station added from a client. Built-in and radio.toml stations stay."""
     station = next((s for s in radio.load_stations() if radio.station_id(s) == id), None)
     if station is None:
         return error_envelope(70, f"Station not found: {id}")
     try:
         removed = radio.remove_station(station.url)
-    except OSError as exc:
-        return error_envelope(0, f"radio.toml could not be written: {exc}")
+    except (OSError, sqlite3.Error) as exc:
+        return error_envelope(0, f"The station could not be removed: {exc}")
     if not removed:
-        return error_envelope(50, f"{station.name} is built in and cannot be removed")
+        return error_envelope(50, f"{station.name} is built in or listed in radio.toml, so it is not removed here")
     return envelope()
 
 

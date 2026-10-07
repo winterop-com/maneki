@@ -1,26 +1,27 @@
 """Curated internet-radio station list.
 
-Two sources merge at runtime:
-  1. `DEFAULT_STATIONS` — baked into the code. Updated by us when we ship
-     new stations; users automatically see them on next launch.
-  2. `~/.config/maneki/radio.toml` — purely for the user's own additions.
-     Format is the simple `[[stations]]` array-of-tables.
+Three sources merge at runtime:
+  1. `~/.config/maneki/radio.toml`: the user's own stations, written by hand.
+     The server only ever reads it, so comments and notes in it are safe.
+  2. `~/.config/maneki/radio.db`: stations added from a client (the station
+     search). A small SQLite table, so adding and removing never rewrites
+     the hand-written file.
+  3. `DEFAULT_STATIONS`: baked into the code and shipped with maneki.
 
-`load_stations()` returns the union, deduped by URL (user entries take
-precedence on collision). That means the default list only grows in code,
-the user's file only grows from their hand, and neither stomps the other.
+`load_stations()` returns the union in that order, deduped by URL (the
+first source wins on collision). Only stations from the database can be
+removed from a client.
 """
 
 from __future__ import annotations
 
 import hashlib
-import threading
+import sqlite3
 import tomllib
+from datetime import UTC, datetime
 from pathlib import Path
 
 from pydantic import BaseModel
-
-from maneki.audio import _toml_dump
 
 
 class RadioStation(BaseModel):
@@ -83,6 +84,51 @@ DEFAULT_STATIONS: list[RadioStation] = [
         homepage="https://radio.nrk.no/direkte/nyheter",
         logo=str(LOGOS_DIR / "nrk-nyheter.png"),
     ),
+    # The demoscene: tracker music, C64 remixes and scene productions, most of
+    # them listener-requested. MP3 or AAC streams where a station offers one,
+    # since Ogg is unreliable in the desktop app's WebKit.
+    RadioStation(
+        name="Nectarine Demoscene Radio",
+        url="http://nectarine.from-de.com/necta192",
+        description="Demoscene and tracker music, played by listener request",
+        homepage="https://scenestream.net/demovibes/",
+        logo=str(LOGOS_DIR / "scene-necta.png"),
+    ),
+    RadioStation(
+        name="SceneSat Radio",
+        url="https://streams.scenesat.com/main/hq.mp3",
+        description="Demoscene music and live shows",
+        homepage="https://scenesat.com/",
+        logo=str(LOGOS_DIR / "scene-scenesat.png"),
+    ),
+    RadioStation(
+        name="Kohina",
+        url="https://player.kohina.com/icecast/stream.aac",
+        description="Old school game and demo music",
+        homepage="https://kohina.com/",
+        logo=str(LOGOS_DIR / "scene-kohina.png"),
+    ),
+    RadioStation(
+        name="SLAY Radio",
+        url="http://relay3.slayradio.org:8000/",
+        description="C64 remixes, live shows",
+        homepage="https://www.slayradio.org/",
+        logo=str(LOGOS_DIR / "scene-slay.png"),
+    ),
+    RadioStation(
+        name="CVGM",
+        url="https://slacker.cvgm.net/cvgm192",
+        description="Chiptune, demoscene and game music, by listener request",
+        homepage="https://radio.cvgm.net/demovibes/",
+        logo=str(LOGOS_DIR / "scene-cvgm.png"),
+    ),
+    RadioStation(
+        name="HYPR",
+        url="https://hypr.website/hypr.mp3",
+        description="Demoscene radio",
+        homepage="https://hypr.website/",
+        logo=str(LOGOS_DIR / "scene-hypr.png"),
+    ),
 ]
 
 
@@ -93,6 +139,9 @@ _USER_TEMPLATE = """\
 # `src/maneki/audio/radio.py`). Anything you add below appears alongside
 # them in the SPA's Radio list. Stations are deduped by URL; if a user
 # entry shares a URL with a baked-in default, your version wins.
+#
+# maneki never writes this file. Stations added from the app's station search
+# are kept in radio.db beside it, and removed there too.
 #
 # Format:
 #   [[stations]]
@@ -110,16 +159,15 @@ def stations_path() -> Path:
 
 
 def load_stations(path: Path | None = None) -> list[RadioStation]:
-    """Return user-defined stations (from `radio.toml`) merged with defaults.
+    """Return the user's stations (radio.toml, then those added from a client) and the defaults.
 
-    User entries come first in the result; default-only entries are appended
-    behind them. Dedup by URL — a user entry with the same URL as a default
-    silently overrides the default.
+    Dedup by URL: an earlier source wins, so a hand-written entry overrides
+    an added one and either overrides a default with the same URL.
     """
     user = _load_user_stations(path)
     by_url: dict[str, RadioStation] = {}
     ordered: list[RadioStation] = []
-    for station in [*user, *DEFAULT_STATIONS]:
+    for station in [*user, *_load_added_stations(path), *DEFAULT_STATIONS]:
         if station.url in by_url:
             continue
         by_url[station.url] = station
@@ -161,43 +209,69 @@ def seed_default_config(path: Path | None = None) -> Path:
     return target
 
 
-# One writer at a time: two clients adding stations at once would each read the
-# file, add theirs and write, and one of the two would be lost.
-_write_lock = threading.Lock()
-
-
 class StationExistsError(ValueError):
     """The station is already in the list, by stream URL."""
 
 
+def added_stations_path(path: Path | None = None) -> Path:
+    """The database of stations added from a client: `radio.db` beside `radio.toml`."""
+    return (path or stations_path()).with_name("radio.db")
+
+
+def _connect(path: Path | None = None) -> sqlite3.Connection:
+    target = added_stations_path(path)
+    target.parent.mkdir(parents=True, exist_ok=True)
+    db = sqlite3.connect(target)
+    db.execute(
+        "CREATE TABLE IF NOT EXISTS stations ("
+        " url TEXT PRIMARY KEY, name TEXT NOT NULL, homepage TEXT, logo TEXT, added_at TEXT NOT NULL)"
+    )
+    return db
+
+
+def _load_added_stations(path: Path | None = None) -> list[RadioStation]:
+    """The stations added from a client, oldest first. None when there is no database yet."""
+    if not added_stations_path(path).exists():
+        return []
+    db = _connect(path)
+    try:
+        rows = db.execute("SELECT name, url, homepage, logo FROM stations ORDER BY added_at, rowid").fetchall()
+    finally:
+        db.close()
+    return [RadioStation(name=name, url=url, homepage=homepage, logo=logo) for name, url, homepage, logo in rows]
+
+
 def user_station_urls(path: Path | None = None) -> set[str]:
-    """The stream URLs of the stations from `radio.toml`: the ones that may be removed."""
-    return {station.url for station in _load_user_stations(path)}
+    """The stream URLs of the stations added from a client: the ones a client may remove."""
+    return {station.url for station in _load_added_stations(path)}
 
 
 def add_station(station: RadioStation, path: Path | None = None) -> RadioStation:
-    """Append a station to the user's `radio.toml`. Raises when its URL is already listed."""
-    with _write_lock:
-        if any(existing.url == station.url for existing in load_stations(path)):
-            raise StationExistsError(station.url)
-        _write_user_stations([*_load_user_stations(path), station], path)
+    """Keep a station added from a client. Raises when its URL is already listed."""
+    if any(existing.url == station.url for existing in load_stations(path)):
+        raise StationExistsError(station.url)
+    db = _connect(path)
+    try:
+        with db:
+            db.execute(
+                "INSERT INTO stations (url, name, homepage, logo, added_at) VALUES (?, ?, ?, ?, ?)",
+                (station.url, station.name, station.homepage, station.logo, datetime.now(UTC).isoformat()),
+            )
+    except sqlite3.IntegrityError as exc:
+        raise StationExistsError(station.url) from exc
+    finally:
+        db.close()
     return station
 
 
 def remove_station(url: str, path: Path | None = None) -> bool:
-    """Drop a station from the user's `radio.toml`. False when it is not one of the user's."""
-    with _write_lock:
-        user = _load_user_stations(path)
-        kept = [station for station in user if station.url != url]
-        if len(kept) == len(user):
-            return False
-        _write_user_stations(kept, path)
-    return True
-
-
-def _write_user_stations(stations: list[RadioStation], path: Path | None = None) -> None:
-    """Rewrite `radio.toml` as the format comment followed by one table per station."""
-    target = path or stations_path()
-    target.parent.mkdir(parents=True, exist_ok=True)
-    body = _toml_dump.dumps({"stations": [s.model_dump(exclude_none=True) for s in stations]}) if stations else ""
-    target.write_text(_USER_TEMPLATE + ("\n" + body if body else ""), encoding="utf-8")
+    """Drop a station added from a client. False when it is not one (radio.toml or built in)."""
+    if not added_stations_path(path).exists():
+        return False
+    db = _connect(path)
+    try:
+        with db:
+            removed = db.execute("DELETE FROM stations WHERE url = ?", (url,)).rowcount
+    finally:
+        db.close()
+    return removed > 0
