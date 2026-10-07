@@ -18,6 +18,7 @@
 
 import { books as booksApi } from '@/lib/api'
 import { chapterAt } from '@/lib/book-timeline'
+import { announced } from '@/lib/liner'
 import { next, playerStore, previous, seek, skipBy, SKIP_S, toggle, type PlayerState } from '@/lib/player'
 import { sessionStore } from '@/lib/session'
 import { coverUrl } from '@/lib/subsonic'
@@ -64,7 +65,7 @@ export function nowPlaying(state: PlayerState, artwork: string | null): NowPlayi
         // What the station says it is playing, under the station's own name; before it says,
         // the station is the title.
         return {
-            title: state.stationTitle || station.name,
+            title: state.stationTitle ? announced(state.stationTitle, station.name) : station.name,
             artist: state.stationTitle ? station.name : '',
             album: '',
             artwork,

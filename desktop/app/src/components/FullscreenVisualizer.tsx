@@ -6,8 +6,9 @@ import { useOverlay } from '@/hooks/use-overlay'
 import { useSpectrum } from '@/hooks/use-spectrum'
 import { useStore } from '@/hooks/use-store'
 import { books as booksApi } from '@/lib/api'
-import { clock, songLine } from '@/lib/format'
-import { currentChapter, currentSong, next, playerStore, previous, seek, toggle } from '@/lib/player'
+import { clock } from '@/lib/format'
+import { linerByline, linerEyebrow, linerTitle } from '@/lib/liner'
+import { currentSong, next, playerStore, previous, seek, toggle } from '@/lib/player'
 import { sessionStore } from '@/lib/session'
 import { starMarks, starredNow, toggleStar } from '@/lib/star'
 import { coverUrl } from '@/lib/subsonic'
@@ -89,10 +90,7 @@ function Stage() {
     const canvas = useSpectrum(playing, STAGE_BANDS, true)
     useOverlay(stage, closeStage)
 
-    // A book is on this stage the way it is on the bar: the chapter is what is playing and the
-    // book is what it is out of, which is the same pair as a track and its artist.
     const book = player.book
-    const chapter = currentChapter()
     const cover = book
         ? book.has_cover
             ? booksApi.coverUrl(book.id, 600)
@@ -126,29 +124,25 @@ function Stage() {
                 transport stands along the foot with the scrubber the full width of the screen
                 above it -- so the drawing is never under the controls and the controls are
                 never over the drawing. */}
-            <div className="relative z-10 flex items-center gap-4 px-8 pt-6 pr-28 pb-2">
+            {/* THE HEAD READS LIKE THE BAR'S LINER NOTES, AT STAGE SIZE: where it sits (track,
+                record, year; chapter and book; or live), what is playing large, and who made
+                it. A station's song is the title once it has announced one. See `lib/liner`. */}
+            <div className="relative z-10 flex items-center gap-6 px-8 pt-8 pr-28 pb-2">
                 {cover && (
                     <img
                         src={cover}
                         alt=""
-                        className="size-16 shrink-0 rounded-lg object-cover shadow-lg ring-1 ring-white/10 md:size-20"
+                        className="size-24 shrink-0 rounded-xl object-cover shadow-lg ring-1 ring-white/10 md:size-32"
                     />
                 )}
                 <div className="min-w-0">
-                    <p className="truncate text-2xl font-semibold tracking-tight md:text-3xl">
-                        {book ? (chapter?.title ?? book.title) : (song?.title ?? player.station?.name)}
+                    <p className="truncate text-xs tracking-[0.18em] text-terminal-accent uppercase md:text-sm">
+                        {linerEyebrow(player)}
                     </p>
-                    <p className="truncate text-base text-terminal-muted">
-                        {book
-                            ? chapter
-                                ? `${book.title} · ${book.author}`
-                                : book.author
-                            : station
-                              ? player.stationTitle || 'Live'
-                              : song
-                                ? songLine(song)
-                                : ''}
+                    <p className="truncate text-3xl font-semibold tracking-tight md:text-5xl md:leading-tight">
+                        {linerTitle(player)}
                     </p>
+                    <p className="truncate text-base text-terminal-muted md:text-xl">{linerByline(player)}</p>
                 </div>
             </div>
 
