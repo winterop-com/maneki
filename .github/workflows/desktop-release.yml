@@ -126,11 +126,11 @@ jobs:
         with:
           bun-version: latest
 
-      # Build the Vite SPA first — electron-builder ships desktop/react/dist
-      # via extraResources, so it must exist (electron-builder does NOT run
-      # the frontend build itself).
-      - name: Build the SPA (Vite)
-        working-directory: desktop/react
+      # Build the client first: electron-builder ships desktop/app/dist via
+      # extraResources, so it must exist (electron-builder does NOT run the
+      # frontend build itself).
+      - name: Build the client (Vite)
+        working-directory: desktop/app
         run: bun install --frozen-lockfile && bun run build
 
       - name: Build Electron bundles (unsigned)
