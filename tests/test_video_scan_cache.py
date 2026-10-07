@@ -270,3 +270,35 @@ def test_prewarm_scan_works_without_index(library: Path) -> None:
     assert {e.name for e in result} == {"ep1", "ep2"}
     # No DB file should have been created when the caller didn't pass one.
     assert not db_path(library).exists()
+
+
+def test_prewarm_scan_keeps_a_fixed_pool_of_probe_tasks(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    # Regression for #87: one task per unprobed file, gated by a semaphore,
+    # held an input-sized pile of pending tasks. The pool is the workers.
+    import time
+
+    import maneki.video.serve.scan as scan_mod
+
+    videos = tmp_path / "videos"
+    videos.mkdir()
+    for n in range(64):
+        (videos / f"ep{n:02d}.mkv").write_bytes(b"\x1a\x45\xdf\xa3" + bytes([n]) * 64)
+
+    def slow_probe(_path: Path) -> float:
+        time.sleep(0.005)
+        return 1.0
+
+    monkeypatch.setattr(scan_mod, "probe_duration", slow_probe)
+
+    async def run() -> tuple[int, int]:
+        scan = asyncio.create_task(prewarm_scan(tmp_path, VideoScanTracker()))
+        peak = 0
+        while not scan.done():
+            peak = max(peak, len(asyncio.all_tasks()))
+            await asyncio.sleep(0.001)
+        return peak, len(await scan)
+
+    peak, found = asyncio.run(run())
+    assert found == 64
+    # The workers, plus this test's own task and the scan's.
+    assert peak <= scan_mod._PREWARM_PROBE_CONCURRENCY + 2

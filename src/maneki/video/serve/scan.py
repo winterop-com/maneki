@@ -305,7 +305,6 @@ async def prewarm_scan(
 
     from maneki.video.serve.subtitles import discover_sidecars
 
-    sem = asyncio.Semaphore(_PREWARM_PROBE_CONCURRENCY)
     probed: list[VideoEntry | None] = [None] * len(to_probe)
     total_to_probe = len(to_probe)
 
@@ -314,29 +313,38 @@ async def prewarm_scan(
     mtimes: list[float | None] = [None] * len(to_probe)
 
     async def _probe_one(slot: int, path: Path, size_bytes: int, mtime: float) -> None:
-        async with sem:
-            duration = await asyncio.to_thread(probe_duration, path)
-            sidecars = await asyncio.to_thread(discover_sidecars, path)
-            rel = path.relative_to(root)
-            entry = VideoEntry(
-                id=_make_id(rel),
-                name=path.stem,
-                path=str(path),
-                size_bytes=size_bytes,
-                rel_path=str(rel),
-                duration_s=duration,
-                subtitles=[SubtitleSummary(lang=s.language, format=s.fmt) for s in sidecars],
-            )
-            probed[slot] = entry
-            mtimes[slot] = mtime
-            tracker.tick()
-            done = tracker.snapshot().scanned
-            if done % _PROBE_LOG_EVERY == 0 or done == len(paths):
-                log.info("video scan: probed %d / %d files", done, len(paths))
+        duration = await asyncio.to_thread(probe_duration, path)
+        sidecars = await asyncio.to_thread(discover_sidecars, path)
+        rel = path.relative_to(root)
+        entry = VideoEntry(
+            id=_make_id(rel),
+            name=path.stem,
+            path=str(path),
+            size_bytes=size_bytes,
+            rel_path=str(rel),
+            duration_s=duration,
+            subtitles=[SubtitleSummary(lang=s.language, format=s.fmt) for s in sidecars],
+        )
+        probed[slot] = entry
+        mtimes[slot] = mtime
+        tracker.tick()
+        done = tracker.snapshot().scanned
+        if done % _PROBE_LOG_EVERY == 0 or done == len(paths):
+            log.info("video scan: probed %d / %d files", done, len(paths))
 
-    await asyncio.gather(
-        *(_probe_one(slot, path, size_bytes, mtime) for slot, (_, path, size_bytes, mtime) in enumerate(to_probe))
-    )
+    # A FIXED POOL, NOT ONE TASK PER FILE. Gathering a task per file behind a
+    # semaphore bounded the work but not the tasks: a first scan of 10k videos
+    # held 10k pending coroutines to run 8 at a time (#87). Each worker pulls
+    # the next file off one shared iterator, so the tasks alive are the
+    # workers. The iterator is safe to share because asyncio runs one
+    # coroutine at a time and `next()` never awaits.
+    pending = iter(enumerate(to_probe))
+
+    async def _worker() -> None:
+        for slot, (_, path, size_bytes, mtime) in pending:
+            await _probe_one(slot, path, size_bytes, mtime)
+
+    await asyncio.gather(*(_worker() for _ in range(min(_PREWARM_PROBE_CONCURRENCY, len(to_probe)))))
 
     # Single-transaction batch upsert. Replaces the previous per-probe
     # `await asyncio.to_thread(index.upsert, ...)` pattern which was
