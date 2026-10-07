@@ -25,7 +25,7 @@ import { useStore } from '@/hooks/use-store'
 import { books as booksApi } from '@/lib/api'
 import { clock, songLine } from '@/lib/format'
 import { nowPlayingFace } from '@/lib/lcd'
-import { LINER_ROOM, linerByline, linerEyebrow, linerTitlePx } from '@/lib/liner'
+import { LINER_ROOM, linerByline, linerEyebrow, linerTitle, linerTitlePx } from '@/lib/liner'
 import {
     currentChapter,
     currentSong,
@@ -286,9 +286,9 @@ export function PlayerBar() {
                                         <p
                                             className="pointer-events-auto truncate font-semibold tracking-tight"
                                             style={{ fontSize: titlePx, lineHeight: 1.15 }}
-                                            title={title}
+                                            title={linerTitle(player)}
                                         >
-                                            {named}
+                                            {station ? linerTitle(player) : named}
                                         </p>
                                         {player.refusal === null ? (
                                             <p

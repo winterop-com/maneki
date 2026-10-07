@@ -51,6 +51,22 @@ export function linerEyebrow(state: PlayerState): string {
         .join(' · ')
 }
 
+/**
+ * The title itself, as text: the chapter, the track, or what a station says it is playing.
+ *
+ * A station's own name is its title only until it announces a song; after that the song is
+ * the title and the station moves to the line under it, which is where an artist would be.
+ */
+export function linerTitle(state: PlayerState): string {
+    const { book, station } = state
+    if (book) {
+        const at = chapterAt(book.chapter_list, state.positionS)
+        return (at < 0 ? null : book.chapter_list[at]?.title) ?? book.title
+    }
+    if (station) return state.stationTitle || station.name
+    return state.queue[state.index]?.title ?? ''
+}
+
 /** The line under the title: who made it, or for a station, which station it is. */
 export function linerByline(state: PlayerState): string {
     if (state.book) return state.book.author

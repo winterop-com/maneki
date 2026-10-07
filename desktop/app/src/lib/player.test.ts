@@ -10,6 +10,7 @@ import {
     skipBy,
     storedVolume,
     toggleMuted,
+    spectrum,
     currentSong,
     next,
     play,
@@ -26,6 +27,9 @@ import {
 import type { Song, Station } from '@/lib/subsonic'
 import type { BookDetail } from '@/lib/types'
 
+/** A Web Audio node that connects to anything and does nothing. */
+const node = () => ({ connect: () => undefined })
+
 /** Stands in for the browser's audio element: records what it was asked to do. */
 class FakeAudio {
     currentTime = 0
@@ -33,6 +37,8 @@ class FakeAudio {
     paused = true
     preload = ''
     playbackRate = 1
+    volume = 1
+    muted = false
     /** `HAVE_NOTHING` until the metadata is said to have arrived; `arrive` is what says so. */
     readyState = 0
     /** What the element is complaining about, as `HTMLMediaElement.error` has it. */
@@ -484,6 +490,42 @@ describe('the volume', () => {
         toggleMuted()
         setVolume(0.8)
         expect(playerStore.get().muted).toBe(false)
+    })
+
+    // Regression: the volume was the element's, which scales the signal before the analyser,
+    // so a quiet or muted player drew a flat spectrum over music that was playing.
+    test('once the spectrum is drawn, the volume is after it and the element plays at full level', () => {
+        const gains: { gain: { value: number } }[] = []
+        vi.stubGlobal(
+            'AudioContext',
+            class {
+                state = 'running'
+                destination = {}
+                createMediaElementSource = node
+                createAnalyser = () => ({ ...node(), fftSize: 0, smoothingTimeConstant: 0 })
+                createGain = () => {
+                    const made = { ...node(), gain: { value: 1 } }
+                    gains.push(made)
+                    return made
+                }
+                close = () => Promise.resolve()
+                resume = () => Promise.resolve()
+            },
+        )
+        setVolume(0.3)
+        play(songs, 0)
+        expect(fake.volume).toBeCloseTo(0.3)
+
+        spectrum()
+        expect(fake.volume).toBe(1)
+        expect(gains[0]?.gain.value).toBeCloseTo(0.3)
+
+        toggleMuted()
+        expect(fake.muted).toBe(false)
+        expect(gains[0]?.gain.value).toBe(0)
+
+        setVolume(0.7)
+        expect(gains[0]?.gain.value).toBeCloseTo(0.7)
     })
 })
 

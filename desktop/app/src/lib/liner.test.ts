@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'vitest'
 
-import { LINER_ROOM, linerByline, linerEyebrow, linerTitlePx } from '@/lib/liner'
+import { LINER_ROOM, linerByline, linerEyebrow, linerTitle, linerTitlePx } from '@/lib/liner'
 import type { PlayerState, PlayingBook } from '@/lib/player'
 
 function state(change: Partial<PlayerState>): PlayerState {
@@ -69,6 +69,24 @@ describe('the line over the title', () => {
         expect(linerEyebrow(state({ station: { id: 'st_1', name: 'NRK P3', streamUrl: 'x' } }))).toBe(
             'Live radio',
         )
+    })
+})
+
+// Regression: a station's announced song never reached the title, which kept the station's
+// name while the name was also printed under it.
+describe('the title', () => {
+    test('is what a station announced once it has, and its name until then', () => {
+        const station = { id: 'st_1', name: 'NRK P3 Musikk', streamUrl: 'x' }
+        expect(linerTitle(state({ station }))).toBe('NRK P3 Musikk')
+        expect(linerTitle(state({ station, stationTitle: 'P3 Musikk: Gogo dag, Åsane City' }))).toBe(
+            'P3 Musikk: Gogo dag, Åsane City',
+        )
+    })
+
+    test('is the chapter of a book, or the book when it has no chapters, or the track', () => {
+        expect(linerTitle(state({ book, positionS: 700 }))).toBe('Part One')
+        expect(linerTitle(state({ book: { ...book, chapter_list: [] } }))).toBe('Thinking, Fast and Slow')
+        expect(linerTitle(state({ queue: album, index: 2 }))).toBe('Track 3')
     })
 })
 

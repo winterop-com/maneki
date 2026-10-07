@@ -212,6 +212,8 @@ export const playerStore = createStore<PlayerState>(EMPTY)
 let audio: HTMLAudioElement | null = null
 let analyser: AnalyserNode | null = null
 let graph: AudioContext | null = null
+/** How loud, applied after the analyser once the graph exists. See `applyVolume`. */
+let level: GainNode | null = null
 let credentials: Credentials | null = null
 /** The track we last told the server about, so a repeat does not scrobble twice. */
 let announced: string | null = null
@@ -367,8 +369,7 @@ function element(): HTMLAudioElement {
     // three there is nothing to arbitrate.
     unregister = registerSilencer(silence)
     audio.preload = 'metadata'
-    audio.volume = state().volume
-    audio.muted = state().muted
+    applyVolume()
     // The spectrum reads the audio through a WebAudio graph, and the browser
     // only lets it read audio it is allowed to: without this, a stream from
     // another origin is silently unreadable and the spectrum stays flat.
@@ -888,23 +889,41 @@ export function cycleRepeat(): Repeat {
 /** How loud, between 0 and 1. Setting it unmutes: moving the slider is asking to hear it. */
 export function setVolume(volume: number): void {
     const held = Math.min(1, Math.max(0, volume))
-    if (audio) {
-        audio.volume = held
-        audio.muted = false
-    }
     try {
         localStorage.setItem(VOLUME_KEY, String(held))
     } catch {
         // Storage denied: the level holds for as long as this document is open.
     }
     patch({ volume: held, muted: false })
+    applyVolume()
 }
 
 /** Silence without forgetting the level, which is what unmuting puts back. */
 export function toggleMuted(): void {
-    const muted = !state().muted
-    if (audio) audio.muted = muted
-    patch({ muted })
+    patch({ muted: !state().muted })
+    applyVolume()
+}
+
+/**
+ * Put the volume and the mute where they belong: after the spectrum, not before it.
+ *
+ * THE SPECTRUM DRAWS THE MUSIC, NOT HOW LOUD IT IS PLAYED. The element's own volume scales
+ * the signal before Web Audio sees it, so at a low volume the bars shrank and muted they went
+ * flat while the music went on. Once the graph exists the element plays at full level into the
+ * analyser and a gain node after it does the volume; before then (nothing has been drawn yet)
+ * the element's own volume is all there is.
+ */
+function applyVolume(): void {
+    if (!audio) return
+    const { volume, muted } = state()
+    if (level) {
+        audio.volume = 1
+        audio.muted = false
+        level.gain.value = muted ? 0 : volume
+    } else {
+        audio.volume = volume
+        audio.muted = muted
+    }
 }
 
 export function seek(positionS: number): void {
@@ -952,11 +971,15 @@ export function spectrum(): AnalyserNode | null {
         // where a mastered record lives, and the bars use their height.
         analyser.minDecibels = -85
         analyser.maxDecibels = -15
+        level = graph.createGain()
         source.connect(analyser)
-        analyser.connect(graph.destination)
+        analyser.connect(level)
+        level.connect(graph.destination)
+        applyVolume()
     } catch {
         // No graph means no spectrum; the audio still plays.
         analyser = null
+        level = null
     }
     return analyser
 }
@@ -993,6 +1016,7 @@ export function clear(): void {
     if (audio) putSource(audio, '')
     audio = null
     analyser = null
+    level = null
     void graph?.close()
     graph = null
     announced = null
