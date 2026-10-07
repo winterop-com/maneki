@@ -101,9 +101,10 @@ class FakeAudio {
      * It goes quiet without firing `pause`, which is the whole reason the refusal has to be
      * published off the error, and the code says whether it gave up or was sent elsewhere.
      */
-    fail(code = 2): void {
+    fail(code = 2, { pauses = true }: { pauses?: boolean } = {}): void {
         this.error = { code }
-        this.paused = true
+        // Chromium leaves an element that could not decode its source unpaused.
+        if (pauses) this.paused = true
         this.emit('error')
     }
 }
@@ -256,6 +257,16 @@ describe('a source that will not play', () => {
         vi.advanceTimersByTime(SETTLE_MS)
         expect(playerStore.get().playing).toBe(false)
         expect(playerStore.get().refusal).toBe('This track would not play.')
+    })
+
+    // Regression: Chromium fires `error` on a source it cannot decode and leaves the element
+    // unpaused, and the refusal waited for a pause, so the bar said playing over silence.
+    test('says so even when the element was left unpaused', () => {
+        play(songs, 0)
+        fake.fail(4, { pauses: false })
+        vi.advanceTimersByTime(SETTLE_MS)
+        expect(playerStore.get().refusal).toBe('This track would not play.')
+        expect(playerStore.get().playing).toBe(false)
     })
 
     test('says nothing until the failure has had a moment to be contradicted', () => {

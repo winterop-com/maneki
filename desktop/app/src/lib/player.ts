@@ -437,7 +437,7 @@ function stopRefusing(): void {
  * those made a run of quick clicks pop "No sound from ..." over the station that was by then
  * playing. So an abort -- the element saying it was sent elsewhere -- is not news at all, and
  * the rest is given a moment to be contradicted: it is published only if the source that failed
- * is still the one on the element and the element is still not playing.
+ * is still the one on the element and the element still carries the error.
  *
  * The station's poll stops with the refusal rather than with the error, for the same reason: a
  * poll stopped on the way past would be the new station's poll.
@@ -450,7 +450,10 @@ function onElementError(): void {
     stopRefusing()
     refusing = setTimeout(() => {
         refusing = null
-        if (seq !== loadSeq || failing !== audio || !failing.paused) return
+        // Still failed means the same source is still on the element and still carries its
+        // error. NOT `paused`: Chromium leaves an element that could not decode its source
+        // unpaused, so a bar that waited for a pause said "playing" over silence for good.
+        if (seq !== loadSeq || failing !== audio || failing.error === null) return
         stopIcy()
         patch({ playing: false, refusal: refusalOf() })
     }, REFUSAL_SETTLE_MS)
