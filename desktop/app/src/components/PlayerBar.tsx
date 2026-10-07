@@ -186,7 +186,9 @@ export function PlayerBar() {
             : null
         : song && session.music
           ? coverUrl(session.music, song.coverArt, 600)
-          : null
+          : station && session.music
+            ? coverUrl(session.music, station.coverArt, 600)
+            : null
     const duration = player.durationS || song?.duration || 0
     const through = duration > 0 ? Math.min(1, player.positionS / duration) : 0
     // The chapter is what is playing and the book is what it is out of, which is the same

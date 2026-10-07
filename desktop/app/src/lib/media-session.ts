@@ -115,8 +115,11 @@ export function needsPosition(told: Told | null, now: Told): boolean {
 function artworkFor(state: PlayerState): string | null {
     if (state.book) return state.book.has_cover ? booksApi.coverUrl(state.book.id, ARTWORK_SIZE) : null
     const music = sessionStore.get().music
+    if (!music) return null
+    // A station's logo is its cover: what the lock screen shows while it plays.
+    if (state.station) return coverUrl(music, state.station.coverArt, ARTWORK_SIZE)
     const song = state.queue[state.index]
-    if (!music || !song) return null
+    if (!song) return null
     return coverUrl(music, song.coverArt, ARTWORK_SIZE)
 }
 

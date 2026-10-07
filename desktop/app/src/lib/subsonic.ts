@@ -266,6 +266,8 @@ export interface Station {
     name: string
     streamUrl: string
     homePageUrl?: string
+    /** The station's logo, served by `getCoverArt` like an album cover. Absent when it has none. */
+    coverArt?: string
 }
 
 /** The stations this server carries. */

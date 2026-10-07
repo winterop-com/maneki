@@ -79,3 +79,60 @@ def test_get_internet_radio_stations_authgated(tmp_path: Path, monkeypatch: pyte
     inner = body["subsonic-response"]
     assert inner["status"] == "failed"
     assert inner["error"]["code"] == 40
+
+
+def test_built_in_stations_carry_their_logo_as_cover_art(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    client = _client(tmp_path, monkeypatch)
+    stations = client.get("/rest/getInternetRadioStations", params=_params()).json()["subsonic-response"][
+        "internetRadioStations"
+    ]["internetRadioStation"]
+    for s in stations:
+        assert s["coverArt"].startswith("rs_")
+    resp = client.get("/rest/getCoverArt", params=_params(id=stations[0]["coverArt"]))
+    assert resp.status_code == 200
+    assert resp.headers["content-type"] == "image/png"
+    assert resp.content.startswith(b"\x89PNG")
+
+
+def test_a_station_logo_is_resized_like_an_album_cover(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    from io import BytesIO
+
+    from PIL import Image
+
+    client = _client(tmp_path, monkeypatch)
+    cover = radio.station_cover_id(DEFAULT_STATIONS[0])
+    resp = client.get("/rest/getCoverArt", params=_params(id=cover, size=64))
+    assert resp.status_code == 200
+    assert max(Image.open(BytesIO(resp.content)).size) <= 64
+
+
+def test_a_user_station_logo_can_be_a_file(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    from PIL import Image
+
+    logo = tmp_path / "logo.png"
+    Image.new("RGB", (32, 32), "red").save(logo)
+    (tmp_path / "radio.toml").write_text(
+        f'[[stations]]\nname = "Mine"\nurl = "https://mine.example/stream"\nlogo = "{logo}"\n',
+        encoding="utf-8",
+    )
+    client = _client(tmp_path, monkeypatch)
+    stations = client.get("/rest/getInternetRadioStations", params=_params()).json()["subsonic-response"][
+        "internetRadioStations"
+    ]["internetRadioStation"]
+    mine = next(s for s in stations if s["name"] == "Mine")
+    resp = client.get("/rest/getCoverArt", params=_params(id=mine["coverArt"]))
+    assert resp.content == logo.read_bytes()
+
+
+def test_a_station_without_a_readable_logo_gets_the_placeholder(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    (tmp_path / "radio.toml").write_text(
+        '[[stations]]\nname = "Gone"\nurl = "https://gone.example/stream"\nlogo = "/nowhere/logo.png"\n',
+        encoding="utf-8",
+    )
+    client = _client(tmp_path, monkeypatch)
+    cover = radio.station_cover_id(radio.RadioStation(name="Gone", url="https://gone.example/stream"))
+    resp = client.get("/rest/getCoverArt", params=_params(id=cover))
+    assert resp.status_code == 200
+    assert resp.headers["content-type"].startswith("image/svg+xml")

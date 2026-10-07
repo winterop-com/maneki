@@ -99,7 +99,9 @@ function Stage() {
             : null
         : song && session.music
           ? coverUrl(session.music, song.coverArt, 600)
-          : null
+          : player.station && session.music
+            ? coverUrl(session.music, player.station.coverArt, 600)
+            : null
     const duration = player.durationS || song?.duration || 0
     const station = player.station
     const starred = starredNow(marks, song)

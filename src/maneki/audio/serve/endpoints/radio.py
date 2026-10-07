@@ -25,6 +25,10 @@ def _station_payload() -> list[dict[str, str]]:
         item: dict[str, str] = {"id": str(i), "name": station.name, "streamUrl": station.url}
         if station.homepage:
             item["homepageUrl"] = station.homepage
+        if station.logo:
+            # Not in the Subsonic spec for stations, the way `coverArt` is for
+            # albums; clients that do not know it ignore it, and ours shows it.
+            item["coverArt"] = radio.station_cover_id(station)
         out.append(item)
     return out
 

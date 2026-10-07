@@ -6,9 +6,12 @@ import asyncio
 from collections.abc import AsyncIterator
 from pathlib import Path
 
+import httpx2 as httpx
 from fastapi import APIRouter, Query, Request
 from fastapi.responses import FileResponse, JSONResponse, Response, StreamingResponse
 
+from maneki import __version__
+from maneki.audio import radio
 from maneki.audio.library.models import LibraryTrack
 from maneki.audio.serve.app import error_envelope
 from maneki.audio.serve.covers import load_album_cover, resize
@@ -39,6 +42,52 @@ _COVER_PLACEHOLDER_MIME = "image/svg+xml"
 # Subsonic spec: transcoding default target is MP3. 192k is a reasonable
 # quality/size compromise; clients can lower it via `maxBitRate`.
 _DEFAULT_TRANSCODE_BITRATE_KBPS = 192
+
+
+# A station logo's bytes, by its `logo` value, for the life of the server: a URL
+# is fetched once rather than on every cover request a client makes.
+_station_logos: dict[str, tuple[bytes, str]] = {}
+
+_LOGO_MIME = {
+    ".png": "image/png",
+    ".jpg": "image/jpeg",
+    ".jpeg": "image/jpeg",
+    ".svg": "image/svg+xml",
+    ".webp": "image/webp",
+}
+
+
+def _station_logo(cover_id: str) -> tuple[bytes, str] | None:
+    """The logo of the station with this `rs_` cover id, or None.
+
+    Blocking (a file read or one HTTP fetch); callers run it off the loop.
+    A logo that cannot be read or fetched is None, so the client gets the
+    placeholder rather than an error.
+    """
+    station = next((s for s in radio.load_stations() if radio.station_cover_id(s) == cover_id), None)
+    if station is None or not station.logo:
+        return None
+    held = _station_logos.get(station.logo)
+    if held is not None:
+        return held
+    try:
+        if station.logo.startswith(("http://", "https://")):
+            response = httpx.get(
+                station.logo,
+                timeout=10.0,
+                follow_redirects=True,
+                headers={"User-Agent": f"maneki/{__version__}"},
+            )
+            response.raise_for_status()
+            mime = response.headers.get("content-type", "").split(";")[0] or "image/png"
+            found = (response.content, mime)
+        else:
+            path = Path(station.logo).expanduser()
+            found = (path.read_bytes(), _LOGO_MIME.get(path.suffix.lower(), "image/png"))
+    except (OSError, httpx.HTTPError):
+        return None
+    _station_logos[station.logo] = found
+    return found
 
 
 def _get_cache(request: Request) -> IndexCache:
@@ -275,6 +324,21 @@ async def get_cover_art(
             data, mime = resize(book_cover.read_bytes(), max_size=size)
         except Exception:  # pragma: no cover — Pillow refused; serve the original file
             return FileResponse(book_cover, media_type="image/jpeg")
+        cache.cover_cache.put((id, size), data, mime)
+        return Response(content=data, media_type=mime)
+    if id.startswith("rs_"):
+        cached = cache.cover_cache.get((id, size))
+        if cached is not None:
+            return Response(content=cached[0], media_type=cached[1])
+        logo = await asyncio.to_thread(_station_logo, id)
+        if logo is None:
+            return Response(content=_COVER_PLACEHOLDER, media_type=_COVER_PLACEHOLDER_MIME)
+        data, mime = logo
+        if size is not None and mime != "image/svg+xml":
+            try:
+                data, mime = resize(data, max_size=size)
+            except Exception:  # pragma: no cover - Pillow refused; serve the original
+                pass
         cache.cover_cache.put((id, size), data, mime)
         return Response(content=data, media_type=mime)
     if id.startswith("al_"):

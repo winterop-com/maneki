@@ -13,6 +13,7 @@ the user's file only grows from their hand, and neither stomps the other.
 
 from __future__ import annotations
 
+import hashlib
 import tomllib
 from pathlib import Path
 
@@ -26,6 +27,21 @@ class RadioStation(BaseModel):
     url: str
     description: str | None = None
     homepage: str | None = None
+    # The station's logo: an http(s) URL or a path to an image file. Served to
+    # clients as the station's cover art (`getCoverArt?id=rs_...`), so phone
+    # apps and the web client load it from this server, never from the
+    # station's own site.
+    logo: str | None = None
+
+
+# The built-in stations' logos, rendered once from NRK's own channel logos and
+# shipped with maneki so the defaults show a logo without asking NRK each time.
+LOGOS_DIR = Path(__file__).parent / "radio_logos"
+
+
+def station_cover_id(station: RadioStation) -> str:
+    """`rs_<sha1[:16] of the stream URL>`: stable across restarts and list order."""
+    return "rs_" + hashlib.sha1(station.url.encode("utf-8")).hexdigest()[:16]
 
 
 # Baked-in defaults. Add new entries here — `load_stations()` will pick
@@ -36,24 +52,28 @@ DEFAULT_STATIONS: list[RadioStation] = [
         url="https://lyd.nrk.no/icecast/aac/high/s0w7hwn47m/mp3",
         description="NRK's pop / hits station",
         homepage="https://radio.nrk.no/direkte/mp3",
+        logo=str(LOGOS_DIR / "nrk-mp3.png"),
     ),
     RadioStation(
         name="NRK P3",
         url="https://lyd.nrk.no/icecast/aac/high/s0w7hwn47m/p3",
         description="NRK P3 — youth talk + music",
         homepage="https://radio.nrk.no/direkte/p3",
+        logo=str(LOGOS_DIR / "nrk-p3.png"),
     ),
     RadioStation(
         name="NRK P3 Musikk",
         url="https://lyd.nrk.no/icecast/aac/high/s0w7hwn47m/p3musikk",
         description="P3-style music, no talk",
         homepage="https://radio.nrk.no/direkte/p3musikk",
+        logo=str(LOGOS_DIR / "nrk-p3-musikk.png"),
     ),
     RadioStation(
         name="NRK Nyheter",
         url="https://lyd.nrk.no/icecast/aac/high/s0w7hwn47m/nyheter",
         description="NRK news (no music)",
         homepage="https://radio.nrk.no/direkte/nyheter",
+        logo=str(LOGOS_DIR / "nrk-nyheter.png"),
     ),
 ]
 
@@ -72,6 +92,7 @@ _USER_TEMPLATE = """\
 #   url = "https://example/stream"
 #   description = "Short description"   # optional
 #   homepage = "https://example.com"    # optional
+#   logo = "https://example.com/logo.png" # optional; a URL or an image file path
 """
 
 

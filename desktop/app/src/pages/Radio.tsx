@@ -5,7 +5,7 @@ import { Skeleton } from '@/components/Skeleton'
 import { useStore, useStoreValue } from '@/hooks/use-store'
 import { playerStore, playStation } from '@/lib/player'
 import { sessionStore } from '@/lib/session'
-import { getStations, type Station } from '@/lib/subsonic'
+import { coverUrl, getStations, type Station } from '@/lib/subsonic'
 import { cn } from '@/lib/utils'
 
 /**
@@ -58,7 +58,16 @@ export function RadioPage() {
                                 live && 'bg-muted font-medium',
                             )}
                         >
-                            <RadioIcon className="size-4 shrink-0 text-muted-foreground" aria-hidden />
+                            {/* The station's own logo where it has one; the glyph where it has not. */}
+                            {station.coverArt ? (
+                                <img
+                                    src={coverUrl(credentials, station.coverArt, 96) ?? undefined}
+                                    alt=""
+                                    className="size-8 shrink-0 rounded-md object-cover"
+                                />
+                            ) : (
+                                <RadioIcon className="size-4 shrink-0 text-muted-foreground" aria-hidden />
+                            )}
                             <span className="min-w-0 flex-1 truncate">{station.name}</span>
                             {live && <span className="shrink-0 text-xs text-muted-foreground">playing</span>}
                         </button>
