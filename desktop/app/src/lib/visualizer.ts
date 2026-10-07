@@ -23,9 +23,6 @@ import { createStore } from '@/lib/store'
 /** Where the choice is kept between visits. */
 export const VISUALIZER_KEY = 'maneki.visualizer'
 
-/** Where the drawing is kept between visits. */
-export const VISUALIZER_STYLE_KEY = 'maneki.visualizer.style'
-
 /** How many bars are drawn. Enough to read as a spectrum, few enough to stay bars. */
 export const BAND_COUNT = 32
 
@@ -81,24 +78,14 @@ export function isVisualizerStyle(candidate: string | null): candidate is Visual
     return candidate !== null && (VISUALIZER_STYLES as readonly string[]).includes(candidate)
 }
 
-function readStyle(): VisualizerStyle {
-    try {
-        const stored = localStorage.getItem(VISUALIZER_STYLE_KEY)
-        return isVisualizerStyle(stored) ? stored : DEFAULT_STYLE
-    } catch {
-        return DEFAULT_STYLE
-    }
-}
-
-/** Which drawing both canvases paint. Kept between visits, like whether the strip is drawn. */
-export const visualizerStyle = createStore<VisualizerStyle>(readStyle())
+/**
+ * Which drawing the canvases paint. NOT KEPT BETWEEN VISITS: every launch starts on the plain
+ * column bars, and a switch to another drawing lasts until the app is closed. A drawing chosen
+ * once and saved came back on every launch as a surprise, long after it was picked.
+ */
+export const visualizerStyle = createStore<VisualizerStyle>(DEFAULT_STYLE)
 
 export function setVisualizerStyle(style: VisualizerStyle): void {
-    try {
-        localStorage.setItem(VISUALIZER_STYLE_KEY, style)
-    } catch {
-        // Storage denied: the choice holds for as long as this document is open.
-    }
     visualizerStyle.set(style)
 }
 
