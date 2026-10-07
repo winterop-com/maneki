@@ -5,7 +5,8 @@
 # that both wrappers embed and the wheel ships.
 version: 2
 updates:
-  - package-ecosystem: "pip"
+  # "uv", not "pip": the uv ecosystem rewrites uv.lock alongside pyproject.
+  - package-ecosystem: "uv"
     directory: "/"
     schedule:
       interval: "weekly"
@@ -21,7 +22,7 @@ updates:
       actions:
         patterns: ["*"]
 
-  - package-ecosystem: "npm"
+  - package-ecosystem: "bun"
     directory: "/desktop/electron"
     schedule:
       interval: "weekly"
@@ -41,12 +42,10 @@ updates:
   # regresses there is no way to tell which one did it. Minor and patch
   # updates still batch into one PR; each major now arrives on its own.
   #
-  # Note that Dependabot only rewrites package.json here - it does not
-  # understand bun.lock. Every PR from this ecosystem therefore needs a
-  # matching `cd desktop/react && bun install` commit before it can merge.
-  # CI enforces that: the SPA build step runs `bun install --frozen-lockfile`
-  # and fails on a desynced lockfile.
-  - package-ecosystem: "npm"
+  # The three JS trees are Bun projects (bun.lock, no package-lock.json), so
+  # they use the "bun" ecosystem, which rewrites bun.lock itself. Under "npm"
+  # Dependabot refuses a tree with a bun.lock and every update job fails.
+  - package-ecosystem: "bun"
     directory: "/desktop/react"
     schedule:
       interval: "weekly"
@@ -56,9 +55,8 @@ updates:
         update-types: ["minor", "patch"]
 
   # The new client, on the same terms as the SPA above: minor and patch
-  # updates batch, majors arrive one at a time, and bun.lock needs a matching
-  # `cd desktop/app && bun install` commit.
-  - package-ecosystem: "npm"
+  # updates batch, majors arrive one at a time.
+  - package-ecosystem: "bun"
     directory: "/desktop/app"
     schedule:
       interval: "weekly"
