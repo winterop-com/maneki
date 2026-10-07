@@ -118,9 +118,10 @@ export function SignIn() {
     const server = typing ? (baseUrl === '' ? null : baseUrl) : (found?.origin ?? null)
 
     return (
-        // The brand pane is bounded: never narrower than 560px, never wider than 1056px, so a
-        // wide display spends what it gains on the form rather than on the mark.
-        <div className="flex min-h-svh flex-col bg-background lg:grid lg:grid-cols-[minmax(35rem,45%)_1fr] xl:grid-cols-[clamp(35rem,52vw,66rem)_1fr]">
+        // From xl the form pane is the bounded one: 544px to 640px, enough for the form and its
+        // margins, so a wide display spends what it gains on the mark rather than on empty
+        // space around a fixed-width form.
+        <div className="flex min-h-svh flex-col bg-background lg:grid lg:grid-cols-[minmax(35rem,45%)_1fr] xl:grid-cols-[1fr_clamp(34rem,36vw,40rem)]">
             {/* The version is whichever server has answered: the one found, or the one typed
                 once a connect has reached it -- a wrong password still says which maneki it is. */}
             <BrandPane
