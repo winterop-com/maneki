@@ -55,8 +55,8 @@ const GLYPHS = { artist: User, album: Disc3, track: Music2 }
  * typing stops is one request for a word rather than five, and the effect is torn down on every
  * change, so an answer to a query somebody has moved on from never lands on the screen.
  *
- * ENTER ON A TRACK PLAYS ITS ALBUM FROM THERE, which is what picking a track does everywhere
- * else in this app -- the album screen, the queue, the star list. It costs one `getAlbum`, and
+ * ENTER ON A TRACK PLAYS ITS ALBUM FROM THERE, AND OPENS IT, which is what picking a track does
+ * everywhere else in this app -- the album screen, the queue, the star list. It costs one `getAlbum`, and
  * a track that has no album, or whose album cannot be read, plays alone rather than not at all.
  */
 export function SearchOverlay() {
@@ -115,7 +115,11 @@ export function SearchOverlay() {
             return
         }
         const song = found?.songs.find((one) => one.id === row.id)
-        if (credentials && song) void playFrom(credentials, song)
+        if (!credentials || !song) return
+        // The record it is out of comes up with it, so the track playing is also a track on
+        // screen: the reader sees where it sits and what follows.
+        if (song.albumId !== undefined) void navigate(`/music/album/${song.albumId}`)
+        void playFrom(credentials, song)
     }
 
     return (
