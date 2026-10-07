@@ -45,6 +45,7 @@ What's landed, what's open, what's speculative. Keep this in sync with code chan
 The Subsonic API is the only audio protocol today; the video API is Maneki-native but unstable. Stage 3 is to design Maneki's own clean protocol for both kinds, then offer Subsonic / Jellyfin compat layers on top for existing clients.
 
 - **Protocol design**: pick the shape (REST vs gRPC vs JSON-RPC; flat vs typed). Library, playback, search, ratings, resume. One protocol for audio + video so the SPA only speaks one dialect.
+- **Gaps already patched over in Subsonic** (each a non-standard field or endpoint today, which phone clients ignore): station logos (`coverArt` on a station), whether a station may be removed (`custom`), stable station ids, station search (`searchRadioStations`), the ICY now-playing title (`radioMeta`), audiobook chapters, and errors as HTTP 200 envelopes instead of statuses. The native protocol should carry these as first-class fields.
 - **Audio Subsonic compat facade**: keep `/audio/rest/*` working against Maneki-native data so existing Subsonic clients (Symfonium, Amperfy, play:Sub, Feishin) keep working.
 - **Jellyfin / Plex compat**: deferred until the native protocol is stable. Useful for Infuse / Streamio / VLC / mobile-app integration.
 
