@@ -1,9 +1,9 @@
 /**
- * The star on a track, for everything that is not the row the track is drawn on.
+ * The star on a track, an album or an artist, for everything that is not the row it is drawn on.
  *
  * THE SERVER ANSWERS A STAR WITH NOTHING. `star` and `unstar` return an empty envelope, so
  * there is no fresh `Song` to redraw from and no way to ask cheaply what the mark is now. What
- * this client wrote is therefore held here, keyed by track id, and read on top of whatever the
+ * this client wrote is therefore held here, keyed by id, and read on top of whatever the
  * search or the album read said -- which is how the key and the button on the album row agree
  * about a track somebody starred from the player bar a minute ago.
  *
@@ -21,15 +21,35 @@
 import { toast } from 'sonner'
 
 import { createStore } from '@/lib/store'
-import { setStarred, type Credentials, type Song } from '@/lib/subsonic'
+import { setStarred, type Credentials } from '@/lib/subsonic'
 
-/** What this client has starred or unstarred since it loaded, by track id. */
+/**
+ * Anything the server keeps a star for: a track, an album or an artist.
+ *
+ * ONE ID SPACE. The server's ids carry their kind (`tr_`, `al_`, `ar_`) and `star` takes any of
+ * them as `id`, so one map of marks holds all three without one shadowing another.
+ */
+export interface Starrable {
+    id: string
+    starred?: string
+    /** A track's name. */
+    title?: string
+    /** An album's or an artist's name. */
+    name?: string
+}
+
+/** What a refusal calls the thing: a track by its title, an album or an artist by its name. */
+export function starName(item: Starrable): string {
+    return item.title ?? item.name ?? ''
+}
+
+/** What this client has starred or unstarred since it loaded, by id. */
 export const starMarks = createStore<ReadonlyMap<string, boolean>>(new Map())
 
-/** Whether a track is starred: what this client last wrote, or what the server said. */
-export function starredNow(marks: ReadonlyMap<string, boolean>, song: Song | null): boolean {
-    if (song === null) return false
-    return marks.get(song.id) ?? Boolean(song.starred)
+/** Whether something is starred: what this client last wrote, or what the server said. */
+export function starredNow(marks: ReadonlyMap<string, boolean>, item: Starrable | null): boolean {
+    if (item === null) return false
+    return marks.get(item.id) ?? Boolean(item.starred)
 }
 
 /** The marks with one id written. A fresh map, because a store publishes on identity. */
@@ -50,26 +70,27 @@ export function withMark(
  * just seen come undone is their own gesture. The server's own sentence follows it where there
  * is one: a refusal that names the reason is one somebody can do something about.
  */
-export function refusedStar(song: Song, wanted: boolean, error: unknown): string {
-    const asked = wanted ? `Could not star ${song.title}` : `Could not unstar ${song.title}`
+export function refusedStar(name: string, wanted: boolean, error: unknown): string {
+    const asked = wanted ? `Could not star ${name}` : `Could not unstar ${name}`
     const reason = error instanceof Error ? error.message.trim() : ''
     return reason ? `${asked}: ${reason}` : `${asked}.`
 }
 
 /**
- * Star a track, or take the mark off. Answers what the star now is, or null when there is none.
+ * Star a track, an album or an artist, or take the mark off. Answers what the star now is, or
+ * null when there is none.
  *
  * The mark is written before the request is made and taken back if the request is refused: a
  * star that waited for a round trip would be a key press with nothing behind it for a moment,
  * on the one gesture somebody repeats while a track is playing.
  */
-export function toggleStar(credentials: Credentials | undefined, song: Song | null): boolean | null {
-    if (!credentials || song === null) return null
-    const wanted = !starredNow(starMarks.get(), song)
-    starMarks.update((marks) => withMark(marks, song.id, wanted))
-    void setStarred(credentials, song.id, wanted).catch((error: unknown) => {
-        starMarks.update((marks) => withMark(marks, song.id, !wanted))
-        toast.error(refusedStar(song, wanted, error))
+export function toggleStar(credentials: Credentials | undefined, item: Starrable | null): boolean | null {
+    if (!credentials || item === null) return null
+    const wanted = !starredNow(starMarks.get(), item)
+    starMarks.update((marks) => withMark(marks, item.id, wanted))
+    void setStarred(credentials, item.id, wanted).catch((error: unknown) => {
+        starMarks.update((marks) => withMark(marks, item.id, !wanted))
+        toast.error(refusedStar(starName(item), wanted, error))
     })
     return wanted
 }

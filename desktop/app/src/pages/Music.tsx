@@ -14,7 +14,7 @@ import { sessionStore } from '@/lib/session'
 import { Input } from '@/components/ui/input'
 import { Segmented } from '@/components/Segmented'
 import { articlesOf, fold, SORT_LABELS, SORT_MODES, sortArtists, type SortMode } from '@/lib/sorting'
-import { starMarks, starredNow, toggleStar } from '@/lib/star'
+import { starMarks, starName, starredNow, toggleStar, type Starrable } from '@/lib/star'
 import {
     coverUrl,
     getAlbum,
@@ -102,7 +102,7 @@ function Favourites({ credentials }: { credentials: Credentials }) {
                     <h2 className="mb-2 text-sm font-medium">Artists</h2>
                     <ul>
                         {starred.artists.map((artist) => (
-                            <li key={artist.id}>
+                            <li key={artist.id} className="flex items-center">
                                 <button
                                     type="button"
                                     onClick={() => navigate(`/music/artist/${artist.id}`)}
@@ -114,6 +114,7 @@ function Favourites({ credentials }: { credentials: Credentials }) {
                                         {artist.albumCount === 1 ? 'album' : 'albums'}
                                     </span>
                                 </button>
+                                <StarButton credentials={credentials} item={artist} />
                             </li>
                         ))}
                     </ul>
@@ -124,7 +125,9 @@ function Favourites({ credentials }: { credentials: Credentials }) {
                     <h2 className="mb-2 text-sm font-medium">Albums</h2>
                     <ul className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
                         {starred.albums.map((album) => (
-                            <li key={album.id}>
+                            // The star sits beside the card's two lines rather than inside the
+                            // card: a button inside a button is not a thing a page may hold.
+                            <li key={album.id} className="relative">
                                 <button
                                     type="button"
                                     onClick={() => navigate(`/music/album/${album.id}`)}
@@ -136,9 +139,16 @@ function Favourites({ credentials }: { credentials: Credentials }) {
                                         art={album.coverArt}
                                         className="mb-2 w-full rounded-md"
                                     />
-                                    <p className="truncate text-sm font-medium">{album.name}</p>
-                                    <p className="truncate text-xs text-muted-foreground">{album.artist}</p>
+                                    <p className="truncate pr-8 text-sm font-medium">{album.name}</p>
+                                    <p className="truncate pr-8 text-xs text-muted-foreground">
+                                        {album.artist}
+                                    </p>
                                 </button>
+                                <StarButton
+                                    credentials={credentials}
+                                    item={album}
+                                    className="absolute right-1 bottom-2"
+                                />
                             </li>
                         ))}
                     </ul>
@@ -167,7 +177,7 @@ function Favourites({ credentials }: { credentials: Credentials }) {
                                     OFF. The same button the album rows wear, reading the same
                                     marks, so a track unstarred here goes from the album screen
                                     and from the player bar's own star in the same gesture. */}
-                                <StarButton credentials={credentials} song={song} />
+                                <StarButton credentials={credentials} item={song} />
                             </li>
                         ))}
                     </ol>
@@ -400,6 +410,7 @@ function ArtistScreen({ credentials, id }: { credentials: Credentials; id: strin
                 title={data.artist.name}
                 onBack={() => navigate('/music')}
                 trail={[{ label: 'Music', to: '/music' }]}
+                action={<StarButton credentials={credentials} item={data.artist} />}
             />
             <ul className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
                 {data.albums.map((album) => (
@@ -520,16 +531,19 @@ function AlbumScreen({ credentials, id }: { credentials: Credentials; id: string
                         : []),
                 ]}
                 action={
-                    <Button
-                        variant="ghost"
-                        size="sm"
-                        aria-label={ADD_ALBUM_LABEL}
-                        title={ADD_ALBUM_LABEL}
-                        onClick={() => setAdding(wholeAlbum)}
-                    >
-                        <ListPlus aria-hidden />
-                        <span className="hidden sm:inline">Add to playlist</span>
-                    </Button>
+                    <>
+                        <StarButton credentials={credentials} item={album} />
+                        <Button
+                            variant="ghost"
+                            size="sm"
+                            aria-label={ADD_ALBUM_LABEL}
+                            title={ADD_ALBUM_LABEL}
+                            onClick={() => setAdding(wholeAlbum)}
+                        >
+                            <ListPlus aria-hidden />
+                            <span className="hidden sm:inline">Add to playlist</span>
+                        </Button>
+                    </>
                 }
             />
             {/* A CONTAINER, NOT THE VIEWPORT. What this screen has room for is decided by the
@@ -604,7 +618,7 @@ function AlbumScreen({ credentials, id }: { credentials: Credentials; id: string
                                         </span>
                                     </button>
                                     <AddButton song={song} onAdd={setAdding} />
-                                    <StarButton credentials={credentials} song={song} />
+                                    <StarButton credentials={credentials} item={song} />
                                 </li>
                             </Fragment>
                         )
@@ -636,23 +650,33 @@ function AddButton({ song, onAdd }: { song: Song; onAdd: (adding: Adding) => voi
 }
 
 /**
- * The star on a track.
+ * The star on a track, an album or an artist.
  *
  * WHAT THIS CLIENT WROTE IS HELD IN ONE PLACE, `lib/star`, rather than in this button's own
  * state: the star key stars whatever is playing, which may be the row below this one, and two
  * copies of the answer would have the row say one thing and the key another.
  */
-export function StarButton({ credentials, song }: { credentials: Credentials; song: Song }) {
+export function StarButton({
+    credentials,
+    item,
+    className,
+}: {
+    credentials: Credentials
+    item: Starrable
+    className?: string
+}) {
     const marks = useStore(starMarks)
-    const starred = starredNow(marks, song)
+    const starred = starredNow(marks, item)
+    const name = starName(item)
     return (
         <Button
             variant="ghost"
             size="sm"
-            aria-label={starred ? `Unstar ${song.title}` : `Star ${song.title}`}
+            className={className}
+            aria-label={starred ? `Unstar ${name}` : `Star ${name}`}
             aria-pressed={starred}
             onClick={() => {
-                toggleStar(credentials, song)
+                toggleStar(credentials, item)
             }}
         >
             <Star className={cn('size-4', starred && 'fill-primary text-primary')} aria-hidden />

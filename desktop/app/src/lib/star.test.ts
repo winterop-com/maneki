@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, test } from 'vitest'
 
-import { forgetMarks, refusedStar, starMarks, starredNow, withMark } from '@/lib/star'
+import { forgetMarks, refusedStar, starMarks, starName, starredNow, withMark } from '@/lib/star'
 import { SubsonicError, type Song } from '@/lib/subsonic'
 
 function song(id: string, starred?: string): Song {
@@ -52,17 +52,30 @@ describe('writing a mark', () => {
 // finger and quietly came off again.
 describe('a refused star', () => {
     test('says what was asked for rather than what is true now', () => {
-        expect(refusedStar(song('Blue Monday'), true, new Error(''))).toBe('Could not star Blue Monday.')
-        expect(refusedStar(song('Blue Monday'), false, new Error(''))).toBe('Could not unstar Blue Monday.')
+        expect(refusedStar('Blue Monday', true, new Error(''))).toBe('Could not star Blue Monday.')
+        expect(refusedStar('Blue Monday', false, new Error(''))).toBe('Could not unstar Blue Monday.')
     })
 
     test("carries the server's own reason, which is what somebody can act on", () => {
-        expect(refusedStar(song('Blue Monday'), true, new SubsonicError(50, 'not allowed'))).toBe(
+        expect(refusedStar('Blue Monday', true, new SubsonicError(50, 'not allowed'))).toBe(
             'Could not star Blue Monday: not allowed',
         )
     })
 
     test('says it plainly when whatever was thrown has nothing to add', () => {
-        expect(refusedStar(song('Blue Monday'), true, 'nope')).toBe('Could not star Blue Monday.')
+        expect(refusedStar('Blue Monday', true, 'nope')).toBe('Could not star Blue Monday.')
+    })
+})
+
+describe('what a star is called', () => {
+    test('is a track by its title, and an album or an artist by its name', () => {
+        expect(starName({ id: 'tr_1', title: 'Blue Monday' })).toBe('Blue Monday')
+        expect(starName({ id: 'al_1', name: 'Power, Corruption & Lies' })).toBe('Power, Corruption & Lies')
+    })
+
+    test('holds an album and a track apart, because their ids carry their kind', () => {
+        const marks = withMark(new Map(), 'al_1', true)
+        expect(starredNow(marks, { id: 'al_1', name: 'An album' })).toBe(true)
+        expect(starredNow(marks, { id: 'tr_1', title: 'A track' })).toBe(false)
     })
 })

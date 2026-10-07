@@ -372,7 +372,7 @@ function PlaylistScreen({ credentials, id }: { credentials: Credentials; id: str
                                         {clock(song.duration ?? 0)}
                                     </span>
                                 </button>
-                                <StarButton credentials={credentials} song={song} />
+                                <StarButton credentials={credentials} item={song} />
                                 <Button
                                     variant="ghost"
                                     size="sm"
