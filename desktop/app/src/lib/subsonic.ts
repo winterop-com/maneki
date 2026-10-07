@@ -268,6 +268,50 @@ export interface Station {
     homePageUrl?: string
     /** The station's logo, served by `getCoverArt` like an album cover. Absent when it has none. */
     coverArt?: string
+    /** Added on this server (maneki's radio.toml), so it can be removed. Built-in ones cannot. */
+    custom?: boolean
+}
+
+/** A station as the directory search found it: not this server's until it is added. */
+export interface FoundStation {
+    id: string
+    name: string
+    streamUrl: string
+    homepageUrl?: string
+    /** An outside image URL; the server fetches and serves it once the station is added. */
+    logo?: string
+    country?: string
+    countryCode?: string
+    tags: string[]
+    codec?: string
+    bitrate?: number
+    /** Already on this server's list, by stream URL. */
+    added: boolean
+}
+
+/** Search the open station directory (radio-browser.info) through the server. */
+export async function searchStations(credentials: Credentials, query: string): Promise<FoundStation[]> {
+    const inner = await call<{ radioSearch?: { station?: FoundStation[] } }>(
+        credentials,
+        'searchRadioStations',
+        { query },
+    )
+    return inner.radioSearch?.station ?? []
+}
+
+/** Keep a found station on this server, with its logo. */
+export async function addStation(credentials: Credentials, found: FoundStation): Promise<void> {
+    await call(credentials, 'createInternetRadioStation', {
+        streamUrl: found.streamUrl,
+        name: found.name,
+        homepageUrl: found.homepageUrl,
+        logo: found.logo,
+    })
+}
+
+/** Take a station this server added off its list again. */
+export async function removeStation(credentials: Credentials, station: Station): Promise<void> {
+    await call(credentials, 'deleteInternetRadioStation', { id: station.id })
 }
 
 /** The stations this server carries. */
