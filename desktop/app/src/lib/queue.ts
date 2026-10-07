@@ -2,7 +2,7 @@
  * The order a queue is played in, and what happens when it runs out.
  *
  * TWO LISTS, NOT ONE SHUFFLED LIST. The queue keeps the album's own order -- that is what the
- * side panel draws and what "track 4 of 12" means -- and the play order is a separate list of
+ * album screen draws and what "track 4 of 12" means -- and the play order is a separate list of
  * positions into it. Shuffling rearranges the second list and leaves the first alone, so
  * turning shuffle off mid-album carries on from where you are in the album rather than from
  * wherever the shuffled copy had got to.

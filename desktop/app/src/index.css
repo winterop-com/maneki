@@ -36,9 +36,8 @@
     --text-base: 1rem;
     --text-base--line-height: 1.5rem;
 
-    /* THE SHELL'S TWO STRIPS, AND EVERY COLUMN WEARS THE SAME ONE. The rail, the content and
-       the right panel each draw their own top row and the rail and the content each draw
-       their own foot, so the border between the strip and the work is one unbroken rule
+    /* THE SHELL'S TWO STRIPS, AND EVERY COLUMN WEARS THE SAME ONE. The rail and the content
+       each draw their own top row and their own foot, so the border between the strip and the work is one unbroken rule
        across the width of the app only if all of them are exactly this tall. A column that
        sized its strip to what happens to be in it is a step in the edge of the window. */
     --spacing-shell-top: 46px;
@@ -827,7 +826,7 @@ html.dark[data-theme='contrast'],
 
    The panel edges are dragged, and a drag edge that lights up in border gray reads as a
    second scrollbar beside the real one. The identity tint says "control", and saying it
-   once here keeps the right panel's edge and the rail's edge from drifting apart.
+   once here keeps every drag edge in the app from drifting apart.
    --------------------------------------------------------------------------- */
 .resize-handle {
     position: relative;
@@ -2050,8 +2049,8 @@ html.dark[data-theme='neon'],
 /* ---------------------------------------------------------------------------
    THE SHELL STANDS STILL FOR SOMEBODY WHO ASKED IT TO.
 
-   Four things in the chassis move under a transition of their own: the rail's width as it
-   folds, the drawer travelling in from the left edge, the right panel's width, and the
+   Three things in the chassis move under a transition of their own: the rail's width as it
+   folds, the drawer travelling in from the left edge, and the
    hairline over the player bar walking across as a track plays. Each is the result of a
    decision somebody made with a click, and a reader who has told their machine they want less
    motion has already said they would rather have the result than the travel.

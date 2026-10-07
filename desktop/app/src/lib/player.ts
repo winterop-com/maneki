@@ -705,7 +705,7 @@ export function skipBy(seconds: number): void {
 /**
  * Play the book already on the element, from `atS`.
  *
- * What a chapter row in the side panel does, and it starts rather than scrubs: picking a
+ * What a chapter row on the book screen does, and it starts rather than scrubs: picking a
  * chapter out of a list is asking to hear it, where dragging the scrubber is not.
  */
 export function playChapter(atS: number): void {

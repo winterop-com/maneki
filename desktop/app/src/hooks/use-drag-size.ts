@@ -6,8 +6,8 @@ export type DragAxis = 'x' | 'y'
 /**
  * Follow a drag on a panel edge and write the size it expresses.
  *
- * ONE HOOK FOR BOTH AXES. A rail's right edge, the right panel's left edge and the run
- * terminal's top edge are the same three sentences with a different coordinate read off the
+ * ONE HOOK FOR BOTH AXES. A rail's right edge and a pane's top edge are the same
+ * sentences with a different coordinate read off the
  * pointer, so the axis is a parameter rather than a second copy of the file.
  *
  * The drag is followed on the document rather than on the handle, so the pointer leaving the

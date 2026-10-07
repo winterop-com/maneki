@@ -14,7 +14,7 @@ import {
 } from '@/lib/player'
 import { dialogUp } from '@/lib/dialogs'
 import { paletteOpen } from '@/lib/palette'
-import { togglePanel, toggleRail } from '@/lib/panels'
+import { toggleRail } from '@/lib/panels'
 import { toggleLyrics } from '@/lib/lyrics'
 import { muteKeyClaim, stageKeyClaim, transportClaim } from '@/lib/screen-keys'
 import { closeSearch, openSearch, searchOpen } from '@/lib/search'
@@ -33,7 +33,6 @@ import {
     steps,
     togglesMute,
     togglesShuffle,
-    togglesPanel,
     togglesPlayback,
     togglesRail,
     togglesVisualizer,
@@ -82,11 +81,6 @@ export function useAppShortcuts(onShortcuts: () => void): void {
             if (togglesRail(press, focused(), apple)) {
                 event.preventDefault()
                 toggleRail()
-                return
-            }
-            if (togglesPanel(press, focused(), apple)) {
-                event.preventDefault()
-                togglePanel()
                 return
             }
             // A chord is answered wherever focus is; a bare key is not answered at all while

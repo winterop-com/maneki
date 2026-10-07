@@ -19,9 +19,6 @@ export const PALETTE_KEY = 'k'
 /** The letter that collapses and expands the navigation rail, under the platform's own modifier. */
 export const RAIL_KEY = 'b'
 
-/** The letter that shows and hides the side panel, under the platform's own modifier. */
-export const PANEL_KEY = 'j'
-
 /** The character that puts this list on screen. */
 export const SHORTCUTS_KEY = '?'
 
@@ -123,19 +120,6 @@ export function opensPalette(press: KeyPress): boolean {
  */
 export function togglesRail(press: KeyPress, focused: FocusedField | null, apple: boolean): boolean {
     if (press.key.toLowerCase() !== RAIL_KEY) return false
-    if (press.altKey) return false
-    if (apple ? !press.metaKey : !press.ctrlKey || press.metaKey) return false
-    return !(focused?.isContentEditable ?? false)
-}
-
-/**
- * Whether this press shows or hides the side panel.
- *
- * The rail's own modifier rule, for the same reason: Ctrl+J on macOS is a text field's own
- * binding, and a panel toggle that swallowed it would take that away from every input here.
- */
-export function togglesPanel(press: KeyPress, focused: FocusedField | null, apple: boolean): boolean {
-    if (press.key.toLowerCase() !== PANEL_KEY) return false
     if (press.altKey) return false
     if (apple ? !press.metaKey : !press.ctrlKey || press.metaKey) return false
     return !(focused?.isContentEditable ?? false)
@@ -344,7 +328,6 @@ export function shortcuts(apple: boolean): Shortcut[] {
     return [
         { id: 'palette', action: 'Open the command palette', keys: [modifier, 'K'] },
         { id: 'rail', action: 'Collapse or expand the navigation', keys: [modifier, 'B'] },
-        { id: 'panel', action: 'Show or hide the side panel', keys: [modifier, 'J'] },
         // The transport means what somebody is looking at: a screen with a video on it claims
         // these three for the video while it is open, and they are the queue's everywhere else.
         { id: 'play', action: 'Start or stop what is playing', keys: ['Space'] },

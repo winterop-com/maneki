@@ -32,8 +32,7 @@ export const EXPAND_LABEL = 'Expand the navigation'
 /**
  * The navigation rail: every screen this account is offered, in one column.
  *
- * Expanded it shows labels at a width the grip on its right edge drags, kept in pixels the
- * way the right panel's is; collapsed it is 56px of icons and the labels come back as
+ * Expanded it shows labels at a width the grip on its right edge drags, kept in pixels; collapsed it is 56px of icons and the labels come back as
  * tooltips, and the grip goes with them.
  *
  * ONE LINE PER ENTRY. Pipelines, Runs, Schedules, Connections and Blocks are what this app is

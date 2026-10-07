@@ -533,7 +533,7 @@ function AlbumScreen({ credentials, id }: { credentials: Credentials; id: string
                 }
             />
             {/* A CONTAINER, NOT THE VIEWPORT. What this screen has room for is decided by the
-                rail and the side panel as much as by the window, so the cover is sized against
+                rail as much as by the window, so the cover is sized against
                 the pane it is in: drag the rail and the art follows, instead of a fixed square
                 sliding sideways with a growing gap beside it. */}
             <div className="@container flex items-start gap-4">

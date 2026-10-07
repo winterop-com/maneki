@@ -10,7 +10,6 @@ import {
     Moon,
     Pause,
     PanelLeft,
-    PanelRight,
     Palette,
     Play,
     Maximize2,
@@ -40,10 +39,8 @@ import { ConnectionBanner } from '@/components/ConnectionBanner'
 import { FullscreenVisualizer } from '@/components/FullscreenVisualizer'
 import { LyricsOverlay } from '@/components/LyricsOverlay'
 import { NavDrawer, OPEN_NAV_LABEL } from '@/components/NavDrawer'
-import { PanelSheet } from '@/components/PanelSheet'
 import { PlayerBar } from '@/components/PlayerBar'
 import { Rail } from '@/components/Rail'
-import { RightPanel } from '@/components/RightPanel'
 import { SearchBox } from '@/components/SearchBox'
 import { SearchOverlay, SEARCH_TITLE } from '@/components/SearchOverlay'
 import { ShortcutsDialog } from '@/components/ShortcutsDialog'
@@ -65,7 +62,7 @@ import {
     type PaletteAction,
 } from '@/lib/palette'
 import { setDialogOpen } from '@/lib/dialogs'
-import { railCollapsed, togglePanel, toggleRail } from '@/lib/panels'
+import { railCollapsed, toggleRail } from '@/lib/panels'
 import { RESCAN_LABEL, rescan } from '@/lib/rescan'
 import {
     currentSong,
@@ -103,7 +100,6 @@ const selectChapterCount = (state: { book: { chapter_list: unknown[] } | null })
     state.book?.chapter_list.length ?? 0
 
 export const SIGN_OUT_LABEL = 'Sign out'
-export const TOGGLE_PANEL_LABEL = 'Show or hide the side panel'
 export const OPEN_PALETTE_LABEL = 'Open the command palette'
 
 /**
@@ -129,9 +125,6 @@ const SettingsDialog = lazy(() =>
  * playing is the app's rather than one screen's: it survives navigation, the keys that drive it
  * are bound on the document, and a bar that stopped at the rail's edge would read as the
  * screen's own furniture.
- *
- * WHAT THE QUEUE IS GOES IN THE SIDE PANEL, filled here for the same reason: a screen that
- * filled it would take it away again on the way to another one.
  */
 export function AppShell({ children }: { children: ReactNode }) {
     const session = useStore(sessionStore)
@@ -387,14 +380,6 @@ export function AppShell({ children }: { children: ReactNode }) {
                 run: toggleRail,
             },
             {
-                id: 'view:panel',
-                title: TOGGLE_PANEL_LABEL,
-                group: VIEW_GROUP,
-                icon: PanelRight,
-                keywords: ['queue', 'up next', 'details'],
-                run: togglePanel,
-            },
-            {
                 id: 'view:search',
                 title: SEARCH_TITLE,
                 group: VIEW_GROUP,
@@ -586,9 +571,6 @@ export function AppShell({ children }: { children: ReactNode }) {
                             />
                             <TooltipContent side="bottom">{OPEN_PALETTE_LABEL}</TooltipContent>
                         </Tooltip>
-                        {/* No panel toggle up here: the queue is what fills the panel, and the
-                            player bar's own Up next button already opens it. Two controls for
-                            one panel is one too many. */}
                         <ThemeToggle />
                     </header>
 
@@ -597,10 +579,7 @@ export function AppShell({ children }: { children: ReactNode }) {
                     <ConnectionBanner />
 
                     <main className="flex min-h-0 w-full flex-1 flex-col overflow-y-auto">{children}</main>
-
-                    <PanelSheet />
                 </div>
-                <RightPanel />
                 <div
                     data-shell-rule="top"
                     className="pointer-events-none absolute inset-x-0 top-shell-top z-20 h-px bg-border-strong"

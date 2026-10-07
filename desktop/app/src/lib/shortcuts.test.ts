@@ -13,7 +13,6 @@ import {
     shortcuts,
     starsCurrent,
     togglesMute,
-    togglesPanel,
     togglesPlayback,
     togglesRail,
     togglesTheater,
@@ -145,18 +144,6 @@ describe('the transport keys', () => {
     })
 })
 
-describe('the panel chord', () => {
-    test('is the platform modifier and J, never the other one', () => {
-        expect(togglesPanel(press('j', { metaKey: true }), null, true)).toBe(true)
-        expect(togglesPanel(press('j', { ctrlKey: true }), null, true)).toBe(false)
-        expect(togglesPanel(press('j', { ctrlKey: true }), null, false)).toBe(true)
-        expect(togglesPanel(press('j', { metaKey: true }), null, false)).toBe(false)
-    })
-
-    test('leaves prose alone, where the browser claims the letter', () => {
-        expect(togglesPanel(press('j', { metaKey: true }), PROSE, true)).toBe(false)
-    })
-})
 describe('the theater key', () => {
     test('is a bare letter, matched by the character it produced', () => {
         expect(togglesTheater(press('t'), null)).toBe(true)
