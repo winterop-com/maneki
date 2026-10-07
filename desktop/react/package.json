@@ -1,7 +1,7 @@
 {
   "name": "maneki-desktop-react",
   "version": "0.19.24",
-  "description": "Maneki desktop SPA \u2014 the React client shared by the browser, Tauri, and Electron shells.",
+  "description": "Maneki desktop SPA — the React client shared by the browser, Tauri, and Electron shells.",
   "private": true,
   "type": "module",
   "scripts": {
@@ -17,7 +17,7 @@
     "video.js": "^8.24.1"
   },
   "devDependencies": {
-    "@vitejs/plugin-react": "^6.1.1",
-    "vite": "^8.3.0"
+    "@vitejs/plugin-react": "^6.1.2",
+    "vite": "^8.3.3"
   }
 }
