@@ -24,9 +24,8 @@ import { currentShell, startNativeWindowDrag } from '@/lib/desktop'
 /**
  * The strips a press moves the window from.
  *
- * `data-shell-strip="top"` is already what the rail's head, the top bar and the panel's tab
- * strip mark themselves with -- between them they are the shell's top strip, which is the title
- * bar. `data-window-drag` is the opt-in for anything that is a title bar without being one of
+ * `data-shell-strip="top"` is already what the rail's head and the top bar mark themselves
+ * with -- between them they are the shell's top strip, which is the title bar. `data-window-drag` is the opt-in for anything that is a title bar without being one of
  * those, such as a screen that draws its own.
  */
 const DRAG_REGION = '[data-window-drag], [data-shell-strip="top"]'
