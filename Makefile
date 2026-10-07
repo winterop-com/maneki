@@ -1,4 +1,4 @@
-.PHONY: help install lint check test app app-dev app-fmt app-gate coverage docs docs-serve docs-build build build-python dist-collect desktop-build-frontend desktop-sync-frontend desktop-sync-version desktop-tauri desktop-tauri-dev desktop-tauri-build _wipe-tauri-userdata desktop-electron desktop-electron-dev desktop-electron-build _wipe-electron-userdata ui-static-sync clean
+.PHONY: help install lint check test app app-dev app-fmt app-gate coverage docs docs-serve docs-build build build-python dist-collect desktop-build-frontend desktop-sync-frontend desktop-sync-version desktop-tauri desktop-tauri-app desktop-tauri-dev desktop-tauri-build _wipe-tauri-userdata desktop-electron desktop-electron-dev desktop-electron-build _wipe-electron-userdata ui-static-sync clean
 
 UV := $(shell command -v uv 2> /dev/null)
 
@@ -31,6 +31,7 @@ help:
 	@echo "  build-python Build Python wheel + sdist via uv build (-> ./dist)"
 	@echo "  dist-collect Copy desktop build artifacts into ./dist for easy access"
 	@echo "  desktop-tauri        Build the Tauri desktop app .app bundle (release)"
+	@echo "  desktop-tauri-app    Build only the Tauri .app (no .dmg) for installing by hand"
 	@echo "  desktop-tauri-dev    Run Tauri dev (wipes user-data first for a fresh launch)"
 	@echo "  desktop-tauri-build  Same as desktop-tauri (explicit name)"
 	@echo "  desktop-electron     Build the Electron app .dmg under desktop/electron/dist/"
@@ -184,6 +185,12 @@ desktop-sync-version:
 
 desktop-tauri: desktop-tauri-build
 
+# Just the .app, for installing into /Applications by hand. No .dmg: building
+# one mounts it and opens it in Finder every time, which nobody wants when the
+# point is to copy the .app over.
+desktop-tauri-app:
+	@$(MAKE) --no-print-directory desktop-tauri-build TAURI_BUNDLE_FLAGS="--bundles app"
+
 # Wipe Tauri / WebKit user-data dirs so every dev launch starts fresh
 # (no leftover localStorage, cookies, saved session, IndexedDB, or
 # WKWebView cache). macOS-only paths; production builds keep their
@@ -228,10 +235,10 @@ desktop-tauri-build: desktop-sync-frontend desktop-sync-version
 	  SIGN_ID="$${APPLE_SIGNING_IDENTITY:-$$(security find-identity -v -p codesigning 2>/dev/null | sed -n 's/.*"\(Developer ID Application: [^"]*\)".*/\1/p' | head -1)}"; \
 	  if [ -n "$$SIGN_ID" ]; then \
 	    echo ">>> Signing as: $$SIGN_ID"; \
-	    APPLE_SIGNING_IDENTITY="$$SIGN_ID" cargo tauri build; \
+	    APPLE_SIGNING_IDENTITY="$$SIGN_ID" cargo tauri build $(TAURI_BUNDLE_FLAGS); \
 	  else \
 	    echo ">>> No Developer ID in keychain — ad-hoc (unsigned) build"; \
-	    cargo tauri build; \
+	    cargo tauri build $(TAURI_BUNDLE_FLAGS); \
 	  fi
 	@# Tauri 2 has no artifactName option, so post-rename the .dmg /
 	@# .app so they're distinguishable from the Electron sibling
