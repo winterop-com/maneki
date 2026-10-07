@@ -5,12 +5,14 @@ import { HashRouter } from 'react-router'
 
 import App from '@/App'
 import { Toaster } from '@/components/ui/sonner'
+import { installMediaSession } from '@/lib/media-session'
 import { installWindowDrag } from '@/lib/window-drag'
 import '@/index.css'
 
 // The shell's top strip is the window's title bar, and in one of the three homes dragging it
 // has to be asked for rather than declared. Once, on the document, before anything is drawn.
 installWindowDrag()
+installMediaSession()
 
 /**
  * Hash routing, because the bundle is also opened from disk.
