@@ -63,11 +63,16 @@ const TRAIL_WASH = 'rgba(0, 0, 0, 0.35)'
 export function useSpectrum(
     active: boolean,
     bands: number,
-    /** Whether the chosen effect is applied: the stage's, where the spectrum is the show. */
+    /**
+     * Whether the chosen style and effect are applied: the stage's, where the spectrum is the
+     * show. Everywhere else draws plain bars, which is what reads at the size of a strip and
+     * faint behind the player bar's liner notes, whatever the stage was last switched to.
+     */
     withEffect = false,
 ): RefObject<HTMLCanvasElement | null> {
     const canvas = useRef<HTMLCanvasElement | null>(null)
-    const style = useStore(visualizerStyle)
+    const chosenStyle = useStore(visualizerStyle)
+    const style = withEffect ? chosenStyle : 'bars'
     // The ramp is the palette's, not a choice of its own: see `lib/spectrum-themes`.
     const palette = useStore(paletteStore)
     const theme = rampForPalette(palette)

@@ -78,7 +78,7 @@ export function settingsRows(apple: boolean): SettingsRow[] {
         {
             id: 'general:visualizer-style',
             category: 'general',
-            label: 'Spectrum style',
+            label: 'Full-screen spectrum style',
             keywords: [
                 'visualiser',
                 'visualizer',
