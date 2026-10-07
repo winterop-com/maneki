@@ -5,8 +5,7 @@
  * THE ROOM WAS ONLY EVER THE SPECTRUM'S. Dragged tall with the spectrum off it was an empty
  * slab over a 14px title, and with the spectrum on the title was still 14px. Past
  * `LINER_ROOM` the room carries the record instead: a line saying where this sits, the title
- * at a size that grows with the room, who made it, how far through, and a timeline wide enough
- * to aim at. The spectrum, when it is on, is drawn faintly behind all of that.
+ * at a size that grows with the room, who made it, and a timeline wide enough to aim at. The spectrum, when it is on, is drawn faintly behind all of that.
  *
  * PURE, so the wording and the sizes are tested without a DOM.
  */
@@ -26,11 +25,6 @@ const ROOM_AT_MAX = 320
 export function linerTitlePx(room: number): number {
     const span = Math.min(1, Math.max(0, (room - LINER_ROOM) / (ROOM_AT_MAX - LINER_ROOM)))
     return Math.round(TITLE_MIN_PX + span * (TITLE_MAX_PX - TITLE_MIN_PX))
-}
-
-/** The clock beside the title: big enough to read across a room, smaller than the title. */
-export function linerClockPx(room: number): number {
-    return Math.round(linerTitlePx(room) * 0.62)
 }
 
 /**

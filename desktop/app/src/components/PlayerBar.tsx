@@ -25,7 +25,7 @@ import { useStore } from '@/hooks/use-store'
 import { books as booksApi } from '@/lib/api'
 import { clock, songLine } from '@/lib/format'
 import { nowPlayingFace } from '@/lib/lcd'
-import { LINER_ROOM, linerByline, linerClockPx, linerEyebrow, linerTitlePx } from '@/lib/liner'
+import { LINER_ROOM, linerByline, linerEyebrow, linerTitlePx } from '@/lib/liner'
 import {
     currentChapter,
     currentSong,
@@ -278,7 +278,7 @@ export function PlayerBar() {
                             {/* The text layer lets presses through to the backdrop, except on what is
                                 itself a control: the title's link, Retry and the timeline. */}
                             <div className="pointer-events-none relative flex h-full flex-col justify-end gap-3 px-5 pb-2">
-                                <div className="flex items-end justify-between gap-6">
+                                <div className="flex items-end gap-6">
                                     <div className="min-w-0">
                                         <p className="truncate text-xs tracking-[0.16em] text-primary-ink uppercase">
                                             {linerEyebrow(player)}
@@ -315,36 +315,35 @@ export function PlayerBar() {
                                             </p>
                                         )}
                                     </div>
-                                    {!station && (
-                                        <p
-                                            className="shrink-0 font-mono whitespace-nowrap tabular-nums"
-                                            style={{ fontSize: linerClockPx(room) }}
-                                        >
-                                            {clock(player.positionS)}{' '}
-                                            <span className="text-muted-foreground">/ {clock(duration)}</span>
-                                        </p>
-                                    )}
                                 </div>
                                 {!station && (
-                                    <input
-                                        ref={scrubber}
-                                        type="range"
-                                        aria-label="Position"
-                                        min={0}
-                                        max={Math.max(1, duration)}
-                                        step="any"
-                                        defaultValue={player.positionS}
-                                        onPointerDown={() => {
-                                            scrubbing.current = true
-                                        }}
-                                        onPointerUp={() => {
-                                            scrubbing.current = false
-                                        }}
-                                        onChange={(event) => {
-                                            seek(Number(event.target.value))
-                                        }}
-                                        className="pointer-events-auto h-2 w-full cursor-pointer accent-primary"
-                                    />
+                                    <div className="pointer-events-auto flex items-center gap-3">
+                                        <span className="shrink-0 font-mono text-xs text-muted-foreground tabular-nums">
+                                            {clock(player.positionS)}
+                                        </span>
+                                        <input
+                                            ref={scrubber}
+                                            type="range"
+                                            aria-label="Position"
+                                            min={0}
+                                            max={Math.max(1, duration)}
+                                            step="any"
+                                            defaultValue={player.positionS}
+                                            onPointerDown={() => {
+                                                scrubbing.current = true
+                                            }}
+                                            onPointerUp={() => {
+                                                scrubbing.current = false
+                                            }}
+                                            onChange={(event) => {
+                                                seek(Number(event.target.value))
+                                            }}
+                                            className="h-2 w-full cursor-pointer accent-primary"
+                                        />
+                                        <span className="shrink-0 font-mono text-xs text-muted-foreground tabular-nums">
+                                            {clock(duration)}
+                                        </span>
+                                    </div>
                                 )}
                             </div>
                         </div>

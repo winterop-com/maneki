@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'vitest'
 
-import { LINER_ROOM, linerByline, linerClockPx, linerEyebrow, linerTitlePx } from '@/lib/liner'
+import { LINER_ROOM, linerByline, linerEyebrow, linerTitlePx } from '@/lib/liner'
 import type { PlayerState, PlayingBook } from '@/lib/player'
 
 function state(change: Partial<PlayerState>): PlayerState {
@@ -92,9 +92,5 @@ describe('the sizes', () => {
     test('stays in bounds outside the range', () => {
         expect(linerTitlePx(40)).toBe(24)
         expect(linerTitlePx(1000)).toBe(44)
-    })
-
-    test('the clock is smaller than the title', () => {
-        expect(linerClockPx(320)).toBeLessThan(linerTitlePx(320))
     })
 })
