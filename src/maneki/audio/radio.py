@@ -14,10 +14,13 @@ the user's file only grows from their hand, and neither stomps the other.
 from __future__ import annotations
 
 import hashlib
+import threading
 import tomllib
 from pathlib import Path
 
 from pydantic import BaseModel
+
+from maneki.audio import _toml_dump
 
 
 class RadioStation(BaseModel):
@@ -37,6 +40,11 @@ class RadioStation(BaseModel):
 # The built-in stations' logos, rendered once from NRK's own channel logos and
 # shipped with maneki so the defaults show a logo without asking NRK each time.
 LOGOS_DIR = Path(__file__).parent / "radio_logos"
+
+
+def station_id(station: RadioStation) -> str:
+    """`st_<sha1[:16] of the stream URL>`: the same station keeps its id as the list changes."""
+    return "st_" + hashlib.sha1(station.url.encode("utf-8")).hexdigest()[:16]
 
 
 def station_cover_id(station: RadioStation) -> str:
@@ -151,3 +159,45 @@ def seed_default_config(path: Path | None = None) -> Path:
     target.parent.mkdir(parents=True, exist_ok=True)
     target.write_text(_USER_TEMPLATE, encoding="utf-8")
     return target
+
+
+# One writer at a time: two clients adding stations at once would each read the
+# file, add theirs and write, and one of the two would be lost.
+_write_lock = threading.Lock()
+
+
+class StationExistsError(ValueError):
+    """The station is already in the list, by stream URL."""
+
+
+def user_station_urls(path: Path | None = None) -> set[str]:
+    """The stream URLs of the stations from `radio.toml`: the ones that may be removed."""
+    return {station.url for station in _load_user_stations(path)}
+
+
+def add_station(station: RadioStation, path: Path | None = None) -> RadioStation:
+    """Append a station to the user's `radio.toml`. Raises when its URL is already listed."""
+    with _write_lock:
+        if any(existing.url == station.url for existing in load_stations(path)):
+            raise StationExistsError(station.url)
+        _write_user_stations([*_load_user_stations(path), station], path)
+    return station
+
+
+def remove_station(url: str, path: Path | None = None) -> bool:
+    """Drop a station from the user's `radio.toml`. False when it is not one of the user's."""
+    with _write_lock:
+        user = _load_user_stations(path)
+        kept = [station for station in user if station.url != url]
+        if len(kept) == len(user):
+            return False
+        _write_user_stations(kept, path)
+    return True
+
+
+def _write_user_stations(stations: list[RadioStation], path: Path | None = None) -> None:
+    """Rewrite `radio.toml` as the format comment followed by one table per station."""
+    target = path or stations_path()
+    target.parent.mkdir(parents=True, exist_ok=True)
+    body = _toml_dump.dumps({"stations": [s.model_dump(exclude_none=True) for s in stations]}) if stations else ""
+    target.write_text(_USER_TEMPLATE + ("\n" + body if body else ""), encoding="utf-8")

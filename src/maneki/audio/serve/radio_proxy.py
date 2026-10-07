@@ -26,7 +26,7 @@ from fastapi import Response
 from fastapi.responses import StreamingResponse
 
 from maneki import __version__
-from maneki.audio import radio
+from maneki.audio import radio, radio_browser
 
 _icy_titles: dict[str, str] = {}
 _ICY_TITLE_RE = re.compile(rb"StreamTitle='([^']*)';")
@@ -45,8 +45,11 @@ async def proxy_station_stream(url: str) -> Response:
     split into audio bytes (yielded to the client) and inline metadata
     frames (parsed for StreamTitle and stashed in `_icy_titles`).
     """
+    # Known stations, and what a recent station search offered (so a result
+    # can be tried before it is added). Anything else is refused: this is not
+    # an open relay.
     allowed = {s.url for s in radio.load_stations()}
-    if url not in allowed:
+    if url not in allowed and not radio_browser.was_offered(url):
         return Response("Unknown station", status_code=403)
 
     client = httpx.AsyncClient(timeout=httpx.Timeout(30.0, read=None))
