@@ -19,11 +19,13 @@ import { CoverArt } from '@/components/CoverArt'
 import { LcdDisplay } from '@/components/LcdDisplay'
 import { Button } from '@/components/ui/button'
 import { useDragSize } from '@/hooks/use-drag-size'
+import { useSmallScreen } from '@/hooks/use-small-screen'
 import { useSpectrum } from '@/hooks/use-spectrum'
 import { useStore } from '@/hooks/use-store'
 import { books as booksApi } from '@/lib/api'
 import { clock, songLine } from '@/lib/format'
 import { nowPlayingFace } from '@/lib/lcd'
+import { LINER_ROOM, linerByline, linerClockPx, linerEyebrow, linerTitlePx } from '@/lib/liner'
 import {
     currentChapter,
     currentSong,
@@ -166,6 +168,7 @@ export function PlayerBar() {
         if (input !== null && !scrubbing.current) input.value = String(player.positionS)
     }, [player.positionS])
     const face = useStore(nowPlayingFace)
+    const small = useSmallScreen()
     const song = currentSong()
     const station = player.station
     const book = player.book
@@ -198,6 +201,24 @@ export function PlayerBar() {
           : song
             ? songLine(song)
             : undefined
+
+    // The title is a way back to what it is from: the book, or the record.
+    const named = book ? (
+        <NavLink to={`/books/${book.id}`} className="control-link">
+            {title}
+        </NavLink>
+    ) : song?.albumId ? (
+        <NavLink to={`/music/album/${song.albumId}`} className="control-link">
+            {song.title}
+        </NavLink>
+    ) : (
+        title
+    )
+    // LINER NOTES ONCE THE ROOM IS TALL ENOUGH TO HOLD THEM. Below `LINER_ROOM`, on a small
+    // screen and in the deck face (which is its own way of saying the same facts) the bar stays
+    // the strip it always was. See `lib/liner`.
+    const liner = !small && room >= LINER_ROOM && (face === 'standard' || book !== null)
+    const titlePx = linerTitlePx(room)
 
     return (
         <div
@@ -240,7 +261,94 @@ export function PlayerBar() {
                     )}
                 </div>
                 <div className="flex min-w-0 flex-1 flex-col">
-                    {spectrumShown ? (
+                    {liner ? (
+                        <div style={{ height: room }} className="relative shrink-0 overflow-hidden">
+                            {/* The spectrum is the backdrop here rather than the subject: faint enough
+                                to read the title over, and still the way to the stage. */}
+                            {spectrumShown && (
+                                <button
+                                    type="button"
+                                    aria-label={STAGE_LABEL}
+                                    onClick={openStage}
+                                    className="absolute inset-0 block px-5 pt-4 opacity-20 transition-opacity hover:opacity-30 focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none"
+                                >
+                                    <canvas ref={wide} aria-hidden className="size-full text-primary" />
+                                </button>
+                            )}
+                            {/* The text layer lets presses through to the backdrop, except on what is
+                                itself a control: the title's link, Retry and the timeline. */}
+                            <div className="pointer-events-none relative flex h-full flex-col justify-end gap-3 px-5 pb-2">
+                                <div className="flex items-end justify-between gap-6">
+                                    <div className="min-w-0">
+                                        <p className="truncate text-xs tracking-[0.16em] text-primary-ink uppercase">
+                                            {linerEyebrow(player)}
+                                        </p>
+                                        <p
+                                            className="pointer-events-auto truncate font-semibold tracking-tight"
+                                            style={{ fontSize: titlePx, lineHeight: 1.15 }}
+                                            title={title}
+                                        >
+                                            {named}
+                                        </p>
+                                        {player.refusal === null ? (
+                                            <p
+                                                className="truncate text-muted-foreground"
+                                                style={{ fontSize: Math.max(14, Math.round(titlePx * 0.45)) }}
+                                            >
+                                                {linerByline(player)}
+                                            </p>
+                                        ) : (
+                                            <p className="pointer-events-auto flex min-w-0 items-baseline gap-3 text-sm">
+                                                <span
+                                                    className="truncate text-critical-ink"
+                                                    title={player.refusal}
+                                                >
+                                                    {player.refusal}
+                                                </span>
+                                                <button
+                                                    type="button"
+                                                    onClick={retry}
+                                                    className="control-link shrink-0 text-primary-ink underline-offset-2 hover:underline"
+                                                >
+                                                    {RETRY_LABEL}
+                                                </button>
+                                            </p>
+                                        )}
+                                    </div>
+                                    {!station && (
+                                        <p
+                                            className="shrink-0 font-mono whitespace-nowrap tabular-nums"
+                                            style={{ fontSize: linerClockPx(room) }}
+                                        >
+                                            {clock(player.positionS)}{' '}
+                                            <span className="text-muted-foreground">/ {clock(duration)}</span>
+                                        </p>
+                                    )}
+                                </div>
+                                {!station && (
+                                    <input
+                                        ref={scrubber}
+                                        type="range"
+                                        aria-label="Position"
+                                        min={0}
+                                        max={Math.max(1, duration)}
+                                        step="any"
+                                        defaultValue={player.positionS}
+                                        onPointerDown={() => {
+                                            scrubbing.current = true
+                                        }}
+                                        onPointerUp={() => {
+                                            scrubbing.current = false
+                                        }}
+                                        onChange={(event) => {
+                                            seek(Number(event.target.value))
+                                        }}
+                                        className="pointer-events-auto h-2 w-full cursor-pointer accent-primary"
+                                    />
+                                )}
+                            </div>
+                        </div>
+                    ) : spectrumShown ? (
                         <button
                             type="button"
                             aria-label={STAGE_LABEL}
@@ -272,7 +380,7 @@ export function PlayerBar() {
                 AND IT IS A MUSIC FACE. Its window is a track, an artist and a track number read
                 the way a hi-fi reads them, and a chapter of a novel is none of those -- so a
                 book is drawn in the app's own voice whichever face was chosen. */}
-                        {face === 'lcd' && !book ? (
+                        {liner ? null : face === 'lcd' && !book ? (
                             <LcdDisplay
                                 song={song}
                                 station={station}
@@ -286,24 +394,7 @@ export function PlayerBar() {
                         ) : (
                             <div className="min-w-0 flex-1 md:max-w-64">
                                 <p className="truncate text-sm" title={title}>
-                                    {book ? (
-                                        <NavLink to={`/books/${book.id}`} className="control-link">
-                                            {title}
-                                        </NavLink>
-                                    ) : song ? (
-                                        song.albumId ? (
-                                            <NavLink
-                                                to={`/music/album/${song.albumId}`}
-                                                className="control-link"
-                                            >
-                                                {song.title}
-                                            </NavLink>
-                                        ) : (
-                                            song.title
-                                        )
-                                    ) : (
-                                        station?.name
-                                    )}
+                                    {named}
                                 </p>
                                 {/* A station that has announced what it is playing says that; one that has
                         not says it is live, which is the only other true thing about it.
@@ -440,7 +531,10 @@ export function PlayerBar() {
                 the document, and a slider nobody can see is still a slider somebody lands on.
                 A book is drawn in the standard face whatever was chosen, so it keeps the
                 slider the face would have replaced. */}
-                        {(face === 'standard' || book !== null) && (
+                        {/* In liner notes the timeline is up in the room, so the row keeps the
+                            transport on the left and the rest on the right. */}
+                        {liner && <div className="flex-1" />}
+                        {!liner && (face === 'standard' || book !== null) && (
                             <div
                                 className={cn(
                                     'hidden min-w-0 flex-1 items-center gap-2 md:flex',
