@@ -345,8 +345,8 @@ export function currentChapter(): Chapter | null {
 }
 
 /** Point the player at a server. Called whenever the session changes. */
-export function setPlayerCredentials(next: Credentials | undefined): void {
-    credentials = next ?? null
+export function setPlayerCredentials(given: Credentials | undefined): void {
+    credentials = given ?? null
 }
 
 /** How this player is asked to stop by whatever else wants the sound. */

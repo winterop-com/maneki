@@ -140,16 +140,11 @@ beforeEach(() => {
     clear()
     fake = new FakeAudio()
     asked = []
-    // `new Audio()`: an arrow function cannot be constructed, so a class that
-    // hands back the fake is what stands in for it.
-    vi.stubGlobal(
-        'Audio',
-        class {
-            constructor() {
-                return fake
-            }
-        },
-    )
+    // `new Audio()`: an arrow function cannot be constructed, so a plain function
+    // that hands back the fake is what stands in for it.
+    vi.stubGlobal('Audio', function Audio() {
+        return fake
+    })
     vi.stubGlobal(
         'fetch',
         vi.fn(async (path: string, init?: RequestInit) => {
