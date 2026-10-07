@@ -68,11 +68,10 @@ jobs:
 
       - name: Linux build deps
         if: matrix.os == 'ubuntu-22.04'
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y \
-            libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev \
-            patchelf libssl-dev build-essential file
+        run: >-
+          scripts/apt_install.sh
+          libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev
+          patchelf libssl-dev build-essential file
 
       - name: Build Tauri bundles (+ sign/notarize on macOS)
         uses: tauri-apps/tauri-action@v1

@@ -46,9 +46,9 @@ jobs:
         run: cd desktop/app && bun run build
 
       - name: Install ffmpeg + libportaudio
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y ffmpeg libportaudio2
+        # Recommends pull in VA-API drivers and a 27 MB speech model the tests
+        # never touch; see scripts/apt_install.sh for the slow-mirror story.
+        run: scripts/apt_install.sh --no-install-recommends ffmpeg libportaudio2
 
       - name: Install dependencies
         run: uv sync --all-extras --group dev
