@@ -297,7 +297,7 @@ Everything under `<root>/.maneki/`:
 | `posters/<sha256(id)[:32]>.png` | 16:9 contact-sheet posters. | Survives restarts. Swept on startup for orphaned ids. Invalidated on in-place file edit. Wiped wholesale by `--rescan`. |
 | `posters/<sha256(id)[:32]>.thumb.jpg` | Row thumbnails (single frame, 320 px wide). | Same lifecycle as posters. |
 | `subs/<sha256(id)[:32]>/embed-<N>.vtt` | Extracted embedded subtitle tracks. | Survives restarts. Swept on startup for orphaned ids. |
-| (HLS lives at `<tempdir>/maneki-hls/<sha256(id)[:32]>/seg-NNNN.ts`, not under the library root — segments are large and explicit RAM-disk / `/tmp` placement is the right tradeoff.) | | Wiped on `HLS_CACHE_VERSION` mismatch. Per-id directories swept on startup for orphaned ids. |
+| (HLS lives at `<tempdir>/maneki-hls/<sha256(id)[:32]>/seg-NNNN.ts`, not under the library root — segments are large and explicit RAM-disk / `/tmp` placement is the right tradeoff.) | | Wiped on `HLS_CACHE_VERSION` mismatch. Per-id directories swept on startup for orphaned ids. Capped by `--hls-cache-gb` (default 20 GB), least recently watched segments first. |
 
 Filenames use a **sha256-derived stem** because the readable `<rel-path-with-slashes-as-dashes>-<8hex>` id can blow past APFS / ext4's 255-byte `NAME_MAX` on deeply-nested releases. URLs and log lines still carry the readable id; only the on-disk path is hashed.
 
@@ -311,6 +311,7 @@ The video pipeline rides on `maneki serve`. Relevant flags:
 | `--rescan` | Wipe `<root>/.maneki/posters/` and `DELETE FROM videos` before scanning, so the next browse / open regenerates from scratch. Since 0.19.20 it also rebuilds the music index and re-probes every book, in the background. |
 | `--prewarm-cache` | Run the subtitle probe + thumbnail + contact-sheet poster generation passes at startup (background workers, yields to foreground player requests). Idempotent on a warm cache. Aliased as `--prewarm-images` was renamed in 0.9. |
 | `--no-cover-images` | Skip the contact-sheet poster phase entirely. `/poster` falls back to the row thumbnail. |
+| `--hls-cache-gb N` | Cap the HLS segment cache at N GB (default 20, or `[media] hls_cache_gb` in `maneki.toml`; 0 = no cap). Past the cap the least recently watched segments are evicted; anything watched in the last two minutes is kept. |
 | `--workers N` | Background-transcode worker cap. Default `min(8, cpu // 2)`. Affects prewarm + neighbour prefetch; foreground transcodes are capped at 3 concurrent regardless. |
 
 ## See also

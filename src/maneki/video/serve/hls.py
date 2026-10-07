@@ -32,10 +32,12 @@ import asyncio
 import contextlib
 import logging
 import math
+import os
 import shutil
 import tempfile
 import time
 from collections import deque
+from collections.abc import Callable
 from pathlib import Path
 
 from pydantic import BaseModel, ConfigDict
@@ -188,8 +190,12 @@ class OnDemandHLS:
         duration_s: float,
         session_dir: Path,
         budget: TranscodeBudget,
+        on_written: Callable[[Path], None] | None = None,
     ) -> None:
         self.video_id = video_id
+        # Told about each segment this session finishes writing, so the
+        # manager can keep its cache under the cap (see `HLSManager.trim`).
+        self._on_written = on_written
         # Accept a bare Path for the common local-file case (and existing
         # callers / tests that construct a session straight from a path);
         # normalise to a LocalSource so the rest of the class is uniform.
@@ -316,12 +322,16 @@ class OnDemandHLS:
             raise IndexError(f"segment {idx} out of range (have {len(self.segments)})")
         out_path = self.session_dir / f"seg-{idx:04d}.ts"
         if out_path.exists():
+            _touch(out_path)
             return out_path
         lock = self._segment_locks.setdefault(idx, asyncio.Lock())
         async with lock:
             if out_path.exists():
+                _touch(out_path)
                 return out_path
             await self._transcode_segment(idx, low_priority=low_priority)
+        if self._on_written is not None and out_path.exists():
+            self._on_written(out_path)
         return out_path
 
     def prefetch_neighbors(self, idx: int) -> None:
@@ -579,6 +589,25 @@ class OnDemandHLS:
         return cancelled
 
 
+def _touch(path: Path) -> None:
+    """Mark a segment as just used: its mtime is what the cache cap evicts by.
+
+    Access times are no help here, since most mounts record them lazily or
+    not at all, so a cache hit writes the modification time itself.
+    """
+    with contextlib.suppress(OSError):
+        os.utime(path)
+
+
+#: How much of the cap a trim leaves free, so one new segment does not set off
+#: another trim straight away.
+TRIM_TO_FRACTION = 0.9
+
+#: Segments used more recently than this are never evicted: they are what
+#: somebody is watching right now, or still being written by ffmpeg.
+EVICT_GRACE_S = 120.0
+
+
 # Bump this whenever the HLS segment generation changes in a way that
 # makes old cached segments incompatible with new ones (e.g. PTS
 # scheme change, codec settings, segment duration). HLSManager wipes
@@ -592,9 +621,23 @@ HLS_CACHE_VERSION = "5"  # pluggable HW encoder (vaapi/videotoolbox) + HDR tonem
 class HLSManager:
     """One OnDemandHLS per video; lives for the server process lifetime."""
 
-    def __init__(self, base_dir: Path | None = None, budget: TranscodeBudget | None = None) -> None:
+    def __init__(
+        self,
+        base_dir: Path | None = None,
+        budget: TranscodeBudget | None = None,
+        *,
+        max_bytes: int | None = None,
+    ) -> None:
         self.base_dir = base_dir or Path(tempfile.gettempdir()) / "maneki-hls"
         self.sessions: dict[str, OnDemandHLS] = {}
+        # THE CACHE IS CAPPED, LEAST RECENTLY USED FIRST. None (or 0) is no cap.
+        # The running total is a cheap estimate kept between trims; a trim
+        # re-measures the disk, so a deletion this process did not make (the
+        # orphan sweep, the OS emptying its temp dir) only ever makes it high,
+        # which costs one early trim and never an overfull cache.
+        self.max_bytes = max_bytes or None
+        self._estimated_bytes: int | None = None
+        self._trim_task: asyncio.Task[int] | None = None
         # A budget is required at runtime; default to a fresh one when
         # callers (mostly tests) don't supply one so the manager stays
         # usable in isolation.
@@ -647,12 +690,68 @@ class HLSManager:
         if existing is not None:
             return existing
         session_dir = self.base_dir / cache_stem(video_id)
-        session = OnDemandHLS(video_id, source, duration_s, session_dir, self.budget)
+        session = OnDemandHLS(video_id, source, duration_s, session_dir, self.budget, on_written=self.note_written)
         self.sessions[video_id] = session
         return session
 
     def get(self, video_id: str) -> OnDemandHLS | None:
         return self.sessions.get(video_id)
+
+    def note_written(self, path: Path) -> None:
+        """Count a freshly written segment, and trim in the background once over the cap."""
+        if self.max_bytes is None:
+            return
+        if self._estimated_bytes is not None:
+            with contextlib.suppress(OSError):
+                self._estimated_bytes += path.stat().st_size
+            if self._estimated_bytes <= self.max_bytes:
+                return
+        if self._trim_task is not None and not self._trim_task.done():
+            return
+        self._trim_task = asyncio.get_running_loop().create_task(asyncio.to_thread(self.trim))
+
+    def trim(self, *, now: float | None = None) -> int:
+        """Evict the least recently used segments until the cache is under its cap.
+
+        Measures the cache from disk, and when it is over `max_bytes`,
+        deletes segments oldest-used first until it is down to
+        `TRIM_TO_FRACTION` of the cap. Segments used within `EVICT_GRACE_S`
+        are kept even if that leaves the cache over: they are being watched
+        or written. Session directories stay, since a live session writes
+        its next segment into its own. Returns how many segments went.
+        """
+        if self.max_bytes is None:
+            return 0
+        clock = time.time() if now is None else now
+        found: list[tuple[float, int, Path]] = []
+        total = 0
+        for segment in self.base_dir.glob("*/seg-*.ts"):
+            try:
+                stat = segment.stat()
+            except OSError:
+                continue
+            found.append((stat.st_mtime, stat.st_size, segment))
+            total += stat.st_size
+        removed = 0
+        if total > self.max_bytes:
+            target = int(self.max_bytes * TRIM_TO_FRACTION)
+            for mtime, size, segment in sorted(found):
+                if total <= target or mtime > clock - EVICT_GRACE_S:
+                    break
+                try:
+                    segment.unlink()
+                except OSError:
+                    continue
+                total -= size
+                removed += 1
+            _log.info(
+                "hls: cache over its %.1f GB cap; evicted %d segments, %.1f GB left",
+                self.max_bytes / 1e9,
+                removed,
+                total / 1e9,
+            )
+        self._estimated_bytes = total
+        return removed
 
     def clean_orphans(self, live_ids: set[str]) -> int:
         """Delete cached HLS dirs whose video id isn't in `live_ids`.

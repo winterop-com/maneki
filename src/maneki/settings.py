@@ -121,6 +121,9 @@ class MediaSection(BaseModel):
     # Flat env overrides: MANEKI_YT_COOKIES_FROM_BROWSER / MANEKI_YT_COOKIEFILE.
     youtube_cookies_from_browser: str | None = None
     youtube_cookiefile: str | None = None
+    # Cap on the video transcode (HLS) cache, in GB; least recently watched
+    # segments go first. 0 means no cap. `maneki serve --hls-cache-gb` wins.
+    hls_cache_gb: float = 20.0
 
 
 class LoggingSection(BaseModel):
@@ -364,6 +367,7 @@ password = "admin"
 # youtube_cookies_from_browser = "chrome"   # chrome | safari | firefox | ...
 #                                            # avoids YouTube's "not a bot" check
 # youtube_cookiefile = "/path/to/cookies.txt"   # alternative to the above
+# hls_cache_gb = 20                    # video transcode cache cap; 0 = no cap
 
 # --- Logging ----------------------------------------------------------------
 # [logging]

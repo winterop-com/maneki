@@ -90,6 +90,7 @@ def create_combined_app(
     rescan: bool = False,
     prewarm_cache: bool = False,
     no_cover_images: bool = False,
+    hls_cache_gb: float | None = None,
 ) -> FastAPI:
     """Build a FastAPI app that auto-mounts whichever kinds are present at root.
 
@@ -139,6 +140,10 @@ def create_combined_app(
             back to the cheap row-thumbnail (one frame, no contact
             sheet). Useful on slow disks or huge libraries where the
             9-frame contact sheet isn't worth the wait.
+        hls_cache_gb: cap on the HLS segment cache, in GB; the least
+            recently watched segments are evicted past it. None reads
+            `[media] hls_cache_gb` from maneki.toml (default 20); 0 is
+            no cap.
     """
     audio_present = has_audio(root)
     video_present = has_video(root)
@@ -294,6 +299,7 @@ def create_combined_app(
             live_ids = {v.id for v in videos}
             video_sub.state.poster_manager.clean_orphans(live_ids)
             video_sub.state.hls_manager.clean_orphans(live_ids)
+            await asyncio.to_thread(video_sub.state.hls_manager.trim)
             video_sub.state.subtitle_cache.clean_orphans(live_ids)
 
             if do_prewarm_cache:
@@ -494,7 +500,16 @@ def create_combined_app(
         # Mounted even with no local video so the YouTube endpoints exist; the
         # local-library scan/prewarm/watcher in the lifespan stays gated on
         # `video_present`, so an audio-only library pays no scan cost.
-        _mount_video(combined, root, workers=transcode_workers, no_cover_images=no_cover_images, users=users)
+        # The flag wins over maneki.toml; 0 from either is no cap.
+        cache_gb = hls_cache_gb if hls_cache_gb is not None else get_settings().media.hls_cache_gb
+        _mount_video(
+            combined,
+            root,
+            workers=transcode_workers,
+            no_cover_images=no_cover_images,
+            users=users,
+            hls_cache_bytes=int(cache_gb * 1e9) or None,
+        )
 
     if books_index is not None:
         from maneki.books.serve import create_books_app
@@ -728,6 +743,7 @@ def _mount_video(
     workers: int | None,
     no_cover_images: bool,
     users: UserRegistry,
+    hls_cache_bytes: int | None = None,
 ) -> None:
     """Mount the video app under /video.
 
@@ -740,7 +756,13 @@ def _mount_video(
     from maneki.video.serve.transcode_budget import TranscodeBudget
 
     budget = TranscodeBudget(max_workers=workers) if workers is not None else None
-    video_app = create_video_app(library_root, budget=budget, no_cover_images=no_cover_images, users=users)
+    video_app = create_video_app(
+        library_root,
+        budget=budget,
+        no_cover_images=no_cover_images,
+        users=users,
+        hls_cache_bytes=hls_cache_bytes,
+    )
     combined.mount("/video", video_app)
 
 

@@ -134,6 +134,18 @@ def serve_cmd(
             ),
         ),
     ] = False,
+    hls_cache_gb: Annotated[
+        float | None,
+        typer.Option(
+            "--hls-cache-gb",
+            min=0,
+            help=(
+                "Cap on the video transcode cache, in GB. When it fills up, the least recently "
+                "watched segments are evicted. 0 = no cap. Default: [media] hls_cache_gb in "
+                "maneki.toml, else 20."
+            ),
+        ),
+    ] = None,
     no_cover_images: Annotated[
         bool,
         typer.Option(
@@ -194,6 +206,7 @@ def serve_cmd(
         rescan=rescan,
         prewarm_cache=prewarm_cache,
         no_cover_images=no_cover_images,
+        hls_cache_gb=hls_cache_gb,
     )
     import structlog
 
@@ -208,6 +221,8 @@ def serve_cmd(
         flags.append("prewarm-cache")
     if no_cover_images:
         flags.append("no-cover-images")
+    if hls_cache_gb is not None:
+        flags.append(f"hls-cache-gb={hls_cache_gb:g}")
     actual_workers = workers or "auto"
     flags.append(f"workers={actual_workers}")
     # Banner through structlog so it matches the rest of the server's

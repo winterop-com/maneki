@@ -160,6 +160,7 @@ def create_app(
     budget: TranscodeBudget | None = None,
     no_cover_images: bool = False,
     users: UserRegistry | None = None,
+    hls_cache_bytes: int | None = None,
 ) -> FastAPI:
     """Build the FastAPI app rooted at the given library directory.
 
@@ -176,6 +177,8 @@ def create_app(
         users: shared account registry, used to scope YouTube channel
             subscriptions and watching positions per user. None (tests /
             audio-only embedders) makes those endpoints return 503.
+        hls_cache_bytes: cap on the transcode cache; the least recently
+            used segments are evicted past it. None means no cap.
     """
     app = FastAPI(title="maneki-video", version=__version__)
     # One structured access-log line per /video/* request — same shape
@@ -185,7 +188,7 @@ def create_app(
     # favour of this richer one.
     app.add_middleware(make_access_log_middleware("maneki.video.serve.access"))
     shared_budget = budget if budget is not None else TranscodeBudget()
-    hls_manager = HLSManager(budget=shared_budget)
+    hls_manager = HLSManager(budget=shared_budget, max_bytes=hls_cache_bytes)
     # Resolve + announce the H.264 transcode encoder once at startup so it's
     # obvious in the logs whether the GPU engaged (and to prime the VAAPI
     # probe here rather than on the first playback). Auto-detected: VAAPI
