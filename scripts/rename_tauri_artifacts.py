@@ -4,7 +4,8 @@ Tauri 2's `tauri.conf.json` has no `artifactName` option (unlike
 `electron-builder`'s `package.json["build"]["artifactName"]`), so we
 can't ask the bundler to embed "Tauri" in the filename directly.
 Instead this script runs after `cargo tauri build` and renames each
-`.app` / `.dmg` artifact to `Maneki-Tauri-X.Y.Z-arch.<ext>`.
+artifact to `Maneki-Tauri-X.Y.Z-arch.<ext>`: `.app` / `.dmg` on macOS,
+`.deb` / `.rpm` / `.AppImage` on Linux, `.msi` / `.exe` on Windows.
 
 Idempotent: re-runs after partial builds skip already-renamed files.
 Best-effort: missing files / unsupported names are logged but don't
@@ -19,6 +20,7 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 BUNDLE_ROOT = REPO_ROOT / "desktop" / "tauri" / "src-tauri" / "target" / "release" / "bundle"
+ARTIFACT_SUFFIXES = (".dmg", ".deb", ".rpm", ".AppImage", ".msi", ".exe")
 
 
 def rename_one(path: Path) -> Path | None:
@@ -27,6 +29,9 @@ def rename_one(path: Path) -> Path | None:
     Examples:
       Maneki_0.12.3_aarch64.dmg     -> Maneki-Tauri-0.12.3-aarch64.dmg
       Maneki.app                    -> Maneki-Tauri.app
+      Maneki_0.12.3_amd64.deb       -> Maneki-Tauri-0.12.3-amd64.deb
+      Maneki-0.12.3-1.x86_64.rpm    -> Maneki-Tauri-0.12.3-1.x86_64.rpm
+      Maneki_0.12.3_amd64.AppImage  -> Maneki-Tauri-0.12.3-amd64.AppImage
 
     Returns the new Path on success, None if the file was already
     renamed or didn't match a known shape.
@@ -34,11 +39,18 @@ def rename_one(path: Path) -> Path | None:
     name = path.name
     if name.startswith("Maneki-Tauri"):
         return None  # already renamed
-    # `Maneki_<version>_<arch>.dmg` (Tauri's default DMG name shape)
-    m = re.fullmatch(r"Maneki_([\d.]+)_([\w]+)\.(dmg|app\.tar\.gz)", name)
+    # `Maneki_<version>_<arch>.<ext>`: Tauri's default shape for every
+    # bundle except rpm. The Windows ones carry a suffix in the arch slot
+    # (`x64-setup.exe`, `x64_en-US.msi`), which is kept verbatim.
+    m = re.fullmatch(r"Maneki_(\d+(?:\.\d+)*)_([\w-]+)\.(dmg|app\.tar\.gz|deb|AppImage|msi|exe)", name)
+    # `Maneki-<version>-<release>.<arch>.rpm`: rpm has its own convention.
+    m_rpm = re.fullmatch(r"Maneki-(\d+(?:\.\d+)*)-(\d+)\.(\w+)\.rpm", name)
     if m:
         version, arch, ext = m.group(1), m.group(2), m.group(3)
         new = path.with_name(f"Maneki-Tauri-{version}-{arch}.{ext}")
+    elif m_rpm:
+        version, release, arch = m_rpm.group(1), m_rpm.group(2), m_rpm.group(3)
+        new = path.with_name(f"Maneki-Tauri-{version}-{release}.{arch}.rpm")
     elif name == "Maneki.app":
         new = path.with_name("Maneki-Tauri.app")
     else:
@@ -63,7 +75,7 @@ def main() -> None:
         sys.exit(0)
     renamed: list[Path] = []
     for entry in sorted(BUNDLE_ROOT.rglob("*")):
-        if entry.suffix in (".dmg",) or entry.name.endswith(".app") or entry.name.endswith(".app.tar.gz"):
+        if entry.suffix in ARTIFACT_SUFFIXES or entry.name.endswith(".app") or entry.name.endswith(".app.tar.gz"):
             new = rename_one(entry)
             if new is not None:
                 renamed.append(new)

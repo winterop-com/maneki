@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+import threading
 import time
 from pathlib import Path
 
+import pytest
 from fastapi.testclient import TestClient
 
 from maneki.audio.serve import ServeConfig, create_app
@@ -32,15 +34,26 @@ def test_start_scan_returns_status_envelope(tmp_path: Path) -> None:
     assert "scanning" in body["scanStatus"]
 
 
-def test_start_scan_immediately_reports_scanning_true(tmp_path: Path) -> None:
+def test_start_scan_immediately_reports_scanning_true(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """Race regression: scan_in_progress must be set BEFORE the bg thread runs.
 
     Otherwise a fast client polling getScanStatus right after startScan
     could see scanning=false and stop polling before the rescan even
     started.
+
+    An empty root scans in microseconds, so the daemon thread can finish
+    and clear the flag before the response is even built. Hold the rebuild
+    open until the assertion has run, so the test checks the ordering it
+    is about rather than racing the scan itself.
     """
-    body = _client(tmp_path).post("/rest/startScan", params=_params()).json()["subsonic-response"]
-    assert body["scanStatus"]["scanning"] is True
+    app = create_app(root=tmp_path, cfg=ServeConfig(username="mort", password="secret"))
+    release = threading.Event()
+    monkeypatch.setattr(app.state.cache, "_rebuild_inner", lambda **_kwargs: release.wait(5))
+    try:
+        body = TestClient(app).post("/rest/startScan", params=_params()).json()["subsonic-response"]
+        assert body["scanStatus"]["scanning"] is True
+    finally:
+        release.set()
 
 
 def test_start_scan_walks_real_directory(tmp_path: Path) -> None:

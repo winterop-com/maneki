@@ -100,6 +100,14 @@ docs: docs-serve
 #   ./dist/Maneki-Tauri.app                     (Tauri app bundle)
 #   ./dist/Maneki-Electron-X.Y.Z-arm64.dmg      (Electron DMG)
 #
+# On Linux the desktop targets produce packages instead of DMGs:
+#
+#   ./dist/Maneki-Tauri-X.Y.Z-amd64.deb         (Tauri deb)
+#   ./dist/Maneki-Tauri-X.Y.Z-1.x86_64.rpm      (Tauri rpm)
+#   ./dist/Maneki-Tauri-X.Y.Z-amd64.AppImage    (Tauri AppImage)
+#   ./dist/Maneki-Electron-X.Y.Z-amd64.deb      (Electron deb)
+#   ./dist/Maneki-Electron-X.Y.Z-x86_64.AppImage (Electron AppImage)
+#
 # Each sub-target can also run on its own — useful when you only need
 # one artifact (e.g. CI publishing the Python wheel without touching
 # the desktop apps). Sub-targets still write to their native build
@@ -163,8 +171,14 @@ dist-collect:
 	@if [ -d desktop/tauri/src-tauri/target/release/bundle/macos/Maneki-Tauri.app ]; then \
 		cp -R desktop/tauri/src-tauri/target/release/bundle/macos/Maneki-Tauri.app dist/; \
 	fi
-	@# Electron DMG for current version only.
+	@# Tauri Linux packages for current version (also post-renamed).
+	@cp -f desktop/tauri/src-tauri/target/release/bundle/deb/Maneki-Tauri-$(VERSION)-*.deb dist/ 2>/dev/null || true
+	@cp -f desktop/tauri/src-tauri/target/release/bundle/rpm/Maneki-Tauri-$(VERSION)-*.rpm dist/ 2>/dev/null || true
+	@cp -f desktop/tauri/src-tauri/target/release/bundle/appimage/Maneki-Tauri-$(VERSION)-*.AppImage dist/ 2>/dev/null || true
+	@# Electron DMG (macOS) or deb + AppImage (Linux) for current version only.
 	@cp -f desktop/electron/dist/Maneki-Electron-$(VERSION)-*.dmg dist/ 2>/dev/null || true
+	@cp -f desktop/electron/dist/Maneki-Electron-$(VERSION)-*.deb dist/ 2>/dev/null || true
+	@cp -f desktop/electron/dist/Maneki-Electron-$(VERSION)-*.AppImage dist/ 2>/dev/null || true
 	@# Electron .app — produced under mac-arm64/ as Maneki.app, copy
 	@# with the Electron tag in the name to disambiguate from the Tauri
 	@# bundle that lives alongside it in dist/.
@@ -213,7 +227,7 @@ desktop-tauri-dev: desktop-sync-frontend _wipe-tauri-userdata
 	@cd desktop/tauri/src-tauri && cargo tauri dev
 
 desktop-tauri-build: desktop-sync-frontend desktop-sync-version
-	@echo ">>> Tauri release build — produces a .app under desktop/tauri/src-tauri/target/release/bundle/"
+	@echo ">>> Tauri release build — produces a .app / .dmg (macOS) or deb, rpm, AppImage (Linux) under desktop/tauri/src-tauri/target/release/bundle/"
 	@command -v cargo-tauri >/dev/null 2>&1 || { \
 	  echo "The Tauri CLI is not installed. Install it once with:"; \
 	  echo "  cargo install tauri-cli --version \"^2\" --locked"; \
@@ -266,7 +280,7 @@ desktop-electron-dev: desktop-sync-frontend _wipe-electron-userdata
 	@cd desktop/electron && (test -d node_modules || bun install) && bun run start
 
 desktop-electron-build: desktop-sync-frontend desktop-sync-version desktop-build-frontend
-	@echo ">>> Electron release build — produces a .dmg under desktop/electron/dist/"
+	@echo ">>> Electron release build — produces a .dmg (macOS) or deb + AppImage (Linux) under desktop/electron/dist/"
 	@cd desktop/electron && (test -d node_modules || bun install) && bun run build
 
 clean:
