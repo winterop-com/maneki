@@ -93,6 +93,19 @@ describe('one frame of the spectrum', () => {
         expect(bars(flat(255), 0)).toEqual([])
     })
 
+    test('more bands than bins is a slope, not a staircase of equal bars', () => {
+        // A rising low end across the first few bins, read by more bands than it has bins:
+        // taking the one bin a band starts in drew runs of identical neighbours.
+        const bins = new Uint8Array(1024)
+        for (let bin = 0; bin < 40; bin += 1) bins[bin] = 20 + bin * 5
+        // Read with the tilt taken back out: the tilt alone makes copies of one bin differ by a
+        // hair, which on screen is still a run of equal bars.
+        const low = bars(bins, 192)
+            .map((height, band) => height / tilt(band, 192))
+            .slice(0, 24)
+        expect(low.every((level, at) => at === 0 || level > low[at - 1]! + 1e-9)).toBe(true)
+    })
+
     test('never gives a band no bins, however many bands are asked for', () => {
         expect(bars(flat(255, 16), 64).every((height) => Number.isFinite(height))).toBe(true)
     })

@@ -270,20 +270,45 @@ export function toggleStage(): void {
  * the music does. Bands are laid out on a curve, so the first few cover a handful of bins each
  * and the last cover hundreds.
  *
+ * A BAND NARROWER THAN A BIN IS READ BETWEEN TWO OF THEM. The curve gives the low end more bands
+ * than it has bins, and a band that took the one bin it starts in drew the same height as its
+ * neighbours: the bass was a staircase of runs of equal bars. Such a band reads the curve
+ * between the two bins either side of its middle instead, so neighbours differ the way the
+ * sound does.
+ *
  * Silence is all zeroes, and that is a flat row of nothing rather than a special case: a bar of
  * zero height is drawn as the floor.
  */
 export function bars(frequencies: Uint8Array, bands = BAND_COUNT): number[] {
     if (frequencies.length === 0 || bands <= 0) return []
+    const usable = usableBins(frequencies.length)
     const heights: number[] = []
     for (let band = 0; band < bands; band += 1) {
-        const from = edge(band, bands, frequencies.length)
-        const to = Math.max(from + 1, edge(band + 1, bands, frequencies.length))
-        let total = 0
-        for (let bin = from; bin < to; bin += 1) total += frequencies[bin] ?? 0
-        heights.push(Math.min(1, (total / (to - from) / 255) * tilt(band, bands)))
+        const start = edgeAt(band, bands, usable)
+        const end = edgeAt(band + 1, bands, usable)
+        const level =
+            end - start < 1 ? between(frequencies, (start + end) / 2, usable) : mean(frequencies, start, end)
+        heights.push(Math.min(1, (level / 255) * tilt(band, bands)))
     }
     return heights
+}
+
+/** The average of the whole bins from `start` up to `end`, never fewer than one. */
+function mean(frequencies: Uint8Array, start: number, end: number): number {
+    const from = Math.floor(start)
+    const to = Math.max(from + 1, Math.floor(end))
+    let total = 0
+    for (let bin = from; bin < to; bin += 1) total += frequencies[bin] ?? 0
+    return total / (to - from)
+}
+
+/** The level at a point on the bin scale, drawn straight between the two nearest bin middles. */
+function between(frequencies: Uint8Array, at: number, usable: number): number {
+    const position = Math.min(usable - 1, Math.max(0, at - 0.5))
+    const below = Math.floor(position)
+    const above = Math.min(usable - 1, below + 1)
+    const lean = position - below
+    return (frequencies[below] ?? 0) * (1 - lean) + (frequencies[above] ?? 0) * lean
 }
 
 /**
@@ -306,11 +331,22 @@ export const CURVE = 1.7
  */
 export const CEILING = 0.55
 
-/** Where one band starts, on a curve that gives the low end most of the bars. */
-function edge(band: number, bands: number, bins: number): number {
-    const usable = Math.max(1, Math.floor(bins * CEILING))
-    const fraction = band / bands
-    return Math.min(usable, Math.floor(usable * fraction ** CURVE))
+/** How many of the analyser's bins the bands are laid over: see `CEILING`. */
+function usableBins(bins: number): number {
+    return Math.max(1, Math.floor(bins * CEILING))
+}
+
+/**
+ * Where one band starts on the bin scale, on a curve that gives the low end most of the bars.
+ *
+ * A fraction rather than a whole bin, so a band narrower than one can tell where inside it lies.
+ * The first bin is left out: it is the analyser's reading of everything from silence up to a
+ * few tens of hertz, below anything a speaker plays, and the first bands all sat inside it as
+ * a run of equal bars.
+ */
+function edgeAt(band: number, bands: number, usable: number): number {
+    const floor = usable > 1 ? 1 : 0
+    return Math.min(usable, floor + (usable - floor) * (band / bands) ** CURVE)
 }
 
 /**

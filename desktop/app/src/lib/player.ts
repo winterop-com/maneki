@@ -964,13 +964,18 @@ export function spectrum(): AnalyserNode | null {
         if (graph.state === 'suspended') void graph.resume()
         const source = graph.createMediaElementSource(audio)
         analyser = graph.createAnalyser()
-        analyser.fftSize = 256
+        // ENOUGH BINS FOR THE BARS. At 256 the analyser had 128 bins, 70 of them under the
+        // ceiling the bands are laid over, and a wide bar carries up to 192 bands -- so whole
+        // runs of bars read the same bin and the low end drew as a staircase. 2048 is about
+        // 21 Hz a bin, finer than any band the curve asks for above the lowest few.
+        analyser.fftSize = 2048
         analyser.smoothingTimeConstant = 0.78
-        // The window the bytes are scaled over. The default (-100..-30 dB) leaves music
-        // sitting in the bottom third of the range; the old graph read -85..-15, which is
-        // where a mastered record lives, and the bars use their height.
-        analyser.minDecibels = -85
-        analyser.maxDecibels = -15
+        // The window the bytes are scaled over. A narrower bin holds less of the signal, so the
+        // window sits about 13 dB lower than the -85..-15 the 256-point graph read: measured on
+        // a mastered record and a broadcast against both sizes at once, which is what keeps the
+        // bars as tall as they were.
+        analyser.minDecibels = -98
+        analyser.maxDecibels = -28
         level = graph.createGain()
         source.connect(analyser)
         analyser.connect(level)

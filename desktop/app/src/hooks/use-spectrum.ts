@@ -51,6 +51,13 @@ import {
 /** How far the glow reaches from a bar. */
 const GLOW_BLUR = 12
 
+/**
+ * How many samples the scope draws: a few milliseconds, which is a handful of cycles across the
+ * width. The analyser holds far more than that for the bars' sake, and all of it drawn across
+ * one canvas is a scribble rather than a waveform.
+ */
+const SCOPE_SAMPLES = 256
+
 /** The wash the trails effect lays over the last frame: the stage's ground, part strength. */
 const TRAIL_WASH = 'rgba(0, 0, 0, 0.35)'
 
@@ -94,7 +101,9 @@ export function useSpectrum(
         // the one the chosen style asks for is ever read: the time domain is a copy, but the
         // frequency data is the transform, and asking for both is paying for it twice.
         const wave = style === 'scope'
-        const frame = new Uint8Array(wave ? analyser.fftSize : analyser.frequencyBinCount)
+        const frame = new Uint8Array(
+            wave ? Math.min(SCOPE_SAMPLES, analyser.fftSize) : analyser.frequencyBinCount,
+        )
         // What is read off the analyser is not what is audible yet -- see `lib/sync`. Every
         // frame goes through the line whatever the delay is, so dialling one in mid-track has a
         // history to read back from rather than starting empty.
