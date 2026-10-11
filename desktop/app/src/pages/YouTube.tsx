@@ -664,6 +664,8 @@ function Watch({ id }: { id: string }) {
     const player = useRef<VideoHandle | null>(null)
     // Where the picture was when its quality changed, for the new player to pick up from.
     const carried = useRef<number | null>(null)
+    // Which video and quality opened paused, after a change of quality while paused.
+    const [pausedFor, setPausedFor] = useState<string | null>(null)
     const onReady = useCallback((handle: VideoHandle | null) => {
         player.current = handle
         if (handle !== null && carried.current !== null) {
@@ -784,6 +786,9 @@ function Watch({ id }: { id: string }) {
             player.current?.positionS() ?? null,
             video?.duration_s ?? null,
         )
+        // PAUSED STAYS PAUSED. The new player opened playing, so picking 720p while paused set
+        // the video going. Kept for this video at this quality alone: the next one plays.
+        setPausedFor(player.current?.sample()?.paused === true ? `${id}:${String(next)}` : null)
         setHeight(next)
         try {
             localStorage.setItem(QUALITY_KEY, String(next))
@@ -845,7 +850,7 @@ function Watch({ id }: { id: string }) {
                         src={youtubeApi.hlsUrl(id, height === AUTO_HEIGHT ? undefined : height)}
                         kind="hls"
                         poster={youtubeApi.posterUrl(id)}
-                        autoplay
+                        autoplay={pausedFor !== `${id}:${String(height)}`}
                         onReady={onReady}
                         onFullscreenChange={onFilled}
                         onError={(message) => {
