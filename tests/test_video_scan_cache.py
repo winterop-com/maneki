@@ -302,3 +302,31 @@ def test_prewarm_scan_keeps_a_fixed_pool_of_probe_tasks(tmp_path: Path, monkeypa
     assert found == 64
     # The workers, plus this test's own task and the scan's.
     assert peak <= scan_mod._PREWARM_PROBE_CONCURRENCY + 2
+
+
+def test_a_scan_lists_embedded_subtitles_too(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Only sidecar files were recorded, so search, the flat list and a video's own answer said
+    "no subtitles" for a film carrying three; only the folder view probed the container."""
+    import maneki.video.serve.scan as scan_mod
+    import maneki.video.serve.subtitles as subs_mod
+    from maneki.video.serve.subtitles import EmbeddedSubtitle
+
+    videos = tmp_path / "videos"
+    videos.mkdir()
+    (videos / "film.mkv").write_bytes(b"\x1a\x45\xdf\xa3" + b"x" * 64)
+    monkeypatch.setattr(scan_mod, "probe_duration", lambda _p: 60.0)
+    monkeypatch.setattr(
+        subs_mod,
+        "probe_embedded_subtitles",
+        lambda _p: [
+            EmbeddedSubtitle(
+                stream_index=2, language="ita", codec_name="subrip", title=None, default=False, forced=False
+            )
+        ],
+    )
+
+    [entry] = asyncio.run(prewarm_scan(tmp_path, VideoScanTracker(), index=VideoIndex(tmp_path)))
+    assert [(s.lang, s.format) for s in entry.subtitles] == [("ita", "subrip")]
+    # And read back from the cache on the next start.
+    [again] = asyncio.run(prewarm_scan(tmp_path, VideoScanTracker(), index=VideoIndex(tmp_path)))
+    assert [(s.lang, s.format) for s in again.subtitles] == [("ita", "subrip")]

@@ -304,6 +304,7 @@ async def prewarm_scan(
         _PREWARM_PROBE_CONCURRENCY,
     )
 
+    from maneki.video.serve import subtitles as subtitle_probe
     from maneki.video.serve.subtitles import discover_sidecars
 
     probed: list[VideoEntry | None] = [None] * len(to_probe)
@@ -316,6 +317,11 @@ async def prewarm_scan(
     async def _probe_one(slot: int, path: Path, size_bytes: int, mtime: float) -> None:
         duration = await asyncio.to_thread(probe_duration, path)
         sidecars = await asyncio.to_thread(discover_sidecars, path)
+        # THE CONTAINER'S OWN TRACKS ARE SUBTITLES TOO. Only sidecars were recorded, so search,
+        # the flat list and a video's own answer said "no subtitles" for a film carrying three;
+        # only the folder view probed the container. The probe is cached per path, so browsing
+        # afterwards pays nothing for it.
+        embedded = await asyncio.to_thread(subtitle_probe.probe_embedded_subtitles, path)
         rel = path.relative_to(root)
         entry = VideoEntry(
             id=_make_id(rel),
@@ -324,7 +330,8 @@ async def prewarm_scan(
             size_bytes=size_bytes,
             rel_path=str(rel),
             duration_s=duration,
-            subtitles=[SubtitleSummary(lang=s.language, format=s.fmt) for s in sidecars],
+            subtitles=[SubtitleSummary(lang=s.language, format=s.fmt) for s in sidecars]
+            + [SubtitleSummary(lang=e.language, format=e.codec_name) for e in embedded],
         )
         probed[slot] = entry
         mtimes[slot] = mtime

@@ -54,7 +54,7 @@ INDEX_DB_NAME: Final[str] = "index.db"
 # Bump on any incompatible change to the `videos` table or its meta
 # keys. open() detects the mismatch via `video_schema_version` and
 # rebuilds just our tables — audio's tables alongside are untouched.
-SCHEMA_VERSION: Final[int] = 1
+SCHEMA_VERSION: Final[int] = 2  # 2: embedded subtitle tracks are recorded, not only sidecars
 
 # Namespaced so both apps can store their own version + root markers
 # in the shared `meta` table without colliding.
