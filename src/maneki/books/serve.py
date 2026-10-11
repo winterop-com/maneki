@@ -13,6 +13,7 @@ from fastapi import FastAPI, HTTPException, Query, Request, Response
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 
+from maneki.access_log import make_access_log_middleware
 from maneki.audio.serve.cover_cache import CoverCache
 from maneki.audio.serve.covers import resize
 from maneki.audio.serve.users import UserRegistry
@@ -79,6 +80,9 @@ class ScanStatus(BaseModel):
 def create_books_app(index: BooksIndex, *, users: UserRegistry | None = None) -> FastAPI:
     """The books sub-app, reading from `index`. `users` scopes listening positions per account."""
     app = FastAPI(title="maneki books", docs_url=None, redoc_url=None, openapi_url=None)
+    # One access-log line per request, as the audio and video mounts write: without it covers,
+    # file streams and progress saves were invisible in the log.
+    app.add_middleware(make_access_log_middleware("maneki.books.serve.access"))
     app.state.books_index = index
     # Scaled covers, kept so a shelf of two hundred books is two hundred
     # resizes once rather than on every visit.

@@ -314,3 +314,15 @@ def test_only_an_admin_rescans_books_or_video(tmp_path: Path) -> None:
         assert client.post("/books/api/scan", headers=ada).status_code == 200
         # This library has no video, so the admin's rescan is not wired (503) rather than refused.
         assert client.post("/video/api/scan", headers=ada).status_code != 403
+
+
+def test_book_requests_reach_the_access_log(tmp_path: Path) -> None:
+    """Covers, file streams and progress saves never appeared in the log, so how often progress is
+    written could only be measured from the client."""
+    from structlog.testing import capture_logs
+
+    _book(tmp_path)
+    with _served(tmp_path) as client, capture_logs() as lines:
+        client.get("/books/api/books")
+    paths = [line.get("path") for line in lines if line.get("event") == "request"]
+    assert "/books/api/books" in paths
