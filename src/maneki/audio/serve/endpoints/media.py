@@ -326,6 +326,10 @@ async def get_cover_art(
             return FileResponse(book_cover, media_type="image/jpeg")
         cache.cover_cache.put((id, size), data, mime)
         return Response(content=data, media_type=mime)
+    if id.startswith(("bkb_", "bka_", "bkt_")):
+        # A book with no cover of its own gets the drawn placeholder, as a record does: answered
+        # with an error, every client drew a broken image for each of them.
+        return Response(content=_COVER_PLACEHOLDER, media_type=_COVER_PLACEHOLDER_MIME)
     if id.startswith("rs_"):
         cached = cache.cover_cache.get((id, size))
         if cached is not None:

@@ -272,3 +272,13 @@ def test_scrobbling_a_book_file_is_accepted(tmp_path: Path) -> None:
     client, books = _client(tmp_path)
     inner = _inner(client, "scrobble", id=file_id(books.books[0], 0))
     assert inner["status"] == "ok"
+
+
+def test_a_book_without_a_cover_gets_the_placeholder_not_an_error(tmp_path: Path) -> None:
+    """551 coverless books advertised a coverArt id that getCoverArt answered with a JSON error, so
+    every client showed a broken image; a music album without art gets the drawn placeholder."""
+    client, _ = _client(tmp_path)
+    for missing in ("bkb_deadbeef", "bka_deadbeef", "bkt_deadbeef_0"):
+        cover = client.get("/rest/getCoverArt", params=_params(id=missing, size=64))
+        assert cover.status_code == 200
+        assert cover.headers["content-type"].startswith("image/"), missing
