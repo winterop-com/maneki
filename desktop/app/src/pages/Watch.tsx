@@ -569,8 +569,10 @@ function Watch({ id }: { id: string }) {
                     <ChevronLeft className="size-4" aria-hidden />
                 </Button>
                 <div className="min-w-0 flex-1">
+                    {/* The episode, not the release name: on a phone the raw file name was cut off
+                        exactly where the episode's name begins. The whole path is the tooltip. */}
                     <h1 className="truncate text-base" title={video?.rel_path}>
-                        {video?.name ?? 'Video'}
+                        {video === null ? 'Video' : episodeName(video.name, besideNames)}
                     </h1>
                     {meta.length > 0 && (
                         <p className="truncate text-xs text-muted-foreground">{meta.join(' · ')}</p>
@@ -625,7 +627,9 @@ function Watch({ id }: { id: string }) {
                             : cn(
                                   'relative flex min-w-0 flex-col',
                                   listed
-                                      ? 'aspect-video w-full shrink-0 lg:aspect-auto lg:min-h-0 lg:w-auto lg:flex-1 lg:shrink'
+                                      ? // On a phone on its side the 16:9 box is taller than the screen, and the
+                                        // controls fell below it: the box is capped to what the window has.
+                                        'aspect-video max-h-[calc(100dvh-9rem)] w-full shrink-0 lg:aspect-auto lg:max-h-none lg:min-h-0 lg:w-auto lg:flex-1 lg:shrink'
                                       : 'min-h-0 flex-1',
                               )
                     }

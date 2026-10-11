@@ -155,7 +155,7 @@ export function RadioPage() {
     return (
         <div className="p-2">
             <div className="p-2">
-                <InputGroup className="max-w-md">
+                <InputGroup className="h-finger max-w-md md:h-8">
                     <InputGroupAddon>
                         <Search aria-hidden />
                     </InputGroupAddon>

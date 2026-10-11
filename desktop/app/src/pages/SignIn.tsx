@@ -265,7 +265,7 @@ export function SignIn() {
                                 onClick={() => {
                                     setShown(!shown)
                                 }}
-                                className="absolute top-1/2 right-3 -translate-y-1/2 rounded-md p-1 text-muted-foreground outline-none hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50"
+                                className="absolute top-1/2 right-1 flex size-finger -translate-y-1/2 items-center justify-center rounded-md text-muted-foreground outline-none hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50 md:right-3 md:size-auto md:p-1"
                             >
                                 {shown ? (
                                     <EyeOff className="size-4.5" aria-hidden />

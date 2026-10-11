@@ -509,7 +509,8 @@ function Crumbs({ path }: { path: string }) {
                 onClick={() => void navigate('/video')}
                 disabled={crumbs.length === 0}
                 className={cn(
-                    'shrink-0 rounded-sm px-1',
+                    // A finger's height on a phone, as every other control there.
+                    'min-h-finger shrink-0 rounded-sm px-1 md:min-h-0',
                     crumbs.length === 0 ? 'text-foreground' : 'text-primary-ink hover:underline',
                 )}
             >
@@ -526,7 +527,7 @@ function Crumbs({ path }: { path: string }) {
                             disabled={last}
                             title={crumb.path}
                             className={cn(
-                                'min-w-0 truncate rounded-sm px-1',
+                                'min-h-finger min-w-0 truncate rounded-sm px-1 md:min-h-0',
                                 last ? 'text-foreground' : 'text-primary-ink hover:underline',
                             )}
                         >

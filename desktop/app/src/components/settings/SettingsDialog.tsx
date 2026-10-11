@@ -101,7 +101,9 @@ export function SettingsDialog({
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent className="flex h-[32rem] flex-col gap-0 p-0 sm:max-w-3xl">
+            {/* Never taller than the window: a phone on its side is 360 px tall, and a fixed 32rem put
+                the Close button above the top of the screen. */}
+            <DialogContent className="flex h-[min(32rem,calc(100dvh-2rem))] flex-col gap-0 p-0 sm:max-w-3xl">
                 <DialogHeader className="shrink-0 gap-1 border-b border-border px-4 py-3">
                     <DialogTitle>{SETTINGS_TITLE}</DialogTitle>
                 </DialogHeader>

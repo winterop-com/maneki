@@ -2243,3 +2243,15 @@ html.dark[data-theme='neon'],
 .video-js.vjs-paused .vjs-text-track-display {
     bottom: 76px;
 }
+
+/* ON A TOUCH SCREEN THE PLAYER'S BUTTONS ARE FINGER-SIZED. Picture-in-picture and full screen were
+   11 to 18 px wide on a phone, and the volume ramp took room on a phone where page volume does
+   nothing at all (the hardware buttons are the volume). */
+@media (pointer: coarse) {
+    .video-js .vjs-control-bar .vjs-button {
+        min-width: 44px;
+    }
+    .video-js .vjs-volume-panel {
+        display: none;
+    }
+}

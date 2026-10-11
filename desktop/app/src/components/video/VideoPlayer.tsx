@@ -587,13 +587,20 @@ export function VideoPlayer({
             >
                 {/* video.js rewrites the class on whatever it is given, so the shape is on the
                     box outside it rather than on the element it takes over. */}
-                <div data-vjs-player className="size-full">
-                    <video
-                        ref={element}
-                        className="video-js vjs-theme-city vjs-big-play-centered"
-                        playsInline
-                        crossOrigin="anonymous"
-                    />
+                {/* Pinned to the box's four sides rather than sized as 100% of it: the box's height
+                    comes from its aspect ratio (and a cap on a phone on its side), which WebKit does
+                    not count as definite, so a percentage fell back to the video's own height and
+                    the controls spilled off the bottom of the screen. A wrapper of its own, because
+                    video.js rewrites the class of the element it is handed. */}
+                <div className="absolute inset-0">
+                    <div data-vjs-player className="size-full">
+                        <video
+                            ref={element}
+                            className="video-js vjs-theme-city vjs-big-play-centered"
+                            playsInline
+                            crossOrigin="anonymous"
+                        />
+                    </div>
                 </div>
                 {refusal !== null && (
                     <div
