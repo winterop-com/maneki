@@ -92,6 +92,8 @@ function Watch({ id }: { id: string }) {
     const [size, setSize] = useState<{ width: number; height: number } | null>(null)
     const [posterToken, setPosterToken] = useState<number | undefined>(undefined)
     const theater = useStore(theaterOn)
+    // Whether the folder's list is drawn: beside the picture, or under it on a narrow screen.
+    const listed = !theater && beside.length > 1
     const [stats, setStats] = useState(false)
     const [filled, setFilled] = useState(false)
     // Read by the key handler, which is bound once and would otherwise hold the first value.
@@ -612,11 +614,20 @@ function Watch({ id }: { id: string }) {
                     the display with its window, and the rail, the bars and the list would stay
                     around the picture. So while the shell says it is filled, this column stands
                     over the whole window instead, which is what the old client did too. */}
+                {/* UNDER THE BREAKPOINT THE PICTURE KEEPS ITS SHAPE AND THE LIST SCROLLS UNDER IT.
+                    Both were left to flex, and a season's list took the height: Chromium squeezed
+                    the picture to a strip, WebKit drew the list over it. With a list below, the
+                    player is a 16:9 box and the list has the rest. */}
                 <div
                     className={
                         filled && inDesktopShell()
                             ? 'fixed inset-0 z-[60] flex flex-col bg-black'
-                            : 'relative flex min-h-0 min-w-0 flex-1 flex-col'
+                            : cn(
+                                  'relative flex min-w-0 flex-col',
+                                  listed
+                                      ? 'aspect-video w-full shrink-0 lg:aspect-auto lg:min-h-0 lg:w-auto lg:flex-1 lg:shrink'
+                                      : 'min-h-0 flex-1',
+                              )
                     }
                 >
                     {video !== null && (
@@ -651,8 +662,8 @@ function Watch({ id }: { id: string }) {
                 </div>
                 {/* The list is beside the player above the breakpoint and under it below one,
                     where there is no width to put anything beside anything. */}
-                {!theater && beside.length > 1 && (
-                    <aside className="min-h-0 shrink-0 overflow-y-auto border-t lg:w-72 lg:border-t-0 lg:border-l">
+                {listed && (
+                    <aside className="min-h-0 flex-1 overflow-y-auto border-t lg:w-72 lg:flex-none lg:border-t-0 lg:border-l">
                         <ul className="p-1">
                             {beside.map((one) => (
                                 <li key={one.id}>
