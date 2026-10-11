@@ -133,6 +133,9 @@ export const WANTS_CREDENTIALS = 'This server needs a username and password.'
  */
 export function signOutOnAuthRefusal(reason: string): void {
     const { baseUrl, username } = currentSession()
+    // As at a sign-out by hand: what was playing stops, and the marks go with the account.
+    clear()
+    forgetMarks()
     write({ baseUrl, username })
     setSession({ baseUrl })
     sessionStore.set({ phase: 'signed-out', baseUrl, username, refusal: reason })

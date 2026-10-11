@@ -12,6 +12,7 @@ import {
     sessionStore,
     signInTo,
     signOut,
+    signOutOnAuthRefusal,
     WANTS_CREDENTIALS,
 } from '@/lib/session'
 import { getArtists, SubsonicError } from '@/lib/subsonic'
@@ -249,6 +250,26 @@ describe('signing out', () => {
         }))
 
         signOut()
+
+        expect(playerStore.get().queue).toEqual([])
+        expect(playerStore.get().playing).toBe(false)
+        expect(sessionStore.get().phase).toBe('signed-out')
+    })
+
+    test('by the server refusing, stops what was playing too', () => {
+        // A station went on behind the sign-in screen, with no transport there to stop it, and
+        // radio-only then played silence through the element the spectrum had already tapped.
+        sessionStore.set({ phase: 'ready', baseUrl: 'https://host', username: 'mort' })
+        playerStore.update((state) => ({
+            ...state,
+            queue: [{ id: 'tr_1', title: 'One', duration: 100 }],
+            order: [0],
+            index: 0,
+            orderAt: 0,
+            playing: true,
+        }))
+
+        signOutOnAuthRefusal('Your session has ended.')
 
         expect(playerStore.get().queue).toEqual([])
         expect(playerStore.get().playing).toBe(false)
