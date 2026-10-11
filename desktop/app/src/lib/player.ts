@@ -241,6 +241,8 @@ let watchingPagehide = false
  * a late error can both ask whether they are still about the thing playing.
  */
 let loadSeq = 0
+/** Counts the pauses somebody asked for, so a play they interrupted is not asked again. */
+let pauseSeq = 0
 
 /** Put a source on the element, counting it: see `loadSeq`. */
 function putSource(player: HTMLAudioElement, url: string): void {
@@ -276,14 +278,23 @@ function nextFrame(run: () => void): void {
  */
 function start(player: HTMLAudioElement): void {
     const seq = loadSeq
+    const pauses = pauseSeq
     void player.play().catch((reason: unknown) => {
+        // A PAUSE ASKED FOR IS NOT AN ABORT TO RECOVER FROM. Pausing a station still connecting
+        // rejects its play the same way a source switch does; asked again, the station started
+        // anyway and the button said Pause. Checked first: letting the stream go at that pause
+        // also makes this play look superseded.
+        if (pauses !== pauseSeq) {
+            patch({ playing: false })
+            return
+        }
         const stale = seq !== loadSeq
         // Superseded: a newer source is on the element, and its own play is what decides
         // whether anything is sounding.
         if (stale && abortedPlay(reason)) return
         if (!stale && player.paused) {
             nextFrame(() => {
-                if (seq !== loadSeq || !player.paused) return
+                if (seq !== loadSeq || pauses !== pauseSeq || !player.paused) return
                 void player.play().catch(() => patch({ playing: false }))
             })
             return
@@ -845,6 +856,12 @@ export function toggle(): void {
         retry()
         return
     }
+    // A STATION PICKED UP AGAIN IS LIVE AGAIN. Its stream was let go at the pause, so play
+    // connects anew rather than playing out what was buffered half a minute behind live.
+    if (station && player.paused) {
+        playStation(station)
+        return
+    }
     if (player.paused) {
         claimSound(silence)
         // A book whose element holds nothing has been picked up rather than resumed -- the
@@ -852,7 +869,28 @@ export function toggle(): void {
         if (book && !player.src) placeBook(state().positionS, true)
         else if (book) void resumeBook(player, book.id)
         else start(player)
-    } else player.pause()
+    } else {
+        pauseSeq += 1
+        player.pause()
+        if (station) releaseStation(player)
+    }
+}
+
+/**
+ * Let a paused station's stream go.
+ *
+ * Paused, a live stream is still a connection: WebKit kept downloading into its buffer, the
+ * server held the upstream open for the whole pause, and the title kept following a song
+ * nobody was hearing. Removing the source (rather than setting it to nothing, which is an
+ * error in some engines) ends all three; `toggle` connects again on play.
+ */
+function releaseStation(player: HTMLAudioElement): void {
+    stopIcy()
+    loadSeq += 1
+    player.removeAttribute('src')
+    player.load()
+    // Said here rather than left to the element: one still connecting fires no pause to say it.
+    patch({ playing: false })
 }
 
 export function next(): void {

@@ -82,7 +82,29 @@ class FakeAudio {
         this.emit('loadedmetadata')
     }
 
+    /** Letting the source go: what releasing a paused station's stream does. */
+    removeAttribute(name: string): void {
+        if (name === 'src') this.src = ''
+    }
+
+    load(): void {
+        this.readyState = 0
+    }
+
+    /** Set to keep the next `play()` in flight, the way a station still connecting does. */
+    hold = false
+
+    /** The play still in flight, which a `pause()` interrupts. */
+    private inFlight: ((reason: Error) => void) | null = null
+
     play(): Promise<void> {
+        if (this.hold) {
+            this.hold = false
+            this.paused = false
+            return new Promise((_resolve, reject) => {
+                this.inFlight = reject
+            })
+        }
         const refused = this.refuse
         if (refused !== null) {
             // A play the browser interrupted leaves the element where it was -- paused, and
@@ -97,6 +119,10 @@ class FakeAudio {
     }
 
     pause(): void {
+        // Pausing while a play is still in flight rejects that play, as the browser does.
+        const interrupted = this.inFlight
+        this.inFlight = null
+        interrupted?.(abortError())
         this.paused = true
         this.emit('pause')
     }
@@ -397,6 +423,41 @@ describe('a source that will not play', () => {
         expect(playerStore.get().refusal).toBeNull()
         expect(playerStore.get().playing).toBe(true)
         expect(playerStore.get().station?.name).toBe('Two FM')
+    })
+})
+
+describe('pausing a station that is still connecting', () => {
+    test('stays paused: the interrupted play is not asked again', async () => {
+        vi.useFakeTimers()
+        try {
+            fake.hold = true
+            playStation(stations[0]!)
+            // The listener changes their mind before any sound arrives.
+            toggle()
+            await settled()
+            vi.advanceTimersByTime(SETTLE_MS)
+            expect(fake.paused).toBe(true)
+            expect(playerStore.get().playing).toBe(false)
+        } finally {
+            vi.useRealTimers()
+        }
+    })
+})
+
+describe('a station paused and picked up again', () => {
+    test('lets its stream go while paused, and comes back live rather than where it stopped', () => {
+        // Resumed, it played the audio it had buffered 30 s and more behind live, under a title
+        // that had moved on, and the server held the stream open for the whole pause.
+        playStation(stations[0]!)
+        const live = fake.src
+        expect(live).toContain('one')
+        toggle()
+        expect(playerStore.get().playing).toBe(false)
+        expect(fake.src).toBe('')
+        toggle()
+        expect(fake.src).toBe(live)
+        expect(playerStore.get().playing).toBe(true)
+        expect(playerStore.get().station?.id).toBe(stations[0]!.id)
     })
 })
 
