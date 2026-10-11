@@ -229,6 +229,78 @@ export function PlayerBar() {
     const liner = !small && room >= LINER_ROOM && (face === 'standard' || book !== null)
     const titlePx = linerTitlePx(room)
 
+    // On a phone the room above the transport holds the title and the timeline; see the room.
+    const phoneRoom = small && !liner
+    const titleBlock = (
+        <div className={phoneRoom ? 'min-w-0' : 'min-w-0 flex-1 md:max-w-64'}>
+            <p className="truncate text-sm" title={title}>
+                {named}
+            </p>
+            {/* A station that has announced what it is playing says that; one that has
+                        not says it is live, which is the only other true thing about it.
+
+                        AND A SOURCE THAT DIED TAKES THAT LINE. Why it went quiet is the only
+                        thing anybody wants off this bar at that moment, it is one line either
+                        way so the strip does not move, and it is where the eye already is. */}
+            {player.refusal === null ? (
+                <p className="truncate text-xs text-muted-foreground" title={beneath}>
+                    {beneath}
+                </p>
+            ) : (
+                <p className="flex min-w-0 items-baseline gap-2 text-xs">
+                    <span className="truncate text-critical-ink" title={player.refusal}>
+                        {player.refusal}
+                    </span>
+                    {/* Beside the sentence it answers: a refusal is most often the
+                                            network, and the same source asked again usually plays. */}
+                    <button
+                        type="button"
+                        onClick={retry}
+                        className="control-link shrink-0 text-primary-ink underline-offset-2 hover:underline"
+                    >
+                        {RETRY_LABEL}
+                    </button>
+                </p>
+            )}
+        </div>
+    )
+    const scrubberRow = (
+        <div
+            className={cn(
+                phoneRoom
+                    ? 'flex min-w-0 items-center gap-2'
+                    : 'hidden min-w-0 flex-1 items-center gap-2 md:flex',
+                station && 'invisible',
+            )}
+        >
+            <span className="shrink-0 font-mono text-xs text-muted-foreground tabular-nums">
+                {clock(player.positionS)}
+            </span>
+            <input
+                ref={scrubber}
+                type="range"
+                aria-label="Position"
+                min={0}
+                max={Math.max(1, duration)}
+                step="any"
+                defaultValue={player.positionS}
+                onPointerDown={() => {
+                    scrubbing.current = true
+                }}
+                onPointerUp={() => {
+                    scrubbing.current = false
+                }}
+                onChange={(event) => {
+                    seek(Number(event.target.value))
+                }}
+                className="w-full accent-primary"
+            />
+            <span className="shrink-0 font-mono text-xs text-muted-foreground tabular-nums">
+                {clock(duration)}
+            </span>
+        </div>
+    )
+
     return (
         <div
             data-shell-strip="player"
@@ -358,6 +430,17 @@ export function PlayerBar() {
                                 )}
                             </div>
                         </div>
+                    ) : phoneRoom ? (
+                        // ON A PHONE THE ROOM IS THE TITLE AND THE TIMELINE. Beside five buttons in a
+                        // phone's width a book's title was "1." over "C.", and the scrubber and the
+                        // clocks were not drawn at all; up here they have the whole width.
+                        <div
+                            style={{ height: room }}
+                            className="flex shrink-0 flex-col justify-center gap-1 px-3"
+                        >
+                            {titleBlock}
+                            {!station && scrubberRow}
+                        </div>
                     ) : spectrumShown ? (
                         <button
                             type="button"
@@ -371,10 +454,15 @@ export function PlayerBar() {
                     ) : (
                         <div style={{ height: room }} className="shrink-0" />
                     )}
-                    <div className="relative flex h-shell-foot items-center gap-3 px-3">
+                    <div
+                        className={cn(
+                            'relative flex h-shell-foot items-center gap-3 px-3',
+                            phoneRoom && 'justify-center',
+                        )}
+                    >
                         {/* The hairline stands in for the scrubber where the scrubber does not fit, and
                 nowhere else: both at once is the same fact drawn twice. */}
-                        {!station && (
+                        {!station && !phoneRoom && (
                             <div
                                 aria-hidden
                                 className="pointer-events-none absolute inset-x-0 top-0 h-0.5 bg-primary transition-[width] duration-200 md:hidden"
@@ -390,7 +478,7 @@ export function PlayerBar() {
                 AND IT IS A MUSIC FACE. Its window is a track, an artist and a track number read
                 the way a hi-fi reads them, and a chapter of a novel is none of those -- so a
                 book is drawn in the app's own voice whichever face was chosen. */}
-                        {liner ? null : face === 'lcd' && !book ? (
+                        {liner || phoneRoom ? null : face === 'lcd' && !book ? (
                             <LcdDisplay
                                 song={song}
                                 station={station}
@@ -402,37 +490,7 @@ export function PlayerBar() {
                                 volume={player.volume}
                             />
                         ) : (
-                            <div className="min-w-0 flex-1 md:max-w-64">
-                                <p className="truncate text-sm" title={title}>
-                                    {named}
-                                </p>
-                                {/* A station that has announced what it is playing says that; one that has
-                        not says it is live, which is the only other true thing about it.
-
-                        AND A SOURCE THAT DIED TAKES THAT LINE. Why it went quiet is the only
-                        thing anybody wants off this bar at that moment, it is one line either
-                        way so the strip does not move, and it is where the eye already is. */}
-                                {player.refusal === null ? (
-                                    <p className="truncate text-xs text-muted-foreground" title={beneath}>
-                                        {beneath}
-                                    </p>
-                                ) : (
-                                    <p className="flex min-w-0 items-baseline gap-2 text-xs">
-                                        <span className="truncate text-critical-ink" title={player.refusal}>
-                                            {player.refusal}
-                                        </span>
-                                        {/* Beside the sentence it answers: a refusal is most often the
-                                            network, and the same source asked again usually plays. */}
-                                        <button
-                                            type="button"
-                                            onClick={retry}
-                                            className="control-link shrink-0 text-primary-ink underline-offset-2 hover:underline"
-                                        >
-                                            {RETRY_LABEL}
-                                        </button>
-                                    </p>
-                                )}
-                            </div>
+                            titleBlock
                         )}
 
                         <div className="flex items-center gap-1">
@@ -498,6 +556,9 @@ export function PlayerBar() {
                                 variant="ghost"
                                 size="icon-sm"
                                 aria-label={book ? 'Previous chapter' : 'Previous'}
+                                // On the narrowest phones a book keeps its two jumps and play; chapters are
+                                // a tap away on its page, and five buttons would push one off the edge.
+                                className={cn(book && 'max-[359px]:hidden')}
                                 onClick={previous}
                                 disabled={station !== null}
                             >
@@ -518,6 +579,9 @@ export function PlayerBar() {
                                 variant="ghost"
                                 size="icon-sm"
                                 aria-label={book ? 'Next chapter' : 'Next'}
+                                // On the narrowest phones a book keeps its two jumps and play; chapters are
+                                // a tap away on its page, and five buttons would push one off the edge.
+                                className={cn(book && 'max-[359px]:hidden')}
                                 onClick={next}
                                 disabled={station !== null}
                             >
@@ -544,40 +608,7 @@ export function PlayerBar() {
                         {/* In liner notes the timeline is up in the room, so the row keeps the
                             transport on the left and the rest on the right. */}
                         {liner && <div className="flex-1" />}
-                        {!liner && (face === 'standard' || book !== null) && (
-                            <div
-                                className={cn(
-                                    'hidden min-w-0 flex-1 items-center gap-2 md:flex',
-                                    station && 'invisible',
-                                )}
-                            >
-                                <span className="shrink-0 font-mono text-xs text-muted-foreground tabular-nums">
-                                    {clock(player.positionS)}
-                                </span>
-                                <input
-                                    ref={scrubber}
-                                    type="range"
-                                    aria-label="Position"
-                                    min={0}
-                                    max={Math.max(1, duration)}
-                                    step="any"
-                                    defaultValue={player.positionS}
-                                    onPointerDown={() => {
-                                        scrubbing.current = true
-                                    }}
-                                    onPointerUp={() => {
-                                        scrubbing.current = false
-                                    }}
-                                    onChange={(event) => {
-                                        seek(Number(event.target.value))
-                                    }}
-                                    className="w-full accent-primary"
-                                />
-                                <span className="shrink-0 font-mono text-xs text-muted-foreground tabular-nums">
-                                    {clock(duration)}
-                                </span>
-                            </div>
-                        )}
+                        {!liner && !phoneRoom && (face === 'standard' || book !== null) && scrubberRow}
 
                         {/* HOW FAST IT IS READ IS A BOOK'S ALONE. Music at 1.25x is a novelty; a narrator
                 at 1.25x is how a lot of people listen to every book they own, so the choice is
