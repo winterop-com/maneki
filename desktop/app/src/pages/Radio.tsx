@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button'
 import { InputGroup, InputGroupAddon, InputGroupInput } from '@/components/ui/input-group'
 import { useStore, useStoreValue } from '@/hooks/use-store'
 import { playerStore, playStation } from '@/lib/player'
-import { sessionStore } from '@/lib/session'
+import { isAdmin, sessionStore } from '@/lib/session'
 import {
     addStation,
     coverUrl,
@@ -58,6 +58,8 @@ function foundLine(found: FoundStation): string {
  */
 export function RadioPage() {
     const session = useStore(sessionStore)
+    // Stations are the server's, so only an admin adds or removes one; see `isAdmin`.
+    const admin = isAdmin(session)
     const playingId = useStoreValue(playerStore, selectStationId)
     const [stations, setStations] = useState<Station[] | null>(null)
     const [refusal, setRefusal] = useState<string | null>(null)
@@ -198,7 +200,7 @@ export function RadioPage() {
                                         >
                                             <Play aria-hidden />
                                         </Button>
-                                        {station.added ? (
+                                        {!admin ? null : station.added ? (
                                             <span className="w-16 shrink-0 text-center text-xs text-muted-foreground">
                                                 Added
                                             </span>
@@ -264,7 +266,7 @@ export function RadioPage() {
                                         </span>
                                     )}
                                 </button>
-                                {station.custom && (
+                                {station.custom && admin && (
                                     <Button
                                         variant="ghost"
                                         size="icon-sm"

@@ -3,7 +3,15 @@ import { beforeEach, describe, expect, test, vi } from 'vitest'
 import { ApiError, books } from '@/lib/api'
 import { connectionStore, dismissRefusal } from '@/lib/connection'
 import { playerStore } from '@/lib/player'
-import { connect, isAuthError, sessionStore, signOut, WANTS_CREDENTIALS } from '@/lib/session'
+import {
+    connect,
+    isAdmin,
+    isAuthError,
+    sessionStore,
+    signInTo,
+    signOut,
+    WANTS_CREDENTIALS,
+} from '@/lib/session'
 import { SubsonicError } from '@/lib/subsonic'
 import type { Capabilities } from '@/lib/types'
 
@@ -265,5 +273,40 @@ describe('telling a refusal from a silence', () => {
         expect(isAuthError(new SubsonicError(70, 'no album 12'))).toBe(false)
         expect(isAuthError(new TypeError('Failed to fetch'))).toBe(false)
         expect(isAuthError('nope')).toBe(false)
+    })
+})
+
+/** A server that signs `bob` in with the role it is given. */
+function signingIn(admin: boolean): void {
+    vi.stubGlobal(
+        'fetch',
+        vi.fn(async (input: string) => {
+            const url = String(input)
+            const body = url.includes('/capabilities')
+                ? server({ auth_required: true })
+                : url.includes('/auth/login')
+                  ? { token: 't', username: 'bob', expires_at: '', admin }
+                  : { 'subsonic-response': { status: 'ok' } }
+            return { ok: true, status: 200, json: async () => body }
+        }),
+    )
+}
+
+describe('whether the account may change what every account shares', () => {
+    test('a listener is signed in as one, and the app hides stations and rescans from them', async () => {
+        signingIn(false)
+        await signInTo('https://host', 'bob', 'pw')
+        expect(sessionStore.get().phase).toBe('ready')
+        expect(isAdmin(sessionStore.get())).toBe(false)
+    })
+
+    test('an admin is signed in as one', async () => {
+        signingIn(true)
+        await signInTo('https://host', 'alice', 'pw')
+        expect(isAdmin(sessionStore.get())).toBe(true)
+    })
+
+    test('a session kept before the server said is treated as an admin; the server still refuses', () => {
+        expect(isAdmin({})).toBe(true)
     })
 })

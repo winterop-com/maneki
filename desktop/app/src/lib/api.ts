@@ -202,7 +202,10 @@ export async function probe(origin: string): Promise<Capabilities | null> {
 }
 
 /** Trade a username and password for a bearer token. */
-export function signIn(username: string, password: string): Promise<{ token: string; username: string }> {
+export function signIn(
+    username: string,
+    password: string,
+): Promise<{ token: string; username: string; admin?: boolean }> {
     return send('/auth/login', 'POST', { username, password })
 }
 

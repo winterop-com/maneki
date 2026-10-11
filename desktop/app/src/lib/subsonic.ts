@@ -121,6 +121,19 @@ function withParams(credentials: Credentials, endpoint: string, params?: Params)
     return `${credentials.restUrl}/${endpoint}?${query.toString()}`
 }
 
+/** Whether the signed-in account is an admin, by the Subsonic account's own role flag. */
+export async function ownAdminRole(credentials: Credentials): Promise<boolean | undefined> {
+    try {
+        const inner = await call<{ user?: { adminRole?: boolean } }>(credentials, 'getUser', {
+            username: credentials.username,
+        })
+        return inner.user?.adminRole
+    } catch {
+        // Not knowing is not a reason to refuse a sign-in; see `isAdmin`.
+        return undefined
+    }
+}
+
 /** Call one endpoint and return the inside of its envelope. */
 export async function call<T = Record<string, unknown>>(
     credentials: Credentials,

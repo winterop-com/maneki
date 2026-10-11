@@ -12,7 +12,7 @@ import { video as videoApi } from '@/lib/api'
 import { clock, progressRatio } from '@/lib/format'
 import { registerActions, SCREEN_GROUP } from '@/lib/palette'
 import { clearScreenStatus, scanNote, setScreenStatus } from '@/lib/screen-status'
-import { sessionStore } from '@/lib/session'
+import { isAdmin, sessionStore } from '@/lib/session'
 import type { VideoBrowse, VideoEntry, VideoProgress, VideoScanState } from '@/lib/types'
 import {
     browseHref,
@@ -66,6 +66,8 @@ export function VideoPage() {
  * make a rescan feel like a fault.
  */
 function Browser({ path }: { path: string }) {
+    // A rescan is the whole library's disk, so only an admin starts one; see `isAdmin`.
+    const admin = isAdmin(useStore(sessionStore))
     const [browse, setBrowse] = useState<VideoBrowse | null>(null)
     const [refusal, setRefusal] = useState<string | null>(null)
     const [scan, setScan] = useState<VideoScanState | null>(null)
@@ -256,18 +258,22 @@ function Browser({ path }: { path: string }) {
 
     useEffect(
         () =>
-            registerActions([
-                {
-                    id: 'video:rescan',
-                    title: RESCAN_LABEL,
-                    group: SCREEN_GROUP,
-                    screen: true,
-                    icon: RefreshCw,
-                    keywords: ['scan', 'refresh', 'reload', 'library', 'video'],
-                    run: rescan,
-                },
-            ]),
-        [rescan],
+            registerActions(
+                admin
+                    ? [
+                          {
+                              id: 'video:rescan',
+                              title: RESCAN_LABEL,
+                              group: SCREEN_GROUP,
+                              screen: true,
+                              icon: RefreshCw,
+                              keywords: ['scan', 'refresh', 'reload', 'library', 'video'],
+                              run: rescan,
+                          },
+                      ]
+                    : [],
+            ),
+        [admin, rescan],
     )
 
     const searching = query.trim() !== ''
@@ -288,16 +294,18 @@ function Browser({ path }: { path: string }) {
                     placeholder="Search"
                     className="min-w-0 flex-1"
                 />
-                <Button
-                    variant="outline"
-                    size="sm"
-                    aria-label={RESCAN_LABEL}
-                    title={scanning ? 'A scan is already running' : RESCAN_LABEL}
-                    disabled={scanning}
-                    onClick={rescan}
-                >
-                    <RefreshCw className="size-4" aria-hidden />
-                </Button>
+                {admin && (
+                    <Button
+                        variant="outline"
+                        size="sm"
+                        aria-label={RESCAN_LABEL}
+                        title={scanning ? 'A scan is already running' : RESCAN_LABEL}
+                        disabled={scanning}
+                        onClick={rescan}
+                    >
+                        <RefreshCw className="size-4" aria-hidden />
+                    </Button>
+                )}
             </div>
 
             {searching ? (

@@ -84,7 +84,7 @@ import {
 import { openLyrics } from '@/lib/lyrics'
 import { nextRepeat, REPEAT_LABELS } from '@/lib/queue'
 import { openSearch } from '@/lib/search'
-import { sessionStore, signOut } from '@/lib/session'
+import { isAdmin, sessionStore, signOut } from '@/lib/session'
 import { applePlatform, modifierLabel, SEEK_STEP_S, VOLUME_STEP } from '@/lib/shortcuts'
 import { toggleStar } from '@/lib/star'
 import { choosePalette, PALETTES } from '@/lib/theme'
@@ -128,6 +128,8 @@ const SettingsDialog = lazy(() =>
  */
 export function AppShell({ children }: { children: ReactNode }) {
     const session = useStore(sessionStore)
+    // Rescanning is the whole library's disk; a listener is not offered it. See `isAdmin`.
+    const admin = isAdmin(session)
     const collapsed = useStore(railCollapsed)
     // One fact each, not the whole player: its store publishes four times a second while a
     // track plays, and the shell has no business re-rendering the screen under it that often.
@@ -426,7 +428,7 @@ export function AppShell({ children }: { children: ReactNode }) {
             },
             // Offered only where there is a library to walk: a row that asked a server with no
             // music to reindex its music would be a row that can only fail.
-            ...(music
+            ...(music && admin
                 ? [
                       {
                           id: 'view:rescan',
@@ -494,6 +496,7 @@ export function AppShell({ children }: { children: ReactNode }) {
             },
         ]
     }, [
+        admin,
         bookId,
         caps,
         chapterCount,

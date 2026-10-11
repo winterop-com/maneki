@@ -25,7 +25,7 @@ import { noteRefusal } from '@/lib/connection'
 import { clear } from '@/lib/player'
 import { forgetMarks } from '@/lib/star'
 import { createStore } from '@/lib/store'
-import { type Credentials, makeCredentials, ping, SubsonicError } from '@/lib/subsonic'
+import { makeCredentials, ownAdminRole, ping, SubsonicError, type Credentials } from '@/lib/subsonic'
 import type { Capabilities } from '@/lib/types'
 
 const STORAGE_KEY = 'maneki.session'
@@ -36,6 +36,8 @@ export interface SessionState {
     phase: SessionPhase
     baseUrl: string
     username?: string
+    /** Whether the account may change what every account shares; see `isAdmin`. */
+    admin?: boolean
     capabilities?: Capabilities
     /** Present when this server has a Subsonic mount and we are signed in to it. */
     music?: Credentials
@@ -52,6 +54,7 @@ interface StoredSubsonic {
 interface StoredSession {
     baseUrl: string
     username?: string
+    admin?: boolean
     token?: string
     subsonic?: StoredSubsonic
 }
@@ -165,6 +168,7 @@ export async function connect(stored: StoredSession = read(), submitted = false)
             phase: 'ready',
             baseUrl: stored.baseUrl,
             username: stored.username,
+            admin: stored.admin,
             capabilities: caps,
             music,
         })
@@ -205,6 +209,7 @@ export async function signInTo(baseUrl: string, username: string, password: stri
             const token = await signIn(username, password)
             stored.token = token.token
             stored.username = token.username
+            stored.admin = token.admin
         }
         const rest = restUrl(baseUrl, caps)
         if (rest) {
@@ -213,6 +218,8 @@ export async function signInTo(baseUrl: string, username: string, password: stri
             const credentials = makeCredentials(rest, username, password)
             await ping(credentials)
             stored.subsonic = { username, salt: credentials.salt, token: credentials.token }
+            // A server with no sign-in of its own still knows its accounts' roles.
+            if (stored.admin === undefined) stored.admin = await ownAdminRole(credentials)
         }
         await connect(stored, true)
     } catch (error) {
@@ -223,6 +230,18 @@ export async function signInTo(baseUrl: string, username: string, password: stri
             refusal: error instanceof Error ? error.message : 'sign-in failed',
         })
     }
+}
+
+/**
+ * Whether this account may change what every account shares: add or remove a station, rescan.
+ *
+ * THE SERVER DECIDES AND REFUSES; THIS ONLY HIDES. A listener offered Remove on a station got
+ * an error for pressing it. Unknown counts as yes -- a session kept before the server said --
+ * because a control the server then refuses is a nuisance, and one hidden from an admin is a
+ * missing feature.
+ */
+export function isAdmin(state: Pick<SessionState, 'admin'>): boolean {
+    return state.admin !== false
 }
 
 /** Forget the credentials, keeping the server so the next sign-in is one field shorter. */
