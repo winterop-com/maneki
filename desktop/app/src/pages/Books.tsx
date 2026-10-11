@@ -2,6 +2,8 @@ import { ChevronLeft, Play } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router'
 
+import { Spinner } from '@/components/Spinner'
+import { Skeleton } from '@/components/Skeleton'
 import { CoverArt } from '@/components/CoverArt'
 import { Button } from '@/components/ui/button'
 import { useStoreValue } from '@/hooks/use-store'
@@ -68,8 +70,14 @@ function Shelf() {
     }, [])
 
     if (refusal) return <Notice>{refusal}</Notice>
-    if (!books) return <Notice>Reading the shelf.</Notice>
-    if (!books.length) return <Notice>{scanning ? 'Reading the shelf.' : 'No audiobooks.'}</Notice>
+    if (!books || (!books.length && scanning)) {
+        return (
+            <div className="p-4">
+                <Skeleton rows={15} kind="card" />
+            </div>
+        )
+    }
+    if (!books.length) return <Notice>No audiobooks.</Notice>
 
     return (
         <ul className="grid grid-cols-2 gap-4 p-4 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
@@ -126,7 +134,7 @@ function Book({ id }: { id: string }) {
     }, [id])
 
     if (refusal) return <Notice>{refusal}</Notice>
-    if (!book) return <Notice>Opening the book.</Notice>
+    if (!book) return <Spinner label="Opening the book" />
 
     // THE BUTTON KNOWS WHEN THIS IS THE BOOK PLAYING, as the album screen's does, and steps
     // aside for the transport. And a book somebody is part way through says Resume before it

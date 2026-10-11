@@ -2191,3 +2191,10 @@ html.dark[data-theme='neon'],
     box-shadow: none;
     --tw-ring-shadow: 0 0 #0000;
 }
+
+/* `Spinner` fades its ring in after a short wait, so a load that finishes at once shows none. */
+@keyframes spinner-in {
+    to {
+        opacity: 1;
+    }
+}

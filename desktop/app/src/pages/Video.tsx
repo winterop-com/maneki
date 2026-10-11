@@ -3,6 +3,8 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router'
 import { toast } from 'sonner'
 
+import { Spinner } from '@/components/Spinner'
+import { Skeleton } from '@/components/Skeleton'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { useStore } from '@/hooks/use-store'
@@ -307,7 +309,13 @@ function Browser({ path }: { path: string }) {
                     {refusal !== null && <Notice>{refusal}</Notice>}
                     {refusal === null &&
                         browse === null &&
-                        (scanning ? <ScanBar scan={scan} /> : <Notice>Reading the library.</Notice>)}
+                        (scanning ? (
+                            <ScanBar scan={scan} />
+                        ) : (
+                            <div className="p-2">
+                                <Skeleton rows={10} kind="card" />
+                            </div>
+                        ))}
                     {refusal === null && browse !== null && rows.length === 0 && (
                         <Notice>
                             {path === ''
@@ -378,7 +386,7 @@ function SearchResults({
     tokens: Record<string, number>
 }) {
     const navigate = useNavigate()
-    if (rows === null) return <Notice>Searching.</Notice>
+    if (rows === null) return <Spinner label="Searching" />
     if (rows.length === 0) return <Notice>Nothing in the library matches &ldquo;{query}&rdquo;.</Notice>
     return (
         <ul className="min-h-0 flex-1 overflow-y-auto">

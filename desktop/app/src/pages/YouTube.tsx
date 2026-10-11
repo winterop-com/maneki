@@ -2,6 +2,7 @@ import { ChevronLeft, Plus, RefreshCw, Trash2 } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useLocation, useNavigate, useParams, useSearchParams } from 'react-router'
 
+import { Skeleton } from '@/components/Skeleton'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
@@ -287,7 +288,7 @@ function Channels() {
             </form>
 
             {refusal !== null && <Notice>{refusal}</Notice>}
-            {refusal === null && channels === null && <Notice>Reading your channels.</Notice>}
+            {refusal === null && channels === null && <Skeleton rows={6} />}
             {refusal === null && channels?.length === 0 && (
                 <Notice>No channels yet. Paste a channel address above.</Notice>
             )}
@@ -495,7 +496,7 @@ function Channel({ id }: { id: string }) {
                         className="min-h-0 overflow-y-auto"
                     >
                         {refusal !== null && <Notice>{refusal}</Notice>}
-                        {refusal === null && shown === null && <Notice>Reading the channel.</Notice>}
+                        {refusal === null && shown === null && <Skeleton rows={8} kind="card" />}
                         {refusal === null && shown?.length === 0 && <Notice>{emptyTabNote(tab)}</Notice>}
                         {shown !== null && shown.length > 0 && (
                             <ul className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">

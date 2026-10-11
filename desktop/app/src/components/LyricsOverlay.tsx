@@ -1,6 +1,7 @@
 import { X } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 
+import { Spinner } from '@/components/Spinner'
 import { Button } from '@/components/ui/button'
 import { useOverlay } from '@/hooks/use-overlay'
 import { usePrefersReducedMotion } from '@/hooks/use-reduced-motion'
@@ -11,7 +12,7 @@ import { sessionStore } from '@/lib/session'
 import { cn } from '@/lib/utils'
 
 export const LEAVE_LYRICS_LABEL = 'Close the words'
-export const LYRICS_READING = 'Reading the words.'
+export const LYRICS_READING = 'Loading the lyrics'
 export const LYRICS_NONE = 'No words for this track.'
 export const LYRICS_NOTHING_PLAYING = 'Nothing is playing.'
 
@@ -141,7 +142,7 @@ function Body({
     at: number
 }) {
     if (song === null) return <Notice>{LYRICS_NOTHING_PLAYING}</Notice>
-    if (words === null) return <Notice>{LYRICS_READING}</Notice>
+    if (words === null) return <Spinner label={LYRICS_READING} />
     if (words.lines.length === 0) return <Notice>{LYRICS_NONE}</Notice>
 
     return (
