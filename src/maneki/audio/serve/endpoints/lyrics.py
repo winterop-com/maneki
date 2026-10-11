@@ -17,7 +17,7 @@ from typing import Any
 from fastapi import APIRouter, Query, Request
 
 from maneki.audio.library.models import LibraryAlbum, LibraryTrack
-from maneki.audio.lyrics import is_synced, parse_lrc
+from maneki.audio.lyrics import is_synced, parse_lrc, real_lyrics
 from maneki.audio.serve.app import envelope, error_envelope
 from maneki.audio.serve.index import IndexCache
 
@@ -50,7 +50,7 @@ def _structured_payload(album: LibraryAlbum, track: LibraryTrack) -> dict[str, A
     like Symfonium / Amperfy display the highlight tracking real time.
     Plain-text bodies stay in the unsynced shape.
     """
-    text = track.lyrics or ""
+    text = real_lyrics(track.lyrics) or ""
     parsed = parse_lrc(text)
     synced = is_synced(parsed)
     if synced:
@@ -88,7 +88,7 @@ async def get_lyrics(
         {
             "artist": track.artist or album.artist_dir,
             "title": track.title or track.path.stem,
-            "value": track.lyrics or "",
+            "value": real_lyrics(track.lyrics) or "",
         },
     )
 
@@ -102,7 +102,8 @@ async def get_lyrics_by_song_id(request: Request, id: str = Query(...)) -> dict:
     if pair is None:
         return error_envelope(70, f"Song not found: {id}")
     album, track = pair
-    if not track.lyrics:
+    # A link where the words should be counts as none (an index scanned before that rule).
+    if not real_lyrics(track.lyrics):
         # Empty list rather than error — same convention as getLyrics.
         return envelope("lyricsList", {"structuredLyrics": []})
     return envelope("lyricsList", {"structuredLyrics": [_structured_payload(album, track)]})

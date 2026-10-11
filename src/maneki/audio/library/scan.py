@@ -12,7 +12,7 @@ from pathlib import Path
 
 from maneki.audio import naming
 from maneki.audio.library.models import LibraryAlbum, LibraryIndex, LibraryTrack
-from maneki.audio.lyrics import read_sidecar
+from maneki.audio.lyrics import read_sidecar, real_lyrics
 from maneki.audio.metadata import SUPPORTED_AUDIO_EXTS, read_source
 from maneki.library import skips_dir
 
@@ -149,7 +149,8 @@ def _pick_lyrics(audio_path: Path, embedded: str | None) -> str | None:
     sidecar = read_sidecar(audio_path)
     if sidecar is not None and sidecar.strip():
         return sidecar
-    return embedded
+    # An address stamped where the words go is not lyrics; see `real_lyrics`.
+    return real_lyrics(embedded)
 
 
 def _year_only(date: str | None) -> str | None:

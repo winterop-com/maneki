@@ -90,3 +90,22 @@ def parse_lrc(text: str) -> list[LrcLine]:
 def is_synced(lines: list[LrcLine]) -> bool:
     """True if any line has a non-zero timestamp — i.e. real LRC, not plain."""
     return any(line.start_ms > 0 for line in lines)
+
+
+#: A line that is nothing but an address: `https://…`, `www.…`, or a bare `host.tld/path`.
+_LINK_LINE = re.compile(r"^(?:https?://|www\.)?[\w-]+(?:\.[\w-]+)+(?:/\S*)?$", re.IGNORECASE)
+
+
+def real_lyrics(text: str | None) -> str | None:
+    """The lyrics, or None when the text is only links.
+
+    Rips stamp a channel's address into the lyrics tag (`www.t.me/…`), and the overlay showed it
+    as the words of the song: 262 tracks in the test library did. Text with any words in it is
+    kept as it is, links and all.
+    """
+    if text is None:
+        return None
+    lines = [line.strip() for line in text.splitlines() if line.strip()]
+    if not lines or all(_LINK_LINE.match(line) for line in lines):
+        return None
+    return text
