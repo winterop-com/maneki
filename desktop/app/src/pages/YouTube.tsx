@@ -821,7 +821,8 @@ function Watch({ id }: { id: string }) {
                         onChange={(event) => {
                             choose(Number(event.target.value))
                         }}
-                        className="h-8 rounded-md border bg-field px-2 text-xs"
+                        // A finger tall on a phone, like every other control there.
+                        className="h-finger rounded-md border bg-field px-2 text-xs md:h-8"
                     >
                         {ladder.map((choice) => (
                             <option key={choice.height} value={choice.height}>
