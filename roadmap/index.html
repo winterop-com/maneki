@@ -1305,6 +1305,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#radio-without-a-server" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Radio without a server
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#stage-3-maneki-native-protocol-compat-facades" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1430,6 +1441,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#radio-without-a-server" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Radio without a server
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#stage-3-maneki-native-protocol-compat-facades" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1532,6 +1554,23 @@
 <li><strong>Scrub-bar hover previews</strong>: extend the contact-sheet logic into denser per-segment thumbnails for hover-on-scrub previews. Cheap re-use of existing ffmpeg infra.</li>
 <li><strong>Theater-mode overlap with topbar</strong> (cosmetic): some viewport sizes show the player title strip rendering tighter than expected next to the topbar. Investigation pending.</li>
 </ul>
+<h2 id="radio-without-a-server">Radio without a server<a class="headerlink" href="#radio-without-a-server" title="Permanent link">&para;</a></h2>
+<p>A third way into the client, next to signing in: <strong>Just listen to radio</strong>, with no server, no address and no account. It adds a mode and removes nothing: a client that signs in keeps the server's radio exactly as it is (relayed stream, ICY titles, shared station list, the spectrum). The sign-in screen changes with it: it offers two choices, <strong>Sign in</strong> (to a server, with an account) and <strong>Just listen to radio</strong> (no login), instead of a "Connect" step.</p>
+<p>What the server does for radio today, and what the radio-only mode does instead:</p>
+<ul>
+<li><strong>Stream relay</strong> (<code>audio/serve/radio_proxy.py</code>): stations rarely send CORS headers, and the spectrum needs <code>crossOrigin</code> on the element, so a direct cross-origin stream fails silently. Radio-only plays the station URL directly with no Web Audio tap. The spectrum is lost for stations, which WebKit (Safari, iPhone, the macOS app) cannot draw for a live stream anyway.</li>
+<li><strong>ICY now-playing title</strong>: the server reads the inline metadata. A browser cannot (it needs <code>Icy-MetaData: 1</code> and the raw bytes, cross-origin). Radio-only shows the station name; per-station now-playing APIs (NRK has one) are an optional later step.</li>
+<li><strong>Station list</strong>: kept on the server today. Radio-only keeps it in local storage, seeded with the same defaults, with no sync between devices.</li>
+<li><strong>Station search</strong>: the server queries radio-browser.info. Radio-only calls its API directly; confirm it allows cross-origin requests from every shell first.</li>
+</ul>
+<p>Adding is the same gesture in both modes: a <strong>+ Add</strong> on the Radio screen that takes a search (radio-browser.info) or a pasted stream URL, tries it, and keeps it. The YouTube screen gets the same <strong>+ Add</strong> for a channel (pasted address or handle) when signed in; YouTube stays out of the radio-only mode, since it needs the server's yt-dlp.</p>
+<p>Where an added station lives:</p>
+<ul>
+<li><strong>Radio-only</strong>: on the device. A station list is a few dozen small rows, so <code>localStorage</code> in a browser and the Tauri store plugin (already loaded in <code>desktop/tauri</code>) are enough; no SQLite in the client.</li>
+<li><strong>Signed in</strong>: on the server, but per user. Added stations go into SQLite in <code>~/.config/maneki/radio.db</code> today, shared by every account, so any user can remove another's station. They should move into the user's own directory under <code>&lt;root&gt;/.maneki/users/&lt;name&gt;/</code>, beside <code>books.db</code>, <code>videos.db</code>, <code>history.db</code> and <code>youtube.db</code>. The defaults and the hand-written <code>radio.toml</code> stay shared and cannot be removed from a client.</li>
+</ul>
+<p>Then a native relay in the desktop shells: Tauri (Rust) and Electron (Node) can do what <code>radio_proxy.py</code> does, without CORS, so the desktop apps get ICY titles and (in Electron) the spectrum with no server at all.</p>
+<p>Open questions: plain-<code>http</code> stations from a client served over <code>https</code> (mixed content; fine in the desktop shells); stations that publish HLS or <code>.pls</code> / <code>.m3u</code> playlists rather than a raw stream; and whether a station list kept locally should be offered to a server on a later sign-in.</p>
 <h2 id="stage-3-maneki-native-protocol-compat-facades">Stage 3 — Maneki-native protocol &amp; compat facades<a class="headerlink" href="#stage-3-maneki-native-protocol-compat-facades" title="Permanent link">&para;</a></h2>
 <p>The Subsonic API is the only audio protocol today; the video API is Maneki-native but unstable. Stage 3 is to design Maneki's own clean protocol for both kinds, then offer Subsonic / Jellyfin compat layers on top for existing clients.</p>
 <ul>

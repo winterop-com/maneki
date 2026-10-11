@@ -1598,7 +1598,7 @@
 <div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>host:port/capabilities          server identity + which kinds are mounted (public)
 <a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>host:port/auth/login            POST username + password -&gt; bearer token
 <a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>host:port/auth/me               GET /me with Bearer header -&gt; who you are
-<a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a>host:port/audio/rest/*          Subsonic API (its own auth grammar; unaffected by --auth)
+<a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a>host:port/audio/rest/*          Subsonic API (its own auth grammar; unaffected by sign-in)
 <a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a>host:port/video/api/*           Maneki-native video JSON API
 <a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a>host:port/books/api/*           Maneki-native audiobook JSON API (when &lt;root&gt;/Audiobooks/ exists)
 <a id="__codelineno-2-7" name="__codelineno-2-7" href="#__codelineno-2-7"></a>host:port/video/                throwaway demo HTML page (retired when SPA lands)
@@ -1642,20 +1642,21 @@
 <p>Both mounts are always present, because each also hosts a remote source that needs nothing on disk: internet radio (<code>getInternetRadioStations</code>, the ICY proxy) on <code>/audio/rest/*</code>, YouTube on <code>/video/api/*</code>. What the scan decides is the <em>content</em> of the local half, reported by the <code>audio</code> / <code>video</code> flags — so a client can tell "nothing to browse here" from "this mount does not exist". The local library scan itself is still gated on finding files of that kind, so a radio-only root pays no walk and gets no <code>.maneki/index.db</code> written into it.</p>
 <p>There is no kind-toggle flag: to serve only audio, point at an audio-only root; to serve only video, point at a video-only root; to run Maneki as a pure radio player, point it at an empty directory. The single-library design is the whole point.</p>
 <h2 id="options">Options<a class="headerlink" href="#options" title="Permanent link">&para;</a></h2>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>maneki serve &lt;root&gt; [--host HOST] [--port PORT] [--no-ui] [--auth] [--workers N]
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>maneki serve &lt;root&gt; [--host HOST] [--port PORT] [--no-ui] [--no-auth] [--workers N]
 <a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>
 <a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>  &lt;root&gt;          Library root - scanned recursively for both audio and video
 <a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a>  --host HOST     Interface to bind (default 0.0.0.0, every interface; 127.0.0.1 keeps it local)
 <a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a>  --port PORT     Port to bind (default 8765)
 <a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a>  --no-ui         Leave the web client out and serve the APIs alone
-<a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a>  --auth          Require bearer-token auth on /video/* endpoints
+<a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a>  --no-auth       Serve /video/* and /books/* without sign-in (on by default)
 <a id="__codelineno-3-8" name="__codelineno-3-8" href="#__codelineno-3-8"></a>  --workers N     Background transcode workers (default 0 = cpu_count // 2, capped 4)
 </code></pre></div>
 <p>The defaults bind to localhost on port 8765. To expose on the LAN or Tailscale, pass <code>--host 0.0.0.0</code>.</p>
 <h2 id="auth">Auth<a class="headerlink" href="#auth" title="Permanent link">&para;</a></h2>
-<p><strong>The audio (Subsonic) mount</strong> keeps its own auth grammar (salt + token query params per the Subsonic spec). Credentials resolve from <code>~/.config/maneki/maneki.toml</code> <code>[server]</code> section, falling back to <code>admin</code>/<code>admin</code> with a yellow warning at startup. This is unchanged by <code>--auth</code>.</p>
-<p><strong>The Maneki-native endpoints</strong> (<code>/video/*</code> and <code>/books/*</code>) optionally require a bearer token. Auth is off by default so the demo page keeps working. Enable with <code>--auth</code>:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>maneki<span class="w"> </span>serve<span class="w"> </span>~/Downloads/library<span class="w"> </span>--auth
+<p><strong>The audio (Subsonic) mount</strong> keeps its own auth grammar (salt + token query params per the Subsonic spec). Credentials resolve from <code>~/.config/maneki/maneki.toml</code> <code>[server]</code> section, falling back to <code>admin</code>/<code>admin</code> with a yellow warning at startup. Sign-in on the native endpoints does not change it.</p>
+<p><strong>The Maneki-native endpoints</strong> (<code>/video/*</code> and <code>/books/*</code>) require a bearer token by default, and that is what keeps each account's positions and subscriptions its own: without it every request is the first admin's. <code>--no-auth</code> turns it off for a single-user server on a trusted machine:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>maneki<span class="w"> </span>serve<span class="w"> </span>~/Downloads/library<span class="w">            </span><span class="c1"># sign-in required</span>
+<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>maneki<span class="w"> </span>serve<span class="w"> </span>~/Downloads/library<span class="w"> </span>--no-auth<span class="w">  </span><span class="c1"># open, single user</span>
 </code></pre></div>
 <p>When auth is on:</p>
 <ol>
@@ -1675,7 +1676,7 @@
 </code></pre></div>
 <p>Tokens live in memory and expire after 24 hours (or when the server restarts).</p>
 <p><strong>Media URLs carry the token as <code>?token=&lt;token&gt;</code> instead of a header.</strong> A <code>&lt;video&gt;</code> source, an <code>&lt;img&gt;</code> poster or cover, a <code>&lt;track&gt;</code> subtitle, an <code>&lt;audio&gt;</code> book file and an <code>EventSource</code> are all fetched by the browser out of an address, and an address has nowhere to put an <code>Authorization</code> header — so without a second way to present the token, <code>--auth</code> would leave the client signed in and every picture and stream under it answering 401. The same token in the query is validated exactly as the header is, but only on the routes one of those elements actually fetches (video <code>stream</code>, <code>play</code>, <code>poster</code>, <code>thumbnail</code>, <code>hls/*</code>, <code>subtitles/&lt;track&gt;</code> and <code>stats/stream</code>; books <code>cover</code> and <code>files/&lt;n&gt;</code>), and only on a GET. A token in a URL ends up in browser history and in anything that copies a link, so every JSON API keeps the header and answers 401 to <code>?token=</code> alone. An HLS manifest names its segments relatively and a relative URL does not inherit the manifest's query, so the server stamps the token back onto each segment URI itself. The access log records the path and never the query, which is what keeps this token — and Subsonic's <code>p=</code> and <code>t=</code> — out of the log line.</p>
-<p>The demo page at <code>/video/</code> does NOT yet drive the login flow, so when <code>--auth</code> is on the demo can't play videos. Use the API directly until the SPA video tab lands.</p>
+<p>The demo page at <code>/video/</code> does not drive the login flow, so it needs <code>--no-auth</code>.</p>
 <p>Same credentials as the audio Subsonic mount — one password sourced from the same TOML.</p>
 <h2 id="keeping-it-running">Keeping it running<a class="headerlink" href="#keeping-it-running" title="Permanent link">&para;</a></h2>
 <p>A server started from a shell dies with the shell, and does not come back
