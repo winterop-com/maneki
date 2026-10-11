@@ -238,6 +238,9 @@ export function RailEntry({ entry, collapsed }: { entry: NavEntry; collapsed: bo
     const link = (
         <Link
             to={entry.path}
+            // WebKit (the macOS app, Safari) leaves links out of the Tab order unless the reader
+            // turned a system setting on, so the rail could not be reached from the keyboard.
+            tabIndex={0}
             aria-label={entry.label}
             aria-current={active ? 'page' : undefined}
             className={cn(
