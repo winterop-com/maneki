@@ -24,6 +24,8 @@ from datetime import UTC, datetime
 from pathlib import Path
 from threading import RLock
 
+from maneki.video.serve.progress import open_user_db
+
 log = logging.getLogger(__name__)
 
 _SCHEMA = """
@@ -51,11 +53,8 @@ class SubscriptionStore:
         return self._path
 
     def _conn(self) -> sqlite3.Connection:
-        self._path.parent.mkdir(parents=True, exist_ok=True)
-        conn = sqlite3.connect(self._path, check_same_thread=False, isolation_level=None)
-        if not self._ready:
-            conn.executescript(_SCHEMA)
-            self._ready = True
+        conn = open_user_db(self._path, _SCHEMA, ready=self._ready)
+        self._ready = True
         return conn
 
     def add(self, channel_id: str, *, at: str | None = None) -> None:

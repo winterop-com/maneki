@@ -15,12 +15,15 @@ episode to anything here.
 
 from __future__ import annotations
 
+import logging
 import sqlite3
 import time
 from pathlib import Path
 from threading import RLock
 
 from pydantic import BaseModel, ConfigDict
+
+log = logging.getLogger(__name__)
 
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS progress (
@@ -51,6 +54,27 @@ class VideoProgress(BaseModel):
     updated_at: float
 
 
+class UserDataUnavailable(Exception):
+    """A user's saved data cannot be opened: the library root is gone or refuses writes.
+
+    The drive holding the root unplugged, every position and channel call raised a 500 with
+    a traceback naming the disk. The app answers this with a 503 and a sentence instead.
+    """
+
+
+def open_user_db(path: Path, schema: str, *, ready: bool) -> sqlite3.Connection:
+    """Open (and on first use, lay out) one user's SQLite file, or raise `UserDataUnavailable`."""
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        conn = sqlite3.connect(path, check_same_thread=False, isolation_level=None)
+        if not ready:
+            conn.executescript(schema)
+    except (OSError, sqlite3.Error) as exc:
+        log.warning("user data: %s unavailable (%s)", path, exc)
+        raise UserDataUnavailable(str(path)) from exc
+    return conn
+
+
 class VideoProgressStore:
     """One user's watching positions, keyed by video id."""
 
@@ -61,11 +85,8 @@ class VideoProgressStore:
         self._ready = False
 
     def _conn(self) -> sqlite3.Connection:
-        self._path.parent.mkdir(parents=True, exist_ok=True)
-        conn = sqlite3.connect(self._path, check_same_thread=False, isolation_level=None)
-        if not self._ready:
-            conn.executescript(_SCHEMA)
-            self._ready = True
+        conn = open_user_db(self._path, _SCHEMA, ready=self._ready)
+        self._ready = True
         return conn
 
     def get(self, video_id: str) -> VideoProgress | None:

@@ -172,3 +172,24 @@ def test_a_position_survives_a_new_server(library_root: Path) -> None:
 
     second = TestClient(create_app(library_root, users=UserRegistry.single_user(library_root, _CFG)))
     assert second.get(f"/api/videos/{video_id}/progress").json()["position_s"] == 450.0
+
+
+def test_a_library_root_that_went_away_answers_a_sentence_not_a_traceback(library_root: Path) -> None:
+    """The drive holding the root unplugged: every position and channel call raised a 500 with
+    a traceback naming the disk. It answers 503 with a plain sentence now."""
+    import shutil
+
+    client = TestClient(create_app(library_root, users=UserRegistry.single_user(library_root, _CFG)))
+    video_id = _id(client, "ep1")
+    shutil.rmtree(library_root / ".maneki", ignore_errors=True)
+    (library_root / ".maneki").write_text("a file where the folder should be")
+
+    for answer in (
+        client.get("/api/progress"),
+        client.get(f"/api/videos/{video_id}/progress"),
+        client.put(f"/api/videos/{video_id}/progress", json={"position_s": 12.0}),
+        client.get("/api/youtube/channels"),
+    ):
+        assert answer.status_code == 503, answer.text
+        assert str(library_root) not in answer.text
+        assert answer.json()["detail"].endswith(".")

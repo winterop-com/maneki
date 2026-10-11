@@ -21,7 +21,7 @@ from typing import TYPE_CHECKING, Iterator
 from urllib.parse import quote
 
 from fastapi import FastAPI, HTTPException, Request
-from fastapi.responses import FileResponse, HTMLResponse, Response, StreamingResponse
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, Response, StreamingResponse
 from pydantic import BaseModel, Field, field_validator
 
 if TYPE_CHECKING:
@@ -37,7 +37,7 @@ from maneki.video.serve.demo import DEMO_HTML
 from maneki.video.serve.encoders import select_encoder
 from maneki.video.serve.hls import SEG_LEN, HLSManager, OnDemandHLS, SessionStats
 from maneki.video.serve.poster import PosterManager
-from maneki.video.serve.progress import VideoProgress
+from maneki.video.serve.progress import UserDataUnavailable, VideoProgress
 from maneki.video.serve.scan import BrowseResponse, VideoEntry, browse_dir, scan_videos
 from maneki.video.serve.scan_state import ScanState, VideoScanTracker
 from maneki.video.serve.sources import RemoteSource
@@ -810,6 +810,14 @@ def create_app(
         accounts = users.all() if users else []
         admin = next((u for u in accounts if u.admin), None) or (accounts[0] if accounts else None)
         return admin.name if admin else "default"
+
+    @app.exception_handler(UserDataUnavailable)
+    async def _user_data_unavailable(_request: Request, _exc: UserDataUnavailable) -> JSONResponse:
+        # The path is in the log; a client is told what it means, not where the disk is.
+        return JSONResponse(
+            status_code=503,
+            content={"detail": "Your saved places and channels cannot be reached right now."},
+        )
 
     def _progress(request: Request) -> VideoProgressStore:
         if users is None:
