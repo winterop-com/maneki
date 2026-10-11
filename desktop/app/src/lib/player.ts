@@ -375,7 +375,13 @@ function element(): HTMLAudioElement {
     // another origin is silently unreadable and the spectrum stays flat.
     audio.crossOrigin = 'anonymous'
     audio.addEventListener('timeupdate', () => {
+        // Signed out: the element is going, and a tick still on its way is about nothing.
+        if (!audio) return
         const { book } = state()
+        // A BOOK'S FILE READS 0:00 UNTIL ITS PLACE IS APPLIED. While the seek waits on the
+        // metadata, a tick is the load, not the listener -- saved, it put a book switched to back
+        // at its start (or at the file's offset) until the right place followed.
+        if (book && heldSeek !== null) return
         if (!book) {
             patch({ positionS: audio!.currentTime })
             return
@@ -385,6 +391,7 @@ function element(): HTMLAudioElement {
         if (Math.abs(at - savedAt) >= SAVE_EVERY_S) saveBook(at)
     })
     audio.addEventListener('durationchange', () => {
+        if (!audio) return
         // A book's length is the book's, not the file's: the element is holding one of several
         // and would otherwise shrink the scrubber to whatever chapter is loaded.
         if (state().book) return

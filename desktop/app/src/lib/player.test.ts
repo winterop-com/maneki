@@ -775,6 +775,24 @@ describe('playing a book', () => {
         expect(fake.src).toContain('one.m4b')
     })
 
+    test('switching books never saves the new one at the start before its place is applied', () => {
+        // The new file reports 0:00 while its metadata loads; that tick was saved as the book's
+        // place, so a load that failed there lost it.
+        playBook(book, 1700)
+        fake.arrive()
+        playBook({ ...book, id: 'bk_2', position_s: 3000 })
+        fake.currentTime = 0
+        fake.emit('timeupdate')
+        expect(asked.filter((one) => one.path.includes('bk_2') && one.body !== undefined)).toEqual([])
+    })
+
+    test('a tick that arrives after signing out is ignored rather than thrown', () => {
+        playBook(book, 100)
+        fake.arrive()
+        clear()
+        expect(() => fake.emit('timeupdate')).not.toThrow()
+    })
+
     test('a book is not a track, so nothing asks the queue about it', () => {
         playBook(book, 60)
         expect(currentSong()).toBeNull()
