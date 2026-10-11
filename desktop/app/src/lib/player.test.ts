@@ -170,6 +170,17 @@ beforeEach(() => {
 })
 
 describe('playing an album', () => {
+    test('next on the last track, with repeat off, stays put and keeps playing', () => {
+        // The bar said stopped while the track played on, and Play then paused it.
+        play(songs, 2)
+        fake.arrive()
+        expect(playerStore.get().playing).toBe(true)
+        next()
+        expect(currentSong()?.title).toBe('Three')
+        expect(playerStore.get().playing).toBe(true)
+        expect(fake.paused).toBe(false)
+    })
+
     test('starts where the listener picked, not at the top', () => {
         play(songs, 1)
         expect(currentSong()?.title).toBe('Two')

@@ -863,8 +863,11 @@ export function next(): void {
         return
     }
     const moved = afterSkip(order, orderAt, repeat)
-    if (moved === null) patch({ playing: false })
-    else loadAt(moved, true)
+    // Nothing after the last track under repeat off: stay put, as `afterSkip` says. Marking the
+    // player stopped here left the bar saying so while the element played on, and Play then
+    // paused the track it claimed was not playing.
+    if (moved === null) return
+    loadAt(moved, true)
 }
 
 /** What a track ending does, which is not the same as pressing skip -- see `lib/queue`. */
