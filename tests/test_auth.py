@@ -111,6 +111,8 @@ def test_login_returns_token_on_correct_credentials(open_client: TestClient) -> 
 def test_login_401_on_wrong_credentials(open_client: TestClient) -> None:
     resp = open_client.post("/auth/login", json={"username": "admin", "password": "wrong"})
     assert resp.status_code == 401
+    # Read out on the sign-in screen as it comes: a sentence, not "invalid credentials".
+    assert resp.json()["detail"] == "Wrong username or password."
 
 
 def test_me_requires_bearer(open_client: TestClient) -> None:

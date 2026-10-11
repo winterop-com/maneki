@@ -462,7 +462,7 @@ def create_combined_app(
     def login(body: LoginRequest) -> LoginResponse:
         account = users.get(body.username)
         if account is None or account.password != body.password:
-            raise HTTPException(status_code=401, detail="invalid credentials")
+            raise HTTPException(status_code=401, detail="Wrong username or password.")
         token = token_store.issue(body.username)
         return LoginResponse(
             token=token.value,
