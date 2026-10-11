@@ -180,7 +180,9 @@ class UserRegistry:
         with self._lock:
             store = self._subscriptions.get(name)
             if store is None:
-                store = SubscriptionStore(self.user_dir(name) / "youtube.toml")
+                # SQLite like the user's other stores; a youtube.toml from before is taken in once.
+                folder = self.user_dir(name)
+                store = SubscriptionStore(folder / "youtube.db", legacy=folder / "youtube.toml")
                 self._subscriptions[name] = store
             return store
 

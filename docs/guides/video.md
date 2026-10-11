@@ -242,8 +242,10 @@ duration yet and aren't playable). The list shows per-channel helper counts and
 a refresh button that looks for new uploads. In the player, a resolution menu
 (Auto / 1080p / 720p / 480p) hot-swaps quality without losing your place.
 
-Subscriptions are **per user**, stored at
-`<root>/.maneki/users/<name>/youtube.toml`. Resolution goes through
+Subscriptions are **per user**, stored in SQLite at
+`<root>/.maneki/users/<name>/youtube.db`, beside the user's other stores. A
+`youtube.toml` from an earlier version is taken in on first start and renamed to
+`youtube.toml.imported`. Resolution goes through
 [yt-dlp](https://github.com/yt-dlp/yt-dlp) (a hard dependency); listings and
 resolved stream URLs are cached briefly (~30 min / ~5 h).
 

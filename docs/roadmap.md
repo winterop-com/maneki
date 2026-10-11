@@ -56,7 +56,7 @@ Adding is the same gesture in both modes: a **+ Add** on the Radio screen that t
 Where an added station lives:
 
 - **Radio-only**: on the device. A station list is a few dozen small rows, so `localStorage` in a browser and the Tauri store plugin (already loaded in `desktop/tauri`) are enough; no SQLite in the client.
-- **Signed in**: on the server, but per user. Added stations go into SQLite in `~/.config/maneki/radio.db` today, shared by every account, so any user can remove another's station. They should move into the user's own directory under `<root>/.maneki/users/<name>/`, beside `books.db`, `videos.db` and `history.db` (and `youtube.toml`, which could join them in SQLite for one store per user). The defaults and the hand-written `radio.toml` stay shared and cannot be removed from a client.
+- **Signed in**: on the server, but per user. Added stations go into SQLite in `~/.config/maneki/radio.db` today, shared by every account, so any user can remove another's station. They should move into the user's own directory under `<root>/.maneki/users/<name>/`, beside `books.db`, `videos.db`, `history.db` and `youtube.db`. The defaults and the hand-written `radio.toml` stay shared and cannot be removed from a client.
 
 Then a native relay in the desktop shells: Tauri (Rust) and Electron (Node) can do what `radio_proxy.py` does, without CORS, so the desktop apps get ICY titles and (in Electron) the spectrum with no server at all.
 

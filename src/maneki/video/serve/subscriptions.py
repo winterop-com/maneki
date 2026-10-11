@@ -1,97 +1,108 @@
-"""Per-user YouTube channel subscriptions at `<root>/.maneki/users/<name>/youtube.toml`.
+"""Per-user YouTube channel subscriptions at `<root>/.maneki/users/<name>/youtube.db`.
 
 A user subscribes to a channel by URL; we store the stable `UC...` channel id
-(not the URL — handles and vanity URLs change, the id doesn't) mapped to the
-subscribe timestamp. The channel's title / avatar / video list are *not* stored:
-they're fetched on demand from `youtube.list_channel` (cached), so the file
-stays a tiny, hand-editable record of "what am I subscribed to".
+(not the URL — handles and vanity URLs change, the id doesn't) with the time it
+was subscribed. The channel's title / avatar / video list are *not* stored:
+they're fetched on demand from `youtube.list_channel` (cached).
 
-Modeled directly on `audio.serve.stars.StarStore` — same TOML shape, same
-file-level locking, same best-effort write on read-only mounts.
+ONE KIND OF STORE PER USER. A user's books, videos, history and bookmarks are
+SQLite files in their own directory; subscriptions were the one TOML file among
+them. They are SQLite now too, the same shape as `books.progress.ProgressStore`:
+a connection per call, a lock around it, the schema made on first use.
+
+A `youtube.toml` from before is taken in once, the first time the store is
+opened beside it, and renamed to `youtube.toml.imported` so it is kept but never
+read again: an unsubscribe is not undone by the next start.
 """
 
 from __future__ import annotations
 
 import logging
+import sqlite3
 import tomllib
 from datetime import UTC, datetime
 from pathlib import Path
 from threading import RLock
 
-from maneki.audio import _toml_dump
-
 log = logging.getLogger(__name__)
+
+_SCHEMA = """
+CREATE TABLE IF NOT EXISTS channels (
+    channel_id     TEXT PRIMARY KEY,
+    subscribed_at  TEXT NOT NULL
+);
+"""
 
 
 class SubscriptionStore:
-    """Read / mutate `<root>/.maneki/users/<name>/youtube.toml` with locking."""
+    """Read / mutate one user's `youtube.db`."""
 
-    def __init__(self, path: Path) -> None:
-        """Build a store backed by the `youtube.toml` file at `path`."""
+    def __init__(self, path: Path, *, legacy: Path | None = None) -> None:
+        """Build a store backed by the SQLite file at `path`, taking in `legacy` TOML once."""
         self._path = path
         self._lock = RLock()
-        # `_items` maps channel id (`UC...`) -> ISO 8601 subscribed-at timestamp.
-        self._items: dict[str, str] = {}
-        self._load()
+        self._ready = False
+        if legacy is not None:
+            self._import(legacy)
 
     @property
     def path(self) -> Path:
         """File location backing this store."""
         return self._path
 
-    def add(self, channel_id: str) -> None:
+    def _conn(self) -> sqlite3.Connection:
+        self._path.parent.mkdir(parents=True, exist_ok=True)
+        conn = sqlite3.connect(self._path, check_same_thread=False, isolation_level=None)
+        if not self._ready:
+            conn.executescript(_SCHEMA)
+            self._ready = True
+        return conn
+
+    def add(self, channel_id: str, *, at: str | None = None) -> None:
         """Subscribe to `channel_id` if not already. Idempotent."""
-        with self._lock:
-            if channel_id in self._items:
-                return
-            self._items[channel_id] = _now_iso()
-            self._save()
+        with self._lock, self._conn() as conn:
+            conn.execute(
+                "INSERT OR IGNORE INTO channels(channel_id, subscribed_at) VALUES (?, ?)",
+                (channel_id, at or _now_iso()),
+            )
 
     def remove(self, channel_id: str) -> None:
         """Unsubscribe `channel_id`. Idempotent."""
-        with self._lock:
-            if channel_id not in self._items:
-                return
-            del self._items[channel_id]
-            self._save()
+        with self._lock, self._conn() as conn:
+            conn.execute("DELETE FROM channels WHERE channel_id = ?", (channel_id,))
 
     def contains(self, channel_id: str) -> bool:
         """True iff currently subscribed to `channel_id`."""
-        with self._lock:
-            return channel_id in self._items
+        with self._lock, self._conn() as conn:
+            row = conn.execute("SELECT 1 FROM channels WHERE channel_id = ?", (channel_id,)).fetchone()
+        return row is not None
 
     def all_ids(self) -> dict[str, str]:
-        """Snapshot copy of `channel_id -> subscribed_at`, newest first."""
-        with self._lock:
-            return dict(sorted(self._items.items(), key=lambda kv: kv[1], reverse=True))
+        """Snapshot of `channel_id -> subscribed_at`, newest first."""
+        with self._lock, self._conn() as conn:
+            rows = conn.execute(
+                "SELECT channel_id, subscribed_at FROM channels ORDER BY subscribed_at DESC, channel_id"
+            ).fetchall()
+        return {str(channel_id): str(at) for channel_id, at in rows}
 
-    # ------------------------------------------------------------------
-    # File I/O
-    # ------------------------------------------------------------------
-
-    def _load(self) -> None:
-        """Read `youtube.toml`. Missing file or parse error -> empty store."""
-        if not self._path.exists():
+    def _import(self, legacy: Path) -> None:
+        """Take in a `youtube.toml` from before, then set it aside. Best-effort."""
+        if not legacy.is_file():
             return
         try:
-            with self._path.open("rb") as f:
+            with legacy.open("rb") as f:
                 data = tomllib.load(f)
         except (OSError, tomllib.TOMLDecodeError) as exc:
-            log.warning("subscriptions: failed to read %s (%s); starting empty", self._path, exc)
+            log.warning("subscriptions: could not read %s (%s); left in place", legacy, exc)
             return
         items = data.get("channels")
         if isinstance(items, dict):
-            self._items = {str(k): str(v) for k, v in items.items()}
-
-    def _save(self) -> None:
-        """Atomic-write the current state. Best-effort on read-only mounts."""
+            for channel_id, at in items.items():
+                self.add(str(channel_id), at=str(at))
         try:
-            self._path.parent.mkdir(parents=True, exist_ok=True)
-            tmp = self._path.with_suffix(self._path.suffix + ".tmp")
-            tmp.write_text(_toml_dump.dumps({"channels": self._items}), encoding="utf-8")
-            tmp.replace(self._path)
-        except OSError as exc:  # pragma: no cover — read-only mount
-            log.warning("subscriptions: failed to write %s (%s); changes lost on restart", self._path, exc)
+            legacy.replace(legacy.with_name(legacy.name + ".imported"))
+        except OSError as exc:  # pragma: no cover - read-only mount
+            log.warning("subscriptions: imported %s but could not set it aside (%s)", legacy, exc)
 
 
 def _now_iso() -> str:
