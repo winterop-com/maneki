@@ -10,6 +10,7 @@ from fastapi.testclient import TestClient
 from structlog.testing import capture_logs
 
 from maneki.audio.serve.config import ServeConfig
+from maneki.audio.serve.users import ResolvedUser, UserRegistry
 from maneki.auth import Token, TokenStore
 from maneki.serve_app import accepts_media_token, create_combined_app
 
@@ -351,3 +352,50 @@ def test_the_token_never_reaches_the_access_log(authed_client: TestClient) -> No
     assert logged, "the request never reached the access log"
     assert logged[-1]["path"] == f"/video/api/videos/{video_id}/stream"
     assert token not in repr(lines)
+
+
+@pytest.mark.parametrize(
+    "path",
+    [
+        "//video/api/videos",
+        "///video/api/progress",
+        "//books/api/books",
+        "//books/api/progress",
+        "/%2Fvideo/api/videos",
+        "//video/api/youtube/channels",
+    ],
+)
+def test_extra_slashes_do_not_get_past_sign_in(authed_client: TestClient, path: str) -> None:
+    """The check read the path before the slashes were collapsed, so `//video/...` was not under
+    `/video/` to it, while the mount routed it all the same: every protected route answered
+    anyone, as the first admin."""
+    assert authed_client.get(f"http://testserver{path}").status_code == 401
+
+
+def test_extra_slashes_cannot_write_or_scan_either(authed_client: TestClient) -> None:
+    assert authed_client.post("http://testserver//books/api/scan").status_code == 401
+    assert authed_client.post("http://testserver//video/api/scan").status_code == 401
+
+
+def test_with_sign_in_on_a_request_without_a_user_is_never_the_admin(library_root: Path) -> None:
+    """Defence behind the middleware: should anything reach the video or books app unsigned while
+    sign-in is on, it is refused rather than treated as the first admin."""
+    from collections.abc import Awaitable, Callable
+
+    from starlette.middleware.base import BaseHTTPMiddleware
+    from starlette.requests import Request
+    from starlette.responses import Response
+
+    from maneki.video.serve import create_app as create_video_app
+
+    class SignInOn(BaseHTTPMiddleware):
+        async def dispatch(self, request: Request, call_next: Callable[[Request], Awaitable[Response]]) -> Response:
+            request.state.auth_on = True
+            return await call_next(request)
+
+    users = UserRegistry(library_root, [ResolvedUser(name="ada", password="pw", admin=True)])
+    app = create_video_app(library_root, users=users)
+    app.add_middleware(SignInOn)
+    client = TestClient(app)
+    assert client.get("/api/progress").status_code == 401
+    assert client.post("/api/scan").status_code == 401

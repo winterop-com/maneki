@@ -105,6 +105,9 @@ def create_books_app(index: BooksIndex, *, users: UserRegistry | None = None) ->
         if users is None:
             raise HTTPException(status_code=503, detail="user registry unavailable; positions are not saved")
         name = getattr(request.state, "username", None)
+        if not name and getattr(request.state, "auth_on", False):
+            # Sign-in is on and nobody signed in: never the admin by default.
+            raise HTTPException(status_code=401, detail="sign in first")
         if not name:
             accounts = users.all()
             admin = next((u for u in accounts if u.admin), None) or (accounts[0] if accounts else None)
@@ -114,6 +117,8 @@ def create_books_app(index: BooksIndex, *, users: UserRegistry | None = None) ->
     def _require_admin(request: Request) -> None:
         """Refuse a signed-in listener. Without sign-in the one implicit account is the admin."""
         name = getattr(request.state, "username", None)
+        if not name and getattr(request.state, "auth_on", False):
+            raise HTTPException(status_code=401, detail="sign in first")
         if not name or users is None:
             return
         account = users.get(str(name))

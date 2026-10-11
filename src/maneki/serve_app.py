@@ -675,7 +675,15 @@ class BearerAuthMiddleware(BaseHTTPMiddleware):
         request: Request,
         call_next: Callable[[Request], Awaitable[Response]],
     ) -> Response:
-        path = request.url.path
+        # THE PATH AS IT WILL BE ROUTED, NOT AS IT ARRIVED. This middleware runs before
+        # `CollapseSlashesMiddleware`, so `//video/api/...` (or `/%2Fvideo/...`, which a page on
+        # any site can ask for) was not under `/video/` here while the mount routed it all the
+        # same: every protected route answered anyone, as the first admin. The slashes are
+        # collapsed the same way before the prefix is tested.
+        path = re.sub(r"/{2,}", "/", request.url.path)
+        # Said on every request, so the apps behind this never fall back to "the one implicit
+        # account" while sign-in is on: see `_current_username` in the video and books apps.
+        request.state.auth_on = True
         if any(path.startswith(p) for p in self.protected_prefixes):
             header = request.headers.get("authorization", "")
             presented = header[7:].strip() if header.lower().startswith("bearer ") else None

@@ -787,6 +787,8 @@ def create_app(
         Without sign-in there is one implicit account, the admin, so the answer is yes.
         """
         name = getattr(request.state, "username", None)
+        if not name and getattr(request.state, "auth_on", False):
+            raise HTTPException(status_code=401, detail="sign in first")
         if not name or users is None:
             return True
         account = users.get(str(name))
@@ -802,6 +804,9 @@ def create_app(
         name = getattr(request.state, "username", None)
         if name:
             return str(name)
+        if getattr(request.state, "auth_on", False):
+            # Sign-in is on and nobody signed in: never the admin by default.
+            raise HTTPException(status_code=401, detail="sign in first")
         accounts = users.all() if users else []
         admin = next((u for u in accounts if u.admin), None) or (accounts[0] if accounts else None)
         return admin.name if admin else "default"
