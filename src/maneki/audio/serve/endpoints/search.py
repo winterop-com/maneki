@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import re
+import unicodedata
 from typing import Any
 
 from fastapi import APIRouter, Query, Request
@@ -27,6 +29,32 @@ def _get_stars(request: Request) -> StarStore:
 def _matches(needle: str, haystack: str) -> bool:
     """Multi-token AND match on casefolded strings — fallback when FTS5 is missing."""
     return all(token in haystack for token in needle.split() if token)
+
+
+def _fold_for_search(text: str) -> str:
+    """Text as search compares it: casefolded, without accents, without apostrophes.
+
+    The music index folds this way (`unicode61 remove_diacritics`), and book search, which
+    compared raw casefolded text, did not: "brene brown" missed "Brené Brown", and a straight
+    apostrophe missed a curly one.
+    """
+    decomposed = unicodedata.normalize("NFKD", text.casefold())
+    bare = "".join(ch for ch in decomposed if not unicodedata.combining(ch))
+    return re.sub(r"['\u2019\u2018`]", "", bare)
+
+
+def _search_tokens(query: str) -> list[str]:
+    """The words of a query that can match anything: folded, and with at least a letter or digit."""
+    return [tok for tok in _fold_for_search(query).split() if any(ch.isalnum() for ch in tok)]
+
+
+def book_matches(query: str, *fields: str | None) -> bool:
+    """Whether every word of `query` appears somewhere in the book's fields."""
+    tokens = _search_tokens(query)
+    if not tokens:
+        return False
+    haystack = " ".join(_fold_for_search(f) for f in fields if f)
+    return all(token in haystack for token in tokens)
 
 
 def _search(
@@ -148,13 +176,11 @@ def _add_books(
     books = getattr(request.app.state, "books", None)
     if books is None:
         return
-    tokens = [t for t in query.casefold().split() if t]
-    if not tokens:
+    if not _search_tokens(query):
         return
 
     def matches(*fields: str | None) -> bool:
-        haystack = " ".join(f.casefold() for f in fields if f)
-        return all(token in haystack for token in tokens)
+        return book_matches(query, *fields)
 
     found = [b for b in books.books if matches(b.author, b.title, b.narrator, b.series)]
     if album_count:

@@ -132,7 +132,9 @@ def query(
     """
     if limit <= 0 or not user_query.strip():
         return []
-    tokens = [_escape_token(tok) for tok in user_query.split() if tok]
+    # A token with no letter or digit in it ("&", "-", "/") is dropped: the tokenizer drops it
+    # from the index, so requiring it matched nothing and "Simon & Garfunkel" found nothing.
+    tokens = [_escape_token(tok) for tok in user_query.split() if any(ch.isalnum() for ch in tok)]
     if not tokens:
         return []
     match_expr = " AND ".join(f"{tok}*" for tok in tokens)

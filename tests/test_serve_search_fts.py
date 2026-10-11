@@ -166,3 +166,28 @@ def test_escape_token_handles_quotes() -> None:
     # Token consisting only of quotes shrinks to "" — query() filters
     # blanks out before reaching FTS5 so this is harmless.
     assert search_index._escape_token('"') == '""'
+
+
+@pytest.mark.skipif(not search_index.fts5_available(), reason="SQLite built without FTS5")
+def test_search3_ignores_a_token_with_no_letters(tmp_path: Path) -> None:
+    """The index drops "&", so a query holding it as its own word required a match for nothing,
+    and "Simon & Garfunkel" found nothing at all."""
+    cl = _client(
+        tmp_path,
+        [_album(tmp_path, "Simon & Garfunkel", "Bookends", year="1968", tracks=["America"])],
+    )
+    body = cl.get("/rest/search3", params=_params(query="Simon & Garfunkel")).json()
+    artists = body["subsonic-response"]["searchResult3"]["artist"]
+    assert any(a["name"] == "Simon & Garfunkel" for a in artists)
+
+
+def test_book_search_folds_accents_and_apostrophes() -> None:
+    """Book search compared raw casefolded text: "brene brown" missed "Brené Brown", and a
+    straight apostrophe missed a curly one."""
+    from maneki.audio.serve.endpoints.search import book_matches
+
+    assert book_matches("brene brown", "Brené Brown", "Dare to Lead")
+    assert book_matches("galileo's", None, "Galileo’s Daughter")
+    assert book_matches("galileos daughter", "Dava Sobel", "Galileo's Daughter")
+    assert book_matches("sobel & daughter", "Dava Sobel", "Galileo's Daughter")
+    assert not book_matches("kahneman", "Dava Sobel", "Galileo's Daughter")
