@@ -93,6 +93,9 @@ class FakeAudio {
         this.readyState = 0
     }
 
+    /** What the player asks of the network: CORS for the spectrum, or nothing. */
+    crossOrigin: string | null = 'anonymous'
+
     /** Set to keep the next `play()` in flight, the way a station still connecting does. */
     hold = false
 
@@ -460,6 +463,20 @@ describe('a station paused and picked up again', () => {
         expect(fake.src).toBe(live)
         expect(playerStore.get().playing).toBe(true)
         expect(playerStore.get().station?.id).toBe(stations[0]!.id)
+    })
+})
+
+describe('a station with no server', () => {
+    test('plays from its own address, with no title polling and no spectrum tap', () => {
+        // Radio-only has no relay: the stream is played as the directory gave it, and an element
+        // asking for CORS would be refused by stations that do not send it.
+        setPlayerCredentials(undefined)
+        playStation(stations[0]!)
+        expect(fake.src).toBe(stations[0]!.streamUrl)
+        expect(fake.crossOrigin).toBeNull()
+        expect(playerStore.get().playing).toBe(true)
+        expect(spectrum()).toBeNull()
+        expect(asked.some((one) => one.path.includes('radioMeta'))).toBe(false)
     })
 })
 

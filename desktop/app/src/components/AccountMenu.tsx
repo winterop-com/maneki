@@ -1,4 +1,4 @@
-import { ChevronsUpDown, Keyboard, LogOut, Monitor, Moon, Settings, Sun } from 'lucide-react'
+import { ChevronsUpDown, Keyboard, LogIn, LogOut, Monitor, Moon, Settings, Sun } from 'lucide-react'
 import { useTheme } from 'next-themes'
 
 import { MODES, MODE_LABELS, type Mode } from '@/components/ThemeToggle'
@@ -30,6 +30,7 @@ export const ACCOUNT_LABEL = 'Account'
 export const SHORTCUTS_LABEL = 'Keyboard shortcuts'
 export const APPEARANCE_LABEL = 'Appearance'
 export const SIGN_OUT_LABEL = 'Sign out'
+export const SIGN_IN_LABEL = 'Sign in to a server'
 
 const MODE_ICONS = { light: Sun, dark: Moon, system: Monitor } as const
 
@@ -57,8 +58,11 @@ export function AccountMenu({
     // which flipped up over the menu it came from, and no keyboard for a shortcuts list: the
     // looks are three rows of the menu itself, and the shortcuts are left out.
     const small = useSmallScreen()
-    const name = session.username ?? 'Signed in'
-    const host = serverHost(session.baseUrl)
+    // Listening without a server there is no account: the corner says so, and the way out is
+    // to sign in to one rather than to sign out of nothing.
+    const radioOnly = session.phase === 'radio'
+    const name = radioOnly ? 'Radio only' : (session.username ?? 'Signed in')
+    const host = radioOnly ? 'No server' : serverHost(session.baseUrl)
     const mode: Mode = theme === 'light' || theme === 'dark' ? theme : 'system'
     const ModeIcon = MODE_ICONS[mode]
     const looks = (
@@ -89,7 +93,7 @@ export function AccountMenu({
                             collapsed ? 'justify-center p-0' : 'justify-start gap-2.5 px-3',
                         )}
                     >
-                        <Badge username={session.username} />
+                        <Badge username={radioOnly ? 'Radio' : session.username} />
                         {!collapsed && (
                             <>
                                 <span className="min-w-0 flex-1 truncate text-left font-medium">{name}</span>
@@ -110,7 +114,7 @@ export function AccountMenu({
             >
                 <DropdownMenuGroup>
                     <DropdownMenuLabel className="flex items-center gap-2.5 px-1.5 py-1.5" title={name}>
-                        <Badge username={session.username} large />
+                        <Badge username={radioOnly ? 'Radio' : session.username} large />
                         <span className="min-w-0">
                             <span className="block truncate text-sm font-medium text-foreground">{name}</span>
                             {host !== '' && <span className="block truncate font-mono text-xs">{host}</span>}
@@ -148,8 +152,8 @@ export function AccountMenu({
                 )}
                 <DropdownMenuSeparator />
                 <DropdownMenuItem onClick={signOut} className={cn(small && 'min-h-finger')}>
-                    <LogOut aria-hidden />
-                    {SIGN_OUT_LABEL}
+                    {radioOnly ? <LogIn aria-hidden /> : <LogOut aria-hidden />}
+                    {radioOnly ? SIGN_IN_LABEL : SIGN_OUT_LABEL}
                 </DropdownMenuItem>
             </DropdownMenuContent>
         </DropdownMenu>

@@ -8,6 +8,7 @@ import {
     hasKeptSignIn,
     isAdmin,
     isAuthError,
+    listenWithoutServer,
     sessionStore,
     signInTo,
     signOut,
@@ -362,5 +363,34 @@ describe('a sign-in kept from before', () => {
         expect(hasKeptSignIn()).toBe(true)
         localStorage.setItem('maneki.session', JSON.stringify({ baseUrl: 'https://host', username: 'mort' }))
         expect(hasKeptSignIn()).toBe(false)
+    })
+})
+
+describe('listening without a server', () => {
+    test('opens the app with radio alone, and no server asked', async () => {
+        refusing()
+        listenWithoutServer()
+        const state = sessionStore.get()
+        expect(state.phase).toBe('radio')
+        expect(state.capabilities?.radio).toBe(true)
+        expect(state.capabilities?.audio).toBe(false)
+        expect(state.music).toBeUndefined()
+    })
+
+    test('is where the next start opens, without asking a server', async () => {
+        listenWithoutServer()
+        sessionStore.set({ phase: 'unknown', baseUrl: '' })
+        refusing()
+        await connect()
+        expect(sessionStore.get().phase).toBe('radio')
+    })
+
+    test('is left for the sign-in, and forgotten', async () => {
+        listenWithoutServer()
+        signOut()
+        expect(sessionStore.get().phase).toBe('signed-out')
+        refusing()
+        await connect()
+        expect(sessionStore.get().phase).not.toBe('radio')
     })
 })

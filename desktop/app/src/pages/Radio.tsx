@@ -1,5 +1,5 @@
 import { Play, Plus, Radio as RadioIcon, Search, X } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { toast } from 'sonner'
 
 import { Skeleton } from '@/components/Skeleton'
@@ -8,17 +8,9 @@ import { InputGroup, InputGroupAddon, InputGroupInput } from '@/components/ui/in
 import { useStore, useStoreValue } from '@/hooks/use-store'
 import { playerStore, playStation } from '@/lib/player'
 import { isAdmin, sessionStore } from '@/lib/session'
-import {
-    addStation,
-    coverUrl,
-    getStations,
-    removeStation,
-    searchStations,
-    type Credentials,
-    type FoundStation,
-    type Station,
-} from '@/lib/subsonic'
+import { coverUrl, type FoundStation, type Station } from '@/lib/subsonic'
 import { stationIsPlaying } from '@/lib/radio-rows'
+import { deviceRadio, serverRadio, type RadioSource } from '@/lib/radio-source'
 import { cn } from '@/lib/utils'
 
 export const FIND_STATIONS_LABEL = 'Find stations'
@@ -76,24 +68,33 @@ export function RadioPage() {
     const [found, setFound] = useState<{ query: string; stations: FoundStation[] } | null>(null)
     const [finding, setFinding] = useState(false)
     const credentials = session.music
+    // The server's stations, or this device's when listening without one; see `lib/radio-source`.
+    const radioOnly = session.phase === 'radio'
+    const source = useMemo(
+        () => (radioOnly ? deviceRadio() : credentials ? serverRadio(credentials) : null),
+        [credentials, radioOnly],
+    )
+    // On this device the list is the listener's own, so it may always add and remove.
+    const mayChange = radioOnly || admin
 
-    const reload = (music: Credentials) => {
-        loadStations(music, setStations, setRefusal)
+    const reload = (from: RadioSource) => {
+        loadStations(from, setStations, setRefusal)
     }
 
     useEffect(() => {
-        if (credentials) loadStations(credentials, setStations, setRefusal)
-    }, [credentials])
+        if (source) loadStations(source, setStations, setRefusal)
+    }, [source])
 
     // Asked once per pause in the typing, and an answer to a query that has since changed is
     // dropped: the flag rather than the timer, because the timer cannot stop a request in flight.
     useEffect(() => {
         const text = query.trim()
-        if (!credentials || text.length < FIND_MIN) return
+        if (!source || text.length < FIND_MIN) return
         let live = true
         const timer = setTimeout(() => {
             setFinding(true)
-            searchStations(credentials, text)
+            source
+                .search(text)
                 .then((answer) => {
                     if (live) setFound({ query: text, stations: answer })
                 })
@@ -108,9 +109,9 @@ export function RadioPage() {
             live = false
             clearTimeout(timer)
         }
-    }, [credentials, query])
+    }, [source, query])
 
-    if (!credentials) return <Notice>This server has no stations.</Notice>
+    if (!source) return <Notice>This server has no stations.</Notice>
     if (refusal) return <Notice>{refusal}</Notice>
 
     const searching = query.trim().length >= FIND_MIN
@@ -120,7 +121,8 @@ export function RadioPage() {
         // A double press added it and then said it was already in the list.
         if (adding.has(station.id)) return
         setAdding((held) => new Set(held).add(station.id))
-        addStation(credentials, station)
+        source
+            .add(station)
             .finally(() => {
                 setAdding((held) => {
                     const next = new Set(held)
@@ -140,13 +142,14 @@ export function RadioPage() {
                               ),
                           },
                 )
-                reload(credentials)
+                reload(source)
             })
             .catch((error: Error) => toast.error(`Could not add ${station.name}: ${error.message}`))
     }
 
     const drop = (station: Station) => {
-        removeStation(credentials, station)
+        source
+            .remove(station)
             .then(() => {
                 toast.success(`Removed ${station.name}`)
                 // A search result for the same stream can be added again.
@@ -160,7 +163,7 @@ export function RadioPage() {
                               ),
                           },
                 )
-                reload(credentials)
+                reload(source)
             })
             .catch((error: Error) => toast.error(`Could not remove ${station.name}: ${error.message}`))
     }
@@ -231,7 +234,7 @@ export function RadioPage() {
                                         >
                                             <Play aria-hidden />
                                         </Button>
-                                        {!admin ? null : station.added ? (
+                                        {!mayChange ? null : station.added ? (
                                             <span className="w-16 shrink-0 text-center text-xs text-muted-foreground">
                                                 Added
                                             </span>
@@ -284,7 +287,12 @@ export function RadioPage() {
                                     {/* The station's own logo where it has one; the glyph where it has not. */}
                                     {station.coverArt ? (
                                         <img
-                                            src={coverUrl(credentials, station.coverArt, 96) ?? undefined}
+                                            src={
+                                                credentials
+                                                    ? (coverUrl(credentials, station.coverArt, 96) ??
+                                                      undefined)
+                                                    : undefined
+                                            }
                                             alt=""
                                             className="size-8 shrink-0 rounded-md object-cover"
                                         />
@@ -300,7 +308,7 @@ export function RadioPage() {
                                         </span>
                                     )}
                                 </button>
-                                {station.custom && admin && (
+                                {station.custom && mayChange && (
                                     <Button
                                         variant="ghost"
                                         size="icon-sm"
@@ -354,11 +362,11 @@ function FoundLogo({ station }: { station: FoundStation }) {
 
 /** Read the server's stations into the screen, or the reason it would not say. */
 function loadStations(
-    music: Credentials,
+    from: RadioSource,
     setStations: (stations: Station[]) => void,
     setRefusal: (refusal: string) => void,
 ): void {
-    getStations(music)
+    from.stations()
         .then(setStations)
         .catch((error: Error) => {
             setRefusal(error.message)

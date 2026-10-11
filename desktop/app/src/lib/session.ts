@@ -30,7 +30,11 @@ import type { Capabilities } from '@/lib/types'
 
 const STORAGE_KEY = 'maneki.session'
 
-export type SessionPhase = 'unknown' | 'ready' | 'signed-out'
+/**
+ * Where the session is. `radio` is listening without a server: no sign-in, radio alone, the
+ * stations on this device (see `lib/radio-source`).
+ */
+export type SessionPhase = 'unknown' | 'ready' | 'signed-out' | 'radio'
 
 export interface SessionState {
     phase: SessionPhase
@@ -148,6 +152,11 @@ export function signOutOnAuthRefusal(reason: string): void {
  * `submitted` is what separates the two, and it is the caller that knows.
  */
 export async function connect(stored: StoredSession = read(), submitted = false): Promise<void> {
+    // Listening without a server is where the last visit left off: no server is asked.
+    if (radioOnly() && stored.token === undefined && stored.subsonic === undefined) {
+        enterRadio()
+        return
+    }
     setSession(stored)
     try {
         const caps = await capabilities()
@@ -227,6 +236,8 @@ export async function signInTo(baseUrl: string, username: string, password: stri
             // A server with no sign-in of its own still knows its accounts' roles.
             if (stored.admin === undefined) stored.admin = await ownAdminRole(credentials)
         }
+        // Signing in to a server is leaving radio-only for good.
+        forgetRadioOnly()
         await connect(stored, true)
     } catch (error) {
         sessionStore.set({
@@ -252,6 +263,15 @@ export function isAdmin(state: Pick<SessionState, 'admin'>): boolean {
 
 /** Forget the credentials, keeping the server so the next sign-in is one field shorter. */
 export function signOut(): void {
+    // Radio-only has no server and no sign-in to take: it is left for the sign-in screen, and
+    // the server and name kept from before are left as they were.
+    if (sessionStore.get().phase === 'radio') {
+        clear()
+        forgetRadioOnly()
+        const kept = read()
+        sessionStore.set({ phase: 'signed-out', baseUrl: kept.baseUrl, username: kept.username })
+        return
+    }
     const { baseUrl, username } = sessionStore.get()
     // THE MUSIC STOPS FIRST. The audio element is module state outside the tree, so a queue
     // left running carries on streaming behind the door -- with the credentials it was handed
@@ -264,4 +284,56 @@ export function signOut(): void {
     write({ baseUrl, username })
     setSession({ baseUrl })
     sessionStore.set({ phase: 'signed-out', baseUrl, username })
+}
+
+/** Where this device remembers that it listens without a server. */
+export const RADIO_ONLY_KEY = 'maneki.radioOnly'
+
+/** What radio-only has: radio, and nothing a server would bring. */
+const RADIO_ONLY_CAPABILITIES: Capabilities = {
+    server: 'maneki',
+    version: '',
+    audio: false,
+    video: false,
+    youtube: false,
+    radio: true,
+    books: false,
+    auth_required: false,
+    endpoints: { audio_subsonic: null, video_api: null, books_api: null, auth_login: '' },
+}
+
+function radioOnly(): boolean {
+    try {
+        return localStorage.getItem(RADIO_ONLY_KEY) === '1'
+    } catch {
+        return false
+    }
+}
+
+function forgetRadioOnly(): void {
+    try {
+        localStorage.removeItem(RADIO_ONLY_KEY)
+    } catch {
+        // Storage refused: nothing was kept to forget.
+    }
+}
+
+function enterRadio(): void {
+    sessionStore.set({ phase: 'radio', baseUrl: '', capabilities: RADIO_ONLY_CAPABILITIES })
+}
+
+/**
+ * Listen to radio with no server: no address, no account.
+ *
+ * RADIO NEEDS NONE. A station is an address anyone can play, and the open directory can be
+ * asked from here; so the sign-in screen offers this beside signing in, and it is remembered
+ * until somebody chooses to sign in. See `lib/radio-source` for what it can and cannot do.
+ */
+export function listenWithoutServer(): void {
+    try {
+        localStorage.setItem(RADIO_ONLY_KEY, '1')
+    } catch {
+        // Storage refused: radio-only lasts as long as this page does.
+    }
+    enterRadio()
 }

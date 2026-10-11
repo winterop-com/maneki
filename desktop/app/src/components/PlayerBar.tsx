@@ -187,7 +187,8 @@ export function PlayerBar() {
     // A track's cover and its stream are the music server's, so there is nothing to draw
     // without one. A book is maneki's own, and a server with books and no music still has a
     // transport.
-    if (!book && !session.music) return null
+    // A station plays with no server too (listening without one), so it keeps its bar.
+    if (!book && !station && !session.music) return null
     if (fits === 'none') return null
 
     // The sleeve is drawn at up to a few hundred pixels, so it is asked for at that size.

@@ -157,6 +157,8 @@ export function entriesFor(caps: Capabilities | null): NavEntry[] {
 
 /** Where a reader lands with no address of their own. */
 export function homePath(caps: Capabilities | null): string {
+    // Radio alone (listening without a server) lands on the radio.
+    if (caps !== null && !caps.audio && !caps.books && caps.radio) return '/radio'
     return caps?.audio ? MUSIC_PATH : BOOKS_PATH
 }
 

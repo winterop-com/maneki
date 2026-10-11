@@ -54,6 +54,18 @@ export default function App() {
         )
     }
     if (session.phase === 'signed-out') return <SignIn />
+    // Listening without a server: radio is all there is, so it is all there is a route to.
+    if (session.phase === 'radio') {
+        return (
+            <AppShell>
+                <Routes>
+                    <Route path="/radio" element={<RadioPage />} />
+                    <Route path="/" element={<Navigate to="/radio" replace />} />
+                    <Route path="*" element={<NotFound home="/radio" />} />
+                </Routes>
+            </AppShell>
+        )
+    }
 
     return (
         <AppShell>

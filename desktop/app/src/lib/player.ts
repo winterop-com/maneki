@@ -539,11 +539,15 @@ export function play(songs: Song[], startIndex = 0): void {
  * skip to, so it replaces whatever was playing and the transport says so.
  */
 export function playStation(station: Station): void {
-    if (!credentials) return
     const player = element()
     leaveBook()
     claimSound(silence)
-    putSource(player, stationStreamUrl(credentials, station))
+    // WITH NO SERVER THE STATION IS PLAYED AS IT IS. Radio-only has no relay, so the stream is
+    // the directory's own address, and the element asks for no CORS: most stations send none,
+    // and an element that asked would be refused. Without CORS the spectrum cannot listen, so
+    // it does not try (see `spectrum`), and there is no relay to read the song titles off.
+    player.crossOrigin = credentials ? 'anonymous' : null
+    putSource(player, credentials ? stationStreamUrl(credentials, station) : station.streamUrl)
     patch({
         queue: [],
         index: -1,
@@ -555,7 +559,7 @@ export function playStation(station: Station): void {
         durationS: 0,
     })
     start(player)
-    followIcy(station)
+    if (credentials) followIcy(station)
 }
 
 /**
@@ -1069,7 +1073,9 @@ export function seek(positionS: number): void {
  * time in case the browser suspended it.
  */
 export function spectrum(): AnalyserNode | null {
-    if (!audio) return null
+    // An element playing a stream without CORS cannot be listened to, and tapping it would route
+    // its sound through a graph that hears silence: no tap at all, and the sound plays as it is.
+    if (!audio || audio.crossOrigin !== 'anonymous') return null
     if (analyser) {
         if (graph?.state === 'suspended') void graph.resume()
         return analyser

@@ -1,4 +1,4 @@
-import { ArrowRight, CircleAlert, Eye, EyeOff, Globe, Lock, User } from 'lucide-react'
+import { ArrowRight, CircleAlert, Eye, EyeOff, Globe, Lock, Radio as RadioIcon, User } from 'lucide-react'
 import { useEffect, useState, type FormEvent } from 'react'
 
 import { BrandPane } from '@/components/login/BrandPane'
@@ -10,7 +10,7 @@ import { NETWORK_REFUSAL } from '@/lib/connection'
 import { probe } from '@/lib/api'
 import { candidates } from '@/lib/server-address'
 import { currentShell, probeOrigins } from '@/lib/desktop'
-import { connect, hasKeptSignIn, sessionStore, signInTo } from '@/lib/session'
+import { connect, hasKeptSignIn, listenWithoutServer, sessionStore, signInTo } from '@/lib/session'
 import type { Capabilities } from '@/lib/types'
 
 export const CHANGE_SERVER_LABEL = 'Connect to a different server'
@@ -58,6 +58,9 @@ const FIELD = 'border-border-strong h-12 rounded-lg pl-11'
  */
 /** How often a kept sign-in asks a quiet server again. */
 const KEPT_SIGN_IN_RETRY_MS = 10_000
+
+/** The sign-in screen's way to radio with no server. */
+export const LISTEN_WITHOUT_SERVER_LABEL = 'Just listen to radio'
 
 export function SignIn() {
     const session = useStore(sessionStore)
@@ -280,10 +283,28 @@ export function SignIn() {
                         type="submit"
                         className="h-13 w-full rounded-lg"
                         disabled={busy || looking}
-                        title={busy ? 'Connecting' : undefined}
+                        title={busy ? 'Signing in' : undefined}
                     >
-                        Connect
+                        Sign in
                         <ArrowRight className="size-4.5" aria-hidden />
+                    </Button>
+
+                    {/* RADIO NEEDS NO SERVER. Somebody without one, or away from theirs, can still
+                        listen: the built-in stations and the open directory, kept on this device.
+                        See `listenWithoutServer`. */}
+                    <div className="mt-4 flex items-center gap-3 text-xs text-muted-foreground">
+                        <span className="h-px flex-1 bg-border" />
+                        or
+                        <span className="h-px flex-1 bg-border" />
+                    </div>
+                    <Button
+                        type="button"
+                        variant="outline"
+                        className="mt-4 h-13 w-full rounded-lg"
+                        onClick={listenWithoutServer}
+                    >
+                        <RadioIcon className="size-4.5" aria-hidden />
+                        {LISTEN_WITHOUT_SERVER_LABEL}
                     </Button>
 
                     {/* A SIGN-IN KEPT FROM BEFORE AND A SERVER THAT DID NOT ANSWER is not a door to
