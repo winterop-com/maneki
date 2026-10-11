@@ -91,7 +91,8 @@ export function SettingsDialog({
     const [query, setQuery] = useState('')
     const [chosen, setChosen] = useState(FIRST_CATEGORY)
 
-    const rows = useMemo(() => settingsRows(apple), [apple])
+    const radioOnly = useStore(sessionStore).phase === 'radio'
+    const rows = useMemo(() => settingsRows(apple, { server: !radioOnly }), [apple, radioOnly])
     const shown = useMemo(() => filterSettings(rows, query), [query, rows])
     const categories = useMemo(() => categoriesWith(shown), [shown])
     const active = categories.some((category) => category.id === chosen)

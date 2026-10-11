@@ -145,3 +145,13 @@ describe('the phone row', () => {
         expect(filterSettings(ROWS, 'offline').map((row) => row.id)).toContain('server:subsonic')
     })
 })
+
+describe('listening without a server', () => {
+    test('has no account and no server to describe, so neither is offered', () => {
+        // Radio-only said "Signed in as: nobody", "Address: this origin" and an empty version.
+        const radioOnly = settingsRows(false, { server: false })
+        expect(radioOnly.some((row) => row.category === 'account' || row.category === 'server')).toBe(false)
+        expect(radioOnly.some((row) => row.category === 'general')).toBe(true)
+        expect(settingsRows(false).some((row) => row.category === 'server')).toBe(true)
+    })
+})

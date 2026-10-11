@@ -64,9 +64,16 @@ export const FIRST_CATEGORY = 'general'
  * Every row, in the order the panes lay them out.
  *
  * `apple` decides how a chord is spelled, which is a fact about the keyboard rather than about
- * the settings, and is passed in for the same reason `shortcuts` takes it.
+ * the settings, and is passed in for the same reason `shortcuts` takes it. With no server
+ * (listening to radio alone) there is no account and no server to describe, and neither pane
+ * is offered.
  */
-export function settingsRows(apple: boolean): SettingsRow[] {
+export function settingsRows(apple: boolean, { server = true }: { server?: boolean } = {}): SettingsRow[] {
+    const rows = allRows(apple)
+    return server ? rows : rows.filter((row) => row.category !== 'account' && row.category !== 'server')
+}
+
+function allRows(apple: boolean): SettingsRow[] {
     return [
         {
             id: 'general:visualizer',
