@@ -22,6 +22,7 @@ import { announced } from '@/lib/liner'
 import { next, playerStore, previous, seek, skipBy, SKIP_S, toggle, type PlayerState } from '@/lib/player'
 import { sessionStore } from '@/lib/session'
 import { coverUrl } from '@/lib/subsonic'
+import { createStore } from '@/lib/store'
 
 /** The size the OS is asked to draw the artwork at; the widget and the lock screen are small. */
 const ARTWORK_SIZE = 512
@@ -124,6 +125,36 @@ function artworkFor(state: PlayerState): string | null {
     return coverUrl(music, song.coverArt, ARTWORK_SIZE)
 }
 
+/**
+ * What a screen playing its own picture tells the OS while it is open.
+ *
+ * ONE THING MAKES SOUND, AND THE OS CONTROLS ARE ITS. Only the music player ever spoke to the
+ * Media Session, so while a film played the lock screen still showed the station paused under
+ * it, and a media key started the station and stopped the film. A screen with a video on it
+ * claims the session for as long as it is open, the way it claims Space and `m`.
+ */
+export interface ScreenMedia {
+    title: string
+    artwork: string | null
+    play: () => void
+    pause: () => void
+    /** Read when the OS is told, so a pause the player made itself is reported too. */
+    playing: () => boolean
+}
+
+const screenMedia = createStore<ScreenMedia | null>(null)
+
+/** Hold the OS controls until the returned function is called. A later claim wins. */
+export function claimMediaSession(media: ScreenMedia): () => void {
+    screenMedia.set(media)
+    return () => {
+        if (screenMedia.get() === media) screenMedia.set(null)
+    }
+}
+
+/** How often a claimed session's play state is told again, since the player does not say. */
+const CLAIM_POLL_MS = 1000
+
 /** Tell the OS about the player from now on. Installed once, from `main`. */
 export function installMediaSession(): void {
     const media = typeof navigator === 'undefined' ? undefined : navigator.mediaSession
@@ -138,32 +169,55 @@ export function installMediaSession(): void {
             // An action this browser does not know: the rest still work.
         }
     }
+    // While a screen holds the session its controls are the screen's: see `claimMediaSession`.
+    const claimed = () => screenMedia.get()
     handle('play', () => {
-        if (!playerStore.get().playing) toggle()
+        const screen = claimed()
+        if (screen !== null) screen.play()
+        else if (!playerStore.get().playing) toggle()
     })
     handle('pause', () => {
-        if (playerStore.get().playing) toggle()
+        const screen = claimed()
+        if (screen !== null) screen.pause()
+        else if (playerStore.get().playing) toggle()
     })
     handle('nexttrack', () => {
-        if (!playerStore.get().station) next()
+        if (claimed() === null && !playerStore.get().station) next()
     })
     handle('previoustrack', () => {
-        if (!playerStore.get().station) previous()
+        if (claimed() === null && !playerStore.get().station) previous()
     })
     handle('seekto', (details) => {
-        if (!playerStore.get().station && details.seekTime !== undefined) seek(details.seekTime)
+        if (claimed() === null && !playerStore.get().station && details.seekTime !== undefined)
+            seek(details.seekTime)
     })
     handle('seekbackward', (details) => {
-        if (!playerStore.get().station) skipBy(-(details.seekOffset ?? SKIP_S))
+        if (claimed() === null && !playerStore.get().station) skipBy(-(details.seekOffset ?? SKIP_S))
     })
     handle('seekforward', (details) => {
-        if (!playerStore.get().station) skipBy(details.seekOffset ?? SKIP_S)
+        if (claimed() === null && !playerStore.get().station) skipBy(details.seekOffset ?? SKIP_S)
     })
 
     let shownAs = ''
     let told: Told | null = null
 
     const sync = () => {
+        const screen = claimed()
+        if (screen !== null) {
+            const key = `screen:${screen.title}`
+            if (key !== shownAs) {
+                shownAs = key
+                told = null
+                media.metadata = new MediaMetadata({
+                    title: screen.title,
+                    artwork: screen.artwork
+                        ? [{ src: screen.artwork, sizes: `${String(ARTWORK_SIZE)}x${String(ARTWORK_SIZE)}` }]
+                        : [],
+                })
+            }
+            media.playbackState = screen.playing() ? 'playing' : 'paused'
+            return
+        }
         const state = playerStore.get()
         const shown = nowPlaying(state, artworkFor(state))
         const key = identity(shown)
@@ -210,5 +264,11 @@ export function installMediaSession(): void {
     }
 
     playerStore.subscribe(sync)
+    screenMedia.subscribe(sync)
     sync()
+    if (typeof setInterval === 'function') {
+        setInterval(() => {
+            if (claimed() !== null) sync()
+        }, CLAIM_POLL_MS)
+    }
 }

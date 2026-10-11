@@ -5,6 +5,7 @@ import { useNavigate, useParams } from 'react-router'
 import { StatsOverlay, STATS_LABEL } from '@/components/video/StatsOverlay'
 import { VideoPlayer, type PlayerSubtitle, type VideoHandle } from '@/components/video/VideoPlayer'
 import { Button } from '@/components/ui/button'
+import { claimMediaSession } from '@/lib/media-session'
 import { video as videoApi } from '@/lib/api'
 import { clock } from '@/lib/format'
 import { useStore } from '@/hooks/use-store'
@@ -349,6 +350,21 @@ function Watch({ id }: { id: string }) {
         player.current?.toggleMute()
     }, [])
     useEffect(() => claimMuteKey(mute), [mute])
+    // The OS controls are this picture's while it is open; see `claimMediaSession`.
+    useEffect(() => {
+        if (video === null) return
+        return claimMediaSession({
+            title: video.name,
+            artwork: videoApi.thumbnailUrl(video.id),
+            play: () => {
+                if (player.current?.sample()?.paused !== false) player.current?.togglePlay()
+            },
+            pause: () => {
+                if (player.current?.sample()?.paused === false) player.current?.togglePlay()
+            },
+            playing: () => player.current?.sample()?.paused === false,
+        })
+    }, [video])
     // Up and Down turn the picture up, not the album under it; see `claimVolumeKeys`.
     useEffect(
         () =>

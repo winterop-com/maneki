@@ -1,6 +1,13 @@
-import { describe, expect, test } from 'vitest'
+import { afterEach, describe, expect, test, vi } from 'vitest'
 
-import { identity, needsPosition, nowPlaying, type Told } from '@/lib/media-session'
+import {
+    claimMediaSession,
+    identity,
+    installMediaSession,
+    needsPosition,
+    nowPlaying,
+    type Told,
+} from '@/lib/media-session'
 import type { PlayerState, PlayingBook } from '@/lib/player'
 
 function state(change: Partial<PlayerState>): PlayerState {
@@ -124,5 +131,48 @@ describe('when the OS needs the position again', () => {
     test('stands still while paused', () => {
         const paused: Told = { ...playing, playing: false }
         expect(needsPosition(paused, { ...paused, atMs: 60_000 })).toBe(false)
+    })
+})
+
+describe('a video on screen holds the OS controls', () => {
+    afterEach(() => {
+        vi.unstubAllGlobals()
+    })
+
+    test('the lock screen shows the video, and its pause pauses the video, not the album', () => {
+        // While a film played, the OS still showed the paused station, and a media key started
+        // the station and stopped the film.
+        const handlers = new Map<string, () => void>()
+        const media = {
+            metadata: null as MediaMetadata | null,
+            playbackState: 'none',
+            setActionHandler: (action: string, run: () => void) => handlers.set(action, run),
+            setPositionState: () => undefined,
+        }
+        vi.stubGlobal('navigator', { mediaSession: media })
+        vi.stubGlobal(
+            'MediaMetadata',
+            class {
+                title: string
+                constructor(init: { title: string }) {
+                    this.title = init.title
+                }
+            },
+        )
+        installMediaSession()
+        const pause = vi.fn()
+        const release = claimMediaSession({
+            title: 'Emissary',
+            artwork: null,
+            play: vi.fn(),
+            pause,
+            playing: () => true,
+        })
+        expect(media.metadata?.title).toBe('Emissary')
+        expect(media.playbackState).toBe('playing')
+        handlers.get('pause')?.()
+        expect(pause).toHaveBeenCalledOnce()
+        release()
+        expect(media.metadata?.title ?? null).not.toBe('Emissary')
     })
 })

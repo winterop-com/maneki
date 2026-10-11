@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/input'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { VideoPlayer, type VideoHandle } from '@/components/video/VideoPlayer'
 import { useStore } from '@/hooks/use-store'
+import { claimMediaSession } from '@/lib/media-session'
 import { youtube as youtubeApi } from '@/lib/api'
 import { inDesktopShell } from '@/lib/desktop'
 import { clock } from '@/lib/format'
@@ -702,6 +703,21 @@ function Watch({ id }: { id: string }) {
             }),
         [],
     )
+    // The OS controls are this picture's while it is open; see `claimMediaSession`.
+    useEffect(() => {
+        if (video === null) return
+        return claimMediaSession({
+            title: video.title,
+            artwork: youtubeApi.posterUrl(id),
+            play: () => {
+                if (player.current?.sample()?.paused !== false) player.current?.togglePlay()
+            },
+            pause: () => {
+                if (player.current?.sample()?.paused === false) player.current?.togglePlay()
+            },
+            playing: () => player.current?.sample()?.paused === false,
+        })
+    }, [id, video])
     // Up and Down turn the picture up, not the album under it; see `claimVolumeKeys`.
     useEffect(
         () =>
