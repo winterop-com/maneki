@@ -9,16 +9,17 @@ import {
     opensSearch,
     opensShortcuts,
     opensStage,
+    SEEK_STEP_S,
     seeks,
     shortcuts,
     starsCurrent,
+    steps,
+    toggleNotice,
     togglesMute,
     togglesPlayback,
     togglesRail,
     togglesTheater,
     togglesVisualizer,
-    steps,
-    SEEK_STEP_S,
     VOLUME_STEP,
 } from '@/lib/shortcuts'
 
@@ -305,5 +306,18 @@ describe('the rest of the listening keys', () => {
             expect(opensStage(press(key), null)).toBe(false)
             expect(opensShortcuts(press(key), null)).toBe(false)
         }
+    })
+})
+
+describe('what a bare key that changes a setting says', () => {
+    // `v` hid the spectrum, saved it, and said nothing: somebody who hit it by accident found the
+    // spectrum gone for good with no idea why.
+    test('names the change and the key that undoes it', () => {
+        expect(toggleNotice('spectrum', false)).toBe('Spectrum hidden. Press V to show it.')
+        expect(toggleNotice('spectrum', true)).toBe('Spectrum shown. Press V to hide it.')
+        expect(toggleNotice('shuffle', true)).toBe('Shuffle on. Press S to turn it off.')
+        expect(toggleNotice('shuffle', false)).toBe('Shuffle off. Press S to turn it on.')
+        expect(toggleNotice('mute', true)).toBe('Muted. Press M to unmute.')
+        expect(toggleNotice('mute', false)).toBe('Unmuted. Press M to mute.')
     })
 })

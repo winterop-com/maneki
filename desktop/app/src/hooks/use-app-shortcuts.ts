@@ -1,4 +1,5 @@
 import { useEffect } from 'react'
+import { toast } from 'sonner'
 
 import {
     currentSong,
@@ -12,6 +13,7 @@ import {
     toggleMuted,
     toggleShuffle,
 } from '@/lib/player'
+import { REPEAT_LABELS } from '@/lib/queue'
 import { dialogUp, mayOpen, type Standing } from '@/lib/dialogs'
 import { paletteOpen } from '@/lib/palette'
 import { toggleRail } from '@/lib/panels'
@@ -22,24 +24,26 @@ import { sessionStore } from '@/lib/session'
 import {
     adjustsVolume,
     applePlatform,
-    opensPalette,
     cyclesRepeat,
+    type FocusedField,
     opensLyrics,
+    opensPalette,
     opensSearch,
     opensShortcuts,
     opensStage,
+    REPEAT_KEY,
     seeks,
     starsCurrent,
     steps,
+    toggleNotice,
     togglesMute,
-    togglesShuffle,
     togglesPlayback,
     togglesRail,
+    togglesShuffle,
     togglesVisualizer,
-    type FocusedField,
 } from '@/lib/shortcuts'
 import { toggleStar } from '@/lib/star'
-import { stageOpen, toggleStage, toggleVisualizer } from '@/lib/visualizer'
+import { stageOpen, toggleStage, toggleVisualizer, visualizerShown } from '@/lib/visualizer'
 
 /**
  * The one place a real `KeyboardEvent` is read.
@@ -139,6 +143,8 @@ export function useAppShortcuts(onShortcuts: () => void): void {
             if (togglesVisualizer(press, focused())) {
                 event.preventDefault()
                 toggleVisualizer()
+                // A lasting change made by one letter says so; see `toggleNotice`.
+                toast(toggleNotice('spectrum', visualizerShown.get()))
                 return
             }
             if (opensStage(press, focused())) {
@@ -154,11 +160,15 @@ export function useAppShortcuts(onShortcuts: () => void): void {
             if (togglesShuffle(press, focused())) {
                 event.preventDefault()
                 toggleShuffle()
+                toast(toggleNotice('shuffle', playerStore.get().shuffle))
                 return
             }
             if (cyclesRepeat(press, focused())) {
                 event.preventDefault()
                 cycleRepeat()
+                toast(
+                    `${REPEAT_LABELS[playerStore.get().repeat]}. Press ${REPEAT_KEY.toUpperCase()} for the next.`,
+                )
                 return
             }
             // The player's own numbers, read at the instant of the press rather than held: the
@@ -194,8 +204,10 @@ export function useAppShortcuts(onShortcuts: () => void): void {
                 // album under a film that went on talking, and the record somebody came back
                 // to was the silent one.
                 const claimed = muteKeyClaim()
-                if (claimed === null) toggleMuted()
-                else claimed()
+                if (claimed === null) {
+                    toggleMuted()
+                    toast(toggleNotice('mute', playerStore.get().muted))
+                } else claimed()
                 return
             }
             if (opensLyrics(press, focused())) {

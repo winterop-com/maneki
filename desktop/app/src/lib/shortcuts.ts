@@ -386,3 +386,28 @@ export function shortcuts(apple: boolean): Shortcut[] {
         { id: 'choose', action: 'Open the row that has focus', keys: ['Enter'] },
     ]
 }
+
+/** A setting a bare key turns on or off. */
+export type ToggledSetting = 'spectrum' | 'shuffle' | 'mute'
+
+/**
+ * What the app says when a bare key has changed a setting, and how to change it back.
+ *
+ * A SINGLE LETTER IS EASY TO HIT BY ACCIDENT. `v` hid the spectrum and kept it hidden, and said
+ * nothing; somebody who brushed the key found it gone for good with no way to know why. So a key
+ * that changes something that lasts says what it changed and which key undoes it.
+ */
+export function toggleNotice(setting: ToggledSetting, on: boolean): string {
+    switch (setting) {
+        case 'spectrum':
+            return on
+                ? `Spectrum shown. Press ${VISUALIZER_KEY.toUpperCase()} to hide it.`
+                : `Spectrum hidden. Press ${VISUALIZER_KEY.toUpperCase()} to show it.`
+        case 'shuffle':
+            return `Shuffle ${on ? 'on' : 'off'}. Press ${SHUFFLE_KEY.toUpperCase()} to turn it ${on ? 'off' : 'on'}.`
+        case 'mute':
+            return on
+                ? `Muted. Press ${MUTE_KEY.toUpperCase()} to unmute.`
+                : `Unmuted. Press ${MUTE_KEY.toUpperCase()} to mute.`
+    }
+}
