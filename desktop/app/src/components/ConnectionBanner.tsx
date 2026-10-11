@@ -1,4 +1,5 @@
 import { WifiOff, X } from 'lucide-react'
+import { useEffect } from 'react'
 
 import { Button } from '@/components/ui/button'
 import { useStore } from '@/hooks/use-store'
@@ -25,9 +26,23 @@ export const DISMISS_LABEL = 'Dismiss'
  * knows their server is off and does not need a bar about it all evening. The next request that
  * fails the same way raises it again.
  */
+/** How often a server that has gone quiet is asked again while the banner says so. */
+const RETRY_EVERY_MS = 10_000
+
 export function ConnectionBanner() {
     const connection = useStore(connectionStore)
     const session = useStore(sessionStore)
+    // WHILE THE BANNER IS UP THE SERVER IS ASKED AGAIN BY ITSELF. A laptop waking on a network
+    // that is back, or a server that has restarted, healed only when somebody pressed Retry.
+    useEffect(() => {
+        if (!connection.down) return
+        const asking = setInterval(() => {
+            void connect()
+        }, RETRY_EVERY_MS)
+        return () => {
+            clearInterval(asking)
+        }
+    }, [connection.down])
     if (!connection.down) return null
 
     return (

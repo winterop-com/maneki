@@ -8,6 +8,7 @@ import {
     NETWORK_REFUSAL,
     noteRecovered,
     noteRefusal,
+    recoveries,
 } from '@/lib/connection'
 import { SubsonicError } from '@/lib/subsonic'
 
@@ -98,5 +99,26 @@ describe('the banner', () => {
         expect(connectionStore.get().down).toBe(false)
         noteRefusal(new ApiError(0, NETWORK_REFUSAL))
         expect(connectionStore.get().down).toBe(true)
+    })
+})
+
+describe('the server coming back', () => {
+    test('is counted, so the screen in front of somebody loads again', () => {
+        // After Retry succeeded the banner went, but the page kept saying "the server did not
+        // answer" until somebody navigated away and back.
+        const before = recoveries.get()
+        noteRefusal(new TypeError('Failed to fetch'))
+        noteRecovered()
+        expect(recoveries.get()).toBe(before + 1)
+        // An answer while nothing was wrong is not a recovery.
+        noteRecovered()
+        expect(recoveries.get()).toBe(before + 1)
+    })
+
+    test('is not claimed by dismissing the banner', () => {
+        const before = recoveries.get()
+        noteRefusal(new TypeError('Failed to fetch'))
+        dismissRefusal()
+        expect(recoveries.get()).toBe(before)
     })
 })

@@ -71,6 +71,12 @@ function read(): StoredSession {
     return { baseUrl: defaultBaseUrl() }
 }
 
+/** Whether a sign-in is kept from before: one a server that comes back will take again. */
+export function hasKeptSignIn(): boolean {
+    const kept = read()
+    return kept.token !== undefined || kept.subsonic !== undefined
+}
+
 function write(stored: StoredSession): void {
     try {
         localStorage.setItem(STORAGE_KEY, JSON.stringify(stored))

@@ -51,6 +51,7 @@ import { Button } from '@/components/ui/button'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { useAppShortcuts } from '@/hooks/use-app-shortcuts'
 import { useStore, useStoreValue } from '@/hooks/use-store'
+import { recoveries } from '@/lib/connection'
 import { entriesFor, homePath } from '@/lib/nav'
 import {
     APPEARANCE_GROUP,
@@ -128,6 +129,7 @@ const SettingsDialog = lazy(() =>
  */
 export function AppShell({ children }: { children: ReactNode }) {
     const session = useStore(sessionStore)
+    const recovered = useStore(recoveries)
     // Rescanning is the whole library's disk; a listener is not offered it. See `isAdmin`.
     const admin = isAdmin(session)
     const collapsed = useStore(railCollapsed)
@@ -582,7 +584,11 @@ export function AppShell({ children }: { children: ReactNode }) {
                         so it is said once above the work rather than by each screen in turn. */}
                     <ConnectionBanner />
 
-                    <main className="flex min-h-0 w-full flex-1 flex-col overflow-y-auto">{children}</main>
+                    {/* Keyed on the server coming back, so a screen that failed while it was gone loads
+                        again instead of keeping the sentence; see `recoveries`. */}
+                    <main key={recovered} className="flex min-h-0 w-full flex-1 flex-col overflow-y-auto">
+                        {children}
+                    </main>
                 </div>
                 <div
                     data-shell-rule="top"

@@ -5,6 +5,7 @@ import { connectionStore, dismissRefusal } from '@/lib/connection'
 import { playerStore } from '@/lib/player'
 import {
     connect,
+    hasKeptSignIn,
     isAdmin,
     isAuthError,
     sessionStore,
@@ -338,5 +339,28 @@ describe('a music password the server stopped accepting', () => {
         const music = sessionStore.get().music!
         await expect(getArtists(music)).rejects.toThrow()
         expect(sessionStore.get().phase).toBe('signed-out')
+    })
+})
+
+describe('a sign-in kept from before', () => {
+    test('is known, so a reload while the server is down can wait for it rather than ask again', async () => {
+        refusing()
+        await connect({
+            baseUrl: 'https://host',
+            username: 'mort',
+            subsonic: { username: 'mort', salt: 'abc', token: 'def' },
+        })
+        expect(sessionStore.get().phase).toBe('signed-out')
+        localStorage.setItem(
+            'maneki.session',
+            JSON.stringify({
+                baseUrl: 'https://host',
+                username: 'mort',
+                subsonic: { username: 'mort', salt: 'a', token: 'b' },
+            }),
+        )
+        expect(hasKeptSignIn()).toBe(true)
+        localStorage.setItem('maneki.session', JSON.stringify({ baseUrl: 'https://host', username: 'mort' }))
+        expect(hasKeptSignIn()).toBe(false)
     })
 })

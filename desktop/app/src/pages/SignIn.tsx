@@ -6,10 +6,11 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { useStore } from '@/hooks/use-store'
+import { NETWORK_REFUSAL } from '@/lib/connection'
 import { probe } from '@/lib/api'
 import { candidates } from '@/lib/server-address'
 import { currentShell, probeOrigins } from '@/lib/desktop'
-import { connect, sessionStore, signInTo } from '@/lib/session'
+import { connect, hasKeptSignIn, sessionStore, signInTo } from '@/lib/session'
 import type { Capabilities } from '@/lib/types'
 
 export const CHANGE_SERVER_LABEL = 'Connect to a different server'
@@ -55,6 +56,9 @@ const FIELD = 'border-border-strong h-12 rounded-lg pl-11'
  * column, so a notice that took space would move every field the moment somebody got a
  * password wrong. It hangs below the button, out of the flow.
  */
+/** How often a kept sign-in asks a quiet server again. */
+const KEPT_SIGN_IN_RETRY_MS = 10_000
+
 export function SignIn() {
     const session = useStore(sessionStore)
     const [baseUrl, setBaseUrl] = useState(session.baseUrl)
@@ -70,6 +74,17 @@ export function SignIn() {
     // is one -- and a door that opened already saying "the server did not answer" would be
     // scolding somebody who has not typed anything yet.
     const [submitted, setSubmitted] = useState(false)
+    // The server went quiet under a sign-in that is still good; see the note under the button.
+    const waiting = session.refusal === NETWORK_REFUSAL && hasKeptSignIn()
+    useEffect(() => {
+        if (!waiting) return
+        const asking = setInterval(() => {
+            void connect()
+        }, KEPT_SIGN_IN_RETRY_MS)
+        return () => {
+            clearInterval(asking)
+        }
+    }, [waiting])
 
     useEffect(() => {
         let live = true
@@ -271,6 +286,31 @@ export function SignIn() {
                         <ArrowRight className="size-4.5" aria-hidden />
                     </Button>
 
+                    {/* A SIGN-IN KEPT FROM BEFORE AND A SERVER THAT DID NOT ANSWER is not a door to
+                        knock at again: the sign-in is still good and the server is away. Reloaded
+                        then, this screen was a blank form with no reason; it now says the server
+                        is not answering, keeps asking, and offers Retry. */}
+                    {!submitted && waiting && (
+                        <p
+                            role="status"
+                            className="absolute inset-x-0 top-[calc(100%+1.5rem)] flex min-h-12 items-center gap-3 rounded-lg border border-border bg-muted px-4 text-sm"
+                        >
+                            <span className="min-w-0 flex-1">
+                                No answer from <span className="font-mono">{session.baseUrl}</span>. Your
+                                sign-in is kept; trying again.
+                            </span>
+                            <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                onClick={() => {
+                                    void connect()
+                                }}
+                            >
+                                Retry
+                            </Button>
+                        </p>
+                    )}
                     {submitted && session.refusal && (
                         <p
                             role="alert"

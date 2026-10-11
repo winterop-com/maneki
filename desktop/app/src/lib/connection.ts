@@ -42,6 +42,16 @@ const ANSWERING: ConnectionState = { down: false, reason: null }
 export const connectionStore = createStore<ConnectionState>(ANSWERING)
 
 /**
+ * How many times the server has come back after going quiet.
+ *
+ * A SCREEN THAT FAILED STAYS FAILED UNTIL IT IS ASKED AGAIN. Retry brought the banner down, but
+ * the page behind it kept the sentence it had been given, and only navigating away and back
+ * loaded it. The shell keys the screen on this count, so the server coming back is the screen
+ * loading again.
+ */
+export const recoveries = createStore(0)
+
+/**
  * Whether a thrown thing is the network refusing rather than the server answering.
  *
  * Three shapes reach here: `ApiError(0, ...)` and `SubsonicError(0, ...)` from the two wire
@@ -85,6 +95,7 @@ export function noteRefusal(error: unknown): boolean {
 export function noteRecovered(): void {
     if (!connectionStore.get().down) return
     connectionStore.set(ANSWERING)
+    recoveries.set(recoveries.get() + 1)
 }
 
 /**
