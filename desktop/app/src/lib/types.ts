@@ -135,8 +135,6 @@ export interface VideoEntry {
     id: string
     /** The file's name without its extension, which is what a row is headed by. */
     name: string
-    /** Absolute on the server's own disk. Nothing in this client draws it. */
-    path: string
     size_bytes: number
     /** Under the library root, POSIX separators: `Star Trek/TNG/S01/Encounter at Farpoint.mkv`. */
     rel_path: string

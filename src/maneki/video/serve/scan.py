@@ -22,7 +22,7 @@ from collections.abc import Callable, Iterator
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from maneki.ffmpeg import ffprobe_path
 from maneki.library import is_media_path, skips_dir
@@ -83,7 +83,8 @@ class VideoEntry(BaseModel):
 
     id: str
     name: str
-    path: str
+    #: Where the file is on the server's disk. Never serialized: a listener is told `rel_path`.
+    path: str = Field(exclude=True)
     size_bytes: int
     rel_path: str
     duration_s: float | None

@@ -306,3 +306,13 @@ def test_play_returns_503_when_ffmpeg_missing(monkeypatch: pytest.MonkeyPatch, c
     resp = client.get(f"/api/videos/{video_id}/play")
     assert resp.status_code == 503
     assert "ffmpeg" in resp.json()["detail"]
+
+
+def test_the_api_never_hands_out_absolute_paths(client: TestClient) -> None:
+    """Where the library sits on the server's disk is the server's business, not a listener's;
+    the client only ever uses `rel_path`."""
+    entries = client.get("/api/videos").json()
+    assert entries
+    assert all("path" not in entry and entry["rel_path"] for entry in entries)
+    assert "path" not in client.get(f"/api/videos/{entries[0]['id']}").json()
+    assert all("path" not in entry for entry in client.get("/api/browse", params={"path": ""}).json()["videos"])
