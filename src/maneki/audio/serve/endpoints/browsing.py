@@ -291,6 +291,9 @@ async def get_album_list2(  # noqa: PLR0912 — Subsonic's `type` enum has many 
         listed.sort(key=lambda a: str(a["name"]).casefold())
     elif type == "alphabeticalByArtist":
         listed.sort(key=lambda a: (str(a["artist"]).casefold(), str(a["name"]).casefold()))
+    elif type == "newest":
+        # Records and books together, newest first: books were appended after every record.
+        listed.sort(key=lambda a: str(a.get("created", "")), reverse=True)
     elif type == "random":
         random_mod.shuffle(listed)
     page = listed[offset : offset + size]

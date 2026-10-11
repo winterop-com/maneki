@@ -294,3 +294,17 @@ def test_a_book_says_when_it_came_into_the_library(tmp_path: Path) -> None:
     os.utime(folder, (1_700_000_000, 1_700_000_000))
     album = _inner(client, "getAlbum", id=book_subsonic_id(book))["album"]
     assert album["created"].startswith("2023-11-14")
+
+
+def test_newest_puts_a_new_book_before_an_older_record(tmp_path: Path) -> None:
+    """Books were appended after every sorted record, in shelf order, so a book added yesterday came
+    after an album from last year in every client's Recently added."""
+    import os
+
+    client, books = _client(tmp_path)
+    album_dir = tmp_path / "Music" / "ABBA" / "1976 - Arrival"
+    album_dir.mkdir(parents=True, exist_ok=True)
+    os.utime(album_dir, (1_600_000_000, 1_600_000_000))
+    os.utime(books.root / books.books[0].rel_path, (1_700_000_000, 1_700_000_000))
+    albums = _inner(client, "getAlbumList2", type="newest", size=10)["albumList2"]["album"]
+    assert [a["name"] for a in albums] == [TITLE, "Arrival"]
