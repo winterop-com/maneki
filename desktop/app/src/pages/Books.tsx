@@ -1,15 +1,15 @@
 import { ChevronLeft, Play } from 'lucide-react'
-import { useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router'
 
 import { Spinner } from '@/components/Spinner'
 import { Skeleton } from '@/components/Skeleton'
 import { CoverArt } from '@/components/CoverArt'
 import { Button } from '@/components/ui/button'
+import { useScrollMemory } from '@/hooks/use-scroll-memory'
 import { useStoreValue } from '@/hooks/use-store'
 import { books as booksApi } from '@/lib/api'
 import { chapterAt } from '@/lib/book-timeline'
-import { recallScroll, rememberScroll } from '@/lib/scroll-memory'
 import { clock, duration, progressRatio, remaining } from '@/lib/format'
 import { playBook, playerStore, type PlayerState } from '@/lib/player'
 import type { BookDetail, BookSummary } from '@/lib/types'
@@ -76,24 +76,8 @@ function Shelf() {
         }
     }, [])
 
-    // BACK FROM A BOOK IS BACK WHERE THE SHELF WAS LEFT, not at its first row: the screens share
-    // one scrolling area, and a 2313-book shelf started at the top every time. See `lib/scroll-memory`.
-    const shown = books !== null && books.length > 0
-    useLayoutEffect(() => {
-        if (!shown) return
-        const area = document.querySelector('main')
-        if (area === null) return
-        area.scrollTop = recallScroll(SHELF_SCROLL)
-        // Kept as it moves rather than read on the way out: by the time the shelf is gone the
-        // area holds the next screen, and its scroll is that screen's.
-        const keep = () => {
-            rememberScroll(SHELF_SCROLL, area.scrollTop)
-        }
-        area.addEventListener('scroll', keep, { passive: true })
-        return () => {
-            area.removeEventListener('scroll', keep)
-        }
-    }, [shown])
+    // Back from a book is back where the shelf was left: see `useScrollMemory`.
+    useScrollMemory(SHELF_SCROLL, books !== null && books.length > 0)
 
     if (refusal) return <Notice>{refusal}</Notice>
     if (!books || (!books.length && scanning)) {

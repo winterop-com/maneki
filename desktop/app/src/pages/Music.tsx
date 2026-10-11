@@ -6,6 +6,7 @@ import { CoverArt } from '@/components/CoverArt'
 import { AddToPlaylistDialog, type Adding } from '@/components/PlaylistDialogs'
 import { Skeleton } from '@/components/Skeleton'
 import { Button } from '@/components/ui/button'
+import { useScrollMemory } from '@/hooks/use-scroll-memory'
 import { useStore, useStoreValue } from '@/hooks/use-store'
 import { playingRow } from '@/lib/queue'
 import { albumPath, bookOfAlbum } from '@/lib/nav'
@@ -226,6 +227,8 @@ function Artists({ credentials }: { credentials: Credentials }) {
     const [query, setQuery] = useState('')
     const [found, setFound] = useState<Awaited<ReturnType<typeof searchLibrary>> | null>(null)
     const [refusal, setRefusal] = useState<string | null>(null)
+    // Back from an artist is back where the list was left: see `useScrollMemory`.
+    useScrollMemory('music:artists', artists !== null && artists.length > 0)
     const navigate = useNavigate()
 
     /**
@@ -423,6 +426,8 @@ function ArtistScreen({ credentials, id }: { credentials: Credentials; id: strin
     const answered = held.key === id
     const data = answered ? held.value : null
     const refusal = answered ? held.refusal : null
+    // Back from an album is back where the artist's albums were left.
+    useScrollMemory(`music:artist:${id}`, data !== null)
 
     if (refusal) return <Notice>{refusal}</Notice>
     if (!data) {
