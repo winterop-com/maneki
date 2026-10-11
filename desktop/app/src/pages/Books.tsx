@@ -32,7 +32,10 @@ const selectChapterIndex = (state: PlayerState) =>
 
 export function BooksPage() {
     const { bookId } = useParams()
-    return bookId ? <Book id={bookId} /> : <Shelf />
+    // ONE BOOK'S PAGE IS NOT ANOTHER'S. Keyed by the address, so Back from a book that was not
+    // found, or a step from one book to the next, starts clean instead of showing the last one's
+    // error or contents under the new address.
+    return bookId ? <Book key={bookId} id={bookId} /> : <Shelf />
 }
 
 /** Every book, with how far through each one this account is. */
@@ -150,10 +153,19 @@ function Book({ id }: { id: string }) {
     const chapterIndex = useStoreValue(playerStore, selectChapterIndex)
 
     useEffect(() => {
+        // An answer that comes back after the reader has moved on is not this page's.
+        let live = true
         booksApi
             .detail(id)
-            .then(setBook)
-            .catch((error: Error) => setRefusal(error.message))
+            .then((found) => {
+                if (live) setBook(found)
+            })
+            .catch((error: Error) => {
+                if (live) setRefusal(error.message)
+            })
+        return () => {
+            live = false
+        }
     }, [id])
 
     // OPENED ON THE BOOK THAT IS PLAYING, THE LIST SHOWS WHERE IT IS. Resumed in chapter 301 of 498,
