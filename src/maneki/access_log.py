@@ -56,7 +56,9 @@ def make_access_log_middleware(logger_name: str) -> type[BaseHTTPMiddleware]:
             # request that hasn't authenticated yet (root probe, OPTIONS,
             # /video/* under auth=off, etc.). A future bearer-token
             # decoder can extend this without changing the call sites.
-            user = request.query_params.get("u") or "-"
+            # The bearer token's account where sign-in stamped one, which is every /video and
+            # /books request since sign-in became the default; their lines all said `user=-`.
+            user = getattr(request.state, "username", None) or request.query_params.get("u") or "-"
             # `path` and never `url`: THE QUERY STRING IS WHERE THE SECRETS
             # ARE. Subsonic sends the password as `?p=` and its challenge as
             # `?t=`, and a media URL carries the house bearer token as

@@ -352,6 +352,8 @@ def test_the_token_never_reaches_the_access_log(authed_client: TestClient) -> No
     assert logged, "the request never reached the access log"
     assert logged[-1]["path"] == f"/video/api/videos/{video_id}/stream"
     assert token not in repr(lines)
+    # Who it was, from the token: the line said `user=-` for every signed-in request.
+    assert logged[-1]["user"] == "admin"
 
 
 @pytest.mark.parametrize(
