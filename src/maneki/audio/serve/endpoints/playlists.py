@@ -113,12 +113,21 @@ async def update_playlist(
     songIndexToRemove: list[int] = Query(default=[]),
 ) -> dict:
     """Rename and/or add/remove songs in a playlist."""
+    remove = list(songIndexToRemove)
+    if remove:
+        # A CLIENT COUNTS THE ROWS IT WAS SHOWN. A track gone from the library is not one of
+        # them (`_entries` skips it), so an index past it named the stored track before the
+        # row meant: the vanished one was deleted and the row came back on the next read.
+        current = _store(request).get(playlistId)
+        if current is not None:
+            shown = [at for at, tid in enumerate(current.track_ids) if tid in _cache(request).tracks_by_id]
+            remove = [shown[i] for i in remove if 0 <= i < len(shown)]
     try:
         pl = _store(request).update(
             playlistId,
             name=name,
             add_ids=list(songIdToAdd),
-            remove_indices=list(songIndexToRemove),
+            remove_indices=remove,
         )
     except PlaylistStoreError as exc:
         return error_envelope(0, str(exc))

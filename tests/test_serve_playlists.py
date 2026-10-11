@@ -129,3 +129,20 @@ def test_a_playlist_that_cannot_be_written_is_refused_not_invented(tmp_path: Pat
     store = PlaylistStore(blocked, owner="alice")
     with pytest.raises(PlaylistStoreError):
         store.create("Mixtape", ["tr_1"])
+
+
+def test_removing_a_row_after_a_track_left_the_library_removes_that_row(tmp_path: Path) -> None:
+    """A track no longer in the library is not drawn, so the rows a client counts are not the
+    stored ones: removing the second drawn row deleted the vanished track, and the row came back."""
+    client, track_ids = _client(tmp_path)
+    gone = "tr_" + "0" * 16
+    created = client.get(
+        "/rest/createPlaylist", params={**_alice(name="Mix"), "songId": [track_ids[0], gone, track_ids[1]]}
+    ).json()
+    pid = created["subsonic-response"]["playlist"]["id"]
+    drawn = client.get("/rest/getPlaylist", params={**_alice(), "id": pid}).json()["subsonic-response"]["playlist"]
+    assert [e["id"] for e in drawn["entry"]] == track_ids
+
+    client.get("/rest/updatePlaylist", params={**_alice(), "playlistId": pid, "songIndexToRemove": 1})
+    got = client.get("/rest/getPlaylist", params={**_alice(), "id": pid}).json()["subsonic-response"]["playlist"]
+    assert [e["id"] for e in got["entry"]] == [track_ids[0]]
