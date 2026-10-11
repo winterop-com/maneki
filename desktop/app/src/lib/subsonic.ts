@@ -13,7 +13,7 @@
  * a screen can say what went wrong rather than "request failed".
  */
 
-import { NETWORK_REFUSAL, noteRecovered, noteRefusal } from '@/lib/connection'
+import { NETWORK_REFUSAL, noteRecovered, noteRefusal, statusSentence } from '@/lib/connection'
 import { md5 } from '@/lib/md5'
 import { signOutOnAuthRefusal } from '@/lib/session'
 
@@ -155,7 +155,7 @@ export async function call<T = Record<string, unknown>>(
         throw refusal
     }
     noteRecovered()
-    if (!response.ok) throw new SubsonicError(0, `the server answered ${response.status}`)
+    if (!response.ok) throw new SubsonicError(0, statusSentence(response.status))
     const body = (await response.json()) as { 'subsonic-response'?: Record<string, unknown> }
     const inner = body['subsonic-response']
     if (!inner) throw new SubsonicError(0, 'the answer was not a Subsonic response')

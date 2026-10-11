@@ -180,3 +180,35 @@ describe('a position as it is written down', () => {
         expect(tenths(59.96)).toBe(60)
     })
 })
+
+describe('a refusal with nothing to say for itself', () => {
+    test('reads as a sentence with its status, not "the server answered 500"', async () => {
+        vi.stubGlobal(
+            'fetch',
+            vi.fn(() =>
+                Promise.resolve({
+                    ok: false,
+                    status: 500,
+                    json: () => Promise.reject(new SyntaxError('not json')),
+                }),
+            ),
+        )
+        await expect(books.list()).rejects.toThrow(
+            'The server ran into a problem (500). Try again in a moment.',
+        )
+    })
+
+    test('a refusal that is not the server failing says it was refused', async () => {
+        vi.stubGlobal(
+            'fetch',
+            vi.fn(() =>
+                Promise.resolve({
+                    ok: false,
+                    status: 418,
+                    json: () => Promise.reject(new SyntaxError('not json')),
+                }),
+            ),
+        )
+        await expect(books.list()).rejects.toThrow('The server refused that (418).')
+    })
+})

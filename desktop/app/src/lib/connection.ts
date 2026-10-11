@@ -108,3 +108,12 @@ export function noteRecovered(): void {
 export function dismissRefusal(): void {
     connectionStore.set(ANSWERING)
 }
+
+/**
+ * What a bare status says, as a sentence: "the server answered 500" told nobody what to do.
+ */
+export function statusSentence(status: number): string {
+    return status >= 500
+        ? `The server ran into a problem (${status}). Try again in a moment.`
+        : `The server refused that (${status}).`
+}

@@ -11,7 +11,7 @@
  * sentence, so a screen can draw the reason rather than "request failed".
  */
 
-import { NETWORK_REFUSAL, noteRecovered, noteRefusal } from '@/lib/connection'
+import { NETWORK_REFUSAL, noteRecovered, noteRefusal, statusSentence } from '@/lib/connection'
 // TWO IMPORTS IN AN ORDER THAT MATTERS. `lib/session` imports this module back -- it is the one
 // place that knows what a refusal means for a session -- and in a cycle the module named first
 // is the one evaluated first. `lib/desktop` is named before it because `defaultBaseUrl` reads a
@@ -159,7 +159,7 @@ async function refusalOf(response: Response): Promise<string> {
     } catch {
         // A refusal that is not JSON still has a status, which is what the caller shows.
     }
-    return `the server answered ${response.status}`
+    return statusSentence(response.status)
 }
 
 async function send<T>(path: string, method: string, body?: unknown, keepalive = false): Promise<T> {

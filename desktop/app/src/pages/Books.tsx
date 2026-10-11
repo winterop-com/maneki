@@ -46,6 +46,8 @@ function Shelf() {
     const [books, setBooks] = useState<BookSummary[] | null>(null)
     const [scanning, setScanning] = useState(false)
     const [refusal, setRefusal] = useState<string | null>(null)
+    // Bumped by Retry: a shelf that failed once stayed failed until the screen was left.
+    const [attempt, setAttempt] = useState(0)
     const navigate = useNavigate()
 
     /**
@@ -74,12 +76,23 @@ function Shelf() {
             live = false
             clearTimeout(timer)
         }
-    }, [])
+    }, [attempt])
 
     // Back from a book is back where the shelf was left: see `useScrollMemory`.
     useScrollMemory(SHELF_SCROLL, books !== null && books.length > 0)
 
-    if (refusal) return <Notice>{refusal}</Notice>
+    if (refusal) {
+        return (
+            <Notice
+                onRetry={() => {
+                    setRefusal(null)
+                    setAttempt((count) => count + 1)
+                }}
+            >
+                {refusal}
+            </Notice>
+        )
+    }
     if (!books || (!books.length && scanning)) {
         return (
             <div className="p-4">
@@ -132,6 +145,7 @@ function Shelf() {
 function Book({ id }: { id: string }) {
     const [book, setBook] = useState<BookDetail | null>(null)
     const [refusal, setRefusal] = useState<string | null>(null)
+    const [attempt, setAttempt] = useState(0)
     const navigate = useNavigate()
     const playingId = useStoreValue(playerStore, selectBookId)
     const chapterIndex = useStoreValue(playerStore, selectChapterIndex)
@@ -150,7 +164,7 @@ function Book({ id }: { id: string }) {
         return () => {
             live = false
         }
-    }, [id])
+    }, [id, attempt])
 
     // OPENED ON THE BOOK THAT IS PLAYING, THE LIST SHOWS WHERE IT IS. Resumed in chapter 301 of 498,
     // the row was lit far below the fold. Once per book, not on every chapter change, so a list
@@ -165,7 +179,18 @@ function Book({ id }: { id: string }) {
         row.scrollIntoView({ block: 'center' })
     })
 
-    if (refusal) return <Notice>{refusal}</Notice>
+    if (refusal) {
+        return (
+            <Notice
+                onRetry={() => {
+                    setRefusal(null)
+                    setAttempt((count) => count + 1)
+                }}
+            >
+                {refusal}
+            </Notice>
+        )
+    }
     if (!book) return <Spinner label="Opening the book" />
 
     // THE BUTTON KNOWS WHEN THIS IS THE BOOK PLAYING, as the album screen's does, and steps
@@ -294,10 +319,16 @@ function Cover({ book, size, className }: { book: BookSummary; size: number; cla
     )
 }
 
-function Notice({ children }: { children: React.ReactNode }) {
+/** A screen's one sentence, and a way to ask again when that sentence is a failure. */
+function Notice({ children, onRetry }: { children: React.ReactNode; onRetry?: () => void }) {
     return (
-        <div className="flex h-full items-center justify-center p-8">
+        <div className="flex h-full flex-col items-center justify-center gap-3 p-8">
             <p className="text-sm text-muted-foreground">{children}</p>
+            {onRetry && (
+                <Button variant="outline" size="sm" onClick={onRetry}>
+                    Retry
+                </Button>
+            )}
         </div>
     )
 }
