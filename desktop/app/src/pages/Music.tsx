@@ -549,13 +549,14 @@ function AlbumScreen({ credentials, id }: { credentials: Credentials; id: string
             {/* A CONTAINER, NOT THE VIEWPORT. What this screen has room for is decided by the
                 rail as much as by the window, so the cover is sized against
                 the pane it is in: drag the rail and the art follows, instead of a fixed square
-                sliding sideways with a growing gap beside it. */}
+                sliding sideways with a growing gap beside it. The cover stays where it is while
+                a long track list scrolls past it, so what is playing still has its sleeve. */}
             <div className="@container flex items-start gap-4">
                 <Cover
                     credentials={credentials}
                     id={album.id}
                     art={album.coverArt}
-                    className="hidden size-40 rounded-md sm:block @2xl:size-56 @5xl:size-72"
+                    className="sticky top-4 hidden size-40 rounded-md sm:block @2xl:size-56 @5xl:size-72"
                 />
                 <ol className="min-w-0 flex-1 rounded-lg border">
                     {songs.map((song, index) => {
