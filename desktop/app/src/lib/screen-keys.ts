@@ -67,6 +67,27 @@ export function muteKeyClaim(): KeyAction | null {
     return muteKey.get()
 }
 
+/** Who holds Up and Down right now, or null for the album's own volume. */
+export const volumeKeys = createStore<((step: number) => void) | null>(null)
+
+/**
+ * Take Up and Down until the returned function is called.
+ *
+ * The same argument as `m`: the arrows turned the album up under a film that was the thing
+ * making the sound.
+ */
+export function claimVolumeKeys(run: (step: number) => void): () => void {
+    volumeKeys.set(run)
+    return () => {
+        if (volumeKeys.get() === run) volumeKeys.set(null)
+    }
+}
+
+/** What Up and Down turn up right now, or null where nothing has claimed them. */
+export function volumeKeysClaim(): ((step: number) => void) | null {
+    return volumeKeys.get()
+}
+
 /**
  * What Space, `n` and `p` do while a screen holds them.
  *
@@ -101,4 +122,5 @@ export function forgetKeyClaims(): void {
     stageKey.set(null)
     muteKey.set(null)
     transportKeys.set(null)
+    volumeKeys.set(null)
 }

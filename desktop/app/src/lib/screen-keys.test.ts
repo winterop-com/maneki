@@ -3,11 +3,13 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
     claimMuteKey,
     claimStageKey,
+    claimVolumeKeys,
     claimTransport,
     forgetKeyClaims,
     muteKeyClaim,
     stageKeyClaim,
     transportClaim,
+    volumeKeysClaim,
 } from '@/lib/screen-keys'
 
 afterEach(() => {
@@ -51,6 +53,22 @@ describe('claimStageKey', () => {
         releaseFirst()
         stageKeyClaim()?.()
         expect(second).toHaveBeenCalledOnce()
+    })
+})
+
+describe('claimVolumeKeys', () => {
+    it('means the album until a screen says otherwise', () => {
+        expect(volumeKeysClaim()).toBeNull()
+    })
+
+    it('turns up whatever the screen that claimed it is playing, not the album', () => {
+        // Up and Down on a watch page turned the music up under a film.
+        const run = vi.fn()
+        const release = claimVolumeKeys(run)
+        volumeKeysClaim()?.(0.05)
+        expect(run).toHaveBeenCalledWith(0.05)
+        release()
+        expect(volumeKeysClaim()).toBeNull()
     })
 })
 

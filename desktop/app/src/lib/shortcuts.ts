@@ -90,6 +90,33 @@ export interface FocusedField {
     tagName: string
     /** True inside a rich-text region, where the browser claims plain letters. */
     isContentEditable: boolean
+    /** The element's ARIA role, where it has one: a grip or a slider keeps its own arrows. */
+    role?: string | null
+}
+
+/**
+ * The roles whose arrows are their own: a resize grip, a slider, a choice between options.
+ *
+ * The app's arrows are listened for in the capture phase, so they ran before the widget's own:
+ * on the player bar's grip ArrowUp made the bar taller and turned the volume up as well.
+ */
+const ARROW_ROLES = new Set([
+    'separator',
+    'slider',
+    'radiogroup',
+    'radio',
+    'spinbutton',
+    'tab',
+    'tablist',
+    'listbox',
+    'option',
+])
+
+/** Whether the focused element answers the arrow keys itself. */
+function ownsArrows(focused: FocusedField | null): boolean {
+    if (isTypingField(focused)) return true
+    const role = focused?.role ?? null
+    return role !== null && ARROW_ROLES.has(role)
 }
 
 /** Whether something is being typed into, which a bare-character shortcut must never interrupt. */
@@ -212,7 +239,7 @@ export function cyclesRepeat(press: KeyPress, focused: FocusedField | null): boo
  */
 export function seeks(press: KeyPress, focused: FocusedField | null): number | null {
     if (press.ctrlKey || press.metaKey || press.altKey) return null
-    if (isTypingField(focused)) return null
+    if (ownsArrows(focused)) return null
     if (press.key === 'ArrowLeft') return -SEEK_STEP_S
     if (press.key === 'ArrowRight') return SEEK_STEP_S
     return null
@@ -226,7 +253,7 @@ export function seeks(press: KeyPress, focused: FocusedField | null): number | n
  */
 export function adjustsVolume(press: KeyPress, focused: FocusedField | null): number | null {
     if (press.ctrlKey || press.metaKey || press.altKey) return null
-    if (isTypingField(focused)) return null
+    if (ownsArrows(focused)) return null
     if (press.key === 'ArrowUp') return VOLUME_STEP
     if (press.key === 'ArrowDown') return -VOLUME_STEP
     return null

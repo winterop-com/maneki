@@ -16,7 +16,7 @@ import { dialogUp } from '@/lib/dialogs'
 import { paletteOpen } from '@/lib/palette'
 import { toggleRail } from '@/lib/panels'
 import { toggleLyrics } from '@/lib/lyrics'
-import { muteKeyClaim, stageKeyClaim, transportClaim } from '@/lib/screen-keys'
+import { muteKeyClaim, stageKeyClaim, transportClaim, volumeKeysClaim } from '@/lib/screen-keys'
 import { closeSearch, openSearch, searchOpen } from '@/lib/search'
 import { sessionStore } from '@/lib/session'
 import {
@@ -59,7 +59,11 @@ export function useAppShortcuts(onShortcuts: () => void): void {
         function focused(): FocusedField | null {
             const element = document.activeElement
             if (!(element instanceof HTMLElement)) return null
-            return { tagName: element.tagName, isContentEditable: element.isContentEditable }
+            return {
+                tagName: element.tagName,
+                isContentEditable: element.isContentEditable,
+                role: element.getAttribute('role'),
+            }
         }
 
         function onKeyDown(event: KeyboardEvent): void {
@@ -163,8 +167,11 @@ export function useAppShortcuts(onShortcuts: () => void): void {
             const louder = adjustsVolume(press, focused())
             if (louder !== null) {
                 event.preventDefault()
+                // A screen with a video on it turns the video up; see `claimVolumeKeys`.
+                const claimed = volumeKeysClaim()
                 // setVolume unmutes, which is what asking to hear more of it means.
-                setVolume(playerStore.get().volume + louder)
+                if (claimed === null) setVolume(playerStore.get().volume + louder)
+                else claimed(louder)
                 return
             }
             if (togglesMute(press, focused())) {

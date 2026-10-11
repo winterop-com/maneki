@@ -218,6 +218,18 @@ describe('the arrows', () => {
         expect(adjustsVolume(press('ArrowLeft'), null)).toBeNull()
     })
 
+    test('belong to a resize grip, a slider or a radio group that has focus', () => {
+        // On the player bar's grip, ArrowUp made the bar taller and turned the volume up too, and
+        // ArrowRight on the rail's edge also seeked the track.
+        for (const role of ['separator', 'slider', 'radiogroup', 'radio', 'spinbutton', 'tab']) {
+            const focused = { tagName: 'DIV', isContentEditable: false, role }
+            expect(seeks(press('ArrowRight'), focused)).toBeNull()
+            expect(adjustsVolume(press('ArrowUp'), focused)).toBeNull()
+        }
+        const button = { tagName: 'BUTTON', isContentEditable: false, role: null }
+        expect(adjustsVolume(press('ArrowUp'), button)).toBe(VOLUME_STEP)
+    })
+
     test('belong to a range input that has focus, which is the scrubber and the level', () => {
         const slider = { tagName: 'INPUT', isContentEditable: false }
         expect(seeks(press('ArrowLeft'), slider)).toBeNull()

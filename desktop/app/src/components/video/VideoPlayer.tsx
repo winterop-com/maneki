@@ -55,6 +55,8 @@ export interface VideoHandle {
     toggleFullscreen: () => void
     /** Silence the picture, or give it its sound back. What `m` means while a video is open. */
     toggleMute: () => void
+    /** Turn the picture's sound up or down by `step` (of 1), unmuting. What Up and Down mean. */
+    nudgeVolume: (step: number) => void
     /**
      * What the source is actually at, or null before the first frame has been decoded.
      *
@@ -478,6 +480,10 @@ export function VideoPlayer({
             },
             toggleMute: () => {
                 built.muted(built.muted() !== true)
+            },
+            nudgeVolume: (step) => {
+                built.muted(false)
+                built.volume(Math.min(1, Math.max(0, (built.volume() ?? 1) + step)))
             },
             frameSize: () => {
                 const width = built.videoWidth()

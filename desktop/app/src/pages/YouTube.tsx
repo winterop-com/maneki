@@ -12,7 +12,7 @@ import { youtube as youtubeApi } from '@/lib/api'
 import { inDesktopShell } from '@/lib/desktop'
 import { clock } from '@/lib/format'
 import { registerActions, SCREEN_GROUP, type PaletteAction } from '@/lib/palette'
-import { claimMuteKey, claimStageKey, claimTransport } from '@/lib/screen-keys'
+import { claimMuteKey, claimStageKey, claimTransport, claimVolumeKeys } from '@/lib/screen-keys'
 import { clearScreenStatus, setScreenStatus, type StatusTone } from '@/lib/screen-status'
 import { sessionStore } from '@/lib/session'
 import { cyclesRepeat, opensLyrics, seeks, togglesShuffle, type FocusedField } from '@/lib/shortcuts'
@@ -695,12 +695,24 @@ function Watch({ id }: { id: string }) {
             }),
         [],
     )
+    // Up and Down turn the picture up, not the album under it; see `claimVolumeKeys`.
+    useEffect(
+        () =>
+            claimVolumeKeys((step) => {
+                player.current?.nudgeVolume(step)
+            }),
+        [],
+    )
     useEffect(() => {
         const onKeyDown = (event: KeyboardEvent): void => {
             const element = document.activeElement
             const focused: FocusedField | null =
                 element instanceof HTMLElement
-                    ? { tagName: element.tagName, isContentEditable: element.isContentEditable }
+                    ? {
+                          tagName: element.tagName,
+                          isContentEditable: element.isContentEditable,
+                          role: element.getAttribute('role'),
+                      }
                     : null
             const press = {
                 key: event.key,

@@ -10,7 +10,7 @@ import { clock } from '@/lib/format'
 import { useStore } from '@/hooks/use-store'
 import { registerActions, SCREEN_GROUP } from '@/lib/palette'
 import { inDesktopShell } from '@/lib/desktop'
-import { claimMuteKey, claimStageKey, claimTransport } from '@/lib/screen-keys'
+import { claimMuteKey, claimStageKey, claimTransport, claimVolumeKeys } from '@/lib/screen-keys'
 import { clearScreenStatus, setScreenStatus } from '@/lib/screen-status'
 import {
     cyclesRepeat,
@@ -349,6 +349,14 @@ function Watch({ id }: { id: string }) {
         player.current?.toggleMute()
     }, [])
     useEffect(() => claimMuteKey(mute), [mute])
+    // Up and Down turn the picture up, not the album under it; see `claimVolumeKeys`.
+    useEffect(
+        () =>
+            claimVolumeKeys((step) => {
+                player.current?.nudgeVolume(step)
+            }),
+        [],
+    )
 
     /**
      * Space, `n` and `p` mean the picture while there is one.
@@ -411,7 +419,11 @@ function Watch({ id }: { id: string }) {
             const element = document.activeElement
             const focused: FocusedField | null =
                 element instanceof HTMLElement
-                    ? { tagName: element.tagName, isContentEditable: element.isContentEditable }
+                    ? {
+                          tagName: element.tagName,
+                          isContentEditable: element.isContentEditable,
+                          role: element.getAttribute('role'),
+                      }
                     : null
             // IN A SHELL, ESCAPE IS THE WAY BACK. A browser leaves element fullscreen on
             // Escape by itself; a desktop window that was asked to fill the display does
