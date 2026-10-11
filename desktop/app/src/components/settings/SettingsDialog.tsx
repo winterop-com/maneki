@@ -106,13 +106,16 @@ export function SettingsDialog({
                     <DialogTitle>{SETTINGS_TITLE}</DialogTitle>
                 </DialogHeader>
 
-                <div className="flex min-h-0 flex-1">
-                    <nav className="flex w-36 shrink-0 flex-col gap-1 overflow-y-auto border-r border-border bg-sidebar p-2 md:w-52">
+                {/* ON A PHONE THE SECTIONS ARE A ROW ABOVE THE SETTINGS, not a column beside them:
+                    beside, they took a third of the width and every description wrapped to four
+                    lines. The row scrolls sideways; above the breakpoint it is the column. */}
+                <div className="flex min-h-0 flex-1 flex-col md:flex-row">
+                    <nav className="flex shrink-0 flex-row items-center gap-1 overflow-x-auto border-b border-border bg-sidebar p-2 md:w-52 md:flex-col md:items-stretch md:overflow-x-visible md:overflow-y-auto md:border-r md:border-b-0">
                         <Input
                             value={query}
                             aria-label="Search the settings"
                             placeholder="Search"
-                            className="mb-1"
+                            className="w-28 shrink-0 md:mb-1 md:w-auto"
                             onChange={(event) => {
                                 setQuery(event.target.value)
                             }}
@@ -121,8 +124,10 @@ export function SettingsDialog({
                             const inGroup = categories.filter((category) => category.group === group.id)
                             if (inGroup.length === 0) return null
                             return (
-                                <div key={group.id} className="mb-1">
-                                    <p className="px-2 py-1 text-xs text-faint">{group.label}</p>
+                                <div key={group.id} className="flex shrink-0 gap-1 md:mb-1 md:block">
+                                    <p className="hidden px-2 py-1 text-xs text-faint md:block">
+                                        {group.label}
+                                    </p>
                                     {inGroup.map((category) => (
                                         <button
                                             key={category.id}
@@ -131,7 +136,7 @@ export function SettingsDialog({
                                             className={cn(
                                                 // A category is a destination inside the sheet,
                                                 // and takes the row a drawer entry takes.
-                                                'flex min-h-finger w-full items-center rounded-md px-2 py-1 text-left text-sm md:min-h-0',
+                                                'flex min-h-finger shrink-0 items-center rounded-md px-2 py-1 text-left text-sm whitespace-nowrap md:min-h-0 md:w-full',
                                                 category.id === active
                                                     ? 'bg-primary/15 font-medium text-foreground'
                                                     : 'text-muted-foreground hover:bg-accent',
@@ -518,7 +523,9 @@ function PaletteSwatches({ value, onChoose }: { value: PaletteName; onChoose: (n
     }
 
     return (
-        <div role="radiogroup" aria-label="Palette" className="flex gap-2">
+        // Seven cards in one row were 24 px each on a phone, their names run together; under the
+        // breakpoint they wrap three to a row.
+        <div role="radiogroup" aria-label="Palette" className="grid grid-cols-3 gap-2 md:flex">
             {PALETTES.map((palette, index) => {
                 const chosen = palette.name === value
                 return (

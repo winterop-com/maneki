@@ -518,7 +518,9 @@ export function AppShell({ children }: { children: ReactNode }) {
     const modifier = modifierLabel(applePlatform(navigator.userAgent))
 
     return (
-        <div className="flex h-svh flex-col overflow-hidden bg-background text-foreground">
+        // The page is laid out under the notch and the home indicator (`viewport-fit=cover`), so
+        // the shell keeps clear of them itself: the safe areas are zero everywhere else.
+        <div className="flex h-svh flex-col overflow-hidden bg-background pt-[env(safe-area-inset-top)] pr-[env(safe-area-inset-right)] pb-[env(safe-area-inset-bottom)] pl-[env(safe-area-inset-left)] text-foreground">
             {/* THE THREE COLUMNS, AND ONE RULE UNDER ALL OF THEM. The rail's head, the top strip
                 and the panel's tab strip are each `h-shell-top`, and the line beneath them is
                 drawn once across the whole width rather than three times -- three borders

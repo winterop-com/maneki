@@ -43,8 +43,9 @@
     --spacing-shell-top: 46px;
     --spacing-shell-foot: 46px;
 
-    /* What a finger lands on is this tall below the breakpoint. */
-    --spacing-finger: 42px;
+    /* What a finger lands on is this tall below the breakpoint: Apple's 44 pt, the least a
+       touch target should be. It was 42, which every phone row and icon button measured. */
+    --spacing-finger: 44px;
 
     /* The radius ladder, stated rather than derived: 4 for a chip, 6 for a control and a
        card, 8 for a panel. */
