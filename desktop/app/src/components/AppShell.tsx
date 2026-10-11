@@ -4,6 +4,7 @@ import {
     FastForward,
     Keyboard,
     ListMusic,
+    LogIn,
     LogOut,
     Menu,
     Monitor,
@@ -44,7 +45,7 @@ import { Rail } from '@/components/Rail'
 import { SearchBox } from '@/components/SearchBox'
 import { SearchOverlay, SEARCH_TITLE } from '@/components/SearchOverlay'
 import { ShortcutsDialog } from '@/components/ShortcutsDialog'
-import { SIGN_OUT_LABEL } from '@/components/AccountMenu'
+import { SIGN_IN_LABEL, SIGN_OUT_LABEL } from '@/components/AccountMenu'
 import { StatusBar } from '@/components/StatusBar'
 import { MODES, MODE_LABELS, ThemeToggle } from '@/components/ThemeToggle'
 import { Button } from '@/components/ui/button'
@@ -153,6 +154,8 @@ export function AppShell({ children }: { children: ReactNode }) {
     const wasOpen = useRef(false)
     /** Whether this session has already been shown where what is playing lives. */
     const caps = session.capabilities ?? null
+    // Listening without a server: no library to search, no spectrum to draw, no account to leave.
+    const radioOnly = session.phase === 'radio'
     const music = session.music ?? null
 
     useEffect(() => {
@@ -384,14 +387,18 @@ export function AppShell({ children }: { children: ReactNode }) {
                 keywords: ['sidebar', 'rail'],
                 run: toggleRail,
             },
-            {
-                id: 'view:search',
-                title: SEARCH_TITLE,
-                group: VIEW_GROUP,
-                icon: Search,
-                keywords: ['find', 'artist', 'album', 'track', 'song'],
-                run: openSearch,
-            },
+            ...(radioOnly
+                ? []
+                : [
+                      {
+                          id: 'view:search',
+                          title: SEARCH_TITLE,
+                          group: VIEW_GROUP,
+                          icon: Search,
+                          keywords: ['find', 'artist', 'album', 'track', 'song'],
+                          run: openSearch,
+                      },
+                  ]),
             // The words are a track's, so the row is offered while there is one. A station has
             // no id to ask about and nothing to ask for it with.
             ...(queuedCount > 0
@@ -406,22 +413,26 @@ export function AppShell({ children }: { children: ReactNode }) {
                       },
                   ]
                 : []),
-            {
-                id: 'view:visualizer',
-                title: spectrum ? 'Hide the spectrum' : 'Show the spectrum',
-                group: VIEW_GROUP,
-                icon: ListMusic,
-                keywords: ['visualiser', 'visualizer', 'bars', 'analyser'],
-                run: toggleVisualizer,
-            },
-            {
-                id: 'view:stage',
-                title: 'Put the spectrum over the whole screen',
-                group: VIEW_GROUP,
-                icon: Maximize2,
-                keywords: ['fullscreen', 'full screen', 'stage', 'visualiser', 'visualizer'],
-                run: openStage,
-            },
+            ...(radioOnly
+                ? []
+                : [
+                      {
+                          id: 'view:visualizer',
+                          title: spectrum ? 'Hide the spectrum' : 'Show the spectrum',
+                          group: VIEW_GROUP,
+                          icon: ListMusic,
+                          keywords: ['visualiser', 'visualizer', 'bars', 'analyser'],
+                          run: toggleVisualizer,
+                      },
+                      {
+                          id: 'view:stage',
+                          title: 'Put the spectrum over the whole screen',
+                          group: VIEW_GROUP,
+                          icon: Maximize2,
+                          keywords: ['fullscreen', 'full screen', 'stage', 'visualiser', 'visualizer'],
+                          run: openStage,
+                      },
+                  ]),
             {
                 id: 'view:settings',
                 title: 'Open settings',
@@ -492,9 +503,9 @@ export function AppShell({ children }: { children: ReactNode }) {
             })),
             {
                 id: 'session:sign-out',
-                title: SIGN_OUT_LABEL,
+                title: radioOnly ? SIGN_IN_LABEL : SIGN_OUT_LABEL,
                 group: SESSION_GROUP,
-                icon: LogOut,
+                icon: radioOnly ? LogIn : LogOut,
                 keywords: ['logout', 'leave', 'server'],
                 run: signOut,
             },
@@ -510,6 +521,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         openSettings,
         playing,
         queuedCount,
+        radioOnly,
         repeat,
         shuffle,
         station,

@@ -110,7 +110,8 @@ export function useAppShortcuts(onShortcuts: () => void): void {
             if (paletteOpen.get() || searchOpen.get() || dialogUp()) return
             if (opensSearch(press, focused())) {
                 event.preventDefault()
-                if (mayOpen('search', standing())) openSearch()
+                // Radio-only has no library to search: the key is left alone there.
+                if (sessionStore.get().phase !== 'radio' && mayOpen('search', standing())) openSearch()
                 return
             }
             // What is playing is what somebody is looking at. A screen with a video on it
@@ -155,14 +156,19 @@ export function useAppShortcuts(onShortcuts: () => void): void {
                 else if (stageOpen.get() || mayOpen('stage', standing())) toggleStage()
                 return
             }
+            // A station has no queue and a book is read in one order: the bar offers neither
+            // shuffle nor repeat for them, and the keys did not change one behind its back.
+            const queueless = playerStore.get().station !== null || playerStore.get().book !== null
             if (togglesShuffle(press, focused())) {
                 event.preventDefault()
+                if (queueless) return
                 toggleShuffle()
                 toast(toggleNotice('shuffle', playerStore.get().shuffle))
                 return
             }
             if (cyclesRepeat(press, focused())) {
                 event.preventDefault()
+                if (queueless) return
                 cycleRepeat()
                 toast(
                     `${REPEAT_LABELS[playerStore.get().repeat]}. Press ${REPEAT_KEY.toUpperCase()} for the next.`,
