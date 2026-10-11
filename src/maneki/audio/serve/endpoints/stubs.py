@@ -22,7 +22,7 @@ import time
 
 from fastapi import APIRouter, Query, Request
 
-from maneki.audio.serve.app import envelope
+from maneki.audio.serve.app import admin_only, envelope, error_envelope
 from maneki.audio.serve.payloads import song_payload
 
 router = APIRouter()
@@ -271,36 +271,46 @@ async def set_rating(id: str = Query(default=""), rating: int = Query(default=0)
 
 
 # ---------------------------------------------------------------------------
-# User management — single-user serve, accept-and-discard
+# User management -- accounts live in maneki.toml, never changed over the API
 # ---------------------------------------------------------------------------
+
+
+def _accounts_are_config(request: Request) -> dict:
+    """A listener is not authorized; an admin is told where accounts are kept.
+
+    These answered ok and changed nothing, so a phone app told its user a password had changed.
+    """
+    if (refused := admin_only(request, "manage accounts")) is not None:
+        return refused
+    return error_envelope(0, "Accounts are set in maneki.toml ([[users]]); edit it there and restart the server.")
 
 
 @router.api_route("/changePassword", methods=["GET", "POST", "HEAD"])
 @router.api_route("/changePassword.view", methods=["GET", "POST", "HEAD"], include_in_schema=False)
-async def change_password() -> dict:
-    """No-op — credentials live in serve.toml, not server-side state."""
-    return envelope()
+async def change_password(request: Request) -> dict:
+    """Not supported over the API: see `_accounts_are_config`."""
+    return _accounts_are_config(request)
 
 
 @router.api_route("/createUser", methods=["GET", "POST", "HEAD"])
 @router.api_route("/createUser.view", methods=["GET", "POST", "HEAD"], include_in_schema=False)
-async def create_user() -> dict:
-    """No-op — single-user serve."""
-    return envelope()
+async def create_user(request: Request) -> dict:
+    """Not supported over the API: see `_accounts_are_config`."""
+    return _accounts_are_config(request)
 
 
 @router.api_route("/updateUser", methods=["GET", "POST", "HEAD"])
 @router.api_route("/updateUser.view", methods=["GET", "POST", "HEAD"], include_in_schema=False)
-async def update_user() -> dict:
-    """No-op — single-user serve."""
-    return envelope()
+async def update_user(request: Request) -> dict:
+    """Not supported over the API: see `_accounts_are_config`."""
+    return _accounts_are_config(request)
 
 
 @router.api_route("/deleteUser", methods=["GET", "POST", "HEAD"])
 @router.api_route("/deleteUser.view", methods=["GET", "POST", "HEAD"], include_in_schema=False)
-async def delete_user() -> dict:
-    """No-op — single-user serve."""
-    return envelope()
+async def delete_user(request: Request) -> dict:
+    """Not supported over the API: see `_accounts_are_config`."""
+    return _accounts_are_config(request)
 
 
 # ---------------------------------------------------------------------------

@@ -103,6 +103,8 @@ def test_login_returns_token_on_correct_credentials(open_client: TestClient) -> 
     assert "token" in data
     assert data["username"] == "admin"
     assert "expires_at" in data
+    # The client hides what only an admin may do (stations, rescans) by this.
+    assert data["admin"] is True
 
 
 def test_login_401_on_wrong_credentials(open_client: TestClient) -> None:
@@ -119,6 +121,7 @@ def test_me_returns_user_with_valid_token(open_client: TestClient) -> None:
     resp = open_client.get("/auth/me", headers={"Authorization": f"Bearer {token}"})
     assert resp.status_code == 200
     assert resp.json()["username"] == "admin"
+    assert resp.json()["admin"] is True
 
 
 def test_me_401_with_garbage_token(open_client: TestClient) -> None:

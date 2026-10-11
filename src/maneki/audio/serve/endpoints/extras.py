@@ -411,7 +411,7 @@ async def get_user(request: Request, username: str | None = Query(default=None))
     registry = request.app.state.users
     target = username or request.state.username
     if not request.state.admin and target != request.state.username:
-        return error_envelope(70, f"User not found: {target}")
+        return error_envelope(50, "Only an admin can look up another account.")
     account = registry.get(target)
     if account is None:
         return error_envelope(70, f"User not found: {target}")

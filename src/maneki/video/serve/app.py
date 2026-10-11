@@ -293,7 +293,7 @@ def create_app(
         return scan_tracker.snapshot()
 
     @app.post("/api/scan")
-    async def trigger_scan() -> dict[str, object]:
+    async def trigger_scan(request: Request) -> dict[str, object]:
         """Kick a manual library rescan. Mirrors the audio /rest/startScan.
 
         Fire-and-forget: returns immediately with the tracker's current
@@ -304,6 +304,8 @@ def create_app(
         yet (cold start race) or when running without a parent (tests
         importing the sub-app directly).
         """
+        if not _is_admin(request):
+            raise HTTPException(status_code=403, detail="only an admin can rescan the library")
         trigger = getattr(app.state, "trigger_rescan", None)
         if trigger is None:
             raise HTTPException(
@@ -779,6 +781,17 @@ def create_app(
     # per video per account, written in place, so a player reporting on a
     # timer leaves one row behind rather than one per report.
     # ------------------------------------------------------------------
+    def _is_admin(request: Request) -> bool:
+        """Whether whoever is asking may change what every account shares.
+
+        Without sign-in there is one implicit account, the admin, so the answer is yes.
+        """
+        name = getattr(request.state, "username", None)
+        if not name or users is None:
+            return True
+        account = users.get(str(name))
+        return account is not None and account.admin
+
     def _current_username(request: Request) -> str:
         """The authenticated user, or the single-user fallback when auth is off.
 

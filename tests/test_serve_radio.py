@@ -53,10 +53,11 @@ def test_get_internet_radio_stations_user_entries_first(tmp_path: Path, monkeypa
     assert len(stations) == len(DEFAULT_STATIONS) + 1
 
 
-def test_updating_a_station_is_a_success_noop(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    """Update stays a no-op: a station is added or removed, and edited in radio.toml by hand."""
+def test_updating_a_station_says_it_is_not_supported(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """A station is added or removed, and edited in radio.toml by hand; an ok here was a lie."""
     body = _client(tmp_path, monkeypatch).get("/rest/updateInternetRadioStation", params=_params()).json()
-    assert body["subsonic-response"]["status"] == "ok"
+    assert body["subsonic-response"]["status"] == "failed"
+    assert "not supported" in body["subsonic-response"]["error"]["message"]
 
 
 def test_get_internet_radio_stations_authgated(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:

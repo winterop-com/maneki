@@ -61,6 +61,22 @@ def envelope(payload_key: str | None = None, payload: Any = None) -> dict[str, A
     return {"subsonic-response": body}
 
 
+#: The Subsonic error code for an account the server knows but will not let do this.
+NOT_AUTHORIZED = 50
+
+
+def admin_only(request: Request, what: str) -> dict[str, Any] | None:
+    """The refusal a listener gets for changing what every account shares, or None for an admin.
+
+    Stations, rescans and accounts belong to the whole server: a listener's station would be
+    every listener's (and the relay fetches whatever was added), and a rescan is the whole
+    library's disk. An unauthenticated request has no `admin` on its state and is refused too.
+    """
+    if getattr(request.state, "admin", False):
+        return None
+    return error_envelope(NOT_AUTHORIZED, f"Only an admin can {what}.")
+
+
 def error_envelope(code: int, message: str) -> dict[str, Any]:
     """Wrap an error in the Subsonic failed-response envelope."""
     return {

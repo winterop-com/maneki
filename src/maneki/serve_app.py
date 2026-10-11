@@ -69,6 +69,8 @@ class LoginResponse(BaseModel):
     token: str
     username: str
     expires_at: str
+    #: Whether the account may change what every account shares (stations, rescans).
+    admin: bool
 
 
 class WhoAmI(BaseModel):
@@ -76,6 +78,7 @@ class WhoAmI(BaseModel):
 
     username: str
     expires_at: str
+    admin: bool
 
 
 def create_combined_app(
@@ -465,12 +468,18 @@ def create_combined_app(
             token=token.value,
             username=token.username,
             expires_at=token.expires_at.isoformat(),
+            admin=account.admin,
         )
 
     @combined.get("/auth/me", response_model=WhoAmI)
     def me(request: Request) -> WhoAmI:
         token = _token_from_request(request, token_store)
-        return WhoAmI(username=token.username, expires_at=token.expires_at.isoformat())
+        account = users.get(token.username)
+        return WhoAmI(
+            username=token.username,
+            expires_at=token.expires_at.isoformat(),
+            admin=account is not None and account.admin,
+        )
 
     if enable_auth:
         combined.add_middleware(

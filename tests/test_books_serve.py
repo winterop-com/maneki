@@ -290,3 +290,27 @@ def test_a_short_book_is_not_finished_from_the_start(tmp_path: Path) -> None:
     store = ProgressStore(tmp_path / "books.db")
     assert store.save("b1", 3.5, duration_s=6.0).finished is False
     assert store.save("b1", 5.95, duration_s=6.0).finished is True
+
+
+def test_only_an_admin_rescans_books_or_video(tmp_path: Path) -> None:
+    """A rescan is the whole library's disk; a listener's account may not start one."""
+    _book(tmp_path)
+    settings_file = tmp_path / "maneki.toml"
+    settings_file.write_text(
+        '[[users]]\nname = "ada"\npassword = "pw"\nadmin = true\n[[users]]\nname = "bo"\npassword = "pw"\n'
+    )
+    Settings.model_config["toml_file"] = str(settings_file)
+    reset_settings_cache()
+    app = create_combined_app(root=tmp_path, audio_cfg=_CFG, enable_auth=True)
+    with TestClient(app) as client:
+
+        def token(user: str) -> dict[str, str]:
+            body = client.post("/auth/login", json={"username": user, "password": "pw"}).json()
+            return {"Authorization": f"Bearer {body['token']}"}
+
+        ada, bo = token("ada"), token("bo")
+        assert client.post("/books/api/scan", headers=bo).status_code == 403
+        assert client.post("/video/api/scan", headers=bo).status_code == 403
+        assert client.post("/books/api/scan", headers=ada).status_code == 200
+        # This library has no video, so the admin's rescan is not wired (503) rather than refused.
+        assert client.post("/video/api/scan", headers=ada).status_code != 403

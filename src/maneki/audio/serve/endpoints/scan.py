@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from fastapi import APIRouter, Request
 
-from maneki.audio.serve.app import envelope
+from maneki.audio.serve.app import admin_only, envelope
 from maneki.audio.serve.index import IndexCache
 
 router = APIRouter()
@@ -26,7 +26,9 @@ def _scan_status_payload(cache: IndexCache) -> dict[str, object]:
 @router.api_route("/startScan", methods=["GET", "POST", "HEAD"])
 @router.api_route("/startScan.view", methods=["GET", "POST", "HEAD"], include_in_schema=False)
 async def start_scan(request: Request) -> dict:
-    """Kick a background rescan. Returns immediately with the new status."""
+    """Kick a background rescan. Returns immediately with the new status. Admins only."""
+    if (refused := admin_only(request, "rescan the library")) is not None:
+        return refused
     cache = _get_cache(request)
     cache.start_background_rescan()
     return envelope("scanStatus", _scan_status_payload(cache))

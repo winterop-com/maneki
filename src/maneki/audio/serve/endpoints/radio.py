@@ -10,11 +10,11 @@ from __future__ import annotations
 
 import sqlite3
 
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, Query, Request
 from fastapi.responses import JSONResponse, Response
 
 from maneki.audio import radio, radio_browser
-from maneki.audio.serve.app import envelope, error_envelope
+from maneki.audio.serve.app import admin_only, envelope, error_envelope
 from maneki.audio.serve.radio_proxy import latest_icy_title, proxy_station_stream
 
 router = APIRouter()
@@ -49,12 +49,15 @@ async def get_internet_radio_stations() -> dict:
 @router.api_route("/createInternetRadioStation", methods=["GET", "POST", "HEAD"])
 @router.api_route("/createInternetRadioStation.view", methods=["GET", "POST", "HEAD"], include_in_schema=False)
 async def create_internet_radio_station(
+    request: Request,
     streamUrl: str = Query(...),  # noqa: N803 - Subsonic spec uses camelCase
     name: str = Query(...),
     homepageUrl: str | None = Query(default=None),  # noqa: N803
     logo: str | None = Query(default=None),
 ) -> dict:
     """Keep a station on this server (radio.db). `logo` (an image URL) is a Maneki extension."""
+    if (refused := admin_only(request, "add a station")) is not None:
+        return refused
     if not streamUrl.startswith(("http://", "https://")):
         return error_envelope(10, "streamUrl must be an http(s) URL")
     station = radio.RadioStation(
@@ -74,15 +77,22 @@ async def create_internet_radio_station(
 
 @router.api_route("/updateInternetRadioStation", methods=["GET", "POST", "HEAD"])
 @router.api_route("/updateInternetRadioStation.view", methods=["GET", "POST", "HEAD"], include_in_schema=False)
-async def update_internet_radio_station() -> dict:
-    """No-op — stations live in the local config."""
-    return envelope()
+async def update_internet_radio_station(request: Request) -> dict:
+    """Not supported: a station is added or removed, and edited in radio.toml by hand.
+
+    It answered ok and changed nothing, so a client said a station was renamed when it was not.
+    """
+    if (refused := admin_only(request, "edit a station")) is not None:
+        return refused
+    return error_envelope(0, "Editing a station is not supported: remove it and add it again, or edit radio.toml.")
 
 
 @router.api_route("/deleteInternetRadioStation", methods=["GET", "POST", "HEAD"])
 @router.api_route("/deleteInternetRadioStation.view", methods=["GET", "POST", "HEAD"], include_in_schema=False)
-async def delete_internet_radio_station(id: str = Query(...)) -> dict:
+async def delete_internet_radio_station(request: Request, id: str = Query(...)) -> dict:
     """Remove a station added from a client. Built-in and radio.toml stations stay."""
+    if (refused := admin_only(request, "remove a station")) is not None:
+        return refused
     station = next((s for s in radio.load_stations() if radio.station_id(s) == id), None)
     if station is None:
         return error_envelope(70, f"Station not found: {id}")

@@ -36,9 +36,8 @@ STUB_ENDPOINTS: list[tuple[str, str | None]] = [
     ("/createShare", "shares"),
     ("/updateShare", None),
     ("/deleteShare", None),
-    # Getting, adding and removing stations are real now; see test_serve_radio.py.
-    # Update stays a success no-op.
-    ("/updateInternetRadioStation", None),
+    # Getting, adding and removing stations are real now; see test_serve_radio.py. Updating a
+    # station and managing accounts answer an error rather than a false ok; see test_serve_roles.py.
     ("/getChatMessages", "chatMessages"),
     ("/addChatMessage", None),
     ("/jukeboxControl", "jukeboxStatus"),
@@ -49,10 +48,6 @@ STUB_ENDPOINTS: list[tuple[str, str | None]] = [
     ("/getAlbumInfo2", "albumInfo"),
     ("/getNowPlaying", "nowPlaying"),
     ("/setRating", None),
-    ("/changePassword", None),
-    ("/createUser", None),
-    ("/updateUser", None),
-    ("/deleteUser", None),
     ("/getAvatar", None),
 ]
 

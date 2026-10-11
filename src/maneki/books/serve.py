@@ -107,6 +107,15 @@ def create_books_app(index: BooksIndex, *, users: UserRegistry | None = None) ->
             name = admin.name if admin else "default"
         return users.progress_for(str(name))
 
+    def _require_admin(request: Request) -> None:
+        """Refuse a signed-in listener. Without sign-in the one implicit account is the admin."""
+        name = getattr(request.state, "username", None)
+        if not name or users is None:
+            return
+        account = users.get(str(name))
+        if account is None or not account.admin:
+            raise HTTPException(status_code=403, detail="only an admin can rescan the library")
+
     @app.get("/api/books")
     def list_books(request: Request) -> list[BookSummary]:
         """Every book, by author then title, each with this user's position in it."""
@@ -222,8 +231,9 @@ def create_books_app(index: BooksIndex, *, users: UserRegistry | None = None) ->
         return ScanStatus(scanning=index.scan_in_progress, books=len(index.books))
 
     @app.post("/api/scan")
-    def start_scan() -> ScanStatus:
-        """Rescan the books folder in the background; only changed books are re-read."""
+    def start_scan(request: Request) -> ScanStatus:
+        """Rescan the books folder in the background; only changed books are re-read. Admins only."""
+        _require_admin(request)
         index.start_background_rescan()
         return ScanStatus(scanning=True, books=len(index.books))
 
