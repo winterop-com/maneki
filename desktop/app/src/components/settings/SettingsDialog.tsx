@@ -557,7 +557,7 @@ function PaletteSwatches({ value, onChoose }: { value: PaletteName; onChoose: (n
                     >
                         <span
                             data-palette={palette.name}
-                            className="flex h-8 overflow-hidden rounded-sm border border-border"
+                            className="flex h-8 overflow-hidden rounded-sm border border-border forced-color-adjust-none"
                         >
                             {SWATCH_STRIPS.map((strip) => (
                                 <span key={strip} className={cn('flex-1', strip)} />
@@ -568,7 +568,7 @@ function PaletteSwatches({ value, onChoose }: { value: PaletteName; onChoose: (n
                             shows that accent here, and the card is the whole choice. */}
                         <span
                             data-palette={palette.name}
-                            className="h-2 rounded-sm"
+                            className="h-2 rounded-sm forced-color-adjust-none"
                             style={ramp(themeStops(rampForPalette(palette.name), 'var(--primary)'))}
                         />
                         <span className="flex items-center gap-1 text-xs">

@@ -2199,3 +2199,24 @@ html.dark[data-theme='neon'],
         opacity: 1;
     }
 }
+
+/* HIGH CONTRAST KEEPS WHAT IS CHOSEN VISIBLE. Forced colours flatten every background and
+   colour to the system's few, and what said "chosen" here was a tint and a weight: the
+   segmented controls, the rail's active entry and the palette's highlighted row all looked
+   like the rest. In that mode the chosen thing gets the system's own highlight outline, and
+   the rail's invisible left border is the canvas colour rather than a line on every row. */
+@media (forced-colors: active) {
+    [aria-pressed='true'],
+    [aria-checked='true'],
+    [aria-current='page'],
+    [aria-current='true'],
+    [aria-selected='true'],
+    [data-selected='true'] {
+        outline: 2px solid Highlight;
+        outline-offset: -2px;
+    }
+
+    .control-link.border-transparent {
+        border-left-color: Canvas;
+    }
+}
