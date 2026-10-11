@@ -162,9 +162,10 @@ async function refusalOf(response: Response): Promise<string> {
     return `the server answered ${response.status}`
 }
 
-async function send<T>(path: string, method: string, body?: unknown): Promise<T> {
+async function send<T>(path: string, method: string, body?: unknown, keepalive = false): Promise<T> {
     return request<T>(path, {
         method,
+        keepalive,
         headers: body === undefined ? undefined : { 'content-type': 'application/json' },
         body: body === undefined ? undefined : JSON.stringify(body),
     })
@@ -214,7 +215,9 @@ export const books = {
     detail: (id: string): Promise<BookDetail> => request(`/books/api/books/${id}`),
     /** Record where the listener is, in seconds on the book's own timeline. */
     saveProgress: (id: string, positionS: number, finished?: boolean): Promise<BookProgress> =>
-        send(`/books/api/books/${id}/progress`, 'PUT', { position_s: tenths(positionS), finished }),
+        // Keepalive: the save made as the page goes is the one that matters most, and WebKit
+        // cancels an ordinary request when the tab closes or reloads.
+        send(`/books/api/books/${id}/progress`, 'PUT', { position_s: tenths(positionS), finished }, true),
     clearProgress: (id: string): Promise<void> => send(`/books/api/books/${id}/progress`, 'DELETE'),
     /** Where this account last was in the book, and when the server was told. */
     progress: (id: string): Promise<BookProgress> => request(`/books/api/books/${id}/progress`),
@@ -344,10 +347,13 @@ export const video = {
      * end of playback says so outright.
      */
     saveProgress: (id: string, positionS: number, finished?: boolean): Promise<VideoProgress> =>
-        send(`${videoMount}/videos/${encodeURIComponent(id)}/progress`, 'PUT', {
-            position_s: tenths(positionS),
-            finished,
-        }),
+        // Keepalive, as a book's: the save on `pagehide` is cancelled otherwise.
+        send(
+            `${videoMount}/videos/${encodeURIComponent(id)}/progress`,
+            'PUT',
+            { position_s: tenths(positionS), finished },
+            true,
+        ),
     /** Every video this account has started. One request fills a folder with resume points. */
     progress: (): Promise<VideoProgress[]> => request(`${videoMount}/progress`),
     /**

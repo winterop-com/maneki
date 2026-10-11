@@ -156,6 +156,22 @@ describe('the calls that go through fetch', () => {
     })
 })
 
+describe('a place saved as the page goes', () => {
+    // WebKit cancels an ordinary request when the tab closes or reloads, so the last seconds of a
+    // book or a film were lost; a keepalive request outlives the page.
+    test('a book position outlives the page', async () => {
+        const asked = recording()
+        await books.saveProgress('bk', 12.34)
+        expect(asked[0]?.init?.keepalive).toBe(true)
+    })
+
+    test('a video position outlives the page', async () => {
+        const asked = recording()
+        await video.saveProgress('v1', 12.34)
+        expect(asked[0]?.init?.keepalive).toBe(true)
+    })
+})
+
 describe('a position as it is written down', () => {
     test('is a tenth of a second, not the clock the element hands over', async () => {
         const { tenths } = await import('@/lib/api')
