@@ -758,9 +758,14 @@ export function Header({
                         className="flex items-center gap-1 text-xs text-muted-foreground"
                     >
                         {trail.map((step) => (
-                            <span key={step.to} className="flex items-center gap-1">
-                                <NavLink to={step.to} className="control-link truncate hover:text-foreground">
-                                    {step.label}
+                            <span key={step.to} className="flex min-w-0 items-center gap-1">
+                                {/* A finger tall on a phone, with the words in the middle of it rather
+                                    than at its top and the chevron left hanging below them. */}
+                                <NavLink
+                                    to={step.to}
+                                    className="control-link flex min-w-0 items-center hover:text-foreground"
+                                >
+                                    <span className="truncate">{step.label}</span>
                                 </NavLink>
                                 <ChevronRight className="size-3 shrink-0 text-faint" aria-hidden />
                             </span>
