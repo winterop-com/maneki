@@ -112,6 +112,12 @@ def _scan_album(album_dir: Path, *, measure_pictures: bool = False) -> LibraryAl
         source.embedded_picture = None
         tracks.append(track)
 
+    # DISC, THEN TRACK, THEN NAME. Files are read in name order, and a multi-disc album kept in
+    # one folder is often named so that order interleaves the discs ("1-01", "2-01", "1-02" ...
+    # or titles alone): it played disc 3, 1, 2, 4. A track with no number keeps its place by
+    # name after the numbered ones on its disc.
+    tracks.sort(key=lambda t: (t.disc_no or 1, t.track_no is None, t.track_no or 0, t.path.name))
+
     artist_dir = album_dir.parent.name
     return LibraryAlbum(
         path=album_dir,

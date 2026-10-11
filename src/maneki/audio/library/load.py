@@ -97,7 +97,11 @@ def load(root: Path, conn: sqlite3.Connection) -> LibraryIndex:
         warnings_by_album.setdefault(row["album_id"], []).append(row["warning"])
 
     tracks_by_album: dict[int, list[LibraryTrack]] = {}
-    for row in conn.execute("SELECT * FROM tracks ORDER BY album_id, rel_path"):
+    # Disc, then track, then name: the order `scan._scan_album` gives an album, which a load by
+    # file name alone undid on every start (a multi-disc album in one folder played interleaved).
+    for row in conn.execute(
+        "SELECT * FROM tracks ORDER BY album_id, COALESCE(disc_no, 1), track_no IS NULL, track_no, rel_path"
+    ):
         track = LibraryTrack(
             path=root / row["rel_path"],
             title=row["title"],
