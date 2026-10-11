@@ -11,6 +11,7 @@ import {
     isTab,
     itemsOn,
     parseChannelAddress,
+    placeAfterQualityChange,
     qualityLadder,
     snapHeight,
     TABS,
@@ -275,5 +276,18 @@ describe('the quality ladder', () => {
         expect(snapHeight([480, 720], 0)).toBe(AUTO_HEIGHT)
         expect(snapHeight([480, 720], -1)).toBe(AUTO_HEIGHT)
         expect(snapHeight([], 1080)).toBe(AUTO_HEIGHT)
+    })
+})
+
+describe('the place a change of quality comes back to', () => {
+    test('is where the video was, not its start', () => {
+        // The new quality is a new player, and it opened at 0:00 rather than at 0:30.
+        expect(placeAfterQualityChange(32.98, 600)).toBe(32.98)
+    })
+
+    test('is nothing at the very start or the very end, where a seek would only stutter', () => {
+        expect(placeAfterQualityChange(0.4, 600)).toBeNull()
+        expect(placeAfterQualityChange(599, 600)).toBeNull()
+        expect(placeAfterQualityChange(null, 600)).toBeNull()
     })
 })

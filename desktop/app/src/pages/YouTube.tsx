@@ -27,6 +27,7 @@ import {
     isTab,
     itemsOn,
     parseChannelAddress,
+    placeAfterQualityChange,
     qualityLadder,
     snapHeight,
     TABS,
@@ -658,8 +659,14 @@ function Watch({ id }: { id: string }) {
      * instead.
      */
     const player = useRef<VideoHandle | null>(null)
+    // Where the picture was when its quality changed, for the new player to pick up from.
+    const carried = useRef<number | null>(null)
     const onReady = useCallback((handle: VideoHandle | null) => {
         player.current = handle
+        if (handle !== null && carried.current !== null) {
+            handle.seekTo(carried.current)
+            carried.current = null
+        }
     }, [])
     // Whether a desktop shell has filled the display with its window: while it has, the
     // player pins itself over the whole app, since the window's own chrome would otherwise
@@ -755,6 +762,10 @@ function Watch({ id }: { id: string }) {
     const length = video === null || video.duration_s === null ? null : clock(video.duration_s)
 
     const choose = (next: number): void => {
+        carried.current = placeAfterQualityChange(
+            player.current?.positionS() ?? null,
+            video?.duration_s ?? null,
+        )
         setHeight(next)
         try {
             localStorage.setItem(QUALITY_KEY, String(next))

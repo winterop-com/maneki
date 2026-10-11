@@ -304,3 +304,16 @@ export function snapHeight(heights: readonly number[], height: number): number {
     if (rungs.length === 0) return AUTO_HEIGHT
     return rungs.reduce((best, rung) => (Math.abs(rung - height) < Math.abs(best - height) ? rung : best))
 }
+
+/**
+ * Where a video picks up after its quality changed, or null to start it where it starts.
+ *
+ * A CHANGE OF QUALITY IS A NEW PLAYER (see the watch screen), and the new one opened at 0:00 --
+ * so somebody who turned the picture up half an hour in was sent back to the beginning. The
+ * place is carried over, except within a second of either end, where a seek is only a stutter.
+ */
+export function placeAfterQualityChange(positionS: number | null, durationS: number | null): number | null {
+    if (positionS === null || positionS < 1) return null
+    if (durationS !== null && durationS > 0 && positionS > durationS - 2) return null
+    return positionS
+}
