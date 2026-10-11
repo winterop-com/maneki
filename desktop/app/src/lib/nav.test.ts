@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'vitest'
 
-import { entriesFor, homePath, marks, NAV, sectionsFor } from '@/lib/nav'
+import { albumPath, bookOfAlbum, entriesFor, homePath, marks, NAV, sectionsFor } from '@/lib/nav'
 import type { Capabilities } from '@/lib/types'
 
 function server(has: Partial<Capabilities>): Capabilities {
@@ -95,5 +95,19 @@ describe('what the rail marks', () => {
     test('an address outside an entry marks nothing, and a near miss is not a prefix', () => {
         expect(marks('/music', '/radio')).toBe(false)
         expect(marks('/video', '/videos')).toBe(false)
+    })
+})
+
+describe('where an album found anywhere opens', () => {
+    test('a record opens on the music screen', () => {
+        expect(albumPath('al_123')).toBe('/music/album/al_123')
+    })
+
+    test('a book opens on its own screen, where its place is kept, not as a record', () => {
+        // Found through search it opened as an album, and played as tracks: no position saved,
+        // no jumps, no speed.
+        expect(albumPath('bkb_c2431dd64b522529')).toBe('/books/c2431dd64b522529')
+        expect(bookOfAlbum('bkb_c2431dd64b522529')).toBe('c2431dd64b522529')
+        expect(bookOfAlbum('al_123')).toBeNull()
     })
 })

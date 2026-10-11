@@ -13,6 +13,7 @@ import {
 } from '@/components/ui/command'
 import { Kbd, KbdGroup } from '@/components/ui/kbd'
 import { useStore } from '@/hooks/use-store'
+import { albumPath, bookOfAlbum } from '@/lib/nav'
 import { play } from '@/lib/player'
 import {
     closeSearch,
@@ -111,11 +112,18 @@ export function SearchOverlay() {
             return
         }
         if (row.kind === 'album') {
-            void navigate(`/music/album/${row.id}`)
+            void navigate(albumPath(row.id))
             return
         }
         const song = found?.songs.find((one) => one.id === row.id)
         if (!credentials || !song) return
+        // A part of a book is the book: it opens where its place is kept rather than playing as
+        // a track that keeps none. See `albumPath`.
+        const book = song.albumId === undefined ? null : bookOfAlbum(song.albumId)
+        if (book !== null) {
+            void navigate(`/books/${book}`)
+            return
+        }
         // The record it is out of comes up with it, so the track playing is also a track on
         // screen: the reader sees where it sits and what follows.
         if (song.albumId !== undefined) void navigate(`/music/album/${song.albumId}`)

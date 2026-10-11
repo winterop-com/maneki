@@ -181,3 +181,23 @@ export function marks(path: string, at: string): boolean {
         (entry) => entry.path !== path && inside(entry.path, path) && inside(at, entry.path),
     )
 }
+
+/** The prefix the server gives a book's id when it answers as a Subsonic album. */
+const BOOK_ALBUM_PREFIX = 'bkb_'
+
+/** The book an album id stands for, or null for a record. */
+export function bookOfAlbum(albumId: string): string | null {
+    return albumId.startsWith(BOOK_ALBUM_PREFIX) ? albumId.slice(BOOK_ALBUM_PREFIX.length) : null
+}
+
+/**
+ * Where an album opens, whoever found it.
+ *
+ * A BOOK IS NOT A RECORD, even where the Subsonic API answers it as one. Search reaches books
+ * through `search3`, which names them as albums; opened on the music screen they played as
+ * tracks, with no place kept, no jumps and no speed. So a book opens on its own screen.
+ */
+export function albumPath(albumId: string): string {
+    const book = bookOfAlbum(albumId)
+    return book === null ? `/music/album/${albumId}` : `/books/${book}`
+}

@@ -7,6 +7,7 @@ import { AddToPlaylistDialog, type Adding } from '@/components/PlaylistDialogs'
 import { Skeleton } from '@/components/Skeleton'
 import { Button } from '@/components/ui/button'
 import { useStore, useStoreValue } from '@/hooks/use-store'
+import { albumPath } from '@/lib/nav'
 import { clock, trackCount } from '@/lib/format'
 import { registerActions, SCREEN_GROUP } from '@/lib/palette'
 import { play, playerStore } from '@/lib/player'
@@ -130,7 +131,7 @@ function Favourites({ credentials }: { credentials: Credentials }) {
                             <li key={album.id} className="relative">
                                 <button
                                     type="button"
-                                    onClick={() => navigate(`/music/album/${album.id}`)}
+                                    onClick={() => navigate(albumPath(album.id))}
                                     className="row-hover w-full rounded-lg p-2 text-left"
                                 >
                                     <Cover
@@ -305,7 +306,7 @@ function Artists({ credentials }: { credentials: Credentials }) {
                         <button
                             key={album.id}
                             type="button"
-                            onClick={() => navigate(`/music/album/${album.id}`)}
+                            onClick={() => navigate(albumPath(album.id))}
                             className="row-hover flex min-h-finger w-full min-w-0 items-center gap-3 rounded-md px-3 text-left text-sm"
                         >
                             <span className="min-w-0 flex-1 truncate">{album.name}</span>
@@ -417,7 +418,7 @@ function ArtistScreen({ credentials, id }: { credentials: Credentials; id: strin
                     <li key={album.id}>
                         <button
                             type="button"
-                            onClick={() => navigate(`/music/album/${album.id}`)}
+                            onClick={() => navigate(albumPath(album.id))}
                             className="row-hover w-full rounded-lg p-2 text-left"
                         >
                             <Cover
