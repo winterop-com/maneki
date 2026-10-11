@@ -15,6 +15,7 @@
 
 import { NETWORK_REFUSAL, noteRecovered, noteRefusal } from '@/lib/connection'
 import { md5 } from '@/lib/md5'
+import { signOutOnAuthRefusal } from '@/lib/session'
 
 /** What a Subsonic server refused, in its own words. */
 export class SubsonicError extends Error {
@@ -134,6 +135,9 @@ export async function ownAdminRole(credentials: Credentials): Promise<boolean | 
     }
 }
 
+/** The Subsonic code for a username and password the server does not accept. */
+const WRONG_PASSWORD = 40
+
 /** Call one endpoint and return the inside of its envelope. */
 export async function call<T = Record<string, unknown>>(
     credentials: Credentials,
@@ -157,7 +161,12 @@ export async function call<T = Record<string, unknown>>(
     if (!inner) throw new SubsonicError(0, 'the answer was not a Subsonic response')
     if (inner.status === 'failed') {
         const error = (inner.error ?? {}) as { code?: number; message?: string }
-        throw new SubsonicError(error.code ?? 0, error.message ?? 'the server refused')
+        const refusal = new SubsonicError(error.code ?? 0, error.message ?? 'the server refused')
+        // A PASSWORD THE SERVER STOPPED ACCEPTING IS THE DOOR, as an expired token is in
+        // `lib/api`: every music screen said "wrong username or password" over a full shell,
+        // with no way back to sign in short of signing out by hand.
+        if (refusal.code === WRONG_PASSWORD) signOutOnAuthRefusal(refusal.message)
+        throw refusal
     }
     return inner as T
 }

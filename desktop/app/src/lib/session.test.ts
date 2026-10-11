@@ -12,7 +12,7 @@ import {
     signOut,
     WANTS_CREDENTIALS,
 } from '@/lib/session'
-import { SubsonicError } from '@/lib/subsonic'
+import { getArtists, SubsonicError } from '@/lib/subsonic'
 import type { Capabilities } from '@/lib/types'
 
 function server(has: Partial<Capabilities>): Capabilities {
@@ -308,5 +308,35 @@ describe('whether the account may change what every account shares', () => {
 
     test('a session kept before the server said is treated as an admin; the server still refuses', () => {
         expect(isAdmin({})).toBe(true)
+    })
+})
+
+describe('a music password the server stopped accepting', () => {
+    test('takes the session to the door, as an expired token does', async () => {
+        // Every music screen said "wrong username or password" over a full shell, with no way
+        // back to the sign-in short of signing out by hand.
+        answering(server({}))
+        await connect({
+            baseUrl: 'https://host',
+            username: 'mort',
+            subsonic: { username: 'mort', salt: 'abc', token: 'stale' },
+        })
+        expect(sessionStore.get().phase).toBe('ready')
+        vi.stubGlobal(
+            'fetch',
+            vi.fn(async () => ({
+                ok: true,
+                status: 200,
+                json: async () => ({
+                    'subsonic-response': {
+                        status: 'failed',
+                        error: { code: 40, message: 'Wrong username or password' },
+                    },
+                }),
+            })),
+        )
+        const music = sessionStore.get().music!
+        await expect(getArtists(music)).rejects.toThrow()
+        expect(sessionStore.get().phase).toBe('signed-out')
     })
 })
