@@ -1,17 +1,11 @@
-import { Settings } from 'lucide-react'
-
-import { Button } from '@/components/ui/button'
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
+import { AccountMenu } from '@/components/AccountMenu'
 import { useStore } from '@/hooks/use-store'
-import { sessionStore } from '@/lib/session'
 import { RAIL_COLLAPSED_WIDTH, railCollapsed, railDragging, railWidth } from '@/lib/panels'
 import { screenStatus, type StatusTone } from '@/lib/screen-status'
 import { cn } from '@/lib/utils'
 
-export const SETTINGS_LABEL = 'Settings'
-
 /**
- * The line along the foot of the app: settings, who this is, and what the screen is doing.
+ * The line along the foot of the app: who this is, and what the screen is doing.
  *
  * ONE ELEMENT ACROSS THE WHOLE WIDTH, WITH CELLS INSIDE IT. The rail's foot and the status
  * line were two elements each drawing its own top border, and two borders meeting at a column
@@ -28,6 +22,11 @@ export const SETTINGS_LABEL = 'Settings'
  * `lib/screen-status` while it is mounted -- where a run's one event stream is, and the trace
  * the run is on -- and the bar draws them without knowing which screen wrote them.
  *
+ * THE CORNER IS THE ACCOUNT. Who is signed in, to which server, and what goes with being them --
+ * settings, the shortcuts, the look, signing out -- open as one menu from the corner, the way a
+ * desktop app keeps its account. Settings was the only thing here before, and signing out was
+ * reachable only from the command palette.
+ *
  * WHAT THIS INSTANCE IS BELONGS TO THE TOP STRIP, NOT HERE. A fact appears once in the shell,
  * and the identity up there already carries the server's name and its version.
  */
@@ -39,8 +38,7 @@ const TONE: Record<StatusTone, string> = {
     warn: 'text-warning',
 }
 
-export function StatusBar({ onSettings }: { onSettings: () => void }) {
-    const session = useStore(sessionStore)
+export function StatusBar({ onSettings, onShortcuts }: { onSettings: () => void; onShortcuts: () => void }) {
     const status = useStore(screenStatus)
     const collapsed = useStore(railCollapsed)
     const width = useStore(railWidth)
@@ -62,31 +60,10 @@ export function StatusBar({ onSettings }: { onSettings: () => void }) {
                 )}
                 style={{ width: collapsed ? RAIL_COLLAPSED_WIDTH : width }}
             >
-                <Tooltip>
-                    <TooltipTrigger
-                        render={
-                            <Button
-                                variant="ghost"
-                                onClick={onSettings}
-                                aria-label={SETTINGS_LABEL}
-                                className={cn(
-                                    'h-full w-full rounded-none text-xs text-muted-foreground hover:text-foreground',
-                                    collapsed ? 'justify-center p-0' : 'justify-start gap-3 px-4',
-                                )}
-                            >
-                                <Settings className="size-4 shrink-0" aria-hidden />
-                                {!collapsed && <span>{SETTINGS_LABEL}</span>}
-                            </Button>
-                        }
-                    />
-                    <TooltipContent side="top">{SETTINGS_LABEL}</TooltipContent>
-                </Tooltip>
+                <AccountMenu collapsed={collapsed} onSettings={onSettings} onShortcuts={onShortcuts} />
             </div>
 
             <div data-shell-cell="status" className="flex min-w-0 flex-1 items-center gap-3 px-3">
-                {session.username !== undefined && (
-                    <span className="font-mono text-xs text-muted-foreground">{session.username}</span>
-                )}
                 {status.note !== null && (
                     <span className={cn('truncate text-xs', TONE[status.tone])}>{status.note}</span>
                 )}

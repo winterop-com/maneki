@@ -44,6 +44,7 @@ import { Rail } from '@/components/Rail'
 import { SearchBox } from '@/components/SearchBox'
 import { SearchOverlay, SEARCH_TITLE } from '@/components/SearchOverlay'
 import { ShortcutsDialog } from '@/components/ShortcutsDialog'
+import { SIGN_OUT_LABEL } from '@/components/AccountMenu'
 import { StatusBar } from '@/components/StatusBar'
 import { MODES, MODE_LABELS, ThemeToggle } from '@/components/ThemeToggle'
 import { Button } from '@/components/ui/button'
@@ -99,7 +100,6 @@ const selectBookId = (state: { book: { id: string } | null }) => state.book?.id 
 const selectChapterCount = (state: { book: { chapter_list: unknown[] } | null }) =>
     state.book?.chapter_list.length ?? 0
 
-export const SIGN_OUT_LABEL = 'Sign out'
 export const OPEN_PALETTE_LABEL = 'Open the command palette'
 
 /**
@@ -169,11 +169,10 @@ export function AppShell({ children }: { children: ReactNode }) {
         setSettingsOpen(true)
     }, [])
 
-    useAppShortcuts(
-        useCallback(() => {
-            setShortcutsOpen(true)
-        }, []),
-    )
+    const openShortcuts = useCallback(() => {
+        setShortcutsOpen(true)
+    }, [])
+    useAppShortcuts(openShortcuts)
 
     // A bare key belongs to whatever is in front of somebody, and while one of these is up
     // that is the dialog rather than the app. `lib/dialogs` is what the key listener reads.
@@ -588,9 +587,14 @@ export function AppShell({ children }: { children: ReactNode }) {
             </div>
 
             <PlayerBar />
-            <StatusBar onSettings={openSettings} />
+            <StatusBar onSettings={openSettings} onShortcuts={openShortcuts} />
 
-            <NavDrawer open={drawerOpen} onClose={closeDrawer} onSettings={openSettings} />
+            <NavDrawer
+                open={drawerOpen}
+                onClose={closeDrawer}
+                onSettings={openSettings}
+                onShortcuts={openShortcuts}
+            />
 
             <FullscreenVisualizer />
             <LyricsOverlay />

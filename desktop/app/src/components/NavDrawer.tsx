@@ -1,7 +1,8 @@
-import { Cat, Settings, X } from 'lucide-react'
+import { Cat, X } from 'lucide-react'
 import { useEffect, useRef } from 'react'
 import { NavLink, useLocation } from 'react-router'
 
+import { AccountMenu } from '@/components/AccountMenu'
 import { RailEntry } from '@/components/Rail'
 import { Button } from '@/components/ui/button'
 import { useStore } from '@/hooks/use-store'
@@ -13,7 +14,6 @@ export const OPEN_NAV_LABEL = 'Open navigation'
 export const CLOSE_NAV_LABEL = 'Close navigation'
 
 /** What the drawer's foot offers, which is the cell the status bar carries above the breakpoint. */
-const SETTINGS_LABEL = 'Settings'
 
 /** How many frames the drawer asks for focus before it gives up, about a second at 60Hz. */
 const FOCUS_FRAMES = 60
@@ -37,10 +37,12 @@ export function NavDrawer({
     open,
     onClose,
     onSettings,
+    onShortcuts,
 }: {
     open: boolean
     onClose: () => void
     onSettings: () => void
+    onShortcuts: () => void
 }) {
     const session = useStore(sessionStore)
     const caps = session.capabilities ?? null
@@ -154,18 +156,19 @@ export function NavDrawer({
                     ))}
                 </div>
 
-                <div className="shrink-0 border-t border-border-strong p-2">
-                    <Button
-                        variant="ghost"
-                        onClick={() => {
+                {/* The same account menu as the desktop's corner: see `AccountMenu`. */}
+                <div className="h-12 shrink-0 border-t border-border-strong">
+                    <AccountMenu
+                        collapsed={false}
+                        onSettings={() => {
                             onClose()
                             onSettings()
                         }}
-                        className="w-full justify-start gap-3 px-3 text-muted-foreground hover:text-foreground"
-                    >
-                        <Settings className="size-4 shrink-0" aria-hidden />
-                        {SETTINGS_LABEL}
-                    </Button>
+                        onShortcuts={() => {
+                            onClose()
+                            onShortcuts()
+                        }}
+                    />
                 </div>
             </aside>
         </div>
