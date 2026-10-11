@@ -188,7 +188,7 @@ function Stage() {
                     <span className="w-16 shrink-0 font-mono text-sm text-terminal-muted tabular-nums">
                         {station === null && duration > 0 ? clock(player.positionS) : ''}
                     </span>
-                    <div className="flex flex-1 items-center justify-center gap-3">
+                    <div className="flex flex-1 items-center justify-center gap-3" data-transport>
                         <Button
                             variant="ghost"
                             size="icon-lg"
@@ -251,7 +251,7 @@ function Stage() {
                 ABOVE THE TITLE STRIP, WHICH SPANS THE WIDTH. Its `z-10` box runs under this
                 corner whatever its padding does to its text, and at the same level it took
                 every click meant for these two. */}
-            <div className="absolute top-4 right-4 z-20 flex items-center gap-1">
+            <div className="absolute top-4 right-4 z-20 flex items-center gap-1" data-transport>
                 {/* The drawing is stepped from here, because which drawing the spectrum is is
                     a thing somebody decides while looking at it. What is done to the drawing --
                     a glow, trails -- is chosen on the settings pane, where a list can be a list. */}

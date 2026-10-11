@@ -25,6 +25,7 @@ import {
     adjustsVolume,
     applePlatform,
     cyclesRepeat,
+    focusedFieldOf,
     type FocusedField,
     opensLyrics,
     opensPalette,
@@ -63,12 +64,7 @@ export function useAppShortcuts(onShortcuts: () => void): void {
         function focused(): FocusedField | null {
             const element = document.activeElement
             if (!(element instanceof HTMLElement)) return null
-            return {
-                tagName: element.tagName,
-                isContentEditable: element.isContentEditable,
-                role: element.getAttribute('role'),
-                plays: element.dataset.plays !== undefined,
-            }
+            return focusedFieldOf(element)
         }
 
         // What is standing over the app when a key is pressed; see `mayOpen`.

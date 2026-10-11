@@ -96,6 +96,32 @@ export interface FocusedField {
     plays?: boolean
 }
 
+/** The little of an element `focusedFieldOf` reads, so it can be asked outside a page. */
+export interface FocusableElement {
+    tagName: string
+    isContentEditable: boolean
+    getAttribute: (name: string) => string | null
+    dataset: Record<string, string | undefined>
+    closest: (selector: string) => unknown
+}
+
+/**
+ * Whatever has focus, as a shortcut sees it.
+ *
+ * A CONTROL IN THE TRANSPORT COUNTS AS ONE THAT PLAYS. Next clicked with the mouse keeps focus,
+ * and Space pressed it again: it skipped a second track rather than pausing. In the bar and on
+ * the stage (`data-transport`), Space is play and pause, as it is on a row that plays; Enter is
+ * still the control.
+ */
+export function focusedFieldOf(element: FocusableElement): FocusedField {
+    return {
+        tagName: element.tagName,
+        isContentEditable: element.isContentEditable,
+        role: element.getAttribute('role'),
+        plays: element.dataset.plays !== undefined || element.closest('[data-transport]') !== null,
+    }
+}
+
 /**
  * The roles whose arrows are their own: a resize grip, a slider, a choice between options.
  *

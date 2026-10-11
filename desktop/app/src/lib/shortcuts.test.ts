@@ -17,6 +17,7 @@ import {
     toggleNotice,
     togglesMute,
     togglesPlayback,
+    focusedFieldOf,
     togglesRail,
     togglesTheater,
     togglesVisualizer,
@@ -319,5 +320,28 @@ describe('what a bare key that changes a setting says', () => {
         expect(toggleNotice('shuffle', false)).toBe('Shuffle off. Press S to turn it on.')
         expect(toggleNotice('mute', true)).toBe('Muted. Press M to unmute.')
         expect(toggleNotice('mute', false)).toBe('Unmuted. Press M to mute.')
+    })
+})
+
+describe('space on a transport control that was clicked', () => {
+    /** The little of an element `focusedFieldOf` reads. */
+    function control(inTransport: boolean, plays = false) {
+        return {
+            tagName: 'BUTTON',
+            isContentEditable: false,
+            getAttribute: () => null,
+            dataset: plays ? { plays: '' } : {},
+            closest: (selector: string) => (selector === '[data-transport]' && inTransport ? {} : null),
+        }
+    }
+
+    test('is play and pause, not that control pressed again', () => {
+        // Next clicked with the mouse kept focus, and Space skipped again rather than pausing.
+        expect(togglesPlayback(press(' '), focusedFieldOf(control(true)))).toBe(true)
+        expect(togglesPlayback(press(' '), focusedFieldOf(control(false, true)))).toBe(true)
+    })
+
+    test('a button anywhere else keeps its own space', () => {
+        expect(togglesPlayback(press(' '), focusedFieldOf(control(false)))).toBe(false)
     })
 })

@@ -501,7 +501,7 @@ export function PlayerBar() {
                             titleBlock
                         )}
 
-                        <div className="flex items-center gap-1">
+                        <div className="flex items-center gap-1" data-transport>
                             {/* Shuffle and repeat sit beside the transport they change, and are drawn as
                     pressed rather than as a different glyph: what they do is a state the
                     queue is in, not an action. A station has no queue to be in one, and a book
