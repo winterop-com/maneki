@@ -199,7 +199,7 @@ function Favourites({ credentials }: { credentials: Credentials }) {
                                 {/* THE ONE SCREEN A STAR IS TAKEN OFF ON HAD NO WAY TO TAKE ONE
                                     OFF. The same button the album rows wear, reading the same
                                     marks, so a track unstarred here goes from the album screen
-                                    and from the player bar's own star in the same gesture. */}
+                                    in the same gesture. */}
                                 <StarButton credentials={credentials} item={song} />
                             </li>
                         ))}

@@ -414,7 +414,7 @@ export function shortcuts(apple: boolean): Shortcut[] {
 }
 
 /** A setting a bare key turns on or off. */
-export type ToggledSetting = 'spectrum' | 'shuffle' | 'mute'
+export type ToggledSetting = 'spectrum' | 'shuffle' | 'mute' | 'star'
 
 /**
  * What the app says when a bare key has changed a setting, and how to change it back.
@@ -435,5 +435,10 @@ export function toggleNotice(setting: ToggledSetting, on: boolean): string {
             return on
                 ? `Muted. Press ${MUTE_KEY.toUpperCase()} to unmute.`
                 : `Unmuted. Press ${MUTE_KEY.toUpperCase()} to mute.`
+        // The bar has no star, so off the album's own screen nothing else shows the change.
+        case 'star':
+            return on
+                ? `Starred. Press ${STAR_KEY} to unstar it.`
+                : `Unstarred. Press ${STAR_KEY} to star it.`
     }
 }

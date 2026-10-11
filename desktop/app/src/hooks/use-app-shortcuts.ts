@@ -222,7 +222,8 @@ export function useAppShortcuts(onShortcuts: () => void): void {
             }
             if (starsCurrent(press, focused())) {
                 event.preventDefault()
-                toggleStar(sessionStore.get().music, currentSong())
+                const starred = toggleStar(sessionStore.get().music, currentSong())
+                if (starred !== null) toast(toggleNotice('star', starred))
                 return
             }
             if (opensShortcuts(press, focused())) {

@@ -321,6 +321,11 @@ describe('what a bare key that changes a setting says', () => {
         expect(toggleNotice('mute', true)).toBe('Muted. Press M to unmute.')
         expect(toggleNotice('mute', false)).toBe('Unmuted. Press M to mute.')
     })
+
+    test('starring what is playing says so, since nothing else on screen may show it', () => {
+        expect(toggleNotice('star', true)).toBe('Starred. Press * to unstar it.')
+        expect(toggleNotice('star', false)).toBe('Unstarred. Press * to star it.')
+    })
 })
 
 describe('space on a transport control that was clicked', () => {
