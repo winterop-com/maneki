@@ -60,8 +60,9 @@ export default function App() {
             <AppShell>
                 <Routes>
                     <Route path="/radio" element={<RadioPage />} />
-                    <Route path="/" element={<Navigate to="/radio" replace />} />
-                    <Route path="*" element={<NotFound home="/radio" />} />
+                    {/* Every other address belongs to a server: one left over from a session
+                        (signed out on /music, then "Just listen to radio") goes to the radio. */}
+                    <Route path="*" element={<Navigate to="/radio" replace />} />
                 </Routes>
             </AppShell>
         )
