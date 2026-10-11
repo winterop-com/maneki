@@ -25,6 +25,7 @@ import {
     countsSummary,
     emptyTabNote,
     isPlayable,
+    channelRefusal,
     isTab,
     itemsOn,
     parseChannelAddress,
@@ -244,7 +245,7 @@ function Channels() {
             setTyped('')
             setAsk(reread)
         } catch (error) {
-            setProblem(error instanceof Error ? error.message : 'The server did not answer.')
+            setProblem(error instanceof Error ? channelRefusal(error.message) : 'The server did not answer.')
         } finally {
             setAdding(false)
         }
@@ -412,7 +413,7 @@ function Channel({ id }: { id: string }) {
                 if (live) setAnswer({ key, value: listed, refusal: null })
             },
             (error: Error) => {
-                if (live) setAnswer({ key, value: null, refusal: youtubeRefusal(error.message) })
+                if (live) setAnswer({ key, value: null, refusal: channelRefusal(error.message) })
             },
         )
         return () => {

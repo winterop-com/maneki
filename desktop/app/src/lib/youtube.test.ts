@@ -16,6 +16,7 @@ import {
     snapHeight,
     TABS,
     youtubeRefusal,
+    channelRefusal,
 } from '@/lib/youtube'
 
 /** The URL a parse was supposed to reach, or the refusal it gave instead. */
@@ -308,5 +309,35 @@ describe('what a video YouTube will not give says', () => {
             ),
         ).toBe('That is not a whole YouTube video address.')
         expect(youtubeRefusal('The server did not answer.')).toBe('The server did not answer.')
+    })
+})
+
+describe('what a channel YouTube will not give says', () => {
+    test('a channel that does not exist is said plainly, not quoted from yt-dlp', () => {
+        expect(
+            channelRefusal(
+                "could not list channel 'https://www.youtube.com/@a': ERROR: [youtube:tab] @a: Failed to resolve url (does the playlist exist?)",
+            ),
+        ).toBe('YouTube has no channel at that address.')
+        expect(
+            channelRefusal(
+                "could not list channel 'https://www.youtube.com/@zz9q7x': ERROR: Unable to download API page: HTTP Error 404: Not Found (caused by <HTTPError 404: Not Found>)",
+            ),
+        ).toBe('YouTube has no channel at that address.')
+        // An id that is not one YouTube could have made answers 400.
+        expect(
+            channelRefusal(
+                "could not list channel 'x': ERROR: [youtube:tab] UCnope/videos: Unable to download API page: HTTP Error 400: Bad Request",
+            ),
+        ).toBe('YouTube has no channel at that address.')
+    })
+
+    test('anything else yt-dlp says is not quoted either', () => {
+        expect(channelRefusal("could not list channel 'x': ERROR: [youtube:tab] something odd")).toBe(
+            'YouTube did not answer for that channel. Try again in a moment.',
+        )
+        expect(channelRefusal('Your saved places and channels cannot be reached right now.')).toBe(
+            'Your saved places and channels cannot be reached right now.',
+        )
     })
 })

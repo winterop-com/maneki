@@ -333,3 +333,25 @@ export function youtubeRefusal(message: string): string {
     }
     return message
 }
+
+/**
+ * What a channel YouTube will not give says, in the reader's words.
+ *
+ * Adding "@a" quoted yt-dlp whole ("could not list channel ...: ERROR: [youtube:tab] @a: Failed
+ * to resolve url (does the playlist exist?)"), and a 404 brought its Python exception along.
+ * A channel that is not there is said plainly; anything else yt-dlp said becomes a try-again,
+ * and a sentence from this app's own server is passed on as it came.
+ */
+export function channelRefusal(message: string): string {
+    if (
+        /failed to resolve url|does the playlist exist|http error 40[04]|not found|does not exist/i.test(
+            message,
+        )
+    ) {
+        return 'YouTube has no channel at that address.'
+    }
+    if (/could not list channel|ERROR:/.test(message)) {
+        return 'YouTube did not answer for that channel. Try again in a moment.'
+    }
+    return message
+}
