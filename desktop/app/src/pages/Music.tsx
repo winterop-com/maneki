@@ -106,7 +106,7 @@ function Favourites({ credentials }: { credentials: Credentials }) {
                                 <button
                                     type="button"
                                     onClick={() => navigate(`/music/artist/${artist.id}`)}
-                                    className="row-hover flex min-h-finger w-full items-center gap-3 rounded-md px-3 text-left text-sm"
+                                    className="row-hover flex min-h-finger w-full min-w-0 items-center gap-3 rounded-md px-3 text-left text-sm"
                                 >
                                     <span className="min-w-0 flex-1 truncate">{artist.name}</span>
                                     <span className="shrink-0 text-xs text-muted-foreground">
@@ -163,7 +163,7 @@ function Favourites({ credentials }: { credentials: Credentials }) {
                                 <button
                                     type="button"
                                     onClick={() => play(starred.songs, index)}
-                                    className="row-hover flex min-h-finger w-full items-center gap-3 px-3 text-left text-sm"
+                                    className="row-hover flex min-h-finger w-full min-w-0 items-center gap-3 px-3 text-left text-sm"
                                 >
                                     <span className="min-w-0 flex-1 truncate">{song.title}</span>
                                     <span className="shrink-0 truncate text-xs text-muted-foreground">
@@ -306,7 +306,7 @@ function Artists({ credentials }: { credentials: Credentials }) {
                             key={album.id}
                             type="button"
                             onClick={() => navigate(`/music/album/${album.id}`)}
-                            className="row-hover flex min-h-finger w-full items-center gap-3 rounded-md px-3 text-left text-sm"
+                            className="row-hover flex min-h-finger w-full min-w-0 items-center gap-3 rounded-md px-3 text-left text-sm"
                         >
                             <span className="min-w-0 flex-1 truncate">{album.name}</span>
                             <span className="shrink-0 truncate text-xs text-muted-foreground">
@@ -319,7 +319,7 @@ function Artists({ credentials }: { credentials: Credentials }) {
                             key={song.id}
                             type="button"
                             onClick={() => play(results.songs, index)}
-                            className="row-hover flex min-h-finger w-full items-center gap-3 rounded-md px-3 text-left text-sm"
+                            className="row-hover flex min-h-finger w-full min-w-0 items-center gap-3 rounded-md px-3 text-left text-sm"
                         >
                             <span className="min-w-0 flex-1 truncate">{song.title}</span>
                             <span className="shrink-0 truncate text-xs text-muted-foreground">
@@ -335,7 +335,7 @@ function Artists({ credentials }: { credentials: Credentials }) {
                         <button
                             type="button"
                             onClick={() => navigate(`/music/artist/${artist.id}`)}
-                            className="row-hover flex min-h-finger w-full items-center gap-3 rounded-md px-3 text-left text-sm"
+                            className="row-hover flex min-h-finger w-full min-w-0 items-center gap-3 rounded-md px-3 text-left text-sm"
                         >
                             <span className="min-w-0 flex-1 truncate">{artist.name}</span>
                             <span className="shrink-0 text-xs text-muted-foreground">
@@ -582,7 +582,7 @@ function AlbumScreen({ credentials, id }: { credentials: Credentials; id: string
                                         type="button"
                                         onClick={() => play(songs, index)}
                                         aria-current={current ? 'true' : undefined}
-                                        className="row-hover flex min-h-finger w-full items-center gap-3 px-3 text-left text-sm"
+                                        className="row-hover flex min-h-finger w-full min-w-0 items-center gap-3 px-3 text-left text-sm"
                                     >
                                         <span className="flex w-6 shrink-0 items-center justify-end text-xs text-muted-foreground tabular-nums">
                                             {current ? (

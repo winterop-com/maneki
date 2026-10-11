@@ -633,7 +633,7 @@ function Watch({ id }: { id: string }) {
                                         onClick={() => void navigate(watchHref(one.id))}
                                         aria-current={one.id === id ? 'true' : undefined}
                                         className={cn(
-                                            'row-hover flex min-h-finger w-full items-center gap-2 rounded-md p-1 text-left text-sm',
+                                            'row-hover flex min-h-finger w-full min-w-0 items-center gap-2 rounded-md p-1 text-left text-sm',
                                             one.id === id && 'bg-muted font-medium',
                                         )}
                                     >

@@ -191,7 +191,7 @@ function Book({ id }: { id: string }) {
                                     }}
                                     aria-current={current ? 'true' : undefined}
                                     className={cn(
-                                        'row-hover flex min-h-finger w-full items-center gap-3 px-3 text-left text-sm',
+                                        'row-hover flex min-h-finger w-full min-w-0 items-center gap-3 px-3 text-left text-sm',
                                         current && 'bg-muted font-medium',
                                     )}
                                 >

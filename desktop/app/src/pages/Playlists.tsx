@@ -131,7 +131,7 @@ function PlaylistList({ credentials }: { credentials: Credentials }) {
                             <button
                                 type="button"
                                 onClick={() => navigate(`${PLAYLISTS_PATH}/${playlist.id}`)}
-                                className="row-hover flex min-h-finger w-full items-center gap-3 rounded-md px-3 text-left text-sm"
+                                className="row-hover flex min-h-finger w-full min-w-0 items-center gap-3 rounded-md px-3 text-left text-sm"
                             >
                                 <ListMusic className="size-4 shrink-0 text-muted-foreground" aria-hidden />
                                 <span className="min-w-0 flex-1 truncate">{playlist.name}</span>

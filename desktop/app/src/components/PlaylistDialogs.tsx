@@ -167,7 +167,7 @@ function Chooser({
                                 type="button"
                                 disabled={busy}
                                 onClick={() => addTo(playlist)}
-                                className="row-hover flex min-h-finger w-full items-center gap-3 rounded-md px-3 text-left text-sm disabled:opacity-50"
+                                className="row-hover flex min-h-finger w-full min-w-0 items-center gap-3 rounded-md px-3 text-left text-sm disabled:opacity-50"
                             >
                                 <ListMusic className="size-4 shrink-0 text-muted-foreground" aria-hidden />
                                 <span className="min-w-0 flex-1 truncate">{playlist.name}</span>
