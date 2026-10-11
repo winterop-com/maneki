@@ -7,6 +7,7 @@ import { AddToPlaylistDialog, type Adding } from '@/components/PlaylistDialogs'
 import { Skeleton } from '@/components/Skeleton'
 import { Button } from '@/components/ui/button'
 import { useStore, useStoreValue } from '@/hooks/use-store'
+import { playingRow } from '@/lib/queue'
 import { albumPath } from '@/lib/nav'
 import { clock, trackCount } from '@/lib/format'
 import { registerActions, SCREEN_GROUP } from '@/lib/palette'
@@ -63,6 +64,17 @@ function Favourites({ credentials }: { credentials: Credentials }) {
     const [starred, setStarredList] = useState<Awaited<ReturnType<typeof getStarred>> | null>(null)
     const [refusal, setRefusal] = useState<string | null>(null)
     const navigate = useNavigate()
+    const queue = useStoreValue(playerStore, selectQueue)
+    const queueIndex = useStoreValue(playerStore, selectQueueIndex)
+    const playingAt = useMemo(
+        () =>
+            playingRow(
+                (starred?.songs ?? []).map((one) => one.id),
+                queue.map((one) => one.id),
+                queueIndex,
+            ),
+        [queue, queueIndex, starred],
+    )
 
     // An answer to a question nobody is asking any more is dropped rather than drawn, which is
     // what `pages/Video` does with the same flag.
@@ -160,10 +172,18 @@ function Favourites({ credentials }: { credentials: Credentials }) {
                     <h2 className="mb-2 text-sm font-medium">Tracks</h2>
                     <ol className="rounded-lg border">
                         {starred.songs.map((song, index) => (
-                            <li key={song.id} className="flex items-center">
+                            // The playing track is marked here as on an album and a playlist.
+                            <li
+                                key={song.id}
+                                className={cn(
+                                    'flex items-center',
+                                    index === playingAt && 'bg-muted font-medium',
+                                )}
+                            >
                                 <button
                                     type="button"
                                     data-plays
+                                    aria-current={index === playingAt ? 'true' : undefined}
                                     onClick={() => play(starred.songs, index)}
                                     className="row-hover flex min-h-finger w-full min-w-0 items-center gap-3 px-3 text-left text-sm"
                                 >
@@ -280,8 +300,10 @@ function Artists({ credentials }: { credentials: Credentials }) {
                 <Input
                     value={query}
                     onChange={(event) => setQuery(event.target.value)}
-                    aria-label="Search the library"
-                    placeholder="Search"
+                    // Its own name: the header's field is "Search the library", and two controls
+                    // with one name are one control to a screen reader.
+                    aria-label="Filter artists"
+                    placeholder="Filter"
                     className="min-w-0 flex-1"
                 />
                 <Segmented
@@ -453,6 +475,9 @@ function ArtistScreen({ credentials, id }: { credentials: Credentials; id: strin
 export const selectPlayingId = (state: { queue: Song[]; index: number }) =>
     state.queue[state.index]?.id ?? null
 export const selectPlaying = (state: { playing: boolean }) => state.playing
+/** The queue and where in it, read whole so the store hands back the same objects. */
+export const selectQueue = (state: { queue: Song[] }) => state.queue
+export const selectQueueIndex = (state: { index: number }) => state.index
 
 /** One album's tracks. Picking one plays the album from there. */
 function AlbumScreen({ credentials, id }: { credentials: Credentials; id: string }) {
@@ -596,7 +621,9 @@ function AlbumScreen({ credentials, id }: { credentials: Credentials; id: string
                                                     <Play className="size-3.5 text-primary" aria-hidden />
                                                 )
                                             ) : (
-                                                (song.track ?? index + 1)
+                                                // A track with no number says so, rather than taking
+                                                // its place in the list and reading as a second "1".
+                                                (song.track ?? '–')
                                             )}
                                         </span>
                                         {/* ON A COMPILATION THE ARTIST IS PART OF WHAT THE ROW IS, so

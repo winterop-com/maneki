@@ -114,3 +114,22 @@ export function reorderAround(
     // In order, the current track sits at its own index; shuffled, it leads.
     return { order: rebuilt, at: shuffle ? 0 : rebuilt.indexOf(playing) }
 }
+
+/**
+ * Which row of a list is the one playing, or -1.
+ *
+ * A TRACK CAN BE IN A LIST TWICE. Matched by id alone, a track on a playlist three times lit all
+ * three rows. When the list is what is playing (the queue holds exactly its tracks), the row is
+ * the queue's own position; when the track is playing from somewhere else, it is the first copy.
+ */
+export function playingRow(
+    rowIds: readonly string[],
+    queueIds: readonly string[],
+    queueIndex: number,
+): number {
+    const playing = queueIds[queueIndex]
+    if (playing === undefined) return -1
+    const same = rowIds.length === queueIds.length && rowIds.every((id, at) => id === queueIds[at])
+    if (same) return queueIndex
+    return rowIds.indexOf(playing)
+}

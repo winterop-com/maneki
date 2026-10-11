@@ -6,8 +6,9 @@ import {
     beforeTrack,
     buildOrder,
     nextRepeat,
-    REPEATS,
+    playingRow,
     reorderAround,
+    REPEATS,
 } from '@/lib/queue'
 
 /** A shuffle nobody has to guess at: always picks the last remaining slot, so it reverses. */
@@ -128,5 +129,21 @@ describe('cycling the repeat control', () => {
             mode = nextRepeat(mode)
         }
         expect(seen.size).toBe(REPEATS.length)
+    })
+})
+
+describe('which row of a list is the one playing', () => {
+    test('is the queue position when the list is what is playing', () => {
+        // A track on a playlist three times lit all three rows.
+        expect(playingRow(['a', 'b', 'a', 'c', 'a'], ['a', 'b', 'a', 'c', 'a'], 2)).toBe(2)
+    })
+
+    test('is the first copy when the track is playing from somewhere else', () => {
+        expect(playingRow(['x', 'a', 'a'], ['a', 'b'], 0)).toBe(1)
+    })
+
+    test('is none when the track is not in the list', () => {
+        expect(playingRow(['x', 'y'], ['a'], 0)).toBe(-1)
+        expect(playingRow(['x'], [], -1)).toBe(-1)
     })
 })

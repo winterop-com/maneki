@@ -7,6 +7,7 @@ import { DeletePlaylistDialog, NameDialog } from '@/components/PlaylistDialogs'
 import { Skeleton } from '@/components/Skeleton'
 import { Button } from '@/components/ui/button'
 import { useStore, useStoreValue } from '@/hooks/use-store'
+import { playingRow } from '@/lib/queue'
 import { clock, duration, trackCount } from '@/lib/format'
 import { PLAYLISTS_PATH } from '@/lib/nav'
 import { registerActions, SCREEN_GROUP } from '@/lib/palette'
@@ -24,7 +25,16 @@ import {
     type Song,
 } from '@/lib/subsonic'
 import { cn } from '@/lib/utils'
-import { Cover, Header, Notice, selectPlaying, selectPlayingId, StarButton, type Held } from '@/pages/Music'
+import {
+    Cover,
+    Header,
+    Notice,
+    selectPlaying,
+    selectQueue,
+    selectQueueIndex,
+    StarButton,
+    type Held,
+} from '@/pages/Music'
 
 /**
  * This account's playlists, and one of them.
@@ -170,7 +180,8 @@ function PlaylistScreen({ credentials, id }: { credentials: Credentials; id: str
     // Removals go to the server one after another: a position means the list as the previous
     // removal left it, and two requests racing each other would take off the wrong track.
     const removals = useRef<Promise<unknown>>(Promise.resolve())
-    const playingId = useStoreValue(playerStore, selectPlayingId)
+    const queue = useStoreValue(playerStore, selectQueue)
+    const queueIndex = useStoreValue(playerStore, selectQueueIndex)
     const playing = useStoreValue(playerStore, selectPlaying)
     const navigate = useNavigate()
 
@@ -204,6 +215,15 @@ function PlaylistScreen({ credentials, id }: { credentials: Credentials; id: str
     useEffect(() => clearScreenStatus, [])
 
     const songs = useMemo(() => data?.songs ?? [], [data])
+    const playingAt = useMemo(
+        () =>
+            playingRow(
+                songs.map((one) => one.id),
+                queue.map((one) => one.id),
+                queueIndex,
+            ),
+        [queue, queueIndex, songs],
+    )
     useEffect(() => {
         if (name === null) return
         return registerActions([
@@ -323,7 +343,8 @@ function PlaylistScreen({ credentials, id }: { credentials: Credentials; id: str
             ) : (
                 <ol className="rounded-lg border">
                     {songs.map((song, index) => {
-                        const current = song.id === playingId
+                        // One row is the one playing, even with the track on the list twice.
+                        const current = index === playingAt
                         return (
                             // The same track can be on a playlist twice, so the position is
                             // part of what tells two rows apart.
