@@ -34,6 +34,7 @@ import {
     subtitleLabel,
     subtitleNote,
     watchHref,
+    keepsPlace,
 } from '@/lib/video'
 import { cn } from '@/lib/utils'
 import { autoplayNext, theaterOn, toggleTheater, UP_NEXT_SECONDS } from '@/lib/watching'
@@ -260,6 +261,11 @@ function Watch({ id }: { id: string }) {
         }
     }, [id])
 
+    // The video whose playhead has been past its start this visit: see `keepsPlace`. Kept by
+    // id, so the next episode's opening 0 is never taken for a start over.
+    const movedFor = useRef<string | null>(null)
+    // Where the playhead was last read; see the tick below.
+    const at = useRef(0)
     const applied = useRef<string | null>(null)
     const [havePlayer, setHavePlayer] = useState(false)
     const onReady = useCallback((handle: VideoHandle | null) => {
@@ -270,6 +276,10 @@ function Watch({ id }: { id: string }) {
         if (!havePlayer || resume === null || resume <= 0 || applied.current === id) return
         applied.current = id
         player.current?.seekTo(resume)
+        // The playhead has been somewhere: a scrub straight back to 0 is a start over. And the
+        // place is the resumed one until the first tick reads it, so leaving at once keeps it.
+        movedFor.current = id
+        at.current = resume
     }, [havePlayer, id, resume])
 
     /**
@@ -281,12 +291,11 @@ function Watch({ id }: { id: string }) {
      * A seek backwards is movement too, which is why the comparison is on distance rather than
      * on having climbed: somebody who skips back to rewatch a scene has moved their position.
      */
-    const at = useRef(0)
     const savedAt = useRef(0)
     const paused = useRef(true)
     const save = useCallback(
         (positionS: number, finished?: boolean) => {
-            if (positionS <= 0 && finished !== true) return
+            if (!keepsPlace(positionS, finished === true, movedFor.current === id)) return
             savedAt.current = positionS
             void videoApi.saveProgress(id, positionS, finished).catch(() => {
                 // A lost report is one the next tick makes again; nothing to say on screen.
@@ -301,6 +310,7 @@ function Watch({ id }: { id: string }) {
             if (reading === null) return
             const now = player.current?.positionS() ?? 0
             at.current = now
+            if (now > 0) movedFor.current = id
             const stopped = reading.paused
             // The transition, not the state: a paused player would otherwise report once a
             // second for as long as somebody left the room.
@@ -311,7 +321,7 @@ function Watch({ id }: { id: string }) {
         return () => {
             clearInterval(tick)
         }
-    }, [save])
+    }, [id, save])
 
     useEffect(() => {
         const keep = (): void => save(at.current)

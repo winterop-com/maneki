@@ -12,6 +12,7 @@ import type {
 } from '@/lib/types'
 import type { PlaybackSample } from '@/lib/video'
 import {
+    keepsPlace,
     bitrateLabel,
     browseHref,
     compareNames,
@@ -588,5 +589,19 @@ describe('a film in a folder holding something else too', () => {
 
     it('loses the release tags after an unbracketed year too', () => {
         expect(episodeName(folder[2]!, folder)).toBe('James Bond-Never Say Never Again 1983')
+    })
+})
+
+describe('which place is worth saving', () => {
+    it('keeps the start once the playhead has been somewhere else this visit', () => {
+        // Scrubbed back to 0 from 603 and left: the 0 was dropped, and it reopened at 603.
+        expect(keepsPlace(0, false, true)).toBe(true)
+    })
+
+    it('does not save the start of a visit that has not moved yet', () => {
+        // Opened and left before the resume seek landed: saving 0 would wipe the place.
+        expect(keepsPlace(0, false, false)).toBe(false)
+        expect(keepsPlace(42, false, false)).toBe(true)
+        expect(keepsPlace(0, true, false)).toBe(true)
     })
 })

@@ -576,3 +576,15 @@ export function streamVerdict(
 export function folderRefusal(message: string): string {
     return /^no such folder\b/i.test(message) ? 'That folder is not in the video library.' : message
 }
+
+/**
+ * Whether a place is worth sending to the server.
+ *
+ * THE START IS A PLACE TOO, ONCE THE PLAYHEAD HAS BEEN ELSEWHERE. A visit that has not moved
+ * yet reads 0 before the resume seek lands, and saving that would wipe the place somebody came
+ * back for. But scrubbed back to 0 from 603 and left, the 0 was dropped too, and the video
+ * reopened at 603: starting over did not stick.
+ */
+export function keepsPlace(positionS: number, finished: boolean, moved: boolean): boolean {
+    return finished || positionS > 0 || moved
+}
