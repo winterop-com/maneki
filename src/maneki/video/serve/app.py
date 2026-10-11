@@ -968,18 +968,7 @@ def create_app(
         except FFmpegNotFoundError as exc:
             raise HTTPException(status_code=503, detail=str(exc)) from exc
         max_height = _clamp_max_height(h)
-        try:
-            resolved = await youtube.resolve_stream(video_id, max_height=max_height)
-        except youtube.YouTubeError as exc:
-            raise HTTPException(status_code=502, detail=str(exc)) from exc
-        source = RemoteSource(
-            video_url=resolved.video_url,
-            audio_url=resolved.audio_url,
-            name=resolved.title,
-            headers=resolved.http_headers,
-            height=resolved.height,
-        )
-        session = hls_manager.get_or_create_source(f"yt:{video_id}@{max_height}", source, resolved.duration_s)
+        key = f"yt:{video_id}@{max_height}"
         # Pin segments to this quality cap: relative seg URIs don't inherit the
         # manifest's ?h=, so stamp it on so segments hit the matching session.
         # The media token, when there is one, rides along for the same reason.
@@ -987,7 +976,42 @@ def create_app(
         media_token = _media_token_query(request)
         if media_token:
             seg_query = f"{seg_query}&{media_token}"
-        return await _hls_response(session, filename, request, seg_query=seg_query)
+
+        async def serve() -> Response:
+            try:
+                resolved = await youtube.resolve_stream(video_id, max_height=max_height)
+            except youtube.YouTubeError as exc:
+                raise HTTPException(status_code=502, detail=str(exc)) from exc
+            source = RemoteSource(
+                video_url=resolved.video_url,
+                audio_url=resolved.audio_url,
+                name=resolved.title,
+                headers=resolved.http_headers,
+                height=resolved.height,
+            )
+            session = hls_manager.get_or_create_source(key, source, resolved.duration_s)
+            return await _hls_response(session, filename, request, seg_query=seg_query)
+
+        # A REFUSED ADDRESS IS RESOLVED AGAIN, ONCE. googlevideo addresses expire, and some
+        # qualities are refused outright: ffmpeg's 403 escaped as a 500 with a traceback and the
+        # player sat at nothing. The cached address and its session are dropped and the segment
+        # tried once more; refused again, it is a 502 that says so.
+        try:
+            return await serve()
+        except RuntimeError as exc:
+            if "403" not in str(exc):
+                raise HTTPException(status_code=502, detail=f"YouTube stream failed: {exc}") from exc
+        youtube.invalidate_stream(video_id, max_height=max_height)
+        hls_manager.drop(key)
+        try:
+            return await serve()
+        except RuntimeError as exc:
+            hls_manager.drop(key)
+            youtube.invalidate_stream(video_id, max_height=max_height)
+            raise HTTPException(
+                status_code=502,
+                detail="YouTube refused this stream at this quality; try another quality.",
+            ) from exc
 
     return app
 

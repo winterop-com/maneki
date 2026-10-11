@@ -346,3 +346,61 @@ def test_is_allowed_channel_url_matches_host_exactly() -> None:
     assert not youtube.is_allowed_channel_url("https://notyoutube.com/@x")
     assert not youtube.is_allowed_channel_url("https://youtube.com.evil.test/@x")
     assert not youtube.is_allowed_channel_url("https://evil.test/?u=youtube.com")
+
+
+def _stream(video_id: str, url: str) -> youtube.ResolvedStream:
+    return youtube.ResolvedStream(
+        video_id=video_id, title="A Video", duration_s=18.0, video_url=url, audio_url=url + "-a"
+    )
+
+
+def test_a_refused_youtube_segment_is_resolved_again_once(
+    monkeypatch: pytest.MonkeyPatch, client_and_registry: tuple[TestClient, UserRegistry], tmp_path: Path
+) -> None:
+    """googlevideo addresses expire and are refused with 403; the segment asked for then failed
+    with a 500 and a traceback, and the player sat at nothing for good. The address is resolved
+    afresh and the segment tried once more."""
+    from maneki.video.serve.hls import OnDemandHLS
+
+    client, _ = client_and_registry
+    resolutions: list[str] = []
+
+    async def fake_resolve(video_id: str, *, max_height: int = 1080) -> youtube.ResolvedStream:
+        url = f"https://v.example/{len(resolutions)}"
+        resolutions.append(url)
+        return _stream(video_id, url)
+
+    monkeypatch.setattr(youtube, "resolve_stream", fake_resolve)
+    segment = tmp_path / "seg-0000.ts"
+    segment.write_bytes(b"ts")
+
+    async def fake_ensure(self: OnDemandHLS, idx: int, *, low_priority: bool = False) -> Path:
+        assert isinstance(self.source, RemoteSource)
+        if self.source.video_url.endswith("/0"):
+            raise RuntimeError("ffmpeg failed for segment 0 (rc=8): Server returned 403 Forbidden (access denied)")
+        return segment
+
+    monkeypatch.setattr(OnDemandHLS, "ensure_segment", fake_ensure)
+    r = client.get("/api/youtube/videos/zzz/hls/seg-0000.ts")
+    assert r.status_code == 200
+    assert len(resolutions) == 2
+
+
+def test_a_youtube_segment_refused_twice_is_a_502_with_a_sentence(
+    monkeypatch: pytest.MonkeyPatch, client_and_registry: tuple[TestClient, UserRegistry]
+) -> None:
+    from maneki.video.serve.hls import OnDemandHLS
+
+    client, _ = client_and_registry
+
+    async def fake_resolve(video_id: str, *, max_height: int = 1080) -> youtube.ResolvedStream:
+        return _stream(video_id, "https://v.example/x")
+
+    async def refused(self: OnDemandHLS, idx: int, *, low_priority: bool = False) -> Path:
+        raise RuntimeError("ffmpeg failed for segment 0 (rc=8): Server returned 403 Forbidden (access denied)")
+
+    monkeypatch.setattr(youtube, "resolve_stream", fake_resolve)
+    monkeypatch.setattr(OnDemandHLS, "ensure_segment", refused)
+    r = client.get("/api/youtube/videos/zzz/hls/seg-0000.ts")
+    assert r.status_code == 502
+    assert "YouTube" in r.json()["detail"]

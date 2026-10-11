@@ -727,6 +727,12 @@ class HLSManager:
     def get(self, video_id: str) -> OnDemandHLS | None:
         return self.sessions.get(video_id)
 
+    def drop(self, video_id: str) -> None:
+        """Forget a session, so the next request builds one from a fresh source."""
+        session = self.sessions.pop(video_id, None)
+        if session is not None:
+            session.cancel_prefetch()
+
     def note_written(self, path: Path) -> None:
         """Count a freshly written segment, and trim in the background once over the cap."""
         if self.max_bytes is None:
