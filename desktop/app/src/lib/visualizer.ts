@@ -83,10 +83,15 @@ const LIVE_SPECTRUM_READABLE =
 /**
  * Whether there is a spectrum to draw for what is playing: always for a track or a book, and for
  * a station only where the engine can hear one. Where it cannot, nothing is drawn rather than
- * a line that lies about the sound.
+ * a line that lies about the sound. A station played with no relay (listening without a server)
+ * is fetched without CORS, and Web Audio hears nothing from it on any engine.
  */
-export function spectrumReadable(playingStation: boolean, readable = LIVE_SPECTRUM_READABLE): boolean {
-    return !playingStation || readable
+export function spectrumReadable(
+    playingStation: boolean,
+    readable = LIVE_SPECTRUM_READABLE,
+    relayed = true,
+): boolean {
+    return !playingStation || (readable && relayed)
 }
 
 export function setVisualizer(shown: boolean): void {

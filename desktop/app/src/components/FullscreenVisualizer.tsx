@@ -93,7 +93,7 @@ function Stage() {
     const playing = player.playing
     // Where the engine cannot hear a station, the room says so rather than drawing a flat line
     // under music that is plainly playing: see `spectrumReadable`.
-    const readable = spectrumReadable(player.station !== null)
+    const readable = spectrumReadable(player.station !== null, undefined, session.phase !== 'radio')
     const canvas = useSpectrum(playing && readable, STAGE_BANDS, true)
     useOverlay(stage, closeStage)
 

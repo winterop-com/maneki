@@ -74,6 +74,13 @@ describe('whether a station can be heard by the spectrum', () => {
         expect(spectrumReadable(true, true)).toBe(true)
         expect(spectrumReadable(true, false)).toBe(false)
     })
+
+    test('a station played with no relay has none, on any engine', () => {
+        // Radio-only plays the station's own address without crossOrigin, so the analyser
+        // hears nothing even in Chromium: the band stood empty and the stage was black.
+        expect(spectrumReadable(true, true, false)).toBe(false)
+        expect(spectrumReadable(false, true, false)).toBe(true)
+    })
 })
 
 describe('one frame of the spectrum', () => {

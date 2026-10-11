@@ -116,8 +116,10 @@ export const STAGE_LABEL = 'Put the spectrum over the whole screen'
 export function PlayerBar() {
     const player = useStore(playerStore)
     // A station on an engine that cannot hear one has no spectrum to draw: see `spectrumReadable`.
-    const spectrumShown = useStore(visualizerShown) && spectrumReadable(player.station !== null)
     const session = useStore(sessionStore)
+    const spectrumShown =
+        useStore(visualizerShown) &&
+        spectrumReadable(player.station !== null, undefined, session.phase !== 'radio')
     // THE BAR IS DRAGGED TALLER AND THE ROOM IS THE SPECTRUM. The grip is the bar's top edge;
     // pulling it up gives the room above the controls more height, and the spectrum is drawn
     // across the whole of it, always along the foot: never elsewhere, never a second copy.
