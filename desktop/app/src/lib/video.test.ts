@@ -51,7 +51,6 @@ function video(name: string, id = name): VideoEntry {
     return {
         id,
         name,
-        path: `/library/${name}.mkv`,
         size_bytes: 1_000_000,
         rel_path: `${name}.mkv`,
         duration_s: 60,
