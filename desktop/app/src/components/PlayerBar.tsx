@@ -238,6 +238,24 @@ export function PlayerBar() {
 
     // On a phone the room above the transport holds the title and the timeline; see the room.
     const phoneRoom = small && !liner
+    // On a phone too: the palette that carried the speeds there opens only from a keyboard, and
+    // five buttons beside the cover leave no room in the transport, so it sits by the title.
+    const speedSelect = book && (
+        <select
+            aria-label="Reading speed"
+            value={book.speed}
+            onChange={(event) => {
+                setSpeed(Number(event.target.value))
+            }}
+            className={cn('shrink-0 rounded-md border bg-field px-2 text-xs', phoneRoom ? 'h-finger' : 'h-8')}
+        >
+            {SPEEDS.map((speed) => (
+                <option key={speed} value={speed}>
+                    {speed}x
+                </option>
+            ))}
+        </select>
+    )
     const titleBlock = (
         <div className={phoneRoom ? 'min-w-0' : 'min-w-0 flex-1 md:max-w-64'}>
             <p className="truncate text-sm" title={title}>
@@ -448,7 +466,14 @@ export function PlayerBar() {
                             style={{ height: room }}
                             className="flex shrink-0 flex-col justify-center gap-1 px-3"
                         >
-                            {titleBlock}
+                            {book ? (
+                                <div className="flex min-w-0 items-center gap-2">
+                                    <div className="min-w-0 flex-1">{titleBlock}</div>
+                                    {speedSelect}
+                                </div>
+                            ) : (
+                                titleBlock
+                            )}
                             {!station && scrubberRow}
                         </div>
                     ) : spectrumShown ? (
@@ -625,24 +650,8 @@ export function PlayerBar() {
                         {/* HOW FAST IT IS READ IS A BOOK'S ALONE. Music at 1.25x is a novelty; a narrator
                 at 1.25x is how a lot of people listen to every book they own, so the choice is
                 on the transport rather than behind a settings pane -- and it is offered only
-                where it means something. Below the breakpoint the bar has no room for it and
-                the palette carries the same speeds. */}
-                        {book && (
-                            <select
-                                aria-label="Reading speed"
-                                value={book.speed}
-                                onChange={(event) => {
-                                    setSpeed(Number(event.target.value))
-                                }}
-                                className="hidden h-8 shrink-0 rounded-md border bg-field px-2 text-xs md:block"
-                            >
-                                {SPEEDS.map((speed) => (
-                                    <option key={speed} value={speed}>
-                                        {speed}x
-                                    </option>
-                                ))}
-                            </select>
-                        )}
+                where it means something. On a phone it sits beside the title instead. */}
+                        {book && !phoneRoom && speedSelect}
 
                         {/* The strip is the way to the stage with a pointer, as the F key is without one. It is
                 drawn only while the spectrum is: `Visualizer` answers nothing when it is off, and a
