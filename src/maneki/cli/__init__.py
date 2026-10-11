@@ -90,8 +90,16 @@ def serve_cmd(
     port: Annotated[int, typer.Option("--port", "-p", help="Port to bind")] = 8765,
     auth: Annotated[
         bool,
-        typer.Option("--auth", help="Require bearer-token auth on /video/* (Subsonic keeps its own auth)"),
-    ] = False,
+        typer.Option(
+            "--auth/--no-auth",
+            help=(
+                "Require sign-in on /video/* and /books/* (Subsonic keeps its own auth). On by "
+                "default: without it those APIs answer anyone who can reach the server, and every "
+                "account's positions land on the first admin. --no-auth for a single-user server "
+                "on a trusted machine."
+            ),
+        ),
+    ] = True,
     ui: Annotated[
         bool,
         typer.Option("--ui/--no-ui", help="Serve the web client at /. On by default; --no-ui for an API-only server."),
@@ -177,9 +185,9 @@ def serve_cmd(
       /video/api/*          Maneki-native video JSON API
       /video/               throwaway demo HTML page (works without auth)
 
-    Pass --auth to require Authorization: Bearer <token> on /video/*. The
-    demo page at /video/ doesn't speak the auth flow yet, so --auth and the
-    demo are currently mutually exclusive in practice.
+    Sign-in is required on /video/* and /books/* by default (a bearer token
+    from POST /auth/login); --no-auth turns it off. The demo page at /video/
+    doesn't speak the auth flow, so it needs --no-auth.
     """
     import uvicorn
 
@@ -211,8 +219,7 @@ def serve_cmd(
     import structlog
 
     flags: list[str] = []
-    if auth:
-        flags.append("auth on /video/*")
+    flags.append("sign-in on /video/* and /books/*" if auth else "NO sign-in on /video/* and /books/*")
     if ui:
         flags.append("SPA at /")
     if rescan:

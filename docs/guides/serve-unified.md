@@ -46,7 +46,7 @@ curl -s http://127.0.0.1:8765/capabilities | jq
 host:port/capabilities          server identity + which kinds are mounted (public)
 host:port/auth/login            POST username + password -> bearer token
 host:port/auth/me               GET /me with Bearer header -> who you are
-host:port/audio/rest/*          Subsonic API (its own auth grammar; unaffected by --auth)
+host:port/audio/rest/*          Subsonic API (its own auth grammar; unaffected by sign-in)
 host:port/video/api/*           Maneki-native video JSON API
 host:port/books/api/*           Maneki-native audiobook JSON API (when <root>/Audiobooks/ exists)
 host:port/video/                throwaway demo HTML page (retired when SPA lands)
@@ -80,13 +80,13 @@ There is no kind-toggle flag: to serve only audio, point at an audio-only root; 
 ## Options
 
 ```
-maneki serve <root> [--host HOST] [--port PORT] [--no-ui] [--auth] [--workers N]
+maneki serve <root> [--host HOST] [--port PORT] [--no-ui] [--no-auth] [--workers N]
 
   <root>          Library root - scanned recursively for both audio and video
   --host HOST     Interface to bind (default 0.0.0.0, every interface; 127.0.0.1 keeps it local)
   --port PORT     Port to bind (default 8765)
   --no-ui         Leave the web client out and serve the APIs alone
-  --auth          Require bearer-token auth on /video/* endpoints
+  --no-auth       Serve /video/* and /books/* without sign-in (on by default)
   --workers N     Background transcode workers (default 0 = cpu_count // 2, capped 4)
 ```
 
@@ -94,12 +94,13 @@ The defaults bind to localhost on port 8765. To expose on the LAN or Tailscale, 
 
 ## Auth
 
-**The audio (Subsonic) mount** keeps its own auth grammar (salt + token query params per the Subsonic spec). Credentials resolve from `~/.config/maneki/maneki.toml` `[server]` section, falling back to `admin`/`admin` with a yellow warning at startup. This is unchanged by `--auth`.
+**The audio (Subsonic) mount** keeps its own auth grammar (salt + token query params per the Subsonic spec). Credentials resolve from `~/.config/maneki/maneki.toml` `[server]` section, falling back to `admin`/`admin` with a yellow warning at startup. Sign-in on the native endpoints does not change it.
 
-**The Maneki-native endpoints** (`/video/*` and `/books/*`) optionally require a bearer token. Auth is off by default so the demo page keeps working. Enable with `--auth`:
+**The Maneki-native endpoints** (`/video/*` and `/books/*`) require a bearer token by default, and that is what keeps each account's positions and subscriptions its own: without it every request is the first admin's. `--no-auth` turns it off for a single-user server on a trusted machine:
 
 ```bash
-maneki serve ~/Downloads/library --auth
+maneki serve ~/Downloads/library            # sign-in required
+maneki serve ~/Downloads/library --no-auth  # open, single user
 ```
 
 When auth is on:
@@ -124,7 +125,7 @@ Tokens live in memory and expire after 24 hours (or when the server restarts).
 
 **Media URLs carry the token as `?token=<token>` instead of a header.** A `<video>` source, an `<img>` poster or cover, a `<track>` subtitle, an `<audio>` book file and an `EventSource` are all fetched by the browser out of an address, and an address has nowhere to put an `Authorization` header — so without a second way to present the token, `--auth` would leave the client signed in and every picture and stream under it answering 401. The same token in the query is validated exactly as the header is, but only on the routes one of those elements actually fetches (video `stream`, `play`, `poster`, `thumbnail`, `hls/*`, `subtitles/<track>` and `stats/stream`; books `cover` and `files/<n>`), and only on a GET. A token in a URL ends up in browser history and in anything that copies a link, so every JSON API keeps the header and answers 401 to `?token=` alone. An HLS manifest names its segments relatively and a relative URL does not inherit the manifest's query, so the server stamps the token back onto each segment URI itself. The access log records the path and never the query, which is what keeps this token — and Subsonic's `p=` and `t=` — out of the log line.
 
-The demo page at `/video/` does NOT yet drive the login flow, so when `--auth` is on the demo can't play videos. Use the API directly until the SPA video tab lands.
+The demo page at `/video/` does not drive the login flow, so it needs `--no-auth`.
 
 Same credentials as the audio Subsonic mount — one password sourced from the same TOML.
 
