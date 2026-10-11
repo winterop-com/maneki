@@ -240,6 +240,7 @@ export function RadioPage() {
                             <li key={station.id} className="flex items-center">
                                 <button
                                     type="button"
+                                    data-plays
                                     onClick={() => playStation(station)}
                                     aria-current={live ? 'true' : undefined}
                                     className={cn(

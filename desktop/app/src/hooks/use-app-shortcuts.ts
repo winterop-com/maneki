@@ -63,6 +63,7 @@ export function useAppShortcuts(onShortcuts: () => void): void {
                 tagName: element.tagName,
                 isContentEditable: element.isContentEditable,
                 role: element.getAttribute('role'),
+                plays: element.dataset.plays !== undefined,
             }
         }
 

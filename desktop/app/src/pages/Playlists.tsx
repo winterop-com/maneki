@@ -335,6 +335,7 @@ function PlaylistScreen({ credentials, id }: { credentials: Credentials; id: str
                                     type="button"
                                     onClick={() => play(songs, index)}
                                     aria-current={current ? 'true' : undefined}
+                                    data-plays
                                     className="row-hover flex min-h-finger min-w-0 flex-1 items-center gap-3 px-3 text-left text-sm"
                                 >
                                     <span className="flex w-6 shrink-0 items-center justify-end text-xs text-muted-foreground tabular-nums">

@@ -163,6 +163,7 @@ function Favourites({ credentials }: { credentials: Credentials }) {
                             <li key={song.id} className="flex items-center">
                                 <button
                                     type="button"
+                                    data-plays
                                     onClick={() => play(starred.songs, index)}
                                     className="row-hover flex min-h-finger w-full min-w-0 items-center gap-3 px-3 text-left text-sm"
                                 >
@@ -582,6 +583,7 @@ function AlbumScreen({ credentials, id }: { credentials: Credentials; id: string
                                 <li className={cn('flex items-center', current && 'bg-muted font-medium')}>
                                     <button
                                         type="button"
+                                        data-plays
                                         onClick={() => play(songs, index)}
                                         aria-current={current ? 'true' : undefined}
                                         className="row-hover flex min-h-finger w-full min-w-0 items-center gap-3 px-3 text-left text-sm"

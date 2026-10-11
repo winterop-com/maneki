@@ -194,6 +194,7 @@ function Book({ id }: { id: string }) {
                             <li key={`${chapter.start_s}-${chapter.title}`}>
                                 <button
                                     type="button"
+                                    data-plays
                                     onClick={() => {
                                         playBook(book, chapter.start_s)
                                     }}

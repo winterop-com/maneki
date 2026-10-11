@@ -204,6 +204,16 @@ describe('the platform', () => {
     })
 })
 
+describe('space on a row that plays', () => {
+    test('is play and pause, not playing the row again from the start', () => {
+        // A clicked track keeps focus, and Space pressed that row again: the track restarted.
+        const row = { tagName: 'BUTTON', isContentEditable: false, plays: true }
+        expect(togglesPlayback(press(' '), row)).toBe(true)
+        const button = { tagName: 'BUTTON', isContentEditable: false }
+        expect(togglesPlayback(press(' '), button)).toBe(false)
+    })
+})
+
 describe('the arrows', () => {
     test('seek five seconds either way, and nothing else does', () => {
         expect(seeks(press('ArrowLeft'), null)).toBe(-SEEK_STEP_S)

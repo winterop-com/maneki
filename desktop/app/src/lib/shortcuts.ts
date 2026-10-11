@@ -92,6 +92,8 @@ export interface FocusedField {
     isContentEditable: boolean
     /** The element's ARIA role, where it has one: a grip or a slider keeps its own arrows. */
     role?: string | null
+    /** A row that plays what it names (`data-plays`): Space there is the transport, not the row. */
+    plays?: boolean
 }
 
 /**
@@ -179,6 +181,10 @@ export function togglesPlayback(press: KeyPress, focused: FocusedField | null): 
     if (press.key !== PLAY_KEY && press.key !== 'Spacebar') return false
     if (press.ctrlKey || press.metaKey || press.altKey) return false
     if (isTypingField(focused)) return false
+    // A CLICKED ROW KEEPS FOCUS, and a row's press is "play from here": Space pressed it again
+    // and the track started over. On a row that plays, Space is play and pause; Enter is still
+    // the row.
+    if (focused?.plays === true) return true
     return !PRESSABLE_TAG_NAMES.includes((focused?.tagName ?? '').toUpperCase())
 }
 
