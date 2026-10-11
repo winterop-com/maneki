@@ -1,6 +1,6 @@
 import { describe, expect, test, vi } from 'vitest'
 
-import { DEVICE_STATIONS, deviceRadio } from '@/lib/radio-source'
+import { DEVICE_STATIONS, DIRECTORY_SILENT, deviceRadio } from '@/lib/radio-source'
 
 function memory(): Pick<Storage, 'getItem' | 'setItem'> {
     const held = new Map<string, string>()
@@ -87,5 +87,15 @@ describe('radio on this device, with no server', () => {
             added: false,
         })
         expect(found[1]!.logo).toBeUndefined()
+    })
+
+    test('a directory that does not answer is said once, as a sentence', async () => {
+        // "The station directory did not answer: the station directory did not answer", and
+        // "...: Load failed" when the network refused.
+        const down = deviceRadio(memory(), () => Promise.reject(new TypeError('Load failed')))
+        await expect(down.search('jazz')).rejects.toThrow(DIRECTORY_SILENT)
+        const busy = deviceRadio(memory(), async () => new Response('busy', { status: 503 }))
+        await expect(busy.search('jazz')).rejects.toThrow(DIRECTORY_SILENT)
+        expect(DIRECTORY_SILENT).toMatch(/^[A-Z].*\.$/)
     })
 })

@@ -99,7 +99,8 @@ export function RadioPage() {
                     if (live) setFound({ query: text, stations: answer })
                 })
                 .catch((error: Error) => {
-                    if (live) toast.error(`The station directory did not answer: ${error.message}`)
+                    // Each source words its own failure (see `lib/radio-source`).
+                    if (live) toast.error(error.message)
                 })
                 .finally(() => {
                     if (live) setFinding(false)

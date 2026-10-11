@@ -32,7 +32,11 @@ export interface RadioSource {
 export function serverRadio(credentials: Credentials): RadioSource {
     return {
         stations: () => getStations(credentials),
-        search: (query) => searchStations(credentials, query),
+        search: (query) =>
+            searchStations(credentials, query).catch((error: unknown) => {
+                const reason = error instanceof Error ? error.message : String(error)
+                throw new Error(`The station directory did not answer: ${reason}`)
+            }),
         add: (found) => addStation(credentials, found),
         remove: (station) => removeStation(credentials, station),
     }
@@ -94,6 +98,9 @@ export const DEVICE_STATIONS_KEY = 'maneki.radioStations'
 /** The directory's API, asked directly; it allows any origin. */
 const DIRECTORY = 'https://de1.api.radio-browser.info/json/stations/search'
 
+/** What a search says when the directory cannot be reached or does not answer. */
+export const DIRECTORY_SILENT = 'The station directory did not answer. Try again in a moment.'
+
 /** As many results as the server's search returns. */
 const DIRECTORY_LIMIT = 30
 
@@ -147,8 +154,9 @@ export function deviceRadio(
                 order: 'clickcount',
                 reverse: 'true',
             }).toString()}`
-            const answer = await fetcher(address)
-            if (!answer.ok) throw new Error('the station directory did not answer')
+            // The network's own words ("Load failed", "Failed to fetch") say nothing to anybody.
+            const answer = await fetcher(address).catch(() => null)
+            if (answer === null || !answer.ok) throw new Error(DIRECTORY_SILENT)
             const rows = (await answer.json()) as Record<string, unknown>[]
             const listed = new Set(all().map((one) => one.streamUrl))
             return rows.flatMap((row) => {
