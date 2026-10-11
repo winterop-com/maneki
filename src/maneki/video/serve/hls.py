@@ -423,6 +423,13 @@ class OnDemandHLS:
         # `-force_key_frames expr:gte(t,0)` makes the first frame a
         # keyframe so the segment is independently decodable.
         dummy_m3u8 = self.session_dir / f"_dummy_{idx}.m3u8"
+        # ONE TRANSCODE WRITES ONE SEGMENT, UNDER A NAME NO OTHER SEGMENT HAS. The muxer is
+        # free to split what it is given, and did: a 6.04s slice came out as `seg-N` and a
+        # 20ms `seg-N+1`, which the cache then served as segment N+1 for good -- every
+        # restart from a saved position then hit a run of 20ms stubs and the player gave up
+        # with "No available working or supported playlists". So the muxer writes private
+        # parts, the first part is moved into place, and anything after it is dropped.
+        parts = f"_part-{idx}-"
         # Prefetch / background segments are pinned to a single ffmpeg
         # thread so the OS-idle priority kicks in cleanly; foreground
         # segments use ffmpeg's default thread count (auto = many) so
@@ -455,6 +462,9 @@ class OnDemandHLS:
             # Remote split-stream sources map video + audio explicitly; local
             # single-input files emit no -map and let ffmpeg auto-select.
             *self.source.map_args(),
+            # Subtitles are served on their own; muxed in here they only became `_dummy_*.vtt`
+            # fragments beside every segment.
+            "-sn",
             *(["-vf", vf] if vf else []),
             *encode_args,
             "-force_key_frames",
@@ -467,16 +477,17 @@ class OnDemandHLS:
             "2",
             "-f",
             "hls",
+            # Longer than the slice, so the muxer has no reason to split it at all.
             "-hls_time",
-            f"{SEG_LEN}",
+            f"{spec.duration_s + SEG_LEN:.6f}",
             "-hls_segment_type",
             "mpegts",
             "-hls_segment_filename",
-            str(self.session_dir / "seg-%04d.ts"),
+            str(self.session_dir / f"{parts}%d.ts"),
             "-hls_list_size",
             "1",
             "-start_number",
-            str(idx),
+            "0",
             str(dummy_m3u8),
         ]
         spawn_kwargs = low_priority_kwargs() if low_priority else {}
@@ -558,10 +569,29 @@ class OnDemandHLS:
         # Success: log the wall time for the stats panel. Cancels and
         # failures (which `raise` above) are deliberately not recorded -
         # the panel measures completed-segment throughput.
+        self._settle_parts(idx)
         self._record_transcode(idx, time.monotonic() - start, low_priority=low_priority, encoder=encoder)
 
+    def _settle_parts(self, idx: int) -> None:
+        """Move a transcode's first part into place as segment `idx` and drop the rest.
+
+        The rename is atomic, so a reader sees either no segment or the whole of it.
+        """
+        first = self.session_dir / f"_part-{idx}-0.ts"
+        if not first.exists():
+            self._unlink_partial(idx)
+            raise RuntimeError(f"ffmpeg wrote nothing for segment {idx}")
+        os.replace(first, self.session_dir / f"seg-{idx:04d}.ts")
+        self._drop_parts(idx)
+
+    def _drop_parts(self, idx: int) -> None:
+        for part in self.session_dir.glob(f"_part-{idx}-*.ts"):
+            with contextlib.suppress(OSError):
+                part.unlink()
+
     def _unlink_partial(self, idx: int) -> None:
-        """Best-effort cleanup of a half-written segment file."""
+        """Best-effort cleanup of what a transcode that did not finish left behind."""
+        self._drop_parts(idx)
         out_path = self.session_dir / f"seg-{idx:04d}.ts"
         with contextlib.suppress(FileNotFoundError, OSError):
             out_path.unlink()
@@ -615,7 +645,7 @@ EVICT_GRACE_S = 120.0
 # Without this, segments produced by old code linger in the cache and
 # the player loads them by URL even though their PTS is now wrong,
 # causing position jumps / subtitle drift.
-HLS_CACHE_VERSION = "5"  # pluggable HW encoder (vaapi/videotoolbox) + HDR tonemap
+HLS_CACHE_VERSION = "6"  # one transcode, one segment: no 20ms stubs under the next index
 
 
 class HLSManager:

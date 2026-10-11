@@ -194,3 +194,48 @@ async def test_genuine_hw_failure_falls_back_to_software(tmp_path: Path, monkeyp
     with pytest.raises(RuntimeError):
         await sess._transcode_segment(0)
     assert sess._encoder == "libx264"
+
+
+# --- one transcode, one segment ---------------------------------------------
+
+
+async def test_a_split_transcode_never_lands_under_the_next_index(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The muxer split a 6.04s slice into `seg-N` and a 20ms `seg-N+1`, and the cache served
+    the stub as segment N+1 for good. Only the first part may become a segment."""
+    sess = _hw_session(tmp_path)
+    sess._encoder = "libx264"
+    seen: list[str] = []
+
+    async def fake_exec(*args: str, **_k: object) -> _FakeProc:
+        seen.extend(args)
+        pattern = args[args.index("-hls_segment_filename") + 1]
+        Path(pattern % 0).write_bytes(b"whole six seconds")
+        Path(pattern % 1).write_bytes(b"20ms")
+        return _FakeProc(0)
+
+    monkeypatch.setattr(asyncio, "create_subprocess_exec", fake_exec)
+
+    await sess._transcode_segment(93)
+
+    session_dir = tmp_path / "sess"
+    assert (session_dir / "seg-0093.ts").read_bytes() == b"whole six seconds"
+    assert not (session_dir / "seg-0094.ts").exists()
+    assert list(session_dir.glob("_part-*")) == []
+    # Subtitles are served on their own and are not muxed into the picture's segments.
+    assert "-sn" in seen
+
+
+async def test_a_transcode_that_wrote_nothing_is_a_failure(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    sess = _hw_session(tmp_path)
+    sess._encoder = "libx264"
+
+    async def fake_exec(*_a: object, **_k: object) -> _FakeProc:
+        return _FakeProc(0)
+
+    monkeypatch.setattr(asyncio, "create_subprocess_exec", fake_exec)
+
+    with pytest.raises(RuntimeError):
+        await sess._transcode_segment(3)
+    assert not (tmp_path / "sess" / "seg-0003.ts").exists()
