@@ -307,6 +307,6 @@ describe('what a video YouTube will not give says', () => {
                 "could not resolve video 'abc': ERROR: [youtube:truncated_id] abc: Incomplete YouTube ID abc.",
             ),
         ).toBe('That is not a whole YouTube video address.')
-        expect(youtubeRefusal('the server did not answer')).toBe('the server did not answer')
+        expect(youtubeRefusal('The server did not answer.')).toBe('The server did not answer.')
     })
 })

@@ -1,6 +1,14 @@
 import { afterEach, describe, expect, test } from 'vitest'
 
-import { anyOpen, dialogsOpen, dialogUp, mayOpen, setDialogOpen, withDialog } from '@/lib/dialogs'
+import {
+    anyOpen,
+    dialogsOpen,
+    dialogUp,
+    mayOpen,
+    menuStanding,
+    setDialogOpen,
+    withDialog,
+} from '@/lib/dialogs'
 
 afterEach(() => {
     dialogsOpen.set(new Set())
@@ -70,5 +78,18 @@ describe('a key that opens something over what is already open', () => {
     test('opens no lyrics over a station, which has none', () => {
         // `l` during a station put up a full-screen "Nothing is playing."
         expect(mayOpen('lyrics', { ...nothing, song: false })).toBe(false)
+    })
+})
+
+describe('a menu standing open', () => {
+    test('takes every key: the app answers none while one is open', () => {
+        // Arrows in the account menu also seeked the track, Space played instead of choosing,
+        // and type-ahead letters toggled shuffle and mute.
+        const withMenu = {
+            querySelector: (selector: string) => (selector.includes('dropdown-menu-content') ? {} : null),
+        }
+        const without = { querySelector: () => null }
+        expect(menuStanding(withMenu)).toBe(true)
+        expect(menuStanding(without)).toBe(false)
     })
 })

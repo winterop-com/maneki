@@ -71,7 +71,7 @@ export function SignIn() {
     const [asking, setAsking] = useState(false)
     // THE REFUSAL IS SHOWN FOR WHAT THIS SCREEN ASKED, NOT FOR WHAT THE APP TRIED ON ITS WAY
     // HERE. The session carries the boot probe's failure -- a shell finding nothing on the desk
-    // is one -- and a door that opened already saying "the server did not answer" would be
+    // is one -- and a door that opened already saying "The server did not answer." would be
     // scolding somebody who has not typed anything yet.
     const [submitted, setSubmitted] = useState(false)
     // The server went quiet under a sign-in that is still good; see the note under the button.
@@ -293,7 +293,8 @@ export function SignIn() {
                     {!submitted && waiting && (
                         <p
                             role="status"
-                            className="absolute inset-x-0 top-[calc(100%+1.5rem)] flex min-h-12 items-center gap-3 rounded-lg border border-border bg-muted px-4 text-sm"
+                            // In the flow, under the button, so a short window never hides it.
+                            className="mt-6 flex min-h-12 items-center gap-3 rounded-lg border border-border bg-muted px-4 text-sm"
                         >
                             <span className="min-w-0 flex-1">
                                 No answer from <span className="font-mono">{session.baseUrl}</span>. Your

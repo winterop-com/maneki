@@ -268,9 +268,9 @@ describe('telling a refusal from a silence', () => {
     // A timeout, a refused connection, a laptop that woke before its Wi-Fi: a session that is
     // still perfectly valid against a server that is momentarily not there.
     test('nothing else is, whatever it says', () => {
-        expect(isAuthError(new ApiError(0, 'the server did not answer'))).toBe(false)
+        expect(isAuthError(new ApiError(0, 'The server did not answer.'))).toBe(false)
         expect(isAuthError(new ApiError(500, 'the server answered 500'))).toBe(false)
-        expect(isAuthError(new SubsonicError(0, 'the server did not answer'))).toBe(false)
+        expect(isAuthError(new SubsonicError(0, 'The server did not answer.'))).toBe(false)
         expect(isAuthError(new SubsonicError(70, 'no album 12'))).toBe(false)
         expect(isAuthError(new TypeError('Failed to fetch'))).toBe(false)
         expect(isAuthError('nope')).toBe(false)

@@ -100,7 +100,7 @@ describe('requests', () => {
                 throw new TypeError('network')
             }),
         )
-        await expect(call(credentials, 'ping')).rejects.toThrow('the server did not answer')
+        await expect(call(credentials, 'ping')).rejects.toThrow('The server did not answer.')
     })
 })
 

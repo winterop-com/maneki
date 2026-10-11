@@ -1,7 +1,7 @@
 import { ChevronsUpDown, Keyboard, LogOut, Monitor, Moon, Settings, Sun } from 'lucide-react'
 import { useTheme } from 'next-themes'
 
-import { MODES, MODE_LABELS } from '@/components/ThemeToggle'
+import { MODES, MODE_LABELS, type Mode } from '@/components/ThemeToggle'
 import { Button } from '@/components/ui/button'
 import {
     DropdownMenu,
@@ -18,6 +18,7 @@ import {
     DropdownMenuSubTrigger,
     DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
+import { useSmallScreen } from '@/hooks/use-small-screen'
 import { useStore } from '@/hooks/use-store'
 import { accountInitial, serverHost } from '@/lib/account'
 import { sessionStore, signOut } from '@/lib/session'
@@ -52,8 +53,27 @@ export function AccountMenu({
 }) {
     const session = useStore(sessionStore)
     const { theme, setTheme } = useTheme()
+    // ON A PHONE THE MENU IS ITS OWN COLUMN. There is no room beside the drawer for a submenu,
+    // which flipped up over the menu it came from, and no keyboard for a shortcuts list: the
+    // looks are three rows of the menu itself, and the shortcuts are left out.
+    const small = useSmallScreen()
     const name = session.username ?? 'Signed in'
     const host = serverHost(session.baseUrl)
+    const mode: Mode = theme === 'light' || theme === 'dark' ? theme : 'system'
+    const ModeIcon = MODE_ICONS[mode]
+    const looks = (
+        <DropdownMenuRadioGroup value={mode} onValueChange={(chosen) => setTheme(String(chosen))}>
+            {MODES.map((one) => {
+                const Icon = MODE_ICONS[one]
+                return (
+                    <DropdownMenuRadioItem key={one} value={one} className={cn(small && 'min-h-finger')}>
+                        <Icon aria-hidden />
+                        {MODE_LABELS[one]}
+                    </DropdownMenuRadioItem>
+                )
+            })}
+        </DropdownMenuRadioGroup>
+    )
 
     return (
         <DropdownMenu>
@@ -62,9 +82,10 @@ export function AccountMenu({
                     <Button
                         variant="ghost"
                         aria-label={ACCOUNT_LABEL}
-                        title={collapsed ? name : undefined}
+                        // The whole name, wherever the corner has to cut it short.
+                        title={name}
                         className={cn(
-                            'h-full w-full rounded-none text-xs text-muted-foreground hover:text-foreground data-popup-open:bg-muted data-popup-open:text-foreground',
+                            'h-full w-full rounded-none text-sm text-muted-foreground hover:text-foreground data-popup-open:bg-muted data-popup-open:text-foreground',
                             collapsed ? 'justify-center p-0' : 'justify-start gap-2.5 px-3',
                         )}
                     >
@@ -78,9 +99,17 @@ export function AccountMenu({
                     </Button>
                 }
             />
-            <DropdownMenuContent side="top" align="start" sideOffset={6} className="w-60">
+            {/* Inset 4 px inside the corner it opens from, so it lines up with the rail rather
+                than running past its edge; never narrower than its rows need. */}
+            <DropdownMenuContent
+                side="top"
+                align="start"
+                sideOffset={6}
+                alignOffset={4}
+                className="w-[calc(var(--anchor-width)-8px)] min-w-56"
+            >
                 <DropdownMenuGroup>
-                    <DropdownMenuLabel className="flex items-center gap-2.5 px-1.5 py-1.5">
+                    <DropdownMenuLabel className="flex items-center gap-2.5 px-1.5 py-1.5" title={name}>
                         <Badge username={session.username} large />
                         <span className="min-w-0">
                             <span className="block truncate text-sm font-medium text-foreground">{name}</span>
@@ -89,39 +118,36 @@ export function AccountMenu({
                     </DropdownMenuLabel>
                 </DropdownMenuGroup>
                 <DropdownMenuSeparator />
-                <DropdownMenuItem onClick={onSettings}>
+                <DropdownMenuItem onClick={onSettings} className={cn(small && 'min-h-finger')}>
                     <Settings aria-hidden />
                     {SETTINGS_LABEL}
                 </DropdownMenuItem>
-                <DropdownMenuItem onClick={onShortcuts}>
-                    <Keyboard aria-hidden />
-                    {SHORTCUTS_LABEL}
-                    <DropdownMenuShortcut>{SHORTCUTS_KEY}</DropdownMenuShortcut>
-                </DropdownMenuItem>
-                <DropdownMenuSub>
-                    <DropdownMenuSubTrigger>
-                        <Sun aria-hidden />
-                        {APPEARANCE_LABEL}
-                    </DropdownMenuSubTrigger>
-                    <DropdownMenuSubContent>
-                        <DropdownMenuRadioGroup
-                            value={theme ?? 'system'}
-                            onValueChange={(mode) => setTheme(String(mode))}
-                        >
-                            {MODES.map((mode) => {
-                                const Icon = MODE_ICONS[mode]
-                                return (
-                                    <DropdownMenuRadioItem key={mode} value={mode}>
-                                        <Icon aria-hidden />
-                                        {MODE_LABELS[mode]}
-                                    </DropdownMenuRadioItem>
-                                )
-                            })}
-                        </DropdownMenuRadioGroup>
-                    </DropdownMenuSubContent>
-                </DropdownMenuSub>
+                {!small && (
+                    <DropdownMenuItem onClick={onShortcuts}>
+                        <Keyboard aria-hidden />
+                        {SHORTCUTS_LABEL}
+                        <DropdownMenuShortcut>{SHORTCUTS_KEY}</DropdownMenuShortcut>
+                    </DropdownMenuItem>
+                )}
+                {small ? (
+                    <DropdownMenuGroup>
+                        <DropdownMenuLabel>{APPEARANCE_LABEL}</DropdownMenuLabel>
+                        {looks}
+                    </DropdownMenuGroup>
+                ) : (
+                    <DropdownMenuSub>
+                        <DropdownMenuSubTrigger>
+                            {/* The look in force, not always the sun. */}
+                            <ModeIcon aria-hidden />
+                            {APPEARANCE_LABEL}
+                        </DropdownMenuSubTrigger>
+                        <DropdownMenuSubContent sideOffset={4} alignOffset={-4}>
+                            {looks}
+                        </DropdownMenuSubContent>
+                    </DropdownMenuSub>
+                )}
                 <DropdownMenuSeparator />
-                <DropdownMenuItem onClick={signOut}>
+                <DropdownMenuItem onClick={signOut} className={cn(small && 'min-h-finger')}>
                     <LogOut aria-hidden />
                     {SIGN_OUT_LABEL}
                 </DropdownMenuItem>

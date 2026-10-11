@@ -62,7 +62,7 @@ function Shelf() {
                 setScanning(status.scanning)
                 if (status.scanning) timer = setTimeout(() => void load(), SCAN_POLL_MS)
             } catch (error) {
-                if (live) setRefusal(error instanceof Error ? error.message : 'the server did not answer')
+                if (live) setRefusal(error instanceof Error ? error.message : 'The server did not answer.')
             }
         }
 

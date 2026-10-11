@@ -2219,6 +2219,21 @@ html.dark[data-theme='neon'],
     .control-link.border-transparent {
         border-left-color: Canvas;
     }
+
+    /* A menu draws its edge with a shadow and its focus with a tint, and this mode drops both:
+       every row looked the same and the menu had no edge. The row the keys are on gets the
+       highlight; the others none; the menu a plain border. */
+    [data-slot='dropdown-menu-content'],
+    [data-slot='dropdown-menu-sub-content'] {
+        border: 1px solid CanvasText;
+    }
+    [data-slot^='dropdown-menu'][role^='menuitem'] {
+        outline: none;
+    }
+    [data-slot^='dropdown-menu'][role^='menuitem'][data-highlighted] {
+        outline: 2px solid Highlight;
+        outline-offset: -2px;
+    }
 }
 
 /* CAPTIONS CLEAR THE CONTROL BAR WHILE IT IS UP. video.js lifts its caption area by its own 3em

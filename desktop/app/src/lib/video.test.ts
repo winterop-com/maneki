@@ -570,6 +570,6 @@ describe('what a missing folder says', () => {
         expect(folderRefusal("no such folder under videos/: 'Nope/Nothing'")).toBe(
             'That folder is not in the video library.',
         )
-        expect(folderRefusal('the server did not answer')).toBe('the server did not answer')
+        expect(folderRefusal('The server did not answer.')).toBe('The server did not answer.')
     })
 })

@@ -14,7 +14,7 @@ import {
     toggleShuffle,
 } from '@/lib/player'
 import { REPEAT_LABELS } from '@/lib/queue'
-import { dialogUp, mayOpen, type Standing } from '@/lib/dialogs'
+import { dialogUp, mayOpen, menuStanding, type Standing } from '@/lib/dialogs'
 import { paletteOpen } from '@/lib/palette'
 import { toggleRail } from '@/lib/panels'
 import { lyricsOpen, toggleLyrics } from '@/lib/lyrics'
@@ -82,6 +82,8 @@ export function useAppShortcuts(onShortcuts: () => void): void {
         }
 
         function onKeyDown(event: KeyboardEvent): void {
+            // Every key belongs to an open menu; see `menuStanding`.
+            if (menuStanding(document)) return
             const press = {
                 key: event.key,
                 ctrlKey: event.ctrlKey,

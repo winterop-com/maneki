@@ -27,7 +27,7 @@ import { createStore } from '@/lib/store'
  * Declared here rather than in either of them, because it is the one string this module
  * recognises and two copies of it would be one copy that drifts.
  */
-export const NETWORK_REFUSAL = 'the server did not answer'
+export const NETWORK_REFUSAL = 'The server did not answer.'
 
 /** Whether the server has gone quiet, and in what words. */
 export interface ConnectionState {

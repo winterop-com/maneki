@@ -179,7 +179,7 @@ export async function connect(stored: StoredSession = read(), submitted = false)
             music,
         })
     } catch (error) {
-        const reason = error instanceof Error ? error.message : 'the server did not answer'
+        const reason = error instanceof Error ? error.message : 'The server did not answer.'
         // AN AUTH REFUSAL CLEARS WHAT IS KEPT; A QUIET WIRE DOES NOT. The server saying we are
         // not allowed in means the credentials in storage are no longer good, so they go and
         // the door is the screen. Anything else is a session that is still valid against a

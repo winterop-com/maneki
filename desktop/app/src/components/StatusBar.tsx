@@ -43,11 +43,17 @@ export function StatusBar({ onSettings, onShortcuts }: { onSettings: () => void;
     const collapsed = useStore(railCollapsed)
     const width = useStore(railWidth)
     const dragging = useStore(railDragging)
+    // On a phone the corner lives in the drawer, so a foot with nothing to say is 46 px of
+    // nothing under the player bar; it is drawn there only while a screen has something to state.
+    const saying = status.note !== null || status.identifier !== null
 
     return (
         <footer
             data-shell-strip="foot"
-            className="flex h-shell-foot shrink-0 items-stretch border-t border-border-strong bg-sidebar"
+            className={cn(
+                'h-shell-foot shrink-0 items-stretch border-t border-border-strong bg-sidebar md:flex',
+                saying ? 'flex' : 'hidden',
+            )}
         >
             <div
                 data-shell-cell="settings"

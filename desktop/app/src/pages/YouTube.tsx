@@ -154,7 +154,7 @@ function Channels() {
                 listed = await youtubeApi.channels(refreshing)
             } catch (error) {
                 if (live) {
-                    setRefusal(error instanceof Error ? error.message : 'the server did not answer')
+                    setRefusal(error instanceof Error ? error.message : 'The server did not answer.')
                     setReading(false)
                 }
                 return
@@ -244,7 +244,7 @@ function Channels() {
             setTyped('')
             setAsk(reread)
         } catch (error) {
-            setProblem(error instanceof Error ? error.message : 'the server did not answer')
+            setProblem(error instanceof Error ? error.message : 'The server did not answer.')
         } finally {
             setAdding(false)
         }
@@ -255,7 +255,7 @@ function Channels() {
         try {
             await youtubeApi.removeChannel(channel.id)
         } catch (error) {
-            setProblem(error instanceof Error ? error.message : 'the server did not answer')
+            setProblem(error instanceof Error ? error.message : 'The server did not answer.')
             return
         }
         setAsk(reread)

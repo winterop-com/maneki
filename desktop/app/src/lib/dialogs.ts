@@ -88,3 +88,17 @@ export function mayOpen(opener: Opener, standing: Standing): boolean {
     if (opener === 'lyrics') return standing.song
     return true
 }
+
+/**
+ * Whether a menu (the account menu, a select's list) is standing open in `doc`.
+ *
+ * A MENU IS A SURFACE TOO. The keys are read in the capture phase, ahead of the menu's own, so
+ * with the account menu open its arrows also seeked the track, Space played instead of choosing,
+ * type-ahead letters toggled shuffle and mute, and `f`, `/` and Cmd+K stacked the stage, the
+ * search and the palette over it. While a menu is open the app answers no key at all.
+ */
+export function menuStanding(doc: Pick<Document, 'querySelector'>): boolean {
+    // The app's own menus, by their slot: the video player keeps hidden `role="menu"` lists in
+    // the page at all times, and matching those would take every key from the watch screen.
+    return doc.querySelector('[data-slot="dropdown-menu-content"], [data-slot="select-content"]') !== null
+}

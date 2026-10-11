@@ -147,6 +147,8 @@ export function Rail() {
                     ) : (
                         <>
                             <NavLink
+                                // Tabbable in WebKit too; see `RailEntry`.
+                                tabIndex={0}
                                 to={homePath(caps)}
                                 aria-label="maneki"
                                 className="flex min-w-0 items-center gap-2 rounded-md focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none"
