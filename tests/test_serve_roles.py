@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Any
 
 import pytest
 from fastapi.testclient import TestClient
@@ -31,8 +32,9 @@ def _as(user: str, **params: str) -> dict[str, str]:
     return {"u": user, "p": {"alice": "apw", "bob": "bpw"}[user], "f": "json", **params}
 
 
-def _call(client: TestClient, method: str, user: str, **params: str) -> dict:
-    return client.get(f"/rest/{method}", params=_as(user, **params)).json()["subsonic-response"]
+def _call(client: TestClient, method: str, user: str, **params: str) -> dict[str, Any]:
+    body: dict[str, Any] = client.get(f"/rest/{method}", params=_as(user, **params)).json()["subsonic-response"]
+    return body
 
 
 def _added(client: TestClient) -> list[str]:
@@ -80,7 +82,9 @@ def test_user_management_is_never_a_silent_ok(client: TestClient, method: str) -
 
 def test_editing_a_station_is_not_a_silent_ok(client: TestClient) -> None:
     assert _call(client, "updateInternetRadioStation", "bob", id="x", streamUrl=STREAM, name="n")["error"]["code"] == 50
-    assert _call(client, "updateInternetRadioStation", "alice", id="x", streamUrl=STREAM, name="n")["status"] == "failed"
+    assert (
+        _call(client, "updateInternetRadioStation", "alice", id="x", streamUrl=STREAM, name="n")["status"] == "failed"
+    )
 
 
 def test_a_listener_asking_for_another_account_is_not_authorized(client: TestClient) -> None:
