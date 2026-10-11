@@ -328,6 +328,9 @@ export function PlayerBar() {
                         event.preventDefault()
                     }}
                     className="resize-handle resize-handle-pane absolute inset-x-0 -top-1 z-10 h-2 cursor-row-resize touch-none"
+                    // Over the bar's top edge, not in its flow: the shared `.resize-handle` rule sets
+                    // `position: relative` and beat the class, adding 8 px to every bar.
+                    style={{ position: 'absolute' }}
                 />
             )}
             {/* THE DOCK: one sleeve on the left the whole height of the bar, and beside it the

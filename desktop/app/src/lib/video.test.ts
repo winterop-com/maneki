@@ -573,3 +573,20 @@ describe('what a missing folder says', () => {
         expect(folderRefusal('The server did not answer.')).toBe('The server did not answer.')
     })
 })
+
+describe('a film in a folder holding something else too', () => {
+    const folder = [
+        '01 - Star Trek - The Motion Picture (1979) 1080p h264 Ac3 5.1 Ita Eng Sub Ita Eng-MIRCrew',
+        '02 - Star Trek - The Wrath of Khan (1982) 1080p h264 Ac3 5.1 Ita Eng Sub Ita Eng-MIRCrew',
+        'James Bond-Never Say Never Again 1983.2160p.UHDrip.SDR.DTS.5.1-DDR',
+    ]
+
+    it('is cut against the names it shares a start with, not the odd one out', () => {
+        // One Bond film in the collection meant nothing was shared and no title was cut.
+        expect(episodeName(folder[1]!, folder)).toBe('The Wrath of Khan (1982)')
+    })
+
+    it('loses the release tags after an unbracketed year too', () => {
+        expect(episodeName(folder[2]!, folder)).toBe('James Bond-Never Say Never Again 1983')
+    })
+})

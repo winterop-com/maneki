@@ -187,12 +187,16 @@ export function episodeName(raw: string, rawSiblings: readonly string[]): string
  */
 function titleOf(name: string): string {
     const unnumbered = name.replace(SEQUENCE_NUMBER, '')
-    const dated = YEAR_THEN_TAGS.exec(unnumbered)
+    const dated = YEAR_THEN_TAGS.exec(unnumbered) ?? YEAR_THEN_RELEASE.exec(unnumbered)
     return (dated?.[1] ?? unnumbered).trim() || name
 }
 
 /** "01 - ", "3. ": a position in a collection, ahead of the title. */
 const SEQUENCE_NUMBER = /^\d{1,3}\s*[-–.]\s+/
+
+/** A bare year then a release tag ("... 1983.2160p.UHDrip..."): the title is up to the year. */
+const YEAR_THEN_RELEASE =
+    /^(.*?\b(?:19|20)\d{2})[ .](?:\d{3,4}p|uhd\w*|web\w*|blu-?ray|bdrip|hdtv|hdrip|dvdrip|x26[45]|h\.?26[45]|hevc)\b.*$/i
 
 /** A title ending in a year in brackets, then release tags after it. */
 const YEAR_THEN_TAGS = /^(.*?\((?:19|20)\d{2}\))\s+\S.*$/
@@ -217,6 +221,9 @@ function sharedWords(name: string, siblings: readonly string[]): number {
         const words = other.split(' ')
         let count = 0
         while (count < own.length && count < words.length && own[count] === words[count]) count += 1
+        // A name sharing not even a first word is the odd one out (one Bond film in a Star Trek
+        // collection), and counting it meant nothing was shared and no title was cut.
+        if (count === 0) continue
         shared = shared < 0 ? count : Math.min(shared, count)
     }
     return shared < 0 ? 0 : shared

@@ -356,7 +356,11 @@ function Watch({ id }: { id: string }) {
     useEffect(() => {
         if (video === null) return
         return claimMediaSession({
-            title: video.name,
+            // The episode or film, as the heading says it, not the release name.
+            title: episodeName(
+                video.name,
+                beside.map((one) => one.name),
+            ),
             artwork: videoApi.thumbnailUrl(video.id),
             play: () => {
                 if (player.current?.sample()?.paused !== false) player.current?.togglePlay()
@@ -366,7 +370,7 @@ function Watch({ id }: { id: string }) {
             },
             playing: () => player.current?.sample()?.paused === false,
         })
-    }, [video])
+    }, [beside, video])
     // Up and Down turn the picture up, not the album under it; see `claimVolumeKeys`.
     useEffect(
         () =>

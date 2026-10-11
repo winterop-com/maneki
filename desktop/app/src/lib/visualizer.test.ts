@@ -350,8 +350,8 @@ describe('the room a window has for the player bar', () => {
     test('leaves the whole bar at most two fifths of a short window, so the page keeps the rest', () => {
         // Dragged tall on a desktop and seen in a 500 px window, the page had 33 px; a phone in
         // landscape had its header covered.
-        expect(roomInWindow(320, 500)).toBe(154)
-        expect(roomInWindow(320, 343)).toBe(91)
+        expect(roomInWindow(320, 500)).toBe(153)
+        expect(roomInWindow(320, 343)).toBe(90)
         expect(roomInWindow(320, 200)).toBe(BAR_ROOM_MIN)
     })
 })

@@ -10,7 +10,9 @@ export function stationIsPlaying(
     row: { id: string; streamUrl: string },
     playing: { id: string; streamUrl: string } | null,
     refused: boolean,
+    sounding: boolean,
 ): boolean {
-    if (playing === null || refused) return false
+    // Nor is a paused one: the row said "playing" beside a bar offering Play.
+    if (playing === null || refused || !sounding) return false
     return playing.id === row.id || playing.streamUrl === row.streamUrl
 }

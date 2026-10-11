@@ -37,6 +37,7 @@ const FIND_DEBOUNCE_MS = 300
 const selectStationId = (state: { station: { id: string } | null }) => state.station?.id ?? null
 const selectStation = (state: { station: Station | null }) => state.station
 const selectRefused = (state: { refusal: string | null }) => state.refusal !== null
+const selectSounding = (state: { playing: boolean }) => state.playing
 
 /** What a found station is called while it plays, before it is anybody's: never a list id. */
 function previewId(found: FoundStation): string {
@@ -66,6 +67,7 @@ export function RadioPage() {
     const playingId = useStoreValue(playerStore, selectStationId)
     const playingStation = useStoreValue(playerStore, selectStation)
     const refused = useStoreValue(playerStore, selectRefused)
+    const sounding = useStoreValue(playerStore, selectSounding)
     // Stations whose Add is on its way, so a second press does not add it twice.
     const [adding, setAdding] = useState<ReadonlySet<string>>(new Set())
     const [stations, setStations] = useState<Station[] | null>(null)
@@ -147,6 +149,17 @@ export function RadioPage() {
         removeStation(credentials, station)
             .then(() => {
                 toast.success(`Removed ${station.name}`)
+                // A search result for the same stream can be added again.
+                setFound((held) =>
+                    held === null
+                        ? held
+                        : {
+                              ...held,
+                              stations: held.stations.map((one) =>
+                                  one.streamUrl === station.streamUrl ? { ...one, added: false } : one,
+                              ),
+                          },
+                )
                 reload(credentials)
             })
             .catch((error: Error) => toast.error(`Could not remove ${station.name}: ${error.message}`))
@@ -186,7 +199,8 @@ export function RadioPage() {
                     ) : (
                         <ul>
                             {results.map((station) => {
-                                const live = playingId === previewId(station)
+                                // The same rule as the saved rows: not while failing or paused.
+                                const live = playingId === previewId(station) && !refused && sounding
                                 return (
                                     <li
                                         key={station.id}
@@ -254,7 +268,7 @@ export function RadioPage() {
                 <ul>
                     {stations.map((station) => {
                         // By its stream, and not while it is failing; see `stationIsPlaying`.
-                        const live = stationIsPlaying(station, playingStation, refused)
+                        const live = stationIsPlaying(station, playingStation, refused, sounding)
                         return (
                             <li key={station.id} className="flex items-center">
                                 <button

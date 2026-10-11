@@ -249,8 +249,8 @@ export function clampBarRoom(room: number): number {
     return Math.round(Math.min(BAR_ROOM_MAX, Math.max(BAR_ROOM_MIN, room)))
 }
 
-/** The controls' row under the room, which the share below has to leave space for. */
-const BAR_FOOT = 46
+/** The controls' row under the room and the bar's top border, which the share has to leave for. */
+const BAR_FOOT = 47
 
 /** The most of a window's height the whole bar may take: the page keeps the rest. */
 const BAR_WINDOW_SHARE = 0.4

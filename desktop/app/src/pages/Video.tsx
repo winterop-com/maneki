@@ -439,7 +439,8 @@ function VideoRow({
     onOpen: () => void
 }) {
     const folder = showPath ? video.rel_path.slice(0, video.rel_path.lastIndexOf('/')) : ''
-    const name = siblings === undefined ? video.name : episodeName(video.name, siblings)
+    // Without neighbours (a search hit) the name is still cleaned of numbering and release tags.
+    const name = episodeName(video.name, siblings ?? [])
     return (
         <button
             type="button"

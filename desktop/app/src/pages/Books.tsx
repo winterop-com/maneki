@@ -192,7 +192,10 @@ function Book({ id }: { id: string }) {
                 </Button>
                 <Cover book={book} size={BOOK_COVER} className="size-28 shrink-0 rounded-md sm:size-40" />
                 <div className="min-w-0 flex-1">
-                    <h1 className="truncate text-base">{book.title}</h1>
+                    {/* Two lines on a phone rather than one cut short: the title is what the page is for. */}
+                    <h1 className="line-clamp-2 text-base md:truncate" title={book.title}>
+                        {book.title}
+                    </h1>
                     <p className="truncate text-sm text-muted-foreground">{book.author}</p>
                     {book.narrator && (
                         <p className="truncate text-xs text-muted-foreground">Read by {book.narrator}</p>

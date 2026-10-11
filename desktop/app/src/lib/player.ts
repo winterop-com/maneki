@@ -364,7 +364,11 @@ export function setPlayerCredentials(given: Credentials | undefined): void {
 
 /** How this player is asked to stop by whatever else wants the sound. */
 function silence(): void {
-    audio?.pause()
+    if (!audio) return
+    audio.pause()
+    // A station silenced (a video opening, say) lets its stream go as a pause does: otherwise it
+    // stayed connected, upstream and all, for the length of the film. See `releaseStation`.
+    if (state().station) releaseStation(audio)
 }
 
 /** Where the element's clock stands this instant, for a scrubber drawn every frame. */
@@ -392,7 +396,7 @@ function element(): HTMLAudioElement {
         // A BOOK'S FILE READS 0:00 UNTIL ITS PLACE IS APPLIED. While the seek waits on the
         // metadata, a tick is the load, not the listener -- saved, it put a book switched to back
         // at its start (or at the file's offset) until the right place followed.
-        if (book && heldSeek !== null) return
+        if (book && (heldSeek !== null || bookDone)) return
         if (!book) {
             patch({ positionS: audio!.currentTime })
             return
@@ -415,7 +419,7 @@ function element(): HTMLAudioElement {
         patch({ playing: false })
         // Stopping is the moment a place is worth keeping, and the one a listener expects to
         // come back to.
-        if (state().book) saveBook(state().positionS)
+        if (state().book && !bookDone) saveBook(state().positionS)
     })
     audio.addEventListener('ended', () => {
         if (state().book) {
@@ -673,6 +677,7 @@ function leaveBook(): void {
 function placeBook(at: number, resume: boolean, reload = false): void {
     const { book } = state()
     if (!book) return
+    bookDone = false
     const player = element()
     const { index, offsetS } = fileAt(book.files, at)
     const file = book.files.find((one) => one.index === index)
@@ -725,9 +730,19 @@ const END_OF_BOOK_S = 0.5
 
 /** The book is over: stopped at its last second, and saved as finished. */
 function finishBook(book: PlayingBook): void {
+    bookDone = true
     patch({ playing: false, positionS: book.duration_s })
     saveBook(book.duration_s, true)
 }
+
+/**
+ * Whether the book on the element has been finished, until it is placed again.
+ *
+ * Finishing pauses the element, and the pause (and a last tick before it) arrive afterwards
+ * reporting where the element was: saved, that put the book back a few seconds before its end
+ * and the bar with them. Once finished, neither is listened to.
+ */
+let bookDone = false
 
 /**
  * The points a book steps between.

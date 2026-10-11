@@ -1,3 +1,4 @@
+import { claimSound } from '@/lib/sound'
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest'
 
 import {
@@ -462,6 +463,17 @@ describe('a station paused and picked up again', () => {
     })
 })
 
+describe('a station something else silenced', () => {
+    test('lets its stream go, as a pause does', () => {
+        // A video opening paused the station, but the stream stayed connected the whole film.
+        playStation(stations[0]!)
+        expect(fake.src).not.toBe('')
+        claimSound(() => undefined)
+        expect(fake.src).toBe('')
+        expect(playerStore.get().playing).toBe(false)
+    })
+})
+
 describe('switching stations faster than they open', () => {
     test('a play the next station interrupted is not silence', async () => {
         playStation(stations[0]!)
@@ -781,6 +793,18 @@ describe('playing a book', () => {
         expect(playerStore.get().positionS).toBe(3600)
         expect(saves().at(-1)).toEqual({ position_s: 3600, finished: true })
         expect(saves().some((one) => one.position_s === 0)).toBe(false)
+    })
+
+    test('a finished book is not saved again at the place the element last reported', () => {
+        // The pause that finishing caused arrived after a tick and saved 1516.7 over the end.
+        playBook(book, 3594)
+        fake.arrive()
+        fake.currentTime = 1794
+        skipBy(15)
+        fake.emit('timeupdate')
+        fake.emit('pause')
+        expect(saves().at(-1)).toEqual({ position_s: 3600, finished: true })
+        expect(playerStore.get().positionS).toBe(3600)
     })
 
     test('a scrub to the very end finishes the book too', () => {

@@ -8,7 +8,7 @@ import { Skeleton } from '@/components/Skeleton'
 import { Button } from '@/components/ui/button'
 import { useStore, useStoreValue } from '@/hooks/use-store'
 import { playingRow } from '@/lib/queue'
-import { albumPath } from '@/lib/nav'
+import { albumPath, bookOfAlbum } from '@/lib/nav'
 import { clock, trackCount } from '@/lib/format'
 import { registerActions, SCREEN_GROUP } from '@/lib/palette'
 import { play, playerStore } from '@/lib/player'
@@ -342,7 +342,12 @@ function Artists({ credentials }: { credentials: Credentials }) {
                         <button
                             key={song.id}
                             type="button"
-                            onClick={() => play(results.songs, index)}
+                            onClick={() => {
+                                // A part of a book opens the book, as the search overlay does; see `albumPath`.
+                                const book = song.albumId === undefined ? null : bookOfAlbum(song.albumId)
+                                if (book !== null) void navigate(`/books/${book}`)
+                                else play(results.songs, index)
+                            }}
                             className="row-hover flex min-h-finger w-full min-w-0 items-center gap-3 rounded-md px-3 text-left text-sm"
                         >
                             <span className="min-w-0 flex-1 truncate">{song.title}</span>
@@ -456,7 +461,7 @@ function ArtistScreen({ credentials, id }: { credentials: Credentials; id: strin
                             <p className="text-xs text-muted-foreground">
                                 {album.year ?? ''}
                                 {album.year ? ' · ' : ''}
-                                {album.songCount} tracks
+                                {album.songCount} {album.songCount === 1 ? 'track' : 'tracks'}
                             </p>
                         </button>
                     </li>
