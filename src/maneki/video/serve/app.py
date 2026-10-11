@@ -31,6 +31,7 @@ if TYPE_CHECKING:
 
 from maneki import __version__
 from maneki.access_log import make_access_log_middleware
+from maneki.video.search import matches
 from maneki.video.serve import youtube
 from maneki.video.serve.demo import DEMO_HTML
 from maneki.video.serve.encoders import select_encoder
@@ -321,25 +322,24 @@ def create_app(
 
     @app.get("/api/search")
     def search_videos(q: str = "", limit: int = 200) -> list[VideoEntry]:
-        """Substring-match `q` against video name + rel_path; return ranked matches.
+        """Match the words of `q` against video name + rel_path (see `maneki.video.search`).
 
-        Case-insensitive. Empty / whitespace-only `q` returns no results so
-        the SPA can swap views cheaply on every keystroke without spamming
-        the network. Capped at `limit` (default 200) to keep the payload
-        reasonable on huge libraries.
+        Case-insensitive, in any order, however the name separates its words.
+        Empty / whitespace-only `q` returns no results so the SPA can swap
+        views cheaply on every keystroke without spamming the network.
+        Capped at `limit` (default 200) to keep the payload reasonable on
+        huge libraries.
 
         Filename-only search is deliberate (no ffprobe tags / no AI
         title parsing). Real-world video libraries are searched by
         release name today; a smarter title-aware pass can layer on
         later without changing the endpoint shape.
         """
-        needle = q.strip().lower()
-        if not needle:
+        if not q.strip():
             return []
         out: list[VideoEntry] = []
         for entry in _videos():
-            hay = (entry.name + " " + entry.rel_path).lower()
-            if needle in hay:
+            if matches(q, entry.name + " " + entry.rel_path):
                 out.append(entry)
                 if len(out) >= limit:
                     break
