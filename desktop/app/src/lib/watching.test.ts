@@ -3,6 +3,8 @@ import { afterEach, describe, expect, it } from 'vitest'
 import {
     AUTOPLAY_NEXT_KEY,
     autoplayNext,
+    barOnScreen,
+    onWatchScreen,
     setAutoplayNext,
     setTheater,
     THEATER_KEY,
@@ -62,5 +64,30 @@ describe('the up-next choice', () => {
     it('counts down where somebody can see it', () => {
         expect(UP_NEXT_SECONDS).toBeGreaterThan(0)
         expect(AUTOPLAY_NEXT_KEY).toBe('maneki.autoplay-next')
+    })
+})
+
+describe('the player bar under a picture', () => {
+    it('knows a watch screen from the lists that lead to one', () => {
+        expect(onWatchScreen('/video/v/abc')).toBe(true)
+        expect(onWatchScreen('/youtube/v/abc')).toBe(true)
+        expect(onWatchScreen('/video')).toBe(false)
+        expect(onWatchScreen('/video/browse/Series')).toBe(false)
+        expect(onWatchScreen('/youtube')).toBe(false)
+        expect(onWatchScreen('/music')).toBe(false)
+    })
+
+    it('goes away under a picture while the music is stopped, as a station paused to watch is', () => {
+        expect(barOnScreen('/video/v/abc', false)).toBe('none')
+        expect(barOnScreen('/youtube/v/abc', false)).toBe('none')
+    })
+
+    it('is the strip under a picture while the music plays, so it can still be stopped', () => {
+        expect(barOnScreen('/video/v/abc', true)).toBe('strip')
+    })
+
+    it('is the whole bar everywhere else, playing or not', () => {
+        expect(barOnScreen('/radio', false)).toBe('full')
+        expect(barOnScreen('/video', true)).toBe('full')
     })
 })

@@ -68,3 +68,22 @@ export function setAutoplayNext(on: boolean): void {
     writeFlag(AUTOPLAY_NEXT_KEY, on)
     autoplayNext.set(on)
 }
+
+/** Whether a path is a screen with a picture playing on it: a video or a YouTube video. */
+export function onWatchScreen(path: string): boolean {
+    return /^\/(video|youtube)\/v\/[^/]+/.test(path)
+}
+
+/**
+ * How much of the player bar a screen leaves room for.
+ *
+ * THE PICTURE IS WHAT IS IN FRONT OF SOMEBODY. A bar dragged tall for liner notes was a third
+ * of the window under a film, and a station paused to watch it still held all of that. So on a
+ * watch screen music that is not playing has no bar at all, and music that is gets the strip:
+ * the controls to stop it, and nothing that competes with the picture. The height somebody
+ * dragged the bar to is theirs again on the next screen.
+ */
+export function barOnScreen(path: string, musicPlaying: boolean): 'full' | 'strip' | 'none' {
+    if (!onWatchScreen(path)) return 'full'
+    return musicPlaying ? 'strip' : 'none'
+}

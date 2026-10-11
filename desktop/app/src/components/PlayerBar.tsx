@@ -13,7 +13,7 @@ import {
     VolumeX,
 } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
-import { NavLink } from 'react-router'
+import { NavLink, useLocation } from 'react-router'
 
 import { CoverArt } from '@/components/CoverArt'
 import { LcdDisplay } from '@/components/LcdDisplay'
@@ -59,6 +59,7 @@ import {
     visualizerShown,
 } from '@/lib/visualizer'
 import { cn } from '@/lib/utils'
+import { barOnScreen } from '@/lib/watching'
 
 export const RESIZE_BAR_LABEL = 'Resize the player bar'
 export const RETRY_LABEL = 'Retry'
@@ -118,7 +119,10 @@ export function PlayerBar() {
     // THE BAR IS DRAGGED TALLER AND THE ROOM IS THE SPECTRUM. The grip is the bar's top edge;
     // pulling it up gives the room above the controls more height, and the spectrum is drawn
     // across the whole of it, always along the foot: never elsewhere, never a second copy.
-    const room = useStore(barRoom)
+    const dragged = useStore(barRoom)
+    // Under a picture the bar is the strip or nothing: see `barOnScreen`.
+    const fits = barOnScreen(useLocation().pathname, player.playing)
+    const room = fits === 'strip' ? BAR_ROOM_MIN : dragged
     // THE DRAG WRITES A HEIGHT ONTO THE ELEMENT IT IS GIVEN, so it is given the room and not
     // the bar: handed the bar, it forced the whole of it to the room's height mid-drag and the
     // controls spilled out under the status bar.
@@ -180,6 +184,7 @@ export function PlayerBar() {
     // without one. A book is maneki's own, and a server with books and no music still has a
     // transport.
     if (!book && !session.music) return null
+    if (fits === 'none') return null
 
     // The sleeve is drawn at up to a few hundred pixels, so it is asked for at that size.
     const sleeve = book
@@ -229,24 +234,26 @@ export function PlayerBar() {
             data-shell-strip="player"
             className="relative flex shrink-0 flex-col border-t border-border-strong bg-sidebar"
         >
-            <div
-                role="separator"
-                aria-orientation="horizontal"
-                aria-label={RESIZE_BAR_LABEL}
-                aria-valuenow={room}
-                aria-valuemin={BAR_ROOM_MIN}
-                aria-valuemax={BAR_ROOM_MAX}
-                tabIndex={0}
-                data-dragging={dragging}
-                onPointerDown={beginResize}
-                onKeyDown={(event) => {
-                    if (event.key === 'ArrowUp') setBarRoom(room + KEYBOARD_STEP)
-                    else if (event.key === 'ArrowDown') setBarRoom(room - KEYBOARD_STEP)
-                    else return
-                    event.preventDefault()
-                }}
-                className="resize-handle resize-handle-pane absolute inset-x-0 -top-1 z-10 h-2 cursor-row-resize touch-none"
-            />
+            {fits === 'full' && (
+                <div
+                    role="separator"
+                    aria-orientation="horizontal"
+                    aria-label={RESIZE_BAR_LABEL}
+                    aria-valuenow={room}
+                    aria-valuemin={BAR_ROOM_MIN}
+                    aria-valuemax={BAR_ROOM_MAX}
+                    tabIndex={0}
+                    data-dragging={dragging}
+                    onPointerDown={beginResize}
+                    onKeyDown={(event) => {
+                        if (event.key === 'ArrowUp') setBarRoom(room + KEYBOARD_STEP)
+                        else if (event.key === 'ArrowDown') setBarRoom(room - KEYBOARD_STEP)
+                        else return
+                        event.preventDefault()
+                    }}
+                    className="resize-handle resize-handle-pane absolute inset-x-0 -top-1 z-10 h-2 cursor-row-resize touch-none"
+                />
+            )}
             {/* THE DOCK: one sleeve on the left the whole height of the bar, and beside it the
                 spectrum over the controls, as the client before this one drew it. The sleeve
                 grows with the room, because it is the room's height plus the controls'. */}
