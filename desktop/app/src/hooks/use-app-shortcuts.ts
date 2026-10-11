@@ -143,7 +143,9 @@ export function useAppShortcuts(onShortcuts: () => void): void {
                 event.preventDefault()
                 toggleVisualizer()
                 // A lasting change made by one letter says so; see `toggleNotice`.
-                toast(toggleNotice('spectrum', visualizerShown.get()))
+                // One note per key, replaced rather than stacked: V twice showed "hidden" and
+                // "shown" at once, which contradicted itself.
+                toast(toggleNotice('spectrum', visualizerShown.get()), { id: 'key:spectrum' })
                 return
             }
             if (opensStage(press, focused())) {
@@ -163,7 +165,7 @@ export function useAppShortcuts(onShortcuts: () => void): void {
                 event.preventDefault()
                 if (queueless) return
                 toggleShuffle()
-                toast(toggleNotice('shuffle', playerStore.get().shuffle))
+                toast(toggleNotice('shuffle', playerStore.get().shuffle), { id: 'key:shuffle' })
                 return
             }
             if (cyclesRepeat(press, focused())) {
@@ -172,6 +174,9 @@ export function useAppShortcuts(onShortcuts: () => void): void {
                 cycleRepeat()
                 toast(
                     `${REPEAT_LABELS[playerStore.get().repeat]}. Press ${REPEAT_KEY.toUpperCase()} for the next.`,
+                    {
+                        id: 'key:repeat',
+                    },
                 )
                 return
             }
@@ -210,7 +215,7 @@ export function useAppShortcuts(onShortcuts: () => void): void {
                 const claimed = muteKeyClaim()
                 if (claimed === null) {
                     toggleMuted()
-                    toast(toggleNotice('mute', playerStore.get().muted))
+                    toast(toggleNotice('mute', playerStore.get().muted), { id: 'key:mute' })
                 } else claimed()
                 return
             }
@@ -223,7 +228,7 @@ export function useAppShortcuts(onShortcuts: () => void): void {
             if (starsCurrent(press, focused())) {
                 event.preventDefault()
                 const starred = toggleStar(sessionStore.get().music, currentSong())
-                if (starred !== null) toast(toggleNotice('star', starred))
+                if (starred !== null) toast(toggleNotice('star', starred), { id: 'key:star' })
                 return
             }
             if (opensShortcuts(press, focused())) {
