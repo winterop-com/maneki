@@ -216,6 +216,8 @@ export const books = {
     saveProgress: (id: string, positionS: number, finished?: boolean): Promise<BookProgress> =>
         send(`/books/api/books/${id}/progress`, 'PUT', { position_s: tenths(positionS), finished }),
     clearProgress: (id: string): Promise<void> => send(`/books/api/books/${id}/progress`, 'DELETE'),
+    /** Where this account last was in the book, and when the server was told. */
+    progress: (id: string): Promise<BookProgress> => request(`/books/api/books/${id}/progress`),
     /** Whether the server is still reading the books folder, and how many it has so far. */
     scanStatus: (): Promise<{ scanning: boolean; books: number }> => request('/books/api/scan'),
     /**

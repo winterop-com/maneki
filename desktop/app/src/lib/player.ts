@@ -585,9 +585,39 @@ function saveBook(at: number, finished?: boolean): void {
     const { book } = state()
     if (!book) return
     savedAt = at
-    void booksApi.saveProgress(book.id, at, finished).catch(() => {
-        // A lost save is retried by the next tick; nothing to tell the listener.
-    })
+    void booksApi
+        .saveProgress(book.id, at, finished)
+        .then((kept) => {
+            if (typeof kept?.updated_at === 'number') savedStamp = Math.max(savedStamp, kept.updated_at)
+        })
+        .catch(() => {
+            // A lost save is retried by the next tick; nothing to tell the listener.
+        })
+}
+
+/** The server's stamp on this tab's latest save of the book, to tell a newer one from elsewhere. */
+let savedStamp = 0
+
+/**
+ * Pick a paused book up, from a newer place if another device kept one.
+ *
+ * A TAB LEFT PAUSED IS NOT THE LAST WORD. It resumed from the place it held and saved over
+ * whatever a phone had kept since, so the phone's hour was lost. So the server is asked first:
+ * a place saved after this tab's own last save, and somewhere else, is where the book goes on.
+ */
+async function resumeBook(player: HTMLAudioElement, id: string): Promise<void> {
+    try {
+        const kept = await booksApi.progress(id)
+        const { book, positionS } = state()
+        if (book?.id !== id) return
+        if (!kept.finished && kept.updated_at > savedStamp && Math.abs(kept.position_s - positionS) > 1) {
+            placeBook(kept.position_s, true)
+            return
+        }
+    } catch {
+        // Not knowing is no reason not to play: carry on from what this tab holds.
+    }
+    if (state().book?.id === id) start(player)
 }
 
 /** The seek waiting on a file's metadata, if one is. See `placeBook`. */
@@ -813,6 +843,7 @@ export function toggle(): void {
         // A book whose element holds nothing has been picked up rather than resumed -- the
         // source is put on before it is asked to play.
         if (book && !player.src) placeBook(state().positionS, true)
+        else if (book) void resumeBook(player, book.id)
         else start(player)
     } else player.pause()
 }
@@ -1029,6 +1060,7 @@ export function clear(): void {
     watchingPagehide = false
     loadedFile = 0
     savedAt = 0
+    savedStamp = 0
     unregister?.()
     unregister = null
     audio?.pause()

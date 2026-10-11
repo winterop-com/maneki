@@ -632,9 +632,12 @@ function leftAt(positionS: number): BookDetail {
 
 /** What the server was told about the place, in the order it was told. */
 function saves(): { position_s: number; finished?: boolean }[] {
-    return asked
-        .filter((one) => one.path.includes('/progress'))
-        .map((one) => one.body as { position_s: number; finished?: boolean })
+    return (
+        asked
+            // A save carries a body; asking where the book was left does not.
+            .filter((one) => one.path.includes('/progress') && one.body !== undefined)
+            .map((one) => one.body as { position_s: number; finished?: boolean })
+    )
 }
 
 describe('playing a book', () => {
@@ -715,6 +718,63 @@ describe('playing a book', () => {
         expect(saves().at(-1)).toEqual({ position_s: 3600, finished: true })
     })
 
+    test('picking up a paused book takes a newer place another device saved', async () => {
+        // A tab left paused at 1:23 resumed from what it held and saved over the 2:30 a phone had
+        // kept since, so the phone's listening was lost.
+        vi.stubGlobal(
+            'fetch',
+            vi.fn(async (path: string, init?: RequestInit) => {
+                asked.push({
+                    path,
+                    body: init?.body === undefined ? undefined : JSON.parse(String(init.body)),
+                })
+                const body =
+                    init?.method === 'PUT'
+                        ? { book_id: 'bk_1', position_s: 100, finished: false, updated_at: 1000 }
+                        : { book_id: 'bk_1', position_s: 2000, finished: false, updated_at: 2000 }
+                return { ok: true, status: 200, json: async () => body } as Response
+            }),
+        )
+        playBook(book, 100)
+        fake.arrive()
+        seek(100)
+        await vi.waitFor(() => expect(saves().length).toBeGreaterThan(0))
+        fake.pause()
+        const before = saves().length
+        toggle()
+        await vi.waitFor(() => expect(playerStore.get().positionS).toBe(2000))
+        expect(fake.src).toContain('two.m4b')
+        // Nothing this tab held is written back over the newer place.
+        expect(
+            saves()
+                .slice(before)
+                .some((one) => one.position_s === 100),
+        ).toBe(false)
+    })
+
+    test('picking up a paused book keeps its own place when nothing newer was saved', async () => {
+        vi.stubGlobal(
+            'fetch',
+            vi.fn(async (path: string, init?: RequestInit) => {
+                asked.push({
+                    path,
+                    body: init?.body === undefined ? undefined : JSON.parse(String(init.body)),
+                })
+                const body = { book_id: 'bk_1', position_s: 100, finished: false, updated_at: 1000 }
+                return { ok: true, status: 200, json: async () => body } as Response
+            }),
+        )
+        playBook(book, 100)
+        fake.arrive()
+        seek(100)
+        await vi.waitFor(() => expect(saves().length).toBeGreaterThan(0))
+        fake.pause()
+        toggle()
+        await vi.waitFor(() => expect(playerStore.get().playing).toBe(true))
+        expect(playerStore.get().positionS).toBe(100)
+        expect(fake.src).toContain('one.m4b')
+    })
+
     test('a book is not a track, so nothing asks the queue about it', () => {
         playBook(book, 60)
         expect(currentSong()).toBeNull()
@@ -730,13 +790,14 @@ describe('playing a book', () => {
         expect(fake.src).toContain('two.m4b')
     })
 
-    test('picking it up again plays rather than needing the source put on twice', () => {
+    test('picking it up again plays rather than needing the source put on twice', async () => {
         playBook(book, 100)
         fake.arrive()
         fake.pause()
         expect(playerStore.get().playing).toBe(false)
         toggle()
-        expect(playerStore.get().playing).toBe(true)
+        // The server is asked for a newer place first; see `resumeBook`.
+        await vi.waitFor(() => expect(playerStore.get().playing).toBe(true))
     })
 })
 
