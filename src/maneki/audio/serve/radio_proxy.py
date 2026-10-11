@@ -29,7 +29,18 @@ from maneki import __version__
 from maneki.audio import radio, radio_browser
 
 _icy_titles: dict[str, str] = {}
-_ICY_TITLE_RE = re.compile(rb"StreamTitle='([^']*)';")
+# Up to the first `';`, not the first apostrophe: "Don't Stop Me Now" stopped at "Don" and never
+# matched, and the song before it stayed on screen.
+_ICY_TITLE_RE = re.compile(rb"StreamTitle='(.*?)';", re.DOTALL)
+
+
+def stream_title(meta: bytes) -> str | None:
+    """The song a metadata frame announces, or None when it announces nothing."""
+    match = _ICY_TITLE_RE.search(meta.rstrip(b"\x00"))
+    if not match:
+        return None
+    title = match.group(1).decode("utf-8", errors="replace").strip()
+    return title or None
 
 
 def latest_icy_title(url: str) -> str:
@@ -52,16 +63,25 @@ async def proxy_station_stream(url: str) -> Response:
     if url not in allowed and not radio_browser.was_offered(url):
         return Response("Unknown station", status_code=403)
 
+    # A FRESH CONNECTION KNOWS NO TITLE YET. The last one seen was kept after the stream ended, so a
+    # station played again showed a song from minutes before until its next title frame.
+    _icy_titles.pop(url, None)
     client = httpx.AsyncClient(timeout=httpx.Timeout(30.0, read=None))
-    upstream = await client.send(
-        client.build_request(
-            "GET",
-            url,
-            headers={"User-Agent": f"maneki/audio/{__version__}", "Icy-MetaData": "1"},
-        ),
-        stream=True,
-        follow_redirects=True,
-    )
+    try:
+        upstream = await client.send(
+            client.build_request(
+                "GET",
+                url,
+                headers={"User-Agent": f"maneki/audio/{__version__}", "Icy-MetaData": "1"},
+            ),
+            stream=True,
+            follow_redirects=True,
+        )
+    except httpx.HTTPError as exc:
+        # Refused, unresolvable, timed out: the station's fault, said as a 502 rather than a 500
+        # with a traceback, and the client let go of rather than left open.
+        await client.aclose()
+        return Response(f"Upstream unreachable: {type(exc).__name__}", status_code=502)
     if upstream.status_code >= 400:
         await upstream.aclose()
         await client.aclose()
@@ -108,12 +128,9 @@ async def proxy_station_stream(url: str) -> Response:
                         break
                     meta_bytes = bytes(buf[:meta_len])
                     del buf[:meta_len]
-                    text = meta_bytes.rstrip(b"\x00")
-                    match = _ICY_TITLE_RE.search(text)
-                    if match:
-                        title = match.group(1).decode("utf-8", errors="replace").strip()
-                        if title:
-                            _icy_titles[url] = title
+                    title = stream_title(meta_bytes)
+                    if title:
+                        _icy_titles[url] = title
                     audio_left = metaint
                     state = "audio"
         finally:
