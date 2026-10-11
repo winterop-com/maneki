@@ -65,3 +65,36 @@ def test_a_directory_logo_that_is_not_an_address_is_no_logo() -> None:
     with_logo = radio_browser._parse({**row, "favicon": "https://s.example/logo.png"})  # noqa: SLF001
     assert with_logo is not None
     assert with_logo.logo == "https://s.example/logo.png"
+
+
+def _offered(monkeypatch: pytest.MonkeyPatch, handler: Any) -> None:
+    """A station a search offered (the public directory), not one an admin added."""
+    from maneki.audio import radio_browser
+
+    monkeypatch.setattr(radio, "load_stations", lambda: [])
+    monkeypatch.setattr(radio_browser, "was_offered", lambda _url: True)
+    real = httpx.AsyncClient
+
+    def client(**kwargs: Any) -> httpx.AsyncClient:
+        return real(transport=httpx.MockTransport(handler), **kwargs)
+
+    monkeypatch.setattr(radio_proxy.httpx, "AsyncClient", client)
+
+
+def test_an_offered_station_may_not_point_inside(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The directory is open to anyone, so a station found there could make the server fetch an
+    address on its own network."""
+    _offered(monkeypatch, lambda request: httpx.Response(200, content=b"secret"))
+    answer = asyncio.run(radio_proxy.proxy_station_stream("http://127.0.0.1:8790/books/api/progress"))
+    assert answer.status_code == 403
+
+
+def test_an_offered_station_may_not_redirect_inside(monkeypatch: pytest.MonkeyPatch) -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.host == "93.184.215.14":
+            return httpx.Response(302, headers={"location": "http://10.0.0.1/admin"})
+        return httpx.Response(200, content=b"secret")
+
+    _offered(monkeypatch, handler)
+    answer = asyncio.run(radio_proxy.proxy_station_stream("http://93.184.215.14/live"))
+    assert answer.status_code == 502

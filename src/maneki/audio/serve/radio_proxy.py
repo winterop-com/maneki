@@ -18,7 +18,10 @@ proxy generator + ICY-title parser. Two routes call into it:
 
 from __future__ import annotations
 
+import asyncio
+import ipaddress
 import re
+import socket
 from collections.abc import AsyncIterator
 
 import httpx2 as httpx
@@ -32,6 +35,36 @@ _icy_titles: dict[str, str] = {}
 # Up to the first `';`, not the first apostrophe: "Don't Stop Me Now" stopped at "Don" and never
 # matched, and the song before it stayed on screen.
 _ICY_TITLE_RE = re.compile(rb"StreamTitle='(.*?)';", re.DOTALL)
+
+
+async def _points_inside(url: str) -> bool:
+    """Whether a URL's host is (or resolves to) a private, loopback or otherwise local address."""
+    host = httpx.URL(url).host
+    if not host:
+        return True
+    try:
+        infos = await asyncio.to_thread(socket.getaddrinfo, host, None)
+    except OSError:
+        # Unresolvable here is unreachable here; the fetch will fail on its own.
+        return False
+    for info in infos:
+        address = ipaddress.ip_address(info[4][0])
+        if (
+            address.is_private
+            or address.is_loopback
+            or address.is_link_local
+            or address.is_reserved
+            or address.is_multicast
+            or address.is_unspecified
+        ):
+            return True
+    return False
+
+
+async def _refuse_inside(request: httpx.Request) -> None:
+    """Every hop of an offered station, redirects included, has to stay outside."""
+    if await _points_inside(str(request.url)):
+        raise httpx.ConnectError("refused: the station points inside this network", request=request)
 
 
 def stream_title(meta: bytes) -> str | None:
@@ -60,13 +93,20 @@ async def proxy_station_stream(url: str) -> Response:
     # can be tried before it is added). Anything else is refused: this is not
     # an open relay.
     allowed = {s.url for s in radio.load_stations()}
-    if url not in allowed and not radio_browser.was_offered(url):
+    offered = url not in allowed
+    if offered and not radio_browser.was_offered(url):
         return Response("Unknown station", status_code=403)
+    # A STATION FROM THE DIRECTORY STAYS OUTSIDE. radio-browser.info is open to anyone, so a station
+    # found there, or a redirect it answers with, could make this server fetch an address on its
+    # own network. Stations an admin added are trusted with the LAN; offered ones are not.
+    if offered and await _points_inside(url):
+        return Response("That station points inside this network", status_code=403)
 
     # A FRESH CONNECTION KNOWS NO TITLE YET. The last one seen was kept after the stream ended, so a
     # station played again showed a song from minutes before until its next title frame.
     _icy_titles.pop(url, None)
-    client = httpx.AsyncClient(timeout=httpx.Timeout(30.0, read=None))
+    hooks = {"request": [_refuse_inside]} if offered else {}
+    client = httpx.AsyncClient(timeout=httpx.Timeout(30.0, read=None), event_hooks=hooks)
     try:
         upstream = await client.send(
             client.build_request(
