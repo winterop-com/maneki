@@ -27,6 +27,7 @@ import { clock, songLine } from '@/lib/format'
 import { nowPlayingFace } from '@/lib/lcd'
 import { LINER_ROOM, linerByline, linerEyebrow, linerTitle, linerTitlePx } from '@/lib/liner'
 import {
+    bookStepCount,
     currentChapter,
     currentSong,
     cycleRepeat,
@@ -38,8 +39,8 @@ import {
     seek,
     setSpeed,
     setVolume,
-    skipBy,
     SKIP_S,
+    skipBy,
     SPEEDS,
     toggle,
     toggleMuted,
@@ -563,7 +564,8 @@ export function PlayerBar() {
                                 // a tap away on its page, and five buttons would push one off the edge.
                                 className={cn(book && 'max-[359px]:hidden')}
                                 onClick={previous}
-                                disabled={station !== null}
+                                // A book with nowhere to step to offers no step; see `bookStepCount`.
+                                disabled={station !== null || (book !== null && bookStepCount(book) < 2)}
                             >
                                 <SkipBack className="size-4" aria-hidden />
                             </Button>
@@ -586,7 +588,8 @@ export function PlayerBar() {
                                 // a tap away on its page, and five buttons would push one off the edge.
                                 className={cn(book && 'max-[359px]:hidden')}
                                 onClick={next}
-                                disabled={station !== null}
+                                // A book with nowhere to step to offers no step; see `bookStepCount`.
+                                disabled={station !== null || (book !== null && bookStepCount(book) < 2)}
                             >
                                 <SkipForward className="size-4" aria-hidden />
                             </Button>

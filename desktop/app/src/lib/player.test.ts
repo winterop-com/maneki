@@ -1,17 +1,11 @@
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest'
 
 import {
+    bookStepCount,
     clear,
     currentChapter,
-    cycleRepeat,
-    toggleShuffle,
-    setSpeed,
-    setVolume,
-    skipBy,
-    storedVolume,
-    toggleMuted,
-    spectrum,
     currentSong,
+    cycleRepeat,
     next,
     play,
     playBook,
@@ -22,7 +16,14 @@ import {
     retry,
     seek,
     setPlayerCredentials,
+    setSpeed,
+    setVolume,
+    skipBy,
+    spectrum,
+    storedVolume,
     toggle,
+    toggleMuted,
+    toggleShuffle,
 } from '@/lib/player'
 import type { Song, Station } from '@/lib/subsonic'
 import type { BookDetail } from '@/lib/types'
@@ -863,6 +864,13 @@ describe('playing a book', () => {
         fake.arrive()
         clear()
         expect(() => fake.emit('timeupdate')).not.toThrow()
+    })
+
+    test('a single file with no chapter marks has nothing to step between', () => {
+        // Next and previous chapter were offered on such a book, and next did nothing.
+        expect(bookStepCount({ ...book, chapter_list: [], files: book.files.slice(0, 1) })).toBe(1)
+        expect(bookStepCount({ ...book, chapter_list: [] })).toBe(book.files.length)
+        expect(bookStepCount(book)).toBe(book.chapter_list.length)
     })
 
     test('a book is not a track, so nothing asks the queue about it', () => {

@@ -735,9 +735,17 @@ function finishBook(book: PlayingBook): void {
  * Its chapters, where it has them; where it has none, the files it is made of, which are a
  * disc or an hour each and are the only division the book actually carries.
  */
-function bookStops(book: PlayingBook): number[] {
+function bookStops(book: Pick<PlayingBook, 'chapter_list' | 'files'>): number[] {
     if (book.chapter_list.length > 0) return book.chapter_list.map((chapter) => chapter.start_s)
     return book.files.map((file) => file.offset_s)
+}
+
+/**
+ * How many places a book can be stepped between: under two, next and previous chapter mean
+ * nothing, and the bar offers them disabled rather than as buttons that do nothing.
+ */
+export function bookStepCount(book: Pick<PlayingBook, 'chapter_list' | 'files'>): number {
+    return bookStops(book).length
 }
 
 /** Walk a book by chapters: what next and previous mean when what is playing is a book. */

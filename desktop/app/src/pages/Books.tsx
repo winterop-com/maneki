@@ -1,5 +1,5 @@
 import { ChevronLeft, Play } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router'
 
 import { Spinner } from '@/components/Spinner'
@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button'
 import { useStoreValue } from '@/hooks/use-store'
 import { books as booksApi } from '@/lib/api'
 import { chapterAt } from '@/lib/book-timeline'
+import { recallScroll, rememberScroll } from '@/lib/scroll-memory'
 import { clock, duration, progressRatio, remaining } from '@/lib/format'
 import { playBook, playerStore, type PlayerState } from '@/lib/player'
 import type { BookDetail, BookSummary } from '@/lib/types'
@@ -35,6 +36,9 @@ export function BooksPage() {
 }
 
 /** Every book, with how far through each one this account is. */
+/** Where the shelf's scroll is remembered; see `lib/scroll-memory`. */
+const SHELF_SCROLL = 'books-shelf'
+
 function Shelf() {
     const [books, setBooks] = useState<BookSummary[] | null>(null)
     const [scanning, setScanning] = useState(false)
@@ -68,6 +72,25 @@ function Shelf() {
             clearTimeout(timer)
         }
     }, [])
+
+    // BACK FROM A BOOK IS BACK WHERE THE SHELF WAS LEFT, not at its first row: the screens share
+    // one scrolling area, and a 2313-book shelf started at the top every time. See `lib/scroll-memory`.
+    const shown = books !== null && books.length > 0
+    useLayoutEffect(() => {
+        if (!shown) return
+        const area = document.querySelector('main')
+        if (area === null) return
+        area.scrollTop = recallScroll(SHELF_SCROLL)
+        // Kept as it moves rather than read on the way out: by the time the shelf is gone the
+        // area holds the next screen, and its scroll is that screen's.
+        const keep = () => {
+            rememberScroll(SHELF_SCROLL, area.scrollTop)
+        }
+        area.addEventListener('scroll', keep, { passive: true })
+        return () => {
+            area.removeEventListener('scroll', keep)
+        }
+    }, [shown])
 
     if (refusal) return <Notice>{refusal}</Notice>
     if (!books || (!books.length && scanning)) {
@@ -133,6 +156,19 @@ function Book({ id }: { id: string }) {
             .catch((error: Error) => setRefusal(error.message))
     }, [id])
 
+    // OPENED ON THE BOOK THAT IS PLAYING, THE LIST SHOWS WHERE IT IS. Resumed in chapter 301 of 498,
+    // the row was lit far below the fold. Once per book, not on every chapter change, so a list
+    // somebody is scrolling is not pulled back.
+    const chapters = useRef<HTMLOListElement | null>(null)
+    const shownFor = useRef<string | null>(null)
+    useEffect(() => {
+        if (!book || playingId !== book.id || shownFor.current === book.id) return
+        const row = chapters.current?.querySelector('[aria-current="true"]')
+        if (!row) return
+        shownFor.current = book.id
+        row.scrollIntoView({ block: 'center' })
+    })
+
     if (refusal) return <Notice>{refusal}</Notice>
     if (!book) return <Spinner label="Opening the book" />
 
@@ -184,7 +220,7 @@ function Book({ id }: { id: string }) {
             </div>
 
             {book.chapter_list.length > 0 && (
-                <ol className="min-h-0 flex-1 overflow-y-auto rounded-lg border">
+                <ol ref={chapters} className="min-h-0 flex-1 overflow-y-auto rounded-lg border">
                     {book.chapter_list.map((chapter, index) => {
                         // A row plays from itself. Seeking a player that was not playing this
                         // book is what the old screen did, and it is why a chapter click could
