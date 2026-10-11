@@ -324,13 +324,31 @@ describe('subtitleNote', () => {
 })
 
 describe('preferredSubtitles', () => {
-    it('registers the default and the English tracks, and nothing else', () => {
+    it('registers English first, then the others the file has', () => {
+        // Only English was offered, so a film's other languages could not be chosen at all.
         const chosen = preferredSubtitles([
             track({ track_id: 'embed:0', lang: 'pl', label: 'Polish' }),
             track({ track_id: 'embed:1', lang: 'en', label: 'English' }),
             track({ track_id: 'embed:2', lang: 'vi', label: 'Vietnamese' }),
         ])
-        expect(chosen.map((one) => one.track_id)).toEqual(['embed:1'])
+        expect(chosen.map((one) => one.track_id)).toEqual(['embed:1', 'embed:0', 'embed:2'])
+    })
+
+    it('offers the full track before the forced one in the same language', () => {
+        // With no English, only the first track was offered, and here that was the forced one:
+        // 21 cues of signs, and the film's full Italian could not be reached.
+        const chosen = preferredSubtitles([
+            track({ track_id: 'embed:2', lang: 'ita', label: 'Ita (forced)' }),
+            track({ track_id: 'embed:3', lang: 'ita', label: 'Ita' }),
+        ])
+        expect(chosen.map((one) => one.track_id)).toEqual(['embed:3', 'embed:2'])
+    })
+
+    it('registers no more than four, since each is an extraction in front of playback', () => {
+        const many = Array.from({ length: 10 }, (_, index) =>
+            track({ track_id: `embed:${String(index)}`, lang: 'pl', label: `Polish ${String(index)}` }),
+        )
+        expect(preferredSubtitles(many)).toHaveLength(4)
     })
 
     it('puts the hearing-impaired English variant above the plain one', () => {

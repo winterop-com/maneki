@@ -301,29 +301,44 @@ export interface SubtitleSource {
  * queue up in front of the segment requests playback actually needs. That was ten seconds of a
  * player doing nothing on the files that have the most to offer.
  *
- * So the ones that get registered are the ones somebody is almost certainly after: the track
- * the server marked, and English -- the hearing-impaired variant first, since a viewer who
- * turns captions on usually wants the whole soundtrack described. Everything else is left off
- * rather than made to wait, and a file with nothing English in it still offers its first track,
- * because a captions menu with no rows in it is a control that does nothing.
+ * So no more than `MOST_SUBTITLES` are registered, best first: the track the server marked, then
+ * English -- the hearing-impaired variant first, since a viewer who turns captions on usually
+ * wants the whole soundtrack described -- then the file's other languages in the order it has
+ * them. A forced track (signs and foreign dialogue only) comes after the full track of its own
+ * rank: offered first, it was the one track a film with no English showed, and its full Italian
+ * could not be reached.
  */
 export function preferredSubtitles(tracks: readonly VideoSubtitleTrack[]): VideoSubtitleTrack[] {
-    const ranked = tracks
-        .map((track, index) => ({ track, index, rank: subtitleRank(track) }))
-        .toSorted((left, right) => left.rank - right.rank || left.index - right.index)
-    const eager = ranked.filter((row) => row.rank < LAST_RESORT).map((row) => row.track)
-    if (eager.length > 0) return eager
-    const first = ranked[0]?.track
-    return first === undefined ? [] : [first]
+    return tracks
+        .map((track, index) => ({
+            track,
+            index,
+            rank: subtitleRank(track),
+            forced: FORCED.test(track.label),
+        }))
+        .toSorted(
+            (left, right) =>
+                left.rank - right.rank ||
+                Number(left.forced) - Number(right.forced) ||
+                left.index - right.index,
+        )
+        .slice(0, MOST_SUBTITLES)
+        .map((row) => row.track)
 }
 
-/** The rank a track nobody asked for takes, which is what keeps it out of the eager set. */
-const LAST_RESORT = 99
+/** How many tracks are registered: each is an extraction queued in front of playback. */
+const MOST_SUBTITLES = 4
+
+/** A track that carries only signs and foreign dialogue. */
+const FORCED = /\bforced\b/i
+
+/** The rank of a track that is neither marked nor English: after them, in the file's order. */
+const OTHER_LANGUAGE = 3
 
 function subtitleRank(track: VideoSubtitleTrack): number {
     if (track.default) return 0
     const english = track.lang.toLowerCase() === 'en' || track.lang.toLowerCase() === 'eng'
-    if (!english) return LAST_RESORT
+    if (!english) return OTHER_LANGUAGE
     return /\b(sdh|cc|hoh|hearing|closed)\b/i.test(track.label) ? 1 : 2
 }
 
