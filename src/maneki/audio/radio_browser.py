@@ -76,6 +76,10 @@ def _parse(raw: dict[str, object]) -> FoundStation | None:
     name = str(raw.get("name") or "").strip()
     if not stream.startswith(("http://", "https://")) or not name:
         return None
+    # An HLS station cannot go through the relay (its segments are named relative to a playlist
+    # the relay serves from elsewhere), so it is not offered rather than offered and silent.
+    if raw.get("hls") in (1, "1", True) or stream.split("?", 1)[0].lower().endswith((".m3u8", ".m3u")):
+        return None
 
     def text(key: str) -> str | None:
         value = str(raw.get(key) or "").strip()

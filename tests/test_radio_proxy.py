@@ -98,3 +98,36 @@ def test_an_offered_station_may_not_redirect_inside(monkeypatch: pytest.MonkeyPa
     _offered(monkeypatch, handler)
     answer = asyncio.run(radio_proxy.proxy_station_stream("http://93.184.215.14/live"))
     assert answer.status_code == 502
+
+
+def test_the_title_is_forgotten_when_the_stream_ends(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Kept after a stream ended, a station played again showed a song from minutes before: the
+    client's first title poll goes out with the stream request and usually lands first."""
+    meta = b"StreamTitle='Old Song';"
+    block = bytes([len(meta) // 16 + 1]) + meta.ljust((len(meta) // 16 + 1) * 16, b"\x00")
+    body = b"a" * 8 + block + b"b" * 8
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, headers={"icy-metaint": "8"}, stream=httpx.ByteStream(body))
+
+    _relaying(monkeypatch, handler)
+
+    async def listen() -> None:
+        answer = await radio_proxy.proxy_station_stream(URL)
+        async for _chunk in answer.body_iterator:  # type: ignore[attr-defined]
+            assert radio_proxy.latest_icy_title(URL) in ("", "Old Song")
+
+    asyncio.run(listen())
+    assert radio_proxy.latest_icy_title(URL) == ""
+
+
+def test_search_leaves_out_stations_the_relay_cannot_play() -> None:
+    """An HLS station's playlist names its segments relative to itself, and through the relay they
+    resolved against the API and failed: it never played, and WebKit called it Live meanwhile."""
+    from maneki.audio import radio_browser
+
+    hls: dict[str, object] = {"url_resolved": "https://s.example/groove.m3u8", "name": "Groove HLS", "hls": 1}
+    plain: dict[str, object] = {"url_resolved": "https://s.example/groove.mp3", "name": "Groove", "hls": 0}
+    assert radio_browser._parse(hls) is None  # noqa: SLF001 - the row parser is the unit under test
+    assert radio_browser._parse({**hls, "hls": 0}) is None  # noqa: SLF001 - by the address alone
+    assert radio_browser._parse(plain) is not None  # noqa: SLF001

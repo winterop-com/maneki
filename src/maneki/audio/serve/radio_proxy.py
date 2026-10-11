@@ -174,6 +174,9 @@ async def proxy_station_stream(url: str) -> Response:
                     audio_left = metaint
                     state = "audio"
         finally:
+            # The title goes with the stream: kept, a station played again showed a song from
+            # minutes before, because the client asks for the title as it asks for the stream.
+            _icy_titles.pop(url, None)
             await upstream.aclose()
             await client.aclose()
 
