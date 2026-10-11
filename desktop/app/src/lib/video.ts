@@ -164,7 +164,9 @@ const LEADING_SEPARATORS = /^[\s\-–—_.·]+/
  * Never empty: a name that is entirely what its siblings share is returned as it was, because a
  * blank row says less than a repeated one.
  */
-export function episodeName(name: string, siblings: readonly string[]): string {
+export function episodeName(raw: string, rawSiblings: readonly string[]): string {
+    const name = titleOf(raw)
+    const siblings = rawSiblings.map(titleOf)
     const marked = EPISODE_MARK.exec(name)
     if (marked !== null && marked.index > 0) return name.slice(marked.index)
     const own = name.split(' ')
@@ -173,6 +175,27 @@ export function episodeName(name: string, siblings: readonly string[]): string {
     const rest = own.slice(cut).join(' ').replace(LEADING_SEPARATORS, '').trim()
     return rest === '' ? name : rest
 }
+
+/**
+ * A release name as a title: without a collection's leading number, and without the tags after
+ * the year.
+ *
+ * A COLLECTION NUMBERS ITS FILMS, and the numbers are where the names differ, so nothing was
+ * shared and every row read "01 - Star Trek - The ..." with the film cut off. And what follows a
+ * film's year in brackets is the release's (1080p h264 Ac3 5.1 Ita Eng-MIRCrew), never the
+ * film's. A name with neither is left as it is.
+ */
+function titleOf(name: string): string {
+    const unnumbered = name.replace(SEQUENCE_NUMBER, '')
+    const dated = YEAR_THEN_TAGS.exec(unnumbered)
+    return (dated?.[1] ?? unnumbered).trim() || name
+}
+
+/** "01 - ", "3. ": a position in a collection, ahead of the title. */
+const SEQUENCE_NUMBER = /^\d{1,3}\s*[-–.]\s+/
+
+/** A title ending in a year in brackets, then release tags after it. */
+const YEAR_THEN_TAGS = /^(.*?\((?:19|20)\d{2}\))\s+\S.*$/
 
 /** Where to cut a shared run of words: after its last separator, or after all of it. */
 function cutAt(own: readonly string[], shared: number): number {
@@ -534,4 +557,15 @@ export function streamVerdict(
         }
     }
     return { level: 'buffering', text: `buffering, ${buffered.toFixed(0)}s ahead` }
+}
+
+/**
+ * What a folder that is not there says.
+ *
+ * The server's sentence named its own path and quoting ("no such folder under videos/:
+ * 'Nope/Nothing'"); a stale or mistyped link deserves the reader's words. Anything else the
+ * server said is passed on as it came.
+ */
+export function folderRefusal(message: string): string {
+    return /^no such folder\b/i.test(message) ? 'That folder is not in the video library.' : message
 }

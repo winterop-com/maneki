@@ -317,3 +317,19 @@ export function placeAfterQualityChange(positionS: number | null, durationS: num
     if (durationS !== null && durationS > 0 && positionS > durationS - 2) return null
     return positionS
 }
+
+/**
+ * What a video YouTube will not give says, in the reader's words.
+ *
+ * The screen quoted yt-dlp whole ("could not resolve video 'AAAAAAAAAAA': ERROR: [youtube] ...
+ * This video is unavailable"), and the full "Incomplete YouTube ID" text for an address cut
+ * short. The two common cases are said plainly; anything else is passed on as it came.
+ */
+export function youtubeRefusal(message: string): string {
+    if (/truncated_id|incomplete youtube id/i.test(message))
+        return 'That is not a whole YouTube video address.'
+    if (/video unavailable|this video is unavailable|private video|has been removed/i.test(message)) {
+        return 'YouTube has no video at that address. It may be private or removed.'
+    }
+    return message
+}

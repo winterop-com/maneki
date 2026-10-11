@@ -19,6 +19,7 @@ import {
     encoderOf,
     episodeName,
     fileSize,
+    folderRefusal,
     hlsPath,
     neighbours,
     otherStreams,
@@ -30,8 +31,8 @@ import {
     rowsOf,
     scanProgress,
     sessionFor,
-    STARTED_AFTER_S,
     started,
+    STARTED_AFTER_S,
     streamVerdict,
     subtitleKey,
     subtitleLabel,
@@ -539,5 +540,36 @@ describe('streamVerdict', () => {
     it('says plainly that it is buffering when nothing has been transcoded yet', () => {
         const verdict = streamVerdict(sample({ bufferAheadS: 4 }), null)
         expect(verdict).toEqual({ level: 'buffering', text: 'buffering, 4s ahead' })
+    })
+})
+
+describe('a film among the others in a collection', () => {
+    const films = [
+        '01 - Star Trek - The Motion Picture (1979) 1080p h264 Ac3 5.1 Ita Eng Sub Ita Eng-MIRCrew',
+        '02 - Star Trek - The Wrath of Khan (1982) 1080p h264 Ac3 5.1 Ita Eng Sub Ita Eng-MIRCrew',
+        '03 - Star Trek - The Search for Spock (1984) 1080p h264-MIRCrew',
+    ]
+
+    it('is its own title and year, not the numbering and the release tags', () => {
+        // Every film read "01 - Star Trek - The ...", the part that differs cut off past the edge.
+        expect(films.map((film) => episodeName(film, films))).toEqual([
+            'The Motion Picture (1979)',
+            'The Wrath of Khan (1982)',
+            'The Search for Spock (1984)',
+        ])
+    })
+
+    it('a single film keeps its name, without the release tags after the year', () => {
+        expect(episodeName(films[0]!, [films[0]!])).toBe('Star Trek - The Motion Picture (1979)')
+    })
+})
+
+describe('what a missing folder says', () => {
+    it('says it in the reader’s words, not the server’s', () => {
+        // A bad folder link showed "no such folder under videos/: 'Nope/Nothing'".
+        expect(folderRefusal("no such folder under videos/: 'Nope/Nothing'")).toBe(
+            'That folder is not in the video library.',
+        )
+        expect(folderRefusal('the server did not answer')).toBe('the server did not answer')
     })
 })

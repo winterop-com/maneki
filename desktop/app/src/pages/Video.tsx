@@ -19,6 +19,7 @@ import {
     crumbsOf,
     episodeName,
     fileSize,
+    folderRefusal,
     rowsOf,
     scanProgress,
     started,
@@ -98,7 +99,7 @@ function Browser({ path }: { path: string }) {
                 setRefusal(null)
             },
             (error: Error) => {
-                if (mounted.current && wanted.current === at) setRefusal(error.message)
+                if (mounted.current && wanted.current === at) setRefusal(folderRefusal(error.message))
             },
         )
         /**

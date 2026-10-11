@@ -2220,3 +2220,11 @@ html.dark[data-theme='neon'],
         border-left-color: Canvas;
     }
 }
+
+/* CAPTIONS CLEAR THE CONTROL BAR WHILE IT IS UP. video.js lifts its caption area by its own 3em
+   bar, and the city theme's bar is 70px, so a two-line caption's second line sat under the
+   progress bar whenever the controls showed. While they show, the captions sit above them. */
+.video-js.vjs-has-started:not(.vjs-user-inactive) .vjs-text-track-display,
+.video-js.vjs-paused .vjs-text-track-display {
+    bottom: 76px;
+}

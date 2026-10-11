@@ -32,6 +32,7 @@ import {
     qualityLadder,
     snapHeight,
     TABS,
+    youtubeRefusal,
 } from '@/lib/youtube'
 
 /** Where the chosen quality is kept: a decision about this connection, not about this video. */
@@ -411,7 +412,7 @@ function Channel({ id }: { id: string }) {
                 if (live) setAnswer({ key, value: listed, refusal: null })
             },
             (error: Error) => {
-                if (live) setAnswer({ key, value: null, refusal: error.message })
+                if (live) setAnswer({ key, value: null, refusal: youtubeRefusal(error.message) })
             },
         )
         return () => {
@@ -638,7 +639,7 @@ function Watch({ id }: { id: string }) {
                 if (live) setResolved({ key: id, value: got, refusal: null })
             },
             (error: Error) => {
-                if (live) setResolved({ key: id, value: null, refusal: error.message })
+                if (live) setResolved({ key: id, value: null, refusal: youtubeRefusal(error.message) })
             },
         )
         return () => {

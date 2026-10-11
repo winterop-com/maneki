@@ -15,6 +15,7 @@ import {
     qualityLadder,
     snapHeight,
     TABS,
+    youtubeRefusal,
 } from '@/lib/youtube'
 
 /** The URL a parse was supposed to reach, or the refusal it gave instead. */
@@ -289,5 +290,23 @@ describe('the place a change of quality comes back to', () => {
         expect(placeAfterQualityChange(0.4, 600)).toBeNull()
         expect(placeAfterQualityChange(599, 600)).toBeNull()
         expect(placeAfterQualityChange(null, 600)).toBeNull()
+    })
+})
+
+describe('what a video YouTube will not give says', () => {
+    test('says what happened rather than quoting yt-dlp', () => {
+        // The screen showed "could not resolve video 'AAAAAAAAAAA': ERROR: [youtube] ... This
+        // video is unavailable", and the full "truncated id" text for a malformed one.
+        expect(
+            youtubeRefusal(
+                "could not resolve video 'AAAAAAAAAAA': ERROR: [youtube] AAAAAAAAAAA: Video unavailable. This video is unavailable",
+            ),
+        ).toBe('YouTube has no video at that address. It may be private or removed.')
+        expect(
+            youtubeRefusal(
+                "could not resolve video 'abc': ERROR: [youtube:truncated_id] abc: Incomplete YouTube ID abc.",
+            ),
+        ).toBe('That is not a whole YouTube video address.')
+        expect(youtubeRefusal('the server did not answer')).toBe('the server did not answer')
     })
 })
