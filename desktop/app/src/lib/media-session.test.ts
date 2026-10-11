@@ -7,6 +7,7 @@ import {
     needsPosition,
     nowPlaying,
     type Told,
+    windowTitle,
 } from '@/lib/media-session'
 import type { PlayerState, PlayingBook } from '@/lib/player'
 
@@ -174,5 +175,18 @@ describe('a video on screen holds the OS controls', () => {
         expect(pause).toHaveBeenCalledOnce()
         release()
         expect(media.metadata?.title ?? null).not.toBe('Emissary')
+    })
+})
+
+describe('the window title', () => {
+    test('is what is playing, so the window can be told apart from the others', () => {
+        // It was "Maneki" whatever played, for window switching and for a screen reader alike.
+        expect(windowTitle({ title: 'Last Child', artist: 'Aerosmith' })).toBe(
+            'Last Child · Aerosmith · maneki',
+        )
+    })
+
+    test('is the app alone when nothing plays', () => {
+        expect(windowTitle(null)).toBe('maneki')
     })
 })

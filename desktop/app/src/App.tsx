@@ -8,6 +8,7 @@ import { connect, sessionStore } from '@/lib/session'
 import { setPlayerCredentials } from '@/lib/player'
 import { BooksPage } from '@/pages/Books'
 import { MusicPage } from '@/pages/Music'
+import { NotFound } from '@/pages/NotFound'
 import { PlaylistsPage } from '@/pages/Playlists'
 import { RadioPage } from '@/pages/Radio'
 import { SignIn } from '@/pages/SignIn'
@@ -74,8 +75,12 @@ export default function App() {
                 <Route path="/youtube/c/:channelId" element={<YouTubePage />} />
                 <Route path="/youtube/v/:videoId" element={<YouTubePage />} />
                 <Route
-                    path="*"
+                    path="/"
                     element={<Navigate to={session.capabilities?.audio ? '/music' : '/books'} replace />}
+                />
+                <Route
+                    path="*"
+                    element={<NotFound home={session.capabilities?.audio ? '/music' : '/books'} />}
                 />
             </Routes>
         </AppShell>

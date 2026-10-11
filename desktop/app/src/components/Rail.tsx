@@ -205,15 +205,27 @@ export function Rail() {
                     role="separator"
                     aria-orientation="vertical"
                     aria-label={collapsed ? EXPAND_LABEL : RESIZE_RAIL_LABEL}
-                    aria-valuenow={collapsed ? RAIL_COLLAPSED_WIDTH : width}
-                    aria-valuemin={RAIL_MIN_WIDTH}
-                    aria-valuemax={RAIL_MAX_WIDTH}
+                    // Collapsed, the edge is a way back rather than a size: no value is claimed for
+                    // it, and Enter, Space or ArrowRight opens the rail. Arrows used to move a width
+                    // nobody could see, and Enter did nothing.
+                    aria-valuenow={collapsed ? undefined : width}
+                    aria-valuemin={collapsed ? undefined : RAIL_MIN_WIDTH}
+                    aria-valuemax={collapsed ? undefined : RAIL_MAX_WIDTH}
                     tabIndex={0}
                     data-dragging={dragging}
                     onPointerDown={collapsed ? wake : beginResize}
                     onKeyDown={(event) => {
+                        if (collapsed) {
+                            if (event.key !== 'Enter' && event.key !== ' ' && event.key !== 'ArrowRight')
+                                return
+                            event.preventDefault()
+                            toggleRail()
+                            return
+                        }
                         if (event.key === 'ArrowRight') setRailWidth(width + KEYBOARD_STEP)
                         else if (event.key === 'ArrowLeft') setRailWidth(width - KEYBOARD_STEP)
+                        else if (event.key === 'Home') setRailWidth(RAIL_MIN_WIDTH)
+                        else if (event.key === 'End') setRailWidth(RAIL_MAX_WIDTH)
                         else return
                         event.preventDefault()
                     }}

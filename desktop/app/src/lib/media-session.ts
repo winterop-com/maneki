@@ -155,6 +155,19 @@ export function claimMediaSession(media: ScreenMedia): () => void {
 /** How often a claimed session's play state is told again, since the player does not say. */
 const CLAIM_POLL_MS = 1000
 
+/**
+ * The window's title: what is playing, then the app.
+ *
+ * It was "Maneki" whatever played, so the window could not be told from its neighbours when
+ * switching, and a screen reader announced the app's name alone.
+ */
+export function windowTitle(shown: Pick<NowPlaying, 'title' | 'artist'> | null): string {
+    if (shown === null) return APP_TITLE
+    return [shown.title, shown.artist, APP_TITLE].filter((part) => part.trim() !== '').join(' · ')
+}
+
+const APP_TITLE = 'maneki'
+
 /** Tell the OS about the player from now on. Installed once, from `main`. */
 export function installMediaSession(): void {
     const media = typeof navigator === 'undefined' ? undefined : navigator.mediaSession
@@ -216,10 +229,13 @@ export function installMediaSession(): void {
                 })
             }
             media.playbackState = screen.playing() ? 'playing' : 'paused'
+            if (typeof document !== 'undefined')
+                document.title = windowTitle({ title: screen.title, artist: '' })
             return
         }
         const state = playerStore.get()
         const shown = nowPlaying(state, artworkFor(state))
+        if (typeof document !== 'undefined') document.title = windowTitle(shown)
         const key = identity(shown)
         if (key !== shownAs) {
             shownAs = key
