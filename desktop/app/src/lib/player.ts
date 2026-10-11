@@ -892,8 +892,10 @@ export function toggle(): void {
     if (player.paused) {
         claimSound(silence)
         // A book whose element holds nothing has been picked up rather than resumed -- the
-        // source is put on before it is asked to play.
-        if (book && !player.src) placeBook(state().positionS, true)
+        // source is put on before it is asked to play. A finished book is begun again: its
+        // element has ended, and playing that would rewind it under a bar left at the end.
+        if (book && bookDone) placeBook(0, true)
+        else if (book && !player.src) placeBook(state().positionS, true)
         else if (book) void resumeBook(player, book.id)
         else start(player)
     } else {

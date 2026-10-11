@@ -832,6 +832,24 @@ describe('playing a book', () => {
         expect(saves().at(-1)).toEqual({ position_s: 3600, finished: true })
     })
 
+    test('play on a finished book starts it again from the beginning, and saves as it goes', () => {
+        // The ended element was told to play: WebKit rewound it under a bar frozen at the end,
+        // and nothing was saved, since the finish kept every save switched off.
+        playBook(book, 3594)
+        fake.arrive()
+        skipBy(15)
+        toggle()
+        expect(fake.src).toContain('one.m4b')
+        fake.arrive()
+        expect(playerStore.get().positionS).toBe(0)
+        expect(playerStore.get().playing).toBe(true)
+        fake.currentTime = 30
+        fake.emit('timeupdate')
+        expect(playerStore.get().positionS).toBe(30)
+        fake.emit('pause')
+        expect(saves().at(-1)).toEqual({ position_s: 30 })
+    })
+
     test('picking up a paused book takes a newer place another device saved', async () => {
         // A tab left paused at 1:23 resumed from what it held and saved over the 2:30 a phone had
         // kept since, so the phone's listening was lost.
