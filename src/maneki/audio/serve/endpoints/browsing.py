@@ -10,7 +10,7 @@ from fastapi import APIRouter, Query, Request
 from maneki.audio.serve.app import envelope, error_envelope
 from maneki.audio.serve.ids import album_id
 from maneki.audio.serve.index import IndexCache
-from maneki.audio.serve.payloads import album_payload, artist_summary, song_payload
+from maneki.audio.serve.payloads import album_added, album_payload, artist_summary, song_payload
 from maneki.audio.serve.stars import StarStore
 from maneki.books.library import BooksIndex
 from maneki.books.subsonic import (
@@ -140,7 +140,7 @@ async def get_artist(
         if author is not None:
             written = books_by(books, author)
             payload = author_summary(books, author)
-            payload["album"] = [book_payload(b, with_songs=False) for b in written]
+            payload["album"] = [book_payload(b, with_songs=False, added_s=books.added(b)) for b in written]
             return envelope("artist", payload)
     albums = cache.artists_by_id.get(id)
     if albums is None:
@@ -172,7 +172,10 @@ async def get_album(
     if books is not None:
         book = find_book(books, id)
         if book is not None:
-            return envelope("album", book_payload(book, with_songs=True, position_s=_position(request, book.id)))
+            return envelope(
+                "album",
+                book_payload(book, with_songs=True, position_s=_position(request, book.id), added_s=books.added(book)),
+            )
     album = cache.albums_by_id.get(id)
     if album is None:
         return error_envelope(70, f"Album not found: {id}")
@@ -274,10 +277,12 @@ async def get_album_list2(  # noqa: PLR0912 — Subsonic's `type` enum has many 
                 seen.add(aid)
                 ranked.append(al)
         albums = ranked
+    elif type == "newest":
+        # Newest first by when the album came into the library; see `album_added`.
+        albums.sort(key=album_added, reverse=True)
     else:
-        # alphabeticalByName + remaining unsupported types (newest, highest)
-        # fall back to alphabetical-by-name. Cleaner than erroring for clients
-        # that reach for "newest" by default.
+        # alphabeticalByName + remaining unsupported types (highest) fall back to
+        # alphabetical-by-name. Cleaner than erroring for clients that ask for them.
         albums.sort(key=lambda a: (a.tag_album or a.album_dir).casefold())
 
     listed = [album_payload(a, with_songs=False) for a in albums]
@@ -417,7 +422,7 @@ def _book_albums(
             return []
         lo, hi = (from_year, to_year) if from_year <= to_year else (to_year, from_year)
         listed = [b for b in listed if b.year and b.year.isdigit() and lo <= int(b.year) <= hi]
-    return [book_payload(b, with_songs=False) for b in listed]
+    return [book_payload(b, with_songs=False, added_s=books.added(b)) for b in listed]
 
 
 def _track_has_genre(track: object, target_casefold: str) -> bool:

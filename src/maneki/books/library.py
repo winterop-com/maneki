@@ -177,12 +177,27 @@ class BooksIndex:
     """
 
     def __init__(self, root: Path, *, use_cache: bool = True) -> None:
+        self._added: dict[str, float] = {}
         self.library_root = root
         self.root = books_dir(root) or root / "Audiobooks"
         self._use_cache = use_cache
         self._books: dict[str, LibraryBook] = {}
         self._lock = threading.Lock()
         self.scan_in_progress = False
+
+    def added(self, book: LibraryBook) -> float:
+        """When a book came into the library, as nearly as the disk says: its folder's time.
+
+        Nothing records the moment, and every book said 1970. Read once per folder and kept.
+        """
+        held = self._added.get(book.rel_path)
+        if held is None:
+            try:
+                held = (self.root / book.rel_path).stat().st_mtime
+            except OSError:
+                held = 0.0
+            self._added[book.rel_path] = held
+        return held
 
     @property
     def books(self) -> list[LibraryBook]:

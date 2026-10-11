@@ -13,6 +13,7 @@ be mistaken for an album that happens to hash the same way.
 from __future__ import annotations
 
 import hashlib
+from datetime import UTC, datetime
 from typing import Any, Final
 
 from maneki.books.library import BooksIndex, LibraryBook
@@ -104,7 +105,9 @@ def author_summary(index: BooksIndex, author: str) -> dict[str, Any]:
     }
 
 
-def book_payload(book: LibraryBook, *, with_songs: bool, position_s: float = 0.0) -> dict[str, Any]:
+def book_payload(
+    book: LibraryBook, *, with_songs: bool, position_s: float = 0.0, added_s: float = 0.0
+) -> dict[str, Any]:
     """Subsonic `album` dict for a book.
 
     `position_s` is where this account stopped, passed on to the songs so a
@@ -118,7 +121,7 @@ def book_payload(book: LibraryBook, *, with_songs: bool, position_s: float = 0.0
         "songCount": len(book.files),
         "duration": int(book.duration_s),
         "coverArt": book_subsonic_id(book),
-        "created": "1970-01-01T00:00:00.000Z",
+        "created": datetime.fromtimestamp(added_s, tz=UTC).strftime("%Y-%m-%dT%H:%M:%S.000Z"),
         "genre": GENRE,
         "genres": [{"name": GENRE}],
         "isCompilation": False,

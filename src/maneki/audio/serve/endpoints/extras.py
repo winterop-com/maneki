@@ -212,7 +212,10 @@ def _book_directory(request: Request, books: BooksIndex, id: str) -> dict:
             {
                 "id": id,
                 "name": author,
-                "child": [_directory_child(book_payload(b, with_songs=False)) for b in books_by(books, author)],
+                "child": [
+                    _directory_child(book_payload(b, with_songs=False, added_s=books.added(b)))
+                    for b in books_by(books, author)
+                ],
             },
         )
     book = find_book(books, id)

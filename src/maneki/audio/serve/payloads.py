@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+from datetime import UTC, datetime
+from functools import lru_cache
+from pathlib import Path
 from typing import Any
 
 from maneki.audio.library.models import LibraryAlbum, LibraryTrack
@@ -41,6 +44,28 @@ def track_size_bytes(track: LibraryTrack) -> int:
         return 0
 
 
+@lru_cache(maxsize=16384)
+def _folder_time(path: str) -> float:
+    try:
+        return Path(path).stat().st_mtime
+    except OSError:
+        return 0.0
+
+
+def album_added(album: LibraryAlbum) -> float:
+    """When an album came into the library, as nearly as the disk says: its folder's time.
+
+    Nothing records the moment an album was added, and every album said 1970, so "newest" had
+    nothing to sort by. A folder's time moves when files are put in it, which is the event an
+    album arriving is. Read once per folder and kept: a library listing asks for thousands.
+    """
+    return _folder_time(str(album.path))
+
+
+def _iso(seconds: float) -> str:
+    return datetime.fromtimestamp(seconds, tz=UTC).strftime("%Y-%m-%dT%H:%M:%S.000Z")
+
+
 def album_payload(album: LibraryAlbum, *, with_songs: bool) -> dict[str, Any]:
     """Subsonic `album` dict — used by getAlbum, getArtist, getAlbumList2, search3."""
     al_id = album_id(album)
@@ -54,7 +79,7 @@ def album_payload(album: LibraryAlbum, *, with_songs: bool) -> dict[str, Any]:
         "songCount": album.track_count,
         "duration": duration,
         "coverArt": al_id,
-        "created": "1970-01-01T00:00:00.000Z",
+        "created": _iso(album_added(album)),
     }
     if album.tag_year:
         try:

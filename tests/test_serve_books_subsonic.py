@@ -282,3 +282,15 @@ def test_a_book_without_a_cover_gets_the_placeholder_not_an_error(tmp_path: Path
         cover = client.get("/rest/getCoverArt", params=_params(id=missing, size=64))
         assert cover.status_code == 200
         assert cover.headers["content-type"].startswith("image/"), missing
+
+
+def test_a_book_says_when_it_came_into_the_library(tmp_path: Path) -> None:
+    """Every book said it was created 1970-01-01."""
+    import os
+
+    client, books = _client(tmp_path)
+    book = books.books[0]
+    folder = books.root / book.rel_path
+    os.utime(folder, (1_700_000_000, 1_700_000_000))
+    album = _inner(client, "getAlbum", id=book_subsonic_id(book))["album"]
+    assert album["created"].startswith("2023-11-14")

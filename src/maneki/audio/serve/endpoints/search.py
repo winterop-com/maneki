@@ -184,7 +184,9 @@ def _add_books(
 
     found = [b for b in books.books if matches(b.author, b.title, b.narrator, b.series)]
     if album_count:
-        result.setdefault("album", []).extend(book_payload(b, with_songs=False) for b in found[:album_count])
+        result.setdefault("album", []).extend(
+            book_payload(b, with_songs=False, added_s=books.added(b)) for b in found[:album_count]
+        )
     if artist_count:
         # An author counts when their own name matches, and when one of their
         # books does: "kahneman thinking" is about that author too.
