@@ -288,6 +288,18 @@ export function SignIn() {
                         Sign in
                         <ArrowRight className="size-4.5" aria-hidden />
                     </Button>
+                    {/* UNDER THE BUTTON IT ANSWERS, in the flow. Hung below the whole form, it fell
+                        under "Just listen to radio" -- off a phone's screen, and read as that
+                        button's failure. */}
+                    {submitted && session.refusal && (
+                        <p
+                            role="alert"
+                            className="flex min-h-12 items-center gap-3 rounded-lg border border-critical/40 bg-critical/10 px-4 text-sm text-critical-ink"
+                        >
+                            <CircleAlert className="size-4 shrink-0" aria-hidden />
+                            <span className="min-w-0">{session.refusal}</span>
+                        </p>
+                    )}
 
                     {/* RADIO NEEDS NO SERVER. Somebody without one, or away from theirs, can still
                         listen: the built-in stations and the open directory, kept on this device.
@@ -331,15 +343,6 @@ export function SignIn() {
                             >
                                 Retry
                             </Button>
-                        </p>
-                    )}
-                    {submitted && session.refusal && (
-                        <p
-                            role="alert"
-                            className="absolute inset-x-0 top-[calc(100%+1.5rem)] flex h-12 items-center gap-3 rounded-lg border border-critical/40 bg-critical/10 px-4 text-sm text-critical-ink"
-                        >
-                            <CircleAlert className="size-4 shrink-0" aria-hidden />
-                            <span className="truncate">{session.refusal}</span>
                         </p>
                     )}
                 </form>
