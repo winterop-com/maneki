@@ -2,32 +2,34 @@ import { describe, expect, test } from 'vitest'
 
 import {
     ATTACK,
-    RELEASE,
-    settle,
-    tilt,
+    BAND_COUNT,
+    BAR_ROOM_MIN,
+    barLayout,
     bars,
     CEILING,
-    DEFAULT_EFFECT,
-    setSpectrumEffect,
-    SPECTRUM_EFFECT_LABELS,
-    SPECTRUM_EFFECTS,
-    spectrumEffect,
-    BAND_COUNT,
-    barLayout,
     clampSpectrumHeight,
+    DEFAULT_EFFECT,
     isFlat,
     isIdle,
     liveSpectrumReadable,
-    spectrumReadable,
     nextStyle,
+    RELEASE,
     ridgePoints,
+    roomInWindow,
     scopePoints,
+    setSpectrumEffect,
+    settle,
     SPECTRUM_DEFAULT_HEIGHT,
+    SPECTRUM_EFFECT_LABELS,
+    SPECTRUM_EFFECTS,
     SPECTRUM_MAX_HEIGHT,
     SPECTRUM_MIN_HEIGHT,
+    spectrumEffect,
+    spectrumReadable,
+    tilt,
+    type VisualizerStyle,
     VISUALIZER_STYLE_LABELS,
     VISUALIZER_STYLES,
-    type VisualizerStyle,
 } from '@/lib/visualizer'
 
 /** A spread of bins, every one at the same level. */
@@ -337,5 +339,19 @@ describe('the effect the stage wears', () => {
 
     test('names every effect, because the control is a list of words', () => {
         for (const effect of SPECTRUM_EFFECTS) expect(SPECTRUM_EFFECT_LABELS[effect]).toBeTruthy()
+    })
+})
+
+describe('the room a window has for the player bar', () => {
+    test('is what was dragged, where the window is tall enough for it', () => {
+        expect(roomInWindow(237, 900)).toBe(237)
+    })
+
+    test('leaves the whole bar at most two fifths of a short window, so the page keeps the rest', () => {
+        // Dragged tall on a desktop and seen in a 500 px window, the page had 33 px; a phone in
+        // landscape had its header covered.
+        expect(roomInWindow(320, 500)).toBe(154)
+        expect(roomInWindow(320, 343)).toBe(91)
+        expect(roomInWindow(320, 200)).toBe(BAR_ROOM_MIN)
     })
 })

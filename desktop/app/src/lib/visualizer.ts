@@ -249,6 +249,25 @@ export function clampBarRoom(room: number): number {
     return Math.round(Math.min(BAR_ROOM_MAX, Math.max(BAR_ROOM_MIN, room)))
 }
 
+/** The controls' row under the room, which the share below has to leave space for. */
+const BAR_FOOT = 46
+
+/** The most of a window's height the whole bar may take: the page keeps the rest. */
+const BAR_WINDOW_SHARE = 0.4
+
+/**
+ * The room the bar is drawn with in a window this tall.
+ *
+ * THE DRAGGED HEIGHT IS KEPT, AND DRAWN ONLY WHERE IT FITS. A bar dragged tall on a desktop and
+ * seen in a short window left the page 33 px, and on a phone turned on its side it covered the
+ * header. The bar is drawn at most two fifths of the window; the height somebody chose comes
+ * back when the window can hold it.
+ */
+export function roomInWindow(room: number, windowHeight: number): number {
+    const most = Math.floor(windowHeight * BAR_WINDOW_SHARE) - BAR_FOOT
+    return Math.max(BAR_ROOM_MIN, Math.min(room, most))
+}
+
 function readBarRoom(): number {
     try {
         const stored = localStorage.getItem(BAR_ROOM_KEY)

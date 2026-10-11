@@ -54,6 +54,7 @@ import {
     barRoom,
     clampBarRoom,
     openStage,
+    roomInWindow,
     setBarRoom,
     spectrumReadable,
     visualizerShown,
@@ -122,7 +123,9 @@ export function PlayerBar() {
     const dragged = useStore(barRoom)
     // Under a picture the bar is the strip or nothing: see `barOnScreen`.
     const fits = barOnScreen(useLocation().pathname, player.playing)
-    const room = fits === 'strip' ? BAR_ROOM_MIN : dragged
+    // Drawn at what was dragged where the window can hold it; see `roomInWindow`.
+    const windowHeight = useWindowHeight()
+    const room = fits === 'strip' ? BAR_ROOM_MIN : roomInWindow(dragged, windowHeight)
     // THE DRAG WRITES A HEIGHT ONTO THE ELEMENT IT IS GIVEN, so it is given the room and not
     // the bar: handed the bar, it forced the whole of it to the room's height mid-drag and the
     // controls spilled out under the status bar.
@@ -670,4 +673,17 @@ function VolumeGlyph({ muted, volume }: { muted: boolean; volume: number }) {
     if (muted || volume === 0) return <VolumeX className="size-4" aria-hidden />
     if (volume < 0.5) return <Volume1 className="size-4" aria-hidden />
     return <Volume2 className="size-4" aria-hidden />
+}
+
+/** The window's height, kept as it is resized or a phone is turned. */
+function useWindowHeight(): number {
+    const [height, setHeight] = useState(() => (typeof window === 'undefined' ? 900 : window.innerHeight))
+    useEffect(() => {
+        const measure = () => setHeight(window.innerHeight)
+        window.addEventListener('resize', measure)
+        return () => {
+            window.removeEventListener('resize', measure)
+        }
+    }, [])
+    return height
 }
