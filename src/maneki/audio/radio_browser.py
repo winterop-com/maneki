@@ -88,7 +88,8 @@ def _parse(raw: dict[str, object]) -> FoundStation | None:
         name=name,
         stream_url=stream,
         homepage=text("homepage"),
-        logo=text("favicon"),
+        # Only an address is a logo: rows carry "null" and other text there, which a client fetched.
+        logo=logo if (logo := text("favicon")) and logo.startswith(("http://", "https://")) else None,
         country=text("country"),
         country_code=text("countrycode"),
         tags=tags[:6],

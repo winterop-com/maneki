@@ -52,3 +52,16 @@ def test_a_new_connection_forgets_the_last_title(monkeypatch: pytest.MonkeyPatch
     _relaying(monkeypatch, lambda request: httpx.Response(200, content=b"audio"))
     asyncio.run(radio_proxy.proxy_station_stream(URL))
     assert radio_proxy.latest_icy_title(URL) == ""
+
+
+def test_a_directory_logo_that_is_not_an_address_is_no_logo() -> None:
+    """A directory row whose favicon was the text "null" made the client fetch `/null`."""
+    from maneki.audio import radio_browser
+
+    row: dict[str, object] = {"url_resolved": "https://s.example/live", "name": "Dubbo's 94.3", "favicon": "null"}
+    found = radio_browser._parse(row)  # noqa: SLF001 - the row parser is the unit under test
+    assert found is not None
+    assert found.logo is None
+    with_logo = radio_browser._parse({**row, "favicon": "https://s.example/logo.png"})  # noqa: SLF001
+    assert with_logo is not None
+    assert with_logo.logo == "https://s.example/logo.png"
