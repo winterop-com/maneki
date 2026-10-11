@@ -669,6 +669,14 @@ function onFileEnded(): void {
         placeBook(following.offset_s, true)
         return
     }
+    finishBook(book)
+}
+
+/** How near the end a jump or a scrub has to land to be the book finished. */
+const END_OF_BOOK_S = 0.5
+
+/** The book is over: stopped at its last second, and saved as finished. */
+function finishBook(book: PlayingBook): void {
     patch({ playing: false, positionS: book.duration_s })
     saveBook(book.duration_s, true)
 }
@@ -933,6 +941,15 @@ export function seek(positionS: number): void {
     // is kept, which is what makes the counter on the shelf right after a jump.
     if (book) {
         const at = Math.min(Math.max(0, positionS), book.duration_s)
+        // THE END OF THE BOOK IS THE BOOK FINISHED, NOT A PLACE TO PLAY FROM. Placed there, the
+        // element sits at the end of its last file, and WebKit answers a play on an ended element
+        // by rewinding it to the start -- so a jump or a scrub to the end restarted the book and
+        // saved 0 over hours of progress. It ends the way the last file ending does.
+        if (at >= book.duration_s - END_OF_BOOK_S) {
+            element().pause()
+            finishBook(book)
+            return
+        }
         placeBook(at, !element().paused)
         saveBook(at)
         return

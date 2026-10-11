@@ -695,6 +695,26 @@ describe('playing a book', () => {
         expect(saves().at(-1)).toEqual({ position_s: 3600, finished: true })
     })
 
+    test('a jump past the end finishes the book rather than starting it again', () => {
+        // WebKit rewinds an ended element to its start when it is told to play, so a jump that
+        // landed on the last second restarted the book and saved 0 over hours of progress.
+        playBook(book, 3594)
+        fake.arrive()
+        skipBy(15)
+        expect(playerStore.get().playing).toBe(false)
+        expect(playerStore.get().positionS).toBe(3600)
+        expect(saves().at(-1)).toEqual({ position_s: 3600, finished: true })
+        expect(saves().some((one) => one.position_s === 0)).toBe(false)
+    })
+
+    test('a scrub to the very end finishes the book too', () => {
+        playBook(book, 100)
+        fake.arrive()
+        seek(3600)
+        expect(playerStore.get().playing).toBe(false)
+        expect(saves().at(-1)).toEqual({ position_s: 3600, finished: true })
+    })
+
     test('a book is not a track, so nothing asks the queue about it', () => {
         playBook(book, 60)
         expect(currentSong()).toBeNull()
