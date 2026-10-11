@@ -11,6 +11,7 @@ import {
     CommandItem,
     CommandList,
 } from '@/components/ui/command'
+import { Button } from '@/components/ui/button'
 import { Kbd, KbdGroup } from '@/components/ui/kbd'
 import { useStore } from '@/hooks/use-store'
 import { albumPath, bookOfAlbum } from '@/lib/nav'
@@ -165,8 +166,20 @@ export function SearchOverlay() {
                         </CommandGroup>
                     ))}
                 </CommandList>
+                {/* A TOUCH SCREEN HAS NO ESCAPE AND NO ARROWS. On a phone this fills the screen, and
+                    with no key to leave by and nothing outside it to tap, it could not be closed;
+                    the keys' hints were also instructions for keys that are not there. So a touch
+                    screen gets a Close in their place. */}
                 <div className="flex h-11 shrink-0 items-center justify-between gap-3 border-t border-border px-3 text-faint">
-                    <KbdGroup>
+                    <Button
+                        variant="ghost"
+                        size="sm"
+                        className="hidden pointer-coarse:inline-flex"
+                        onClick={dismiss}
+                    >
+                        Close
+                    </Button>
+                    <KbdGroup className="pointer-coarse:hidden">
                         <Kbd>↑↓</Kbd>
                         <span className="text-xs">choose</span>
                         <Kbd className="ml-2">↵</Kbd>
