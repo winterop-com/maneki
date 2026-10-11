@@ -186,6 +186,12 @@ describe('the window title', () => {
         )
     })
 
+    test("names the book a chapter is from, since chapters are mostly called 'Chapter 2'", () => {
+        expect(windowTitle({ title: 'Chapter 2', artist: 'J. R. R. Tolkien', book: 'The Hobbit' })).toBe(
+            'Chapter 2 · The Hobbit · J. R. R. Tolkien · maneki',
+        )
+    })
+
     test('is the app alone when nothing plays', () => {
         expect(windowTitle(null)).toBe('maneki')
     })

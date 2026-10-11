@@ -159,11 +159,16 @@ const CLAIM_POLL_MS = 1000
  * The window's title: what is playing, then the app.
  *
  * It was "Maneki" whatever played, so the window could not be told from its neighbours when
- * switching, and a screen reader announced the app's name alone.
+ * switching, and a screen reader announced the app's name alone. A chapter names its book too:
+ * chapters are mostly called "Chapter 2", which says nothing about which book is playing.
  */
-export function windowTitle(shown: Pick<NowPlaying, 'title' | 'artist'> | null): string {
+export function windowTitle(
+    shown: (Pick<NowPlaying, 'title' | 'artist'> & { book?: string }) | null,
+): string {
     if (shown === null) return APP_TITLE
-    return [shown.title, shown.artist, APP_TITLE].filter((part) => part.trim() !== '').join(' · ')
+    return [shown.title, shown.book ?? '', shown.artist, APP_TITLE]
+        .filter((part) => part.trim() !== '')
+        .join(' · ')
 }
 
 const APP_TITLE = 'maneki'
@@ -235,7 +240,10 @@ export function installMediaSession(): void {
         }
         const state = playerStore.get()
         const shown = nowPlaying(state, artworkFor(state))
-        if (typeof document !== 'undefined') document.title = windowTitle(shown)
+        if (typeof document !== 'undefined') {
+            // The book is the album of a chapter (see `nowPlaying`); a record's album stays out.
+            document.title = windowTitle(shown && state.book ? { ...shown, book: shown.album } : shown)
+        }
         const key = identity(shown)
         if (key !== shownAs) {
             shownAs = key
