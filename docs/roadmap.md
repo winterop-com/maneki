@@ -42,25 +42,34 @@ What's landed, what's open, what's speculative. Keep this in sync with code chan
 
 ## Radio without a server
 
-A third way into the client, next to signing in: **Just listen to radio**, with no server, no address and no account. It adds a mode and removes nothing: a client that signs in keeps the server's radio exactly as it is (relayed stream, ICY titles, shared station list, the spectrum). The sign-in screen changes with it: it offers two choices, **Sign in** (to a server, with an account) and **Just listen to radio** (no login), instead of a "Connect" step.
+Landed in the client: the sign-in screen offers **Sign in** (to a server, with an account) and **Just listen to radio** (no server, no address, no account). Signing in keeps the server's radio exactly as it was (relayed stream, ICY titles, shared station list, the spectrum); the radio-only mode adds a way in and removes nothing.
 
-What the server does for radio today, and what the radio-only mode does instead:
+What radio-only does in place of the server:
 
-- **Stream relay** (`audio/serve/radio_proxy.py`): stations rarely send CORS headers, and the spectrum needs `crossOrigin` on the element, so a direct cross-origin stream fails silently. Radio-only plays the station URL directly with no Web Audio tap. The spectrum is lost for stations, which WebKit (Safari, iPhone, the macOS app) cannot draw for a live stream anyway.
-- **ICY now-playing title**: the server reads the inline metadata. A browser cannot (it needs `Icy-MetaData: 1` and the raw bytes, cross-origin). Radio-only shows the station name; per-station now-playing APIs (NRK has one) are an optional later step.
-- **Station list**: kept on the server today. Radio-only keeps it in local storage, seeded with the same defaults, with no sync between devices.
-- **Station search**: the server queries radio-browser.info. Radio-only calls its API directly; confirm it allows cross-origin requests from every shell first.
+- **Streams** play from the station's own address, with no `crossOrigin` and so no spectrum (WebKit cannot draw one for a live stream anyway).
+- **Now-playing titles** are not shown: a browser cannot read ICY metadata cross-origin. Per-station now-playing APIs (NRK has one) are an optional later step.
+- **The station list** is the built-in ten plus the stations added from search, kept in `localStorage` (`maneki.radioStations`) on that device, with no sync.
+- **Search** asks radio-browser.info directly (it allows any origin), with the server's rules: no HLS, no playlists, logos only when they are addresses.
+- **The account menu** reads "Radio only" and offers **Sign in to a server**, which returns to the sign-in screen with the last server and username kept.
 
-Adding is the same gesture in both modes: a **+ Add** on the Radio screen that takes a search (radio-browser.info) or a pasted stream URL, tries it, and keeps it. The YouTube screen gets the same **+ Add** for a channel (pasted address or handle) when signed in; YouTube stays out of the radio-only mode, since it needs the server's yt-dlp.
+Still open:
 
-Where an added station lives:
+- **Per-user stations when signed in.** Added stations go into `~/.config/maneki/radio.db` today, shared by every account. They should move into the user's own directory under `<root>/.maneki/users/<name>/`, beside `books.db`, `videos.db`, `history.db` and `youtube.db`. The defaults and the hand-written `radio.toml` stay shared and cannot be removed from a client.
+- **A pasted stream URL** in **+ Add** beside search, and the same **+ Add** for a YouTube channel when signed in (YouTube stays out of radio-only, since it needs the server's yt-dlp).
+- **A native relay in the desktop shells**: Tauri (Rust) and Electron (Node) can do what `radio_proxy.py` does without CORS, so the desktop apps get ICY titles and (in Electron) the spectrum with no server at all.
+- Plain-`http` stations from a client served over `https` (mixed content; fine in the desktop shells), and whether a station list kept on a device should be offered to a server on a later sign-in.
 
-- **Radio-only**: on the device. A station list is a few dozen small rows, so `localStorage` in a browser and the Tauri store plugin (already loaded in `desktop/tauri`) are enough; no SQLite in the client.
-- **Signed in**: on the server, but per user. Added stations go into SQLite in `~/.config/maneki/radio.db` today, shared by every account, so any user can remove another's station. They should move into the user's own directory under `<root>/.maneki/users/<name>/`, beside `books.db`, `videos.db`, `history.db` and `youtube.db`. The defaults and the hand-written `radio.toml` stay shared and cannot be removed from a client.
+## iOS and Android apps
 
-Then a native relay in the desktop shells: Tauri (Rust) and Electron (Node) can do what `radio_proxy.py` does, without CORS, so the desktop apps get ICY titles and (in Electron) the spectrum with no server at all.
+The same approach as `delivery-app`: one React UI for every platform, with Tauri 2's mobile targets wrapping `desktop/app` for iOS and Android, so a phone gets the app the desktop has rather than a second client. Phones today use the web client in a browser or a Subsonic app (play:Sub on iOS).
 
-Open questions: plain-`http` stations from a client served over `https` (mixed content; fine in the desktop shells); stations that publish HLS or `.pls` / `.m3u` playlists rather than a raw stream; and whether a station list kept locally should be offered to a server on a later sign-in.
+- **Shell**: `tauri ios init` / `tauri android init` in `desktop/tauri` (the generated projects under `gen/apple` and `gen/android`), `TAURI_ENV_PLATFORM` through Vite's `envPrefix` so the UI knows it is on a phone. No admin screens on phones beyond what the account allows.
+- **Make targets** in the same shape: `setup-phones`, `ios` and `android` (simulator and emulator), `sims` (web, iOS and Android side by side), `ios-build` / `android-build`, `phone-install` for an Android phone on USB.
+- **Radio-only first**: a phone app needs no server to be useful, so the first build can ship the radio-only mode, then sign-in to a server on the LAN or over the internet.
+- **Playback that phones expect**: background audio (iOS audio session, an Android foreground media service), lock-screen and notification controls through Media Session, and keeping a book's position when the app is suspended.
+- **Networking**: Android allows cleartext HTTP only in debug builds and Android 17 needs `ACCESS_LOCAL_NETWORK` for LAN servers; iOS ATS needs a local-network exception. Plain-`http` radio stations hit the same rules.
+- **Tests**: Playwright on the Android WebView (`_android`) and Maestro on the iOS simulator, as `make e2e-android` / `make e2e-ios`, beside the existing phone-sized browser checks.
+- **Traps already found there**: `tauri-plugin-log` broke the iOS simulator build (`num_threads` via `time`); the Android 17 emulator image was unstable in October 2026 (an API 36 AVD works); Xcode 27 has no Simulator.app (DeviceHub.app).
 
 ## Stage 3 — Maneki-native protocol & compat facades
 
