@@ -51,6 +51,13 @@ What the server does for radio today, and what the radio-only mode does instead:
 - **Station list**: kept on the server today. Radio-only keeps it in local storage, seeded with the same defaults, with no sync between devices.
 - **Station search**: the server queries radio-browser.info. Radio-only calls its API directly; confirm it allows cross-origin requests from every shell first.
 
+Adding is the same gesture in both modes: a **+ Add** on the Radio screen that takes a search (radio-browser.info) or a pasted stream URL, tries it, and keeps it. The YouTube screen gets the same **+ Add** for a channel (pasted address or handle) when signed in; YouTube stays out of the radio-only mode, since it needs the server's yt-dlp.
+
+Where an added station lives:
+
+- **Radio-only**: on the device. A station list is a few dozen small rows, so `localStorage` in a browser and the Tauri store plugin (already loaded in `desktop/tauri`) are enough; no SQLite in the client.
+- **Signed in**: on the server, but per user. Added stations go into SQLite in `~/.config/maneki/radio.db` today, shared by every account, so any user can remove another's station. They should move into the user's own directory under `<root>/.maneki/users/<name>/`, beside `books.db`, `videos.db` and `history.db` (and `youtube.toml`, which could join them in SQLite for one store per user). The defaults and the hand-written `radio.toml` stay shared and cannot be removed from a client.
+
 Then a native relay in the desktop shells: Tauri (Rust) and Electron (Node) can do what `radio_proxy.py` does, without CORS, so the desktop apps get ICY titles and (in Electron) the spectrum with no server at all.
 
 Open questions: plain-`http` stations from a client served over `https` (mixed content; fine in the desktop shells); stations that publish HLS or `.pls` / `.m3u` playlists rather than a raw stream; and whether a station list kept locally should be offered to a server on a later sign-in.
