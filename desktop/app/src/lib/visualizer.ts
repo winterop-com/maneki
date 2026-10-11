@@ -60,6 +60,35 @@ function readFlag(fallback: boolean): boolean {
  */
 export const visualizerShown = createStore(readFlag(true))
 
+/**
+ * Whether this engine lets Web Audio hear a live station at all.
+ *
+ * WEBKIT HANDS WEB AUDIO SILENCE FROM A STREAM WITH NO END. Safari, the macOS app's webview and
+ * every browser on an iPhone play a station perfectly well and give the analyser nothing but
+ * zeroes for it, while a track with a length reads fine on the same element -- so under a
+ * station the spectrum was a flat line that said the sound had stopped when it had not. A
+ * Chromium agent names itself (Electron, Chrome, Edge, Android's webview); an Apple WebKit one
+ * that does not is the engine that cannot.
+ */
+export function liveSpectrumReadable(userAgent: string): boolean {
+    if (!userAgent.includes('AppleWebKit/')) return true
+    // No word boundary: a headless Chromium names itself `HeadlessChrome/`.
+    return /(Chrome|Chromium|Edg|Electron)\//.test(userAgent)
+}
+
+/** This document's answer to `liveSpectrumReadable`, read once: the engine does not change. */
+const LIVE_SPECTRUM_READABLE =
+    typeof navigator === 'undefined' ? true : liveSpectrumReadable(navigator.userAgent)
+
+/**
+ * Whether there is a spectrum to draw for what is playing: always for a track or a book, and for
+ * a station only where the engine can hear one. Where it cannot, nothing is drawn rather than
+ * a line that lies about the sound.
+ */
+export function spectrumReadable(playingStation: boolean, readable = LIVE_SPECTRUM_READABLE): boolean {
+    return !playingStation || readable
+}
+
 export function setVisualizer(shown: boolean): void {
     try {
         localStorage.setItem(VISUALIZER_KEY, String(shown))

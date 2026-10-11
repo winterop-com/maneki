@@ -17,6 +17,7 @@ import {
     closeStage,
     cycleVisualizerStyle,
     nextStyle,
+    spectrumReadable,
     stageOpen,
     VISUALIZER_STYLE_LABELS,
     visualizerStyle,
@@ -38,6 +39,9 @@ export function nextStyleLabel(style: VisualizerStyle): string {
 
 /** How many bars the whole screen gets. Enough to read as a spectrum at any width. */
 const STAGE_BANDS = 64
+
+/** What the room says where this engine cannot hear a live station. */
+export const UNHEARD_STATION = 'This app cannot draw the spectrum of a live station on this system.'
 
 /**
  * The spectrum, over everything.
@@ -87,7 +91,10 @@ function Stage() {
     const stage = useRef<HTMLDivElement | null>(null)
     const song = currentSong()
     const playing = player.playing
-    const canvas = useSpectrum(playing, STAGE_BANDS, true)
+    // Where the engine cannot hear a station, the room says so rather than drawing a flat line
+    // under music that is plainly playing: see `spectrumReadable`.
+    const readable = spectrumReadable(player.station !== null)
+    const canvas = useSpectrum(playing && readable, STAGE_BANDS, true)
     useOverlay(stage, closeStage)
 
     const book = player.book
@@ -147,11 +154,20 @@ function Stage() {
             </div>
 
             <div className="relative min-h-0 flex-1">
-                <canvas
-                    ref={canvas}
-                    aria-hidden
-                    className="absolute inset-0 size-full text-terminal-accent"
-                />
+                {readable ? (
+                    <canvas
+                        ref={canvas}
+                        aria-hidden
+                        className="absolute inset-0 size-full text-terminal-accent"
+                    />
+                ) : (
+                    <p
+                        data-unheard-station
+                        className="absolute inset-0 flex items-center justify-center px-8 text-center text-terminal-muted"
+                    >
+                        {UNHEARD_STATION}
+                    </p>
+                )}
             </div>
 
             <div className="relative z-10 flex flex-col gap-3 px-8 pt-3 pb-6">

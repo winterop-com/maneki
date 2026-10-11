@@ -55,6 +55,7 @@ import {
     clampBarRoom,
     openStage,
     setBarRoom,
+    spectrumReadable,
     visualizerShown,
 } from '@/lib/visualizer'
 import { cn } from '@/lib/utils'
@@ -111,7 +112,8 @@ export const STAGE_LABEL = 'Put the spectrum over the whole screen'
  */
 export function PlayerBar() {
     const player = useStore(playerStore)
-    const spectrumShown = useStore(visualizerShown)
+    // A station on an engine that cannot hear one has no spectrum to draw: see `spectrumReadable`.
+    const spectrumShown = useStore(visualizerShown) && spectrumReadable(player.station !== null)
     const session = useStore(sessionStore)
     // THE BAR IS DRAGGED TALLER AND THE ROOM IS THE SPECTRUM. The grip is the bar's top edge;
     // pulling it up gives the room above the controls more height, and the spectrum is drawn

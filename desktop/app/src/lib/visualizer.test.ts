@@ -17,6 +17,8 @@ import {
     clampSpectrumHeight,
     isFlat,
     isIdle,
+    liveSpectrumReadable,
+    spectrumReadable,
     nextStyle,
     ridgePoints,
     scopePoints,
@@ -32,6 +34,45 @@ import {
 function flat(level: number, bins = 128): Uint8Array {
     return new Uint8Array(bins).fill(level)
 }
+
+describe('whether a station can be heard by the spectrum', () => {
+    const safari =
+        'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.0 Safari/605.1.15'
+    const tauri = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko)'
+    const iphoneChrome =
+        'Mozilla/5.0 (iPhone; CPU iPhone OS 26_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) CriOS/140.0 Mobile/15E148 Safari/604.1'
+    const chrome =
+        'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/155.0.0.0 Safari/537.36'
+    const electron =
+        'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) maneki/0.22.0 Chrome/150.0.0.0 Electron/40.0.0 Safari/537.36'
+    const android =
+        'Mozilla/5.0 (Linux; Android 16; Pixel 9) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/155.0.0.0 Mobile Safari/537.36'
+    const firefox = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 15.0; rv:150.0) Gecko/20100101 Firefox/150.0'
+
+    test('WebKit -- Safari, the macOS app, anything on an iPhone -- reads silence off a station', () => {
+        expect(liveSpectrumReadable(safari)).toBe(false)
+        expect(liveSpectrumReadable(tauri)).toBe(false)
+        expect(liveSpectrumReadable(iphoneChrome)).toBe(false)
+    })
+
+    test('Chromium and Gecko read a station like anything else', () => {
+        expect(liveSpectrumReadable(chrome)).toBe(true)
+        expect(liveSpectrumReadable(electron)).toBe(true)
+        expect(liveSpectrumReadable(android)).toBe(true)
+        expect(liveSpectrumReadable(firefox)).toBe(true)
+        expect(
+            liveSpectrumReadable(
+                'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/156.0.0.0 Safari/537.36',
+            ),
+        ).toBe(true)
+    })
+
+    test('a track always has a spectrum; a station only where it can be heard', () => {
+        expect(spectrumReadable(false, false)).toBe(true)
+        expect(spectrumReadable(true, true)).toBe(true)
+        expect(spectrumReadable(true, false)).toBe(false)
+    })
+})
 
 describe('one frame of the spectrum', () => {
     test('gives one height per band, whatever the analyser handed over', () => {
