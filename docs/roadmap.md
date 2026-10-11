@@ -40,6 +40,21 @@ What's landed, what's open, what's speculative. Keep this in sync with code chan
 - **Scrub-bar hover previews**: extend the contact-sheet logic into denser per-segment thumbnails for hover-on-scrub previews. Cheap re-use of existing ffmpeg infra.
 - **Theater-mode overlap with topbar** (cosmetic): some viewport sizes show the player title strip rendering tighter than expected next to the topbar. Investigation pending.
 
+## Radio without a server
+
+A third way into the client, next to signing in: **Just listen to radio**, with no server, no address and no account. It adds a mode and removes nothing: a client that signs in keeps the server's radio exactly as it is (relayed stream, ICY titles, shared station list, the spectrum). The sign-in screen changes with it: it offers two choices, **Sign in** (to a server, with an account) and **Just listen to radio** (no login), instead of a "Connect" step.
+
+What the server does for radio today, and what the radio-only mode does instead:
+
+- **Stream relay** (`audio/serve/radio_proxy.py`): stations rarely send CORS headers, and the spectrum needs `crossOrigin` on the element, so a direct cross-origin stream fails silently. Radio-only plays the station URL directly with no Web Audio tap. The spectrum is lost for stations, which WebKit (Safari, iPhone, the macOS app) cannot draw for a live stream anyway.
+- **ICY now-playing title**: the server reads the inline metadata. A browser cannot (it needs `Icy-MetaData: 1` and the raw bytes, cross-origin). Radio-only shows the station name; per-station now-playing APIs (NRK has one) are an optional later step.
+- **Station list**: kept on the server today. Radio-only keeps it in local storage, seeded with the same defaults, with no sync between devices.
+- **Station search**: the server queries radio-browser.info. Radio-only calls its API directly; confirm it allows cross-origin requests from every shell first.
+
+Then a native relay in the desktop shells: Tauri (Rust) and Electron (Node) can do what `radio_proxy.py` does, without CORS, so the desktop apps get ICY titles and (in Electron) the spectrum with no server at all.
+
+Open questions: plain-`http` stations from a client served over `https` (mixed content; fine in the desktop shells); stations that publish HLS or `.pls` / `.m3u` playlists rather than a raw stream; and whether a station list kept locally should be offered to a server on a later sign-in.
+
 ## Stage 3 — Maneki-native protocol & compat facades
 
 The Subsonic API is the only audio protocol today; the video API is Maneki-native but unstable. Stage 3 is to design Maneki's own clean protocol for both kinds, then offer Subsonic / Jellyfin compat layers on top for existing clients.
