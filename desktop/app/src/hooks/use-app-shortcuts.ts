@@ -12,10 +12,10 @@ import {
     toggleMuted,
     toggleShuffle,
 } from '@/lib/player'
-import { dialogUp } from '@/lib/dialogs'
+import { dialogUp, mayOpen, type Standing } from '@/lib/dialogs'
 import { paletteOpen } from '@/lib/palette'
 import { toggleRail } from '@/lib/panels'
-import { toggleLyrics } from '@/lib/lyrics'
+import { lyricsOpen, toggleLyrics } from '@/lib/lyrics'
 import { muteKeyClaim, stageKeyClaim, transportClaim, volumeKeysClaim } from '@/lib/screen-keys'
 import { closeSearch, openSearch, searchOpen } from '@/lib/search'
 import { sessionStore } from '@/lib/session'
@@ -39,7 +39,7 @@ import {
     type FocusedField,
 } from '@/lib/shortcuts'
 import { toggleStar } from '@/lib/star'
-import { toggleStage, toggleVisualizer } from '@/lib/visualizer'
+import { stageOpen, toggleStage, toggleVisualizer } from '@/lib/visualizer'
 
 /**
  * The one place a real `KeyboardEvent` is read.
@@ -67,6 +67,16 @@ export function useAppShortcuts(onShortcuts: () => void): void {
             }
         }
 
+        // What is standing over the app when a key is pressed; see `mayOpen`.
+        function standing(): Standing {
+            return {
+                dialog: dialogUp(),
+                stage: stageOpen.get(),
+                lyrics: lyricsOpen.get(),
+                song: currentSong() !== null,
+            }
+        }
+
         function onKeyDown(event: KeyboardEvent): void {
             const press = {
                 key: event.key,
@@ -76,6 +86,8 @@ export function useAppShortcuts(onShortcuts: () => void): void {
             }
             if (opensPalette(press)) {
                 event.preventDefault()
+                // One surface at a time; see `mayOpen`.
+                if (!mayOpen('palette', standing())) return
                 // One dialog at a time: the chord is answered wherever focus is, so it is
                 // answered inside the search too, and two modals stacked is one scrim over
                 // the thing the other is about.
@@ -96,7 +108,7 @@ export function useAppShortcuts(onShortcuts: () => void): void {
             if (paletteOpen.get() || searchOpen.get() || dialogUp()) return
             if (opensSearch(press, focused())) {
                 event.preventDefault()
-                openSearch()
+                if (mayOpen('search', standing())) openSearch()
                 return
             }
             // What is playing is what somebody is looking at. A screen with a video on it
@@ -135,8 +147,8 @@ export function useAppShortcuts(onShortcuts: () => void): void {
                 // screen playing a video takes this key while it is open and the spectrum
                 // has it everywhere else.
                 const claimed = stageKeyClaim()
-                if (claimed === null) toggleStage()
-                else claimed()
+                if (claimed !== null) claimed()
+                else if (stageOpen.get() || mayOpen('stage', standing())) toggleStage()
                 return
             }
             if (togglesShuffle(press, focused())) {
@@ -188,7 +200,8 @@ export function useAppShortcuts(onShortcuts: () => void): void {
             }
             if (opensLyrics(press, focused())) {
                 event.preventDefault()
-                toggleLyrics()
+                // Closing is always allowed; opening only where it can be seen and has words.
+                if (lyricsOpen.get() || mayOpen('lyrics', standing())) toggleLyrics()
                 return
             }
             if (starsCurrent(press, focused())) {
@@ -198,7 +211,7 @@ export function useAppShortcuts(onShortcuts: () => void): void {
             }
             if (opensShortcuts(press, focused())) {
                 event.preventDefault()
-                onShortcuts()
+                if (mayOpen('shortcuts', standing())) onShortcuts()
             }
         }
 

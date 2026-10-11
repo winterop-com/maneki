@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, test } from 'vitest'
 
-import { anyOpen, dialogsOpen, dialogUp, setDialogOpen, withDialog } from '@/lib/dialogs'
+import { anyOpen, dialogsOpen, dialogUp, mayOpen, setDialogOpen, withDialog } from '@/lib/dialogs'
 
 afterEach(() => {
     dialogsOpen.set(new Set())
@@ -43,5 +43,32 @@ describe('writing a dialog down', () => {
         expect(withDialog(new Set(), 'settings', false)).toBeInstanceOf(Set)
         const shut: ReadonlySet<'settings' | 'shortcuts'> = new Set()
         expect(withDialog(shut, 'settings', false)).toBe(shut)
+    })
+})
+
+describe('a key that opens something over what is already open', () => {
+    const nothing = { dialog: false, stage: false, lyrics: false, song: true }
+
+    test('opens when nothing stands in front', () => {
+        for (const opener of ['palette', 'search', 'shortcuts', 'lyrics', 'stage'] as const) {
+            expect(mayOpen(opener, nothing)).toBe(true)
+        }
+    })
+
+    test('does not stack the palette on a dialog, where Escape then left the dialog stuck', () => {
+        expect(mayOpen('palette', { ...nothing, dialog: true })).toBe(false)
+    })
+
+    test('does not stack a dialog on the stage or on the lyrics', () => {
+        for (const opener of ['palette', 'search', 'shortcuts', 'lyrics'] as const) {
+            expect(mayOpen(opener, { ...nothing, stage: true })).toBe(false)
+        }
+        expect(mayOpen('stage', { ...nothing, lyrics: true })).toBe(false)
+        expect(mayOpen('search', { ...nothing, lyrics: true })).toBe(false)
+    })
+
+    test('opens no lyrics over a station, which has none', () => {
+        // `l` during a station put up a full-screen "Nothing is playing."
+        expect(mayOpen('lyrics', { ...nothing, song: false })).toBe(false)
     })
 })

@@ -61,3 +61,30 @@ export function setDialogOpen(name: DialogName, standing: boolean): void {
 export function dialogUp(): boolean {
     return anyOpen(dialogsOpen.get())
 }
+
+/** What a key would open over the app. */
+export type Opener = 'palette' | 'search' | 'shortcuts' | 'lyrics' | 'stage'
+
+/** What is standing when the key is pressed, and whether a track (not a station) is playing. */
+export interface Standing {
+    dialog: boolean
+    stage: boolean
+    lyrics: boolean
+    song: boolean
+}
+
+/**
+ * Whether a key may open `opener` over what is already standing.
+ *
+ * ONE SURFACE AT A TIME. The palette opened over Settings, and Escape then left Settings stuck;
+ * `?`, `/`, `l` and Cmd+K opened dialogs over the stage, and `f` the stage behind the lyrics,
+ * with focus moving into what could not be seen. A key that would stack one surface on another
+ * does nothing. And lyrics are a track's: over a station `l` opened "Nothing is playing".
+ */
+export function mayOpen(opener: Opener, standing: Standing): boolean {
+    if (opener === 'palette' && standing.dialog) return false
+    if (opener === 'stage') return !standing.lyrics
+    if (standing.stage || standing.lyrics) return false
+    if (opener === 'lyrics') return standing.song
+    return true
+}

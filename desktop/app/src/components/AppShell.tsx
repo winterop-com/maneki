@@ -169,6 +169,8 @@ export function AppShell({ children }: { children: ReactNode }) {
     }, [])
 
     const openSettings = useCallback(() => {
+        // One surface at a time: the palette could open Settings over the shortcuts list.
+        setShortcutsOpen(false)
         setSettingsAsked(true)
         setSettingsOpen(true)
     }, [])
