@@ -18,6 +18,7 @@ import {
     type FoundStation,
     type Station,
 } from '@/lib/subsonic'
+import { stationIsPlaying } from '@/lib/radio-rows'
 import { cn } from '@/lib/utils'
 
 export const FIND_STATIONS_LABEL = 'Find stations'
@@ -34,6 +35,8 @@ const FIND_DEBOUNCE_MS = 300
  * the whole of it rebuilt every row of this list on every one of those ticks.
  */
 const selectStationId = (state: { station: { id: string } | null }) => state.station?.id ?? null
+const selectStation = (state: { station: Station | null }) => state.station
+const selectRefused = (state: { refusal: string | null }) => state.refusal !== null
 
 /** What a found station is called while it plays, before it is anybody's: never a list id. */
 function previewId(found: FoundStation): string {
@@ -61,6 +64,10 @@ export function RadioPage() {
     // Stations are the server's, so only an admin adds or removes one; see `isAdmin`.
     const admin = isAdmin(session)
     const playingId = useStoreValue(playerStore, selectStationId)
+    const playingStation = useStoreValue(playerStore, selectStation)
+    const refused = useStoreValue(playerStore, selectRefused)
+    // Stations whose Add is on its way, so a second press does not add it twice.
+    const [adding, setAdding] = useState<ReadonlySet<string>>(new Set())
     const [stations, setStations] = useState<Station[] | null>(null)
     const [refusal, setRefusal] = useState<string | null>(null)
     const [query, setQuery] = useState('')
@@ -108,7 +115,17 @@ export function RadioPage() {
     const results = searching && found !== null && found.query === query.trim() ? found.stations : null
 
     const keep = (station: FoundStation) => {
+        // A double press added it and then said it was already in the list.
+        if (adding.has(station.id)) return
+        setAdding((held) => new Set(held).add(station.id))
         addStation(credentials, station)
+            .finally(() => {
+                setAdding((held) => {
+                    const next = new Set(held)
+                    next.delete(station.id)
+                    return next
+                })
+            })
             .then(() => {
                 toast.success(`Added ${station.name}`)
                 setFound((held) =>
@@ -209,6 +226,7 @@ export function RadioPage() {
                                                 variant="ghost"
                                                 size="sm"
                                                 className="w-16 shrink-0"
+                                                disabled={adding.has(station.id)}
                                                 onClick={() => {
                                                     keep(station)
                                                 }}
@@ -235,7 +253,8 @@ export function RadioPage() {
             ) : (
                 <ul>
                     {stations.map((station) => {
-                        const live = playingId === station.id
+                        // By its stream, and not while it is failing; see `stationIsPlaying`.
+                        const live = stationIsPlaying(station, playingStation, refused)
                         return (
                             <li key={station.id} className="flex items-center">
                                 <button

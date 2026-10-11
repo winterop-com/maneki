@@ -25,7 +25,7 @@ import { useStore } from '@/hooks/use-store'
 import { books as booksApi } from '@/lib/api'
 import { clock, songLine } from '@/lib/format'
 import { nowPlayingFace } from '@/lib/lcd'
-import { LINER_ROOM, linerByline, linerEyebrow, linerTitle, linerTitlePx } from '@/lib/liner'
+import { announced, LINER_ROOM, linerByline, linerEyebrow, linerTitle, linerTitlePx } from '@/lib/liner'
 import {
     bookStepCount,
     currentChapter,
@@ -210,7 +210,7 @@ export function PlayerBar() {
             ? `${book.title} · ${book.author}`
             : book.author
         : station
-          ? player.stationTitle || 'Live'
+          ? announced(player.stationTitle, station.name) || 'Live'
           : song
             ? songLine(song)
             : undefined

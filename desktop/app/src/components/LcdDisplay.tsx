@@ -17,6 +17,7 @@ import {
     vuSegments,
 } from '@/lib/lcd'
 import type { Song, Station } from '@/lib/subsonic'
+import { announced } from '@/lib/liner'
 
 /** A blank cell still has to hold its width, so a space is drawn as one that will not collapse. */
 const NO_BREAK = '\u00a0'
@@ -79,7 +80,7 @@ export function LcdDisplay({
     // A station announces what it is playing where the artist would be, and says it is live
     // until it announces anything -- the same two facts the standard face draws.
     const spoken = station
-        ? lcdLine([station.name, stationTitle || 'Live'])
+        ? lcdLine([station.name, announced(stationTitle, station.name) || 'Live'])
         : lcdLine([song?.title, song?.artist, song?.album])
     const line = spoken === '' ? 'NO DISC' : spoken
     const total = station ? null : durationS || song?.duration || 0
