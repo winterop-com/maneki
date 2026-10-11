@@ -166,4 +166,5 @@ class PlaylistStore:
             # made it must be told so rather than handed an id that answers "not found" on
             # the next call -- which is what a read-only or unmounted root looked like.
             log.warning("playlists: failed to write %s (%s)", self._path(pl.id), exc)
-            raise PlaylistStoreError(f"could not save the playlist: {exc}") from exc
+            # The reason is logged above; a client is not told where the disk is.
+            raise PlaylistStoreError("could not save the playlist") from exc

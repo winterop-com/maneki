@@ -45,9 +45,15 @@ def track_size_bytes(track: LibraryTrack) -> int:
 
 
 @lru_cache(maxsize=16384)
+def _read_folder_time(path: str) -> float:
+    return Path(path).stat().st_mtime
+
+
 def _folder_time(path: str) -> float:
+    # A FOLDER THAT COULD NOT BE READ IS NOT KEPT AS 1970. Read while the drive was gone, every
+    # album stayed 1970 until a restart; only a time that was read is remembered.
     try:
-        return Path(path).stat().st_mtime
+        return _read_folder_time(path)
     except OSError:
         return 0.0
 

@@ -9,10 +9,13 @@ unbounded and need ordering / aggregation.
 
 from __future__ import annotations
 
+import logging
 import sqlite3
 import time
 from pathlib import Path
 from threading import RLock
+
+log = logging.getLogger(__name__)
 
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS plays (
@@ -38,6 +41,11 @@ class HistoryStore:
         self._lock = RLock()
         self._ready = False
 
+    # A HISTORY THAT CANNOT BE OPENED IS AN EMPTY ONE. With the library root gone (a drive
+    # unplugged) every scrobble and every recent / frequent list answered a bare 500; a play
+    # log is a nicety, so each call below logs and answers as if nothing had been played.
+    _UNAVAILABLE = (OSError, sqlite3.Error)
+
     def _conn(self) -> sqlite3.Connection:
         self._path.parent.mkdir(parents=True, exist_ok=True)
         conn = sqlite3.connect(self._path, check_same_thread=False, isolation_level=None)
@@ -49,48 +57,67 @@ class HistoryStore:
     def record(self, track_id: str, *, submission: bool, now: float | None = None) -> None:
         """Append a play event for `track_id`."""
         ts = now if now is not None else time.time()
-        with self._lock, self._conn() as conn:
-            conn.execute(
-                "INSERT INTO plays(track_id, played_at, submission) VALUES (?, ?, ?)",
-                (track_id, ts, int(submission)),
-            )
+        try:
+            with self._lock, self._conn() as conn:
+                conn.execute(
+                    "INSERT INTO plays(track_id, played_at, submission) VALUES (?, ?, ?)",
+                    (track_id, ts, int(submission)),
+                )
+        except self._UNAVAILABLE as exc:
+            log.warning("history: %s unavailable (%s)", self._path, exc)
 
     def now_playing(self, *, now: float | None = None) -> tuple[str, float] | None:
         """The track from the most recent now-playing probe within the window, or None."""
         cutoff = (now if now is not None else time.time()) - NOW_PLAYING_WINDOW_S
-        with self._lock, self._conn() as conn:
-            row = conn.execute(
-                "SELECT track_id, played_at FROM plays WHERE submission=0 AND played_at>=? "
-                "ORDER BY played_at DESC LIMIT 1",
-                (cutoff,),
-            ).fetchone()
-        return (row[0], row[1]) if row else None
+        try:
+            with self._lock, self._conn() as conn:
+                row = conn.execute(
+                    "SELECT track_id, played_at FROM plays WHERE submission=0 AND played_at>=? "
+                    "ORDER BY played_at DESC LIMIT 1",
+                    (cutoff,),
+                ).fetchone()
+            return (row[0], row[1]) if row else None
+        except self._UNAVAILABLE as exc:
+            log.warning("history: %s unavailable (%s)", self._path, exc)
+            return None
 
     def recent_track_ids(self, limit: int) -> list[str]:
         """Distinct finished-play track IDs, most-recently-played first."""
-        with self._lock, self._conn() as conn:
-            rows = conn.execute(
-                "SELECT track_id, MAX(played_at) AS t FROM plays WHERE submission=1 "
-                "GROUP BY track_id ORDER BY t DESC LIMIT ?",
-                (limit,),
-            ).fetchall()
-        return [r[0] for r in rows]
+        try:
+            with self._lock, self._conn() as conn:
+                rows = conn.execute(
+                    "SELECT track_id, MAX(played_at) AS t FROM plays WHERE submission=1 "
+                    "GROUP BY track_id ORDER BY t DESC LIMIT ?",
+                    (limit,),
+                ).fetchall()
+            return [r[0] for r in rows]
+        except self._UNAVAILABLE as exc:
+            log.warning("history: %s unavailable (%s)", self._path, exc)
+            return []
 
     def frequent_track_ids(self, limit: int) -> list[str]:
         """Distinct track IDs ordered by finished-play count, descending."""
-        with self._lock, self._conn() as conn:
-            rows = conn.execute(
-                "SELECT track_id, COUNT(*) AS c FROM plays WHERE submission=1 "
-                "GROUP BY track_id ORDER BY c DESC, MAX(played_at) DESC LIMIT ?",
-                (limit,),
-            ).fetchall()
-        return [r[0] for r in rows]
+        try:
+            with self._lock, self._conn() as conn:
+                rows = conn.execute(
+                    "SELECT track_id, COUNT(*) AS c FROM plays WHERE submission=1 "
+                    "GROUP BY track_id ORDER BY c DESC, MAX(played_at) DESC LIMIT ?",
+                    (limit,),
+                ).fetchall()
+            return [r[0] for r in rows]
+        except self._UNAVAILABLE as exc:
+            log.warning("history: %s unavailable (%s)", self._path, exc)
+            return []
 
     def play_count(self, track_id: str) -> int:
         """Number of finished plays recorded for `track_id`."""
-        with self._lock, self._conn() as conn:
-            row = conn.execute(
-                "SELECT COUNT(*) FROM plays WHERE track_id=? AND submission=1",
-                (track_id,),
-            ).fetchone()
-        return int(row[0]) if row else 0
+        try:
+            with self._lock, self._conn() as conn:
+                row = conn.execute(
+                    "SELECT COUNT(*) FROM plays WHERE track_id=? AND submission=1",
+                    (track_id,),
+                ).fetchone()
+            return int(row[0]) if row else 0
+        except self._UNAVAILABLE as exc:
+            log.warning("history: %s unavailable (%s)", self._path, exc)
+            return 0

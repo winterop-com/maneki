@@ -195,7 +195,8 @@ class BooksIndex:
             try:
                 held = (self.root / book.rel_path).stat().st_mtime
             except OSError:
-                held = 0.0
+                # Not kept: a folder unreadable now (the drive away) is read again next time.
+                return 0.0
             self._added[book.rel_path] = held
         return held
 
