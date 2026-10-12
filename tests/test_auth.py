@@ -149,6 +149,28 @@ def test_video_accepts_valid_bearer_when_auth_enabled(authed_client: TestClient)
     assert len(resp.json()) == 1
 
 
+@pytest.mark.parametrize("path", ["/video/api/videos", "/video/api/youtube/channels", "/books/api/books"])
+def test_preflight_is_answered_before_sign_in(books_client: TestClient, path: str) -> None:
+    """The desktop app's pages come from another origin, so a call with a bearer header is
+    preceded by a CORS preflight, which a browser never sends a header with. Refused, the
+    app reads the missing CORS headers as a server that did not answer."""
+    resp = books_client.options(
+        path,
+        headers={
+            "Origin": "tauri://localhost",
+            "Access-Control-Request-Method": "GET",
+            "Access-Control-Request-Headers": "authorization",
+        },
+    )
+    assert resp.status_code == 200
+    assert resp.headers["access-control-allow-origin"] == "*"
+    assert "authorization" in resp.headers["access-control-allow-headers"].lower()
+
+
+def test_an_options_request_that_is_no_preflight_still_needs_sign_in(authed_client: TestClient) -> None:
+    assert authed_client.options("/video/api/videos").status_code == 401
+
+
 def test_capabilities_and_auth_login_stay_public_under_auth(authed_client: TestClient) -> None:
     """Auth-required mode must still let unauthenticated callers reach /capabilities
     and POST /auth/login - otherwise they could never bootstrap into a token."""

@@ -684,7 +684,13 @@ class BearerAuthMiddleware(BaseHTTPMiddleware):
         # Said on every request, so the apps behind this never fall back to "the one implicit
         # account" while sign-in is on: see `_current_username` in the video and books apps.
         request.state.auth_on = True
-        if any(path.startswith(p) for p in self.protected_prefixes):
+        # A CORS preflight never carries the token: the browser sends it to ask whether the
+        # header may be sent at all. The desktop app's pages are another origin, so every
+        # bearer call of theirs is preceded by one; refused here, the CORS layer inside never
+        # answers it and the app reads the bare 401 as a server that did not answer. The
+        # preflight reaches no route, so letting it through gives nothing away.
+        preflight = request.method == "OPTIONS" and "access-control-request-method" in request.headers
+        if not preflight and any(path.startswith(p) for p in self.protected_prefixes):
             header = request.headers.get("authorization", "")
             presented = header[7:].strip() if header.lower().startswith("bearer ") else None
             from_url = False
