@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
-import { candidates } from '@/lib/server-address'
+import { answering, candidates } from '@/lib/server-address'
+import type { Capabilities } from '@/lib/types'
 
 describe('candidates', () => {
     it('tries a bare name on the default port first, then a tailscale serve front, then port 80', () => {
@@ -36,5 +37,31 @@ describe('candidates', () => {
 
     it('offers nothing for nothing', () => {
         expect(candidates('   ')).toEqual([])
+    })
+})
+
+describe('answering', () => {
+    const caps = { server: 'maneki', version: '9.9.9' } as Capabilities
+
+    it('asks the ways a typed name is reached, in order, and takes the first that answers', async () => {
+        const asked: string[] = []
+        const answer = await answering('macmini', (origin) => {
+            asked.push(origin)
+            return Promise.resolve(origin === 'https://macmini' ? caps : null)
+        })
+        expect(asked).toEqual(['http://macmini:8765', 'https://macmini'])
+        expect(answer).toEqual({ origin: 'https://macmini', caps })
+    })
+
+    it('is null when nothing answers, and asks nothing for an empty field', async () => {
+        expect(await answering('macmini', () => Promise.resolve(null))).toBeNull()
+        let asked = 0
+        expect(
+            await answering('  ', () => {
+                asked += 1
+                return Promise.resolve(caps)
+            }),
+        ).toBeNull()
+        expect(asked).toBe(0)
     })
 })

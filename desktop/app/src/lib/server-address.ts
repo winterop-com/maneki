@@ -13,8 +13,11 @@
  * address with `/audio` on the end, and that is the Subsonic mount rather than the server, so
  * a pasted one is taken back to the root rather than refused.
  *
- * Pure, so the order can be tested without a network.
+ * Pure, so the order can be tested without a network: `answering` is handed the question it
+ * asks rather than reaching for the network itself.
  */
+
+import type { Capabilities } from '@/lib/types'
 
 /** The port `maneki serve` listens on when nobody said otherwise. */
 export const DEFAULT_PORT = 8765
@@ -71,4 +74,25 @@ function stripMount(url: string): string {
         if (url.endsWith(mount)) return url.slice(0, -mount.length)
     }
     return url
+}
+
+/**
+ * The first of the ways `typed` is reached that answers `ask`, with what it answered, or null.
+ *
+ * ONE AT A TIME, IN ORDER: the list is in order of likelihood, and asking all of them at once
+ * would let a slower, likelier answer lose to a faster, less likely one.
+ */
+export async function answering(
+    typed: string,
+    ask: (origin: string) => Promise<Capabilities | null>,
+): Promise<{ origin: string; caps: Capabilities } | null> {
+    const first = async ([origin, ...rest]: readonly string[]): Promise<{
+        origin: string
+        caps: Capabilities
+    } | null> => {
+        if (origin === undefined) return null
+        const caps = await ask(origin)
+        return caps ? { origin, caps } : first(rest)
+    }
+    return first(candidates(typed))
 }

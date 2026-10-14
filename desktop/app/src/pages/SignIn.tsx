@@ -8,26 +8,15 @@ import { Label } from '@/components/ui/label'
 import { useStore } from '@/hooks/use-store'
 import { NETWORK_REFUSAL } from '@/lib/connection'
 import { probe } from '@/lib/api'
-import { candidates } from '@/lib/server-address'
-import { currentShell, probeOrigins } from '@/lib/desktop'
+import { APP_VERSION } from '@/lib/app-version'
+import { answering, candidates } from '@/lib/server-address'
+import { currentShell, inDesktopShell, probeOrigins } from '@/lib/desktop'
 import { connect, hasKeptSignIn, listenWithoutServer, sessionStore, signInTo } from '@/lib/session'
 import type { Capabilities } from '@/lib/types'
 
 export const CHANGE_SERVER_LABEL = 'Connect to a different server'
 export const SHOW_PASSWORD_LABEL = 'Show password'
 export const HIDE_PASSWORD_LABEL = 'Hide password'
-
-/**
- * The first of `origins` that answers `/capabilities`, asked one at a time, or null.
- *
- * One at a time on purpose: the list is in order of likelihood, and asking all of them at
- * once would let a slower, likelier answer lose to a faster, less likely one.
- */
-async function firstAnswering(origins: readonly string[]): Promise<string | null> {
-    const [first, ...rest] = origins
-    if (first === undefined) return null
-    return (await probe(first)) ? first : firstAnswering(rest)
-}
 
 /** The field treatment this screen alone wears: taller than a control, and edged in every palette. */
 const FIELD = 'border-border-strong h-12 rounded-lg pl-11'
@@ -59,6 +48,9 @@ const FIELD = 'border-border-strong h-12 rounded-lg pl-11'
 /** How often a kept sign-in asks a quiet server again. */
 const KEPT_SIGN_IN_RETRY_MS = 10_000
 
+/** How long the typing has to pause before the typed address is asked. */
+const TYPED_ASK_DELAY_MS = 500
+
 /** The sign-in screen's way to radio with no server. */
 export const LISTEN_WITHOUT_SERVER_LABEL = 'Just listen to radio'
 
@@ -77,6 +69,11 @@ export function SignIn() {
     // is one -- and a door that opened already saying "The server did not answer." would be
     // scolding somebody who has not typed anything yet.
     const [submitted, setSubmitted] = useState(false)
+    // What the typed address answered, and for which spelling of it; see the effect below.
+    const [heard, setHeard] = useState<{
+        typed: string
+        answer: { origin: string; caps: Capabilities } | null
+    } | null>(null)
     // The server went quiet under a sign-in that is still good; see the note under the button.
     const waiting = session.refusal === NETWORK_REFUSAL && hasKeptSignIn()
     useEffect(() => {
@@ -116,6 +113,27 @@ export function SignIn() {
         }
     }, [])
 
+    // The field stands where nothing was found, and where somebody asked for it back.
+    const typing = asking || (!looking && found === null)
+
+    // A TYPED ADDRESS IS ASKED AS IT IS TYPED, once the typing pauses, so the brand pane can say
+    // which maneki is there, or that nothing answered, before a password is spent on it. Only
+    // the latest spelling counts: an answer for one that has since been edited is dropped.
+    useEffect(() => {
+        if (!typing || baseUrl.trim() === '') return
+        let live = true
+        const timer = setTimeout(() => {
+            void answering(baseUrl, probe).then((answer) => {
+                if (live) setHeard({ typed: baseUrl, answer })
+            })
+        }, TYPED_ASK_DELAY_MS)
+        return () => {
+            live = false
+            clearTimeout(timer)
+        }
+    }, [typing, baseUrl])
+    const heardNow = typing && heard?.typed === baseUrl ? heard : null
+
     async function submit(event: FormEvent): Promise<void> {
         event.preventDefault()
         setBusy(true)
@@ -124,16 +142,16 @@ export function SignIn() {
         // `lib/server-address` -- and the first address that answers is the one signed in to.
         // When none answers, the likeliest is tried anyway so the refusal names it.
         const tried = candidates(baseUrl)
-        const server = (await firstAnswering(tried)) ?? tried[0] ?? baseUrl
+        const server = (await answering(baseUrl, probe))?.origin ?? tried[0] ?? baseUrl
         setBaseUrl(server)
         if (username) await signInTo(server, username, password)
         else await connect({ baseUrl: server }, true)
         setBusy(false)
     }
 
-    // The field stands where nothing was found, and where somebody asked for it back.
-    const typing = asking || (!looking && found === null)
-    const server = typing ? (baseUrl === '' ? null : baseUrl) : (found?.origin ?? null)
+    const server = typing
+        ? (heardNow?.answer?.origin ?? (baseUrl === '' ? null : baseUrl))
+        : (found?.origin ?? null)
 
     return (
         // From xl the form pane is the bounded one: 544px to 640px, enough for the form and its
@@ -141,10 +159,16 @@ export function SignIn() {
         // space around a fixed-width form.
         <div className="flex min-h-svh flex-col bg-background lg:grid lg:grid-cols-[minmax(35rem,45%)_1fr] xl:grid-cols-[1fr_clamp(34rem,36vw,40rem)]">
             {/* The version is whichever server has answered: the one found, or the one typed
-                once a connect has reached it -- a wrong password still says which maneki it is. */}
+                once it has been asked -- a wrong password still says which maneki it is. */}
             <BrandPane
                 server={server}
-                version={found?.caps.version ?? session.capabilities?.version ?? null}
+                version={
+                    typing
+                        ? (heardNow?.answer?.caps.version ?? null)
+                        : (found?.caps.version ?? session.capabilities?.version ?? null)
+                }
+                silent={heardNow !== null && heardNow.answer === null}
+                app={inDesktopShell() ? APP_VERSION : null}
             />
             {/* The form pane is the lit surface in the dark mode: against a brand pane that is
                 dark in both, a form on the page ground would be one rung from it.

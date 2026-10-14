@@ -10,6 +10,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Input } from '@/components/ui/input'
 import { Kbd, KbdGroup } from '@/components/ui/kbd'
 import { useStore } from '@/hooks/use-store'
+import { APP_VERSION } from '@/lib/app-version'
 import {
     chooseLcdTint,
     chooseNowPlaying,
@@ -332,6 +333,13 @@ function GeneralPane({ rows }: { rows: SettingsRow[] }) {
                             >
                                 {upNext ? 'On' : 'Off'}
                             </Button>
+                        </Row>
+                    )
+                }
+                if (row.id === 'general:app-version') {
+                    return (
+                        <Row key={row.id} row={row}>
+                            <span className="font-mono text-sm">{APP_VERSION}</span>
                         </Row>
                     )
                 }

@@ -162,6 +162,12 @@ function allRows(apple: boolean): SettingsRow[] {
             keywords: ['autoplay', 'auto play', 'next', 'episode', 'video', 'continue', 'binge'],
         },
         {
+            id: 'general:app-version',
+            category: 'general',
+            label: 'App version',
+            keywords: ['version', 'release', 'build', 'about', 'desktop', 'update'],
+        },
+        {
             id: 'theme:appearance',
             category: 'theme',
             label: 'Appearance',

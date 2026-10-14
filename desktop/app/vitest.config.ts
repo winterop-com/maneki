@@ -2,6 +2,8 @@ import { fileURLToPath } from 'node:url'
 
 import { defineConfig } from 'vitest/config'
 
+import { appVersionDefine } from './build-version.ts'
+
 /**
  * Unit tests run in plain Node.
  *
@@ -15,6 +17,7 @@ import { defineConfig } from 'vitest/config'
  * `e2e/` out of vitest's reach: they are the other runner's.
  */
 export default defineConfig({
+    define: appVersionDefine(),
     resolve: {
         alias: { '@': fileURLToPath(new URL('./src', import.meta.url)) },
     },

@@ -155,3 +155,12 @@ describe('listening without a server', () => {
         expect(settingsRows(false).some((row) => row.category === 'server')).toBe(true)
     })
 })
+
+describe("the app's own version", () => {
+    test('is a row wherever settings open, radio-only too, apart from the server it talks to', () => {
+        for (const rows of [settingsRows(false), settingsRows(false, { server: false })]) {
+            const row = rows.find((one) => one.id === 'general:app-version')
+            expect(row?.category).toBe('general')
+        }
+    })
+})
