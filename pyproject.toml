@@ -1,6 +1,6 @@
 [project]
 name = "maneki"
-version = "0.24.2"
+version = "0.25.0"
 description = "Self-hosted media server: music, audiobooks, video, YouTube and radio from one library folder, with a Subsonic-compatible API and a web and desktop app."
 readme = "README.md"
 requires-python = ">=3.13"
