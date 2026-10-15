@@ -23,6 +23,7 @@ import type {
     BookProgress,
     BookSummary,
     Capabilities,
+    CollectionSummary,
     VideoBrowse,
     VideoEntry,
     VideoProgress,
@@ -212,6 +213,11 @@ export function signIn(
 
 export const books = {
     list: (): Promise<BookSummary[]> => request('/books/api/books'),
+    /** Every collection, with its groups and how many of each this account finished. */
+    collections: (): Promise<CollectionSummary[]> => request('/books/api/collections'),
+    /** One group's items, by title. A null group is the items outside any. */
+    items: (collection: string, group: string | null): Promise<BookSummary[]> =>
+        request(`/books/api/books?${new URLSearchParams({ collection, group: group ?? '' }).toString()}`),
     detail: (id: string): Promise<BookDetail> => request(`/books/api/books/${id}`),
     /** Record where the listener is, in seconds on the book's own timeline. */
     saveProgress: (id: string, positionS: number, finished?: boolean): Promise<BookProgress> =>

@@ -9,7 +9,7 @@ from __future__ import annotations
 from fastapi import APIRouter, Request
 
 from maneki.audio.serve.app import envelope
-from maneki.books.subsonic import BOOKS_FOLDER_ID, BOOKS_FOLDER_NAME, MUSIC_FOLDER_ID
+from maneki.books.subsonic import BOOKS_FOLDER_ID, BOOKS_FOLDER_NAME, MUSIC_FOLDER_ID, collection_folders
 
 router = APIRouter()
 
@@ -45,6 +45,9 @@ async def get_music_folders(request: Request) -> dict:
     """
     folders = [{"id": MUSIC_FOLDER_ID, "name": "Music"}]
     books = getattr(request.app.state, "books", None)
-    if books is not None and books.books:
+    if books is not None and books.shelf:
         folders.append({"id": BOOKS_FOLDER_ID, "name": BOOKS_FOLDER_NAME})
+    if books is not None:
+        # A collection (a Blinkist library) is a folder of its own, kept off the books shelf.
+        folders.extend({"id": folder, "name": name} for folder, name in collection_folders(books))
     return envelope("musicFolders", {"musicFolder": folders})

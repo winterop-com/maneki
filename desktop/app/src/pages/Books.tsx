@@ -1,18 +1,20 @@
-import { ChevronLeft, Play } from 'lucide-react'
+import { Check, ChevronLeft, Play } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
-import { useNavigate, useParams } from 'react-router'
+import { useNavigate, useParams, useSearchParams } from 'react-router'
 
 import { Spinner } from '@/components/Spinner'
 import { Skeleton } from '@/components/Skeleton'
 import { CoverArt } from '@/components/CoverArt'
+import { Segmented } from '@/components/Segmented'
 import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
 import { useScrollMemory } from '@/hooks/use-scroll-memory'
 import { useStoreValue } from '@/hooks/use-store'
 import { books as booksApi } from '@/lib/api'
 import { chapterAt } from '@/lib/book-timeline'
 import { clock, duration, progressRatio, remaining } from '@/lib/format'
 import { playBook, playerStore, type PlayerState } from '@/lib/player'
-import type { BookDetail, BookSummary } from '@/lib/types'
+import type { BookDetail, BookSummary, CollectionSummary, GroupSummary } from '@/lib/types'
 import { cn } from '@/lib/utils'
 
 /** How often to look again while the server is still reading the books folder. */
@@ -35,7 +37,253 @@ export function BooksPage() {
     // ONE BOOK'S PAGE IS NOT ANOTHER'S. Keyed by the address, so Back from a book that was not
     // found, or a step from one book to the next, starts clean instead of showing the last one's
     // error or contents under the new address.
-    return bookId ? <Book key={bookId} id={bookId} /> : <Shelf />
+    return bookId ? <Book key={bookId} id={bookId} /> : <Library />
+}
+
+/**
+ * The shelf, or one collection of short recordings kept off it.
+ *
+ * A COLLECTION IS NOT A PILE OF BOOKS. Two thousand fifteen-minute Blinkist summaries filed as
+ * books buried the three hundred real ones, so a collection is its own choice above the shelf,
+ * opens on its groups, and a group is a list where each row plays. Which one is open lives in
+ * the address (`?c=Blinkist&g=Science`, an empty `g` for the items outside any group), so Back
+ * from a summary's page lands in the list it came from.
+ */
+function Library() {
+    const [params, setParams] = useSearchParams()
+    const [collections, setCollections] = useState<CollectionSummary[]>([])
+    const chosen = params.get('c') ?? ''
+    const group = params.get('g')
+
+    useEffect(() => {
+        let live = true
+        booksApi
+            .collections()
+            .then((found) => {
+                if (live) setCollections(found)
+            })
+            // A server from before collections answers 404: then there are none, and the shelf
+            // is the whole screen as it always was.
+            .catch(() => undefined)
+        return () => {
+            live = false
+        }
+    }, [])
+
+    const open = collections.find((c) => c.name === chosen) ?? null
+    return (
+        <div className="flex min-h-full flex-col">
+            {collections.length > 0 && (
+                <div className="flex px-4 pt-4">
+                    <Segmented
+                        label="Shelf"
+                        value={open ? open.name : ''}
+                        options={[
+                            { value: '', label: 'Books' },
+                            ...collections.map((c) => ({ value: c.name, label: c.name })),
+                        ]}
+                        onChoose={(value) => setParams(value ? { c: value } : {})}
+                    />
+                </div>
+            )}
+            {open === null ? (
+                <Shelf />
+            ) : group === null ? (
+                <Groups collection={open} onOpen={(g) => setParams({ c: open.name, g: g ?? '' })} />
+            ) : (
+                <Items
+                    key={`${open.name}/${group}`}
+                    collection={open.name}
+                    group={group || null}
+                    onBack={() => setParams({ c: open.name })}
+                />
+            )}
+        </div>
+    )
+}
+
+/** What a group is called; the items outside any group are the collection's own. */
+function groupLabel(group: string | null): string {
+    return group ?? 'Other'
+}
+
+/** A collection's groups, each with how much of it this account has heard. */
+function Groups({
+    collection,
+    onOpen,
+}: {
+    collection: CollectionSummary
+    onOpen: (group: string | null) => void
+}) {
+    return (
+        <div className="p-4">
+            <p className="mb-3 text-xs text-muted-foreground">
+                {collection.items} items, {collection.finished} finished
+            </p>
+            <ul className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+                {collection.groups.map((group: GroupSummary) => (
+                    <li key={group.name ?? ''}>
+                        <button
+                            type="button"
+                            onClick={() => onOpen(group.name)}
+                            className="row-hover w-full rounded-lg border p-3 text-left"
+                        >
+                            <p className="truncate text-sm font-medium" title={groupLabel(group.name)}>
+                                {groupLabel(group.name)}
+                            </p>
+                            <p className="mt-1 text-xs text-muted-foreground">
+                                {group.items} · {duration(group.duration_s)}
+                                {group.finished ? ` · ${String(group.finished)} finished` : ''}
+                            </p>
+                            {group.finished > 0 && <Meter ratio={group.finished / group.items} />}
+                        </button>
+                    </li>
+                ))}
+            </ul>
+        </div>
+    )
+}
+
+/**
+ * One group's items, a row each. A row plays from itself, as a chapter row does: a summary is
+ * fifteen minutes, and a page to open before pressing Play would be a click for nothing.
+ */
+function Items({
+    collection,
+    group,
+    onBack,
+}: {
+    collection: string
+    group: string | null
+    onBack: () => void
+}) {
+    const [items, setItems] = useState<BookSummary[] | null>(null)
+    const [refusal, setRefusal] = useState<string | null>(null)
+    const [attempt, setAttempt] = useState(0)
+    const [query, setQuery] = useState('')
+    const [starting, setStarting] = useState<string | null>(null)
+    const playingId = useStoreValue(playerStore, selectBookId)
+
+    useEffect(() => {
+        let live = true
+        booksApi
+            .items(collection, group)
+            .then((found) => {
+                if (live) setItems(found)
+            })
+            .catch((error: Error) => {
+                if (live) setRefusal(error.message)
+            })
+        return () => {
+            live = false
+        }
+    }, [collection, group, attempt])
+
+    // The row lights at once; its detail (files, chapters) is one more request before it can play.
+    const start = (item: BookSummary): void => {
+        setStarting(item.id)
+        booksApi
+            .detail(item.id)
+            .then((detail) => {
+                playBook(detail)
+            })
+            .catch((error: Error) => {
+                setRefusal(error.message)
+            })
+            .finally(() => {
+                setStarting(null)
+            })
+    }
+
+    if (refusal) {
+        return (
+            <Notice
+                onRetry={() => {
+                    setRefusal(null)
+                    setAttempt((count) => count + 1)
+                }}
+            >
+                {refusal}
+            </Notice>
+        )
+    }
+    if (!items) {
+        return (
+            <div className="p-4">
+                <Skeleton rows={15} />
+            </div>
+        )
+    }
+
+    const needle = query.trim().toLocaleLowerCase()
+    const shown = needle
+        ? items.filter((item) => `${item.title} ${item.author}`.toLocaleLowerCase().includes(needle))
+        : items
+
+    return (
+        <div className="flex flex-col gap-2 p-4">
+            <div className="flex items-center gap-2">
+                <Button variant="ghost" size="sm" aria-label="Back to the groups" onClick={onBack}>
+                    <ChevronLeft className="size-4" aria-hidden />
+                </Button>
+                <h1 className="min-w-0 flex-1 truncate text-base">{groupLabel(group)}</h1>
+                <Input
+                    value={query}
+                    onChange={(event) => setQuery(event.target.value)}
+                    aria-label="Filter this group"
+                    placeholder="Filter"
+                    className="w-40 sm:w-60"
+                />
+            </div>
+            <ol className="rounded-lg border">
+                {shown.map((item) => {
+                    const current = playingId === item.id
+                    return (
+                        <li key={item.id}>
+                            <button
+                                type="button"
+                                data-plays
+                                onClick={() => {
+                                    start(item)
+                                }}
+                                disabled={starting === item.id}
+                                aria-current={current ? 'true' : undefined}
+                                className={cn(
+                                    'row-hover flex min-h-finger w-full min-w-0 items-center gap-3 px-3 py-1.5 text-left',
+                                    current && 'bg-muted',
+                                )}
+                            >
+                                <span className="min-w-0 flex-1">
+                                    <span
+                                        className={cn('block truncate text-sm', current && 'font-medium')}
+                                        title={item.title}
+                                    >
+                                        {item.title}
+                                    </span>
+                                    <span
+                                        className="block truncate text-xs text-muted-foreground"
+                                        title={item.author}
+                                    >
+                                        {item.author}
+                                    </span>
+                                </span>
+                                <span className="shrink-0 text-xs text-muted-foreground">
+                                    {item.finished ? (
+                                        <Check className="size-4" aria-label="Finished" />
+                                    ) : item.position_s > 0 ? (
+                                        remaining(item.duration_s, item.position_s)
+                                    ) : (
+                                        duration(item.duration_s)
+                                    )}
+                                </span>
+                            </button>
+                        </li>
+                    )
+                })}
+            </ol>
+            {!shown.length && <p className="p-4 text-sm text-muted-foreground">Nothing matches.</p>}
+        </div>
+    )
 }
 
 /** Every book, with how far through each one this account is. */
@@ -207,7 +455,14 @@ function Book({ id }: { id: string }) {
                     variant="ghost"
                     size="sm"
                     aria-label="Back to the shelf"
-                    onClick={() => navigate('/books')}
+                    // An item of a collection goes back to its group's list, not to the books.
+                    onClick={() =>
+                        navigate(
+                            book.collection
+                                ? `/books?${new URLSearchParams({ c: book.collection, g: book.group ?? '' }).toString()}`
+                                : '/books',
+                        )
+                    }
                 >
                     <ChevronLeft className="size-4" aria-hidden />
                 </Button>

@@ -5,6 +5,12 @@ A book is a folder holding audio: `Audiobooks/<Author>/<Title>/` as
 for a book filed without an author. Everything about a book is read back
 from its files (tags, chapters, length) plus its `cover.jpg`.
 
+A folder under `Audiobooks/` holding a `.collection` file is a collection
+instead: short recordings (a Blinkist library) kept apart from the books.
+Every audio file in it is an item of its own, so each keeps its own place
+and finished mark, and the first folder level under the collection is the
+item's group: `Audiobooks/Blinkist/Science/<Author> - <Title>.m4a`.
+
 Rows live in the served root's `.maneki/index.db` in their own `books`
 table with namespaced meta keys, the way the video index shares the file.
 A rescan stats every book's files and re-probes only the books whose
@@ -51,6 +57,8 @@ CREATE TABLE IF NOT EXISTS books (
 );
 """
 COVER_NAME: Final[str] = "cover.jpg"
+# The file that makes a folder under `Audiobooks/` a collection rather than an author.
+COLLECTION_MARKER: Final[str] = ".collection"
 
 
 class LibraryBookFile(BaseModel):
@@ -84,6 +92,13 @@ class LibraryBook(BaseModel):
     chapters: list[Chapter]
     chapter_source: ChapterSource
     has_cover: bool
+    # Set for an item of a collection: the collection's folder name, and its group (the folder
+    # under the collection it sits in, or None when it sits in the collection itself).
+    collection: str | None = None
+    group: str | None = None
+    # Where the cover lives, relative to the Audiobooks folder. A book's is its folder's
+    # `cover.jpg`; an item takes its group's, else its collection's.
+    cover_rel: str | None = None
 
 
 def books_dir(root: Path) -> Path | None:
@@ -120,15 +135,77 @@ def book_id(rel_path: str) -> str:
     return hashlib.sha1(f"book:{rel_path}".encode()).hexdigest()[:16]
 
 
+def is_collection(folder: Path) -> bool:
+    """True for a folder marked as a collection."""
+    return (folder / COLLECTION_MARKER).is_file()
+
+
 def find_book_dirs(books_root: Path) -> list[Path]:
     """Every book folder: `<Author>/<Title>/` holding audio, or a top folder holding audio itself."""
     found: list[Path] = []
     for top in _visible_dirs(books_root):
+        if is_collection(top):
+            continue
         if any(is_audio(p) for p in top.iterdir()):
             found.append(top)
             continue
         found.extend(d for d in _visible_dirs(top) if any(is_audio(p) for p in d.rglob("*")))
     return sorted(found, key=lambda p: natural_key(p.relative_to(books_root)))
+
+
+def find_collection_items(books_root: Path) -> list[Path]:
+    """Every audio file of every collection, each one an item."""
+    found: list[Path] = []
+    for top in _visible_dirs(books_root):
+        if is_collection(top):
+            found.extend(p for p in top.rglob("*") if is_audio(p) and not _hidden(p.relative_to(top)))
+    return sorted(found, key=lambda p: natural_key(p.relative_to(books_root)))
+
+
+def read_item(books_root: Path, path: Path) -> LibraryBook:
+    """Probe one collection file into a `LibraryBook` of its own.
+
+    The tags name it when they can; a file named `<Author> - <Title>` names
+    it otherwise, the way a Blinkist rip is laid out.
+    """
+    source = probe_file(path)
+    rel = path.relative_to(books_root)
+    collection = rel.parts[0]
+    group = rel.parts[1] if len(rel.parts) > 2 else None
+    named_author, _, named_title = path.stem.partition(" - ")
+    if not named_title:
+        named_author, named_title = "", path.stem
+    tags = source.tags
+    chapters, chapter_source = file_chapters(SourceBook(path=path, files=[source]))
+    cover_rel = next(
+        (
+            c
+            for c in ([f"{collection}/{group}/{COVER_NAME}"] if group else []) + [f"{collection}/{COVER_NAME}"]
+            if (books_root / c).is_file()
+        ),
+        None,
+    )
+    return LibraryBook(
+        id=book_id(rel.as_posix()),
+        rel_path=rel.as_posix(),
+        title=(tags.get("title") or "").strip() or named_title.strip(),
+        author=(tags.get("artist") or tags.get("album_artist") or "").strip() or named_author.strip() or collection,
+        narrator=(tags.get("composer") or "").strip() or None,
+        year=_year(tags.get("date")),
+        description=(tags.get("description") or tags.get("comment") or "").strip() or None,
+        duration_s=source.duration_s,
+        files=[
+            LibraryBookFile(
+                rel_path=rel.as_posix(), duration_s=source.duration_s, offset_s=0.0, size_bytes=path.stat().st_size
+            )
+        ],
+        chapters=chapters,
+        chapter_source=chapter_source,
+        has_cover=cover_rel is not None,
+        collection=collection,
+        group=group,
+        cover_rel=cover_rel,
+    )
 
 
 def read_book(books_root: Path, folder: Path) -> LibraryBook:
@@ -166,6 +243,7 @@ def read_book(books_root: Path, folder: Path) -> LibraryBook:
         chapters=chapters,
         chapter_source=chapter_source,
         has_cover=(folder / COVER_NAME).is_file(),
+        cover_rel=f"{rel}/{COVER_NAME}",
     )
 
 
@@ -202,7 +280,38 @@ class BooksIndex:
 
     @property
     def books(self) -> list[LibraryBook]:
+        """Every book and every collection item, by author then title."""
         return sorted(self._books.values(), key=lambda b: (b.author.casefold(), b.title.casefold()))
+
+    @property
+    def shelf(self) -> list[LibraryBook]:
+        """The books alone, without the items of any collection."""
+        return [b for b in self.books if b.collection is None]
+
+    def collections(self) -> list[str]:
+        """The names of the collections that hold anything, by name."""
+        return sorted({b.collection for b in self._books.values() if b.collection}, key=str.casefold)
+
+    def items(self, collection: str, group: str | None = None) -> list[LibraryBook]:
+        """One collection's items, or one group's, by title."""
+        return sorted(
+            (b for b in self._books.values() if b.collection == collection and (group is None or b.group == group)),
+            key=lambda b: b.title.casefold(),
+        )
+
+    def groups(self, collection: str) -> list[str]:
+        """The groups of one collection, by name. Items outside any group are not one."""
+        return sorted(
+            {b.group for b in self._books.values() if b.collection == collection and b.group}, key=str.casefold
+        )
+
+    def cover_path(self, book: LibraryBook) -> Path | None:
+        """The book's cover file on disk, or None."""
+        if not book.has_cover:
+            return None
+        # Rows indexed before `cover_rel` existed are books, whose cover is their folder's.
+        path = self.root / (book.cover_rel or f"{book.rel_path}/{COVER_NAME}")
+        return path if path.is_file() else None
 
     def get(self, book_id: str) -> LibraryBook | None:
         return self._books.get(book_id)
@@ -234,13 +343,14 @@ class BooksIndex:
     def _scan(self) -> dict[str, LibraryBook]:
         started = time.monotonic()
         folders = find_book_dirs(self.root) if self.root.is_dir() else []
+        items = find_collection_items(self.root) if self.root.is_dir() else []
         conn = self._open()
         cached: dict[str, tuple[str, str]] = {}
         if conn is not None:
             cached = {r[0]: (r[1], r[2]) for r in conn.execute("SELECT rel_path, fingerprint, data_json FROM books")}
         books: dict[str, LibraryBook] = {}
         probed = 0
-        for folder in folders:
+        for folder in [*folders, *items]:
             rel = folder.relative_to(self.root).as_posix()
             fingerprint = _fingerprint(folder)
             hit = cached.get(rel)
@@ -248,7 +358,7 @@ class BooksIndex:
                 book = LibraryBook.model_validate_json(hit[1])
             else:
                 try:
-                    book = read_book(self.root, folder)
+                    book = read_item(self.root, folder) if folder.is_file() else read_book(self.root, folder)
                 except (ProbeError, OSError) as exc:
                     log.warning("books: skipping %s: %s", rel, exc)
                     continue
@@ -295,14 +405,22 @@ _META_KEYS: Final[tuple[str, str]] = (_SCHEMA_VERSION_KEY, _LIBRARY_ROOT_KEY)
 
 
 def _fingerprint(folder: Path) -> str:
+    # An item's cover is its group's or its collection's, so a cover added there is seen too.
+    item = folder.is_file()
+    covers = [folder.parent / COVER_NAME, folder.parent.parent / COVER_NAME] if item else [folder / COVER_NAME]
     entries = []
-    for path in [*audio_files(folder), folder / COVER_NAME]:
+    for path in [*audio_files(folder), *covers]:
         try:
             stat = path.stat()
         except OSError:
             continue
-        entries.append((path.relative_to(folder).as_posix(), stat.st_size, round(stat.st_mtime, 3)))
+        name = path.as_posix() if item else path.relative_to(folder).as_posix()
+        entries.append((name, stat.st_size, round(stat.st_mtime, 3)))
     return json.dumps(entries)
+
+
+def _hidden(rel: Path) -> bool:
+    return any(part.startswith(".") for part in rel.parts)
 
 
 def _visible_dirs(parent: Path) -> list[Path]:

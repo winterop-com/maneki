@@ -17,7 +17,7 @@ from maneki.access_log import make_access_log_middleware
 from maneki.audio.serve.cover_cache import CoverCache
 from maneki.audio.serve.covers import resize
 from maneki.audio.serve.users import UserRegistry
-from maneki.books.library import COVER_NAME, BooksIndex, LibraryBook
+from maneki.books.library import BooksIndex, LibraryBook
 from maneki.books.models import Chapter, ChapterSource
 from maneki.books.progress import BookProgress, ProgressStore
 
@@ -40,6 +40,27 @@ class BookSummary(BaseModel):
     # Where this user stopped, so one request fills a shelf with resume points.
     position_s: float = 0.0
     finished: bool = False
+    # Set for an item of a collection, with the group it sits in.
+    collection: str | None = None
+    group: str | None = None
+
+
+class GroupSummary(BaseModel):
+    """One group of a collection: how many items it holds, and how many this user finished."""
+
+    name: str | None
+    items: int
+    finished: int
+    duration_s: float
+
+
+class CollectionSummary(BaseModel):
+    """One collection and its groups, items outside any group last as a group named None."""
+
+    name: str
+    items: int
+    finished: int
+    groups: list[GroupSummary]
 
 
 class BookFile(BaseModel):
@@ -126,10 +147,52 @@ def create_books_app(index: BooksIndex, *, users: UserRegistry | None = None) ->
             raise HTTPException(status_code=403, detail="only an admin can rescan the library")
 
     @app.get("/api/books")
-    def list_books(request: Request) -> list[BookSummary]:
-        """Every book, by author then title, each with this user's position in it."""
+    def list_books(
+        request: Request,
+        collection: str | None = Query(default=None, description="List this collection's items instead."),
+        group: str | None = Query(
+            default=None, description="With `collection`, only this group's items; empty for those outside any."
+        ),
+    ) -> list[BookSummary]:
+        """Every book, by author then title, each with this user's position in it.
+
+        The items of a collection are not books on the shelf: two thousand
+        fifteen-minute summaries would bury it. They are listed by naming
+        the collection, by title.
+        """
         saved = {p.book_id: p for p in _progress(request).all()}
-        return [_summary(b, saved.get(b.id)) for b in index.books]
+        if collection is None:
+            listed = index.shelf
+        elif group == "":
+            # Asked for by an empty name: the items that sit in the collection outside any group.
+            listed = [b for b in index.items(collection) if b.group is None]
+        else:
+            listed = index.items(collection, group)
+        return [_summary(b, saved.get(b.id)) for b in listed]
+
+    @app.get("/api/collections")
+    def list_collections(request: Request) -> list[CollectionSummary]:
+        """Every collection with its groups and this user's count of finished items in each."""
+        done = {p.book_id for p in _progress(request).all() if p.finished}
+        found: list[CollectionSummary] = []
+        for name in index.collections():
+            items = index.items(name)
+            groups: list[GroupSummary] = []
+            for group in [*index.groups(name), None]:
+                held = [b for b in items if b.group == group]
+                if held:
+                    groups.append(
+                        GroupSummary(
+                            name=group,
+                            items=len(held),
+                            finished=sum(b.id in done for b in held),
+                            duration_s=sum(b.duration_s for b in held),
+                        )
+                    )
+            found.append(
+                CollectionSummary(name=name, items=len(items), finished=sum(b.id in done for b in items), groups=groups)
+            )
+        return found
 
     @app.get("/api/books/{book_id}")
     def get_book(book_id: str, request: Request) -> BookDetail:
@@ -180,8 +243,8 @@ def create_books_app(index: BooksIndex, *, users: UserRegistry | None = None) ->
         if cached is not None:
             return Response(content=cached[0], media_type=cached[1])
 
-        folder_cover = index.file_path(f"{book.rel_path}/{COVER_NAME}")
-        if folder_cover.is_file():
+        folder_cover = index.cover_path(book)
+        if folder_cover is not None:
             if size is None:
                 return FileResponse(folder_cover, media_type="image/jpeg")
             raw, mime = folder_cover.read_bytes(), "image/jpeg"
@@ -237,14 +300,14 @@ def create_books_app(index: BooksIndex, *, users: UserRegistry | None = None) ->
     @app.get("/api/scan")
     def scan_status() -> ScanStatus:
         """Whether a rescan is running."""
-        return ScanStatus(scanning=index.scan_in_progress, books=len(index.books))
+        return ScanStatus(scanning=index.scan_in_progress, books=len(index.shelf))
 
     @app.post("/api/scan")
     def start_scan(request: Request) -> ScanStatus:
         """Rescan the books folder in the background; only changed books are re-read. Admins only."""
         _require_admin(request)
         index.start_background_rescan()
-        return ScanStatus(scanning=True, books=len(index.books))
+        return ScanStatus(scanning=True, books=len(index.shelf))
 
     return app
 
@@ -263,4 +326,6 @@ def _summary(book: LibraryBook, progress: BookProgress | None = None) -> BookSum
         has_cover=book.has_cover,
         position_s=progress.position_s if progress else 0.0,
         finished=progress.finished if progress else False,
+        collection=book.collection,
+        group=book.group,
     )

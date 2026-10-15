@@ -182,7 +182,9 @@ def _add_books(
     def matches(*fields: str | None) -> bool:
         return book_matches(query, *fields)
 
-    found = [b for b in books.books if matches(b.author, b.title, b.narrator, b.series)]
+    found = [b for b in books.shelf if matches(b.author, b.title, b.narrator, b.series)]
+    # A collection's items are songs, so a search reaches them as songs alone.
+    found_items = [b for b in books.books if b.collection and matches(b.author, b.title, b.group)]
     if album_count:
         result.setdefault("album", []).extend(
             book_payload(b, with_songs=False, added_s=books.added(b)) for b in found[:album_count]
@@ -191,13 +193,13 @@ def _add_books(
         # An author counts when their own name matches, and when one of their
         # books does: "kahneman thinking" is about that author too.
         names = sorted(
-            {b.author for b in found} | {b.author for b in books.books if matches(b.author)},
+            {b.author for b in found} | {b.author for b in books.shelf if matches(b.author)},
             key=str.casefold,
         )
         result.setdefault("artist", []).extend(author_summary(books, name) for name in names[:artist_count])
     if song_count:
         songs: list[dict[str, Any]] = []
-        for book in found:
+        for book in [*found, *found_items]:
             for number in range(len(book.files)):
                 if len(songs) >= song_count:
                     break

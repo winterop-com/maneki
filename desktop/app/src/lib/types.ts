@@ -31,6 +31,25 @@ export interface BookSummary {
     /** Where this account stopped, in seconds on the book's timeline. */
     position_s: number
     finished: boolean
+    /** Set for an item of a collection (a Blinkist library), with the group it sits in. */
+    collection?: string | null
+    group?: string | null
+}
+
+/** One group of a collection; `name` is null for the items outside any group. */
+export interface GroupSummary {
+    name: string | null
+    items: number
+    finished: number
+    duration_s: number
+}
+
+/** A collection of short recordings kept off the books shelf, and its groups. */
+export interface CollectionSummary {
+    name: string
+    items: number
+    finished: number
+    groups: GroupSummary[]
 }
 
 export interface Chapter {

@@ -17,8 +17,8 @@ from maneki.audio.serve.app import error_envelope
 from maneki.audio.serve.covers import load_album_cover, resize
 from maneki.audio.serve.index import IndexCache
 from maneki.audio.serve.payloads import content_type
-from maneki.books.library import COVER_NAME, BooksIndex
-from maneki.books.subsonic import find_author, find_book, find_file
+from maneki.books.library import BooksIndex
+from maneki.books.subsonic import find_author, find_book, find_collection, find_file, find_group, group_items
 
 router = APIRouter()
 
@@ -145,12 +145,15 @@ def _book_cover(request: Request, id: str) -> Path | None:
         book = found[0] if found is not None else None
     if book is None:
         author = find_author(books, id)
-        written = [b for b in books.books if author is not None and b.author == author]
+        written = [b for b in books.shelf if author is not None and b.author == author]
         book = written[0] if written else None
-    if book is None or not book.has_cover:
-        return None
-    cover = books.file_path(f"{book.rel_path}/{COVER_NAME}")
-    return cover if cover.is_file() else None
+    if book is None:
+        # A collection or one of its groups shows the first cover any of its items has.
+        group = find_group(books, id)
+        collection = find_collection(books, id)
+        held = group_items(books, *group) if group else books.items(collection) if collection else []
+        book = next((b for b in held if b.has_cover), None)
+    return books.cover_path(book) if book is not None else None
 
 
 def _resolve_transcode(
@@ -326,7 +329,7 @@ async def get_cover_art(
             return FileResponse(book_cover, media_type="image/jpeg")
         cache.cover_cache.put((id, size), data, mime)
         return Response(content=data, media_type=mime)
-    if id.startswith(("bkb_", "bka_", "bkt_")):
+    if id.startswith(("bkb_", "bka_", "bkt_", "bkc_", "bkg_")):
         # A book with no cover of its own gets the drawn placeholder, as a record does: answered
         # with an error, every client drew a broken image for each of them.
         return Response(content=_COVER_PLACEHOLDER, media_type=_COVER_PLACEHOLDER_MIME)

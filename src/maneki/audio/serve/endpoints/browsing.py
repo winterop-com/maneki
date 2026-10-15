@@ -20,10 +20,17 @@ from maneki.books.subsonic import (
     authors,
     book_payload,
     books_by,
+    collection_folders,
+    collection_groups,
+    collection_summary,
     file_payload,
     find_author,
     find_book,
+    find_collection,
     find_file,
+    find_group,
+    group_items,
+    group_payload,
 )
 from maneki.books.subsonic import (
     GENRE as BOOK_GENRE,
@@ -42,6 +49,12 @@ def _books(request: Request) -> BooksIndex | None:
 def _wants(music_folder_id: int | None, folder: int) -> bool:
     """True when a request for `music_folder_id` covers `folder`. No id means every folder."""
     return music_folder_id is None or music_folder_id == folder
+
+
+def _positions(request: Request, books: BooksIndex, found: tuple[str, str | None]) -> dict[str, float]:
+    """Where this account stopped in each item of one collection group, in seconds."""
+    held = {b.id for b in group_items(books, *found)}
+    return {p.book_id: p.position_s for p in request.state.progress.all() if p.book_id in held}
 
 
 def _position(request: Request, book_id: str) -> float:
@@ -118,6 +131,10 @@ def _artist_index(request: Request, music_folder_id: int | None) -> list[dict[st
     if books is not None and _wants(music_folder_id, BOOKS_FOLDER_ID):
         for author in authors(books):
             buckets.setdefault(_index_letter(author), []).append(author_summary(books, author))
+    if books is not None:
+        for folder, collection in collection_folders(books):
+            if _wants(music_folder_id, folder):
+                buckets.setdefault(_index_letter(collection), []).append(collection_summary(books, collection))
     index = []
     for letter in sorted(buckets):
         listed = sorted(buckets[letter], key=lambda a: str(a["name"]).casefold())
@@ -141,6 +158,13 @@ async def get_artist(
             written = books_by(books, author)
             payload = author_summary(books, author)
             payload["album"] = [book_payload(b, with_songs=False, added_s=books.added(b)) for b in written]
+            return envelope("artist", payload)
+        collection = find_collection(books, id)
+        if collection is not None:
+            payload = collection_summary(books, collection)
+            payload["album"] = [
+                group_payload(books, collection, g, with_songs=False) for g in collection_groups(books, collection)
+            ]
             return envelope("artist", payload)
     albums = cache.artists_by_id.get(id)
     if albums is None:
@@ -175,6 +199,13 @@ async def get_album(
             return envelope(
                 "album",
                 book_payload(book, with_songs=True, position_s=_position(request, book.id), added_s=books.added(book)),
+            )
+        found = find_group(books, id)
+        if found is not None:
+            collection, group = found
+            return envelope(
+                "album",
+                group_payload(books, collection, group, with_songs=True, positions=_positions(request, books, found)),
             )
     album = cache.albums_by_id.get(id)
     if album is None:
@@ -412,20 +443,28 @@ def _book_albums(
     favourites, which books do not take part in, so they return none.
     """
     books = _books(request)
-    if books is None or not _wants(music_folder_id, BOOKS_FOLDER_ID):
+    if books is None or type in ("recent", "frequent", "starred"):
         return []
-    if type in ("recent", "frequent", "starred"):
-        return []
-    listed = books.books
+    # A collection's groups list as albums in its own folder; they carry no year to sort by.
+    groups = [
+        group_payload(books, collection, group, with_songs=False)
+        for folder, collection in collection_folders(books)
+        if _wants(music_folder_id, folder) and type != "byYear"
+        for group in collection_groups(books, collection)
+        if type != "byGenre" or (genre or "").casefold() == BOOK_GENRE.casefold()
+    ]
+    if not _wants(music_folder_id, BOOKS_FOLDER_ID):
+        return groups
+    listed = books.shelf
     if type == "byGenre":
         if not genre or genre.casefold() != BOOK_GENRE.casefold():
-            return []
+            return groups
     elif type == "byYear":
         if from_year is None or to_year is None:
             return []
         lo, hi = (from_year, to_year) if from_year <= to_year else (to_year, from_year)
         listed = [b for b in listed if b.year and b.year.isdigit() and lo <= int(b.year) <= hi]
-    return [book_payload(b, with_songs=False, added_s=books.added(b)) for b in listed]
+    return [book_payload(b, with_songs=False, added_s=books.added(b)) for b in listed] + groups
 
 
 def _track_has_genre(track: object, target_casefold: str) -> bool:

@@ -30,9 +30,16 @@ from maneki.books.subsonic import (
     author_id,
     book_payload,
     books_by,
+    collection_groups,
+    collection_id,
     file_payload,
     find_author,
     find_book,
+    find_collection,
+    find_group,
+    group_items,
+    group_name,
+    group_payload,
     is_book_id,
 )
 
@@ -215,6 +222,35 @@ def _book_directory(request: Request, books: BooksIndex, id: str) -> dict:
                 "child": [
                     _directory_child(book_payload(b, with_songs=False, added_s=books.added(b)))
                     for b in books_by(books, author)
+                ],
+            },
+        )
+    collection = find_collection(books, id)
+    if collection is not None:
+        return envelope(
+            "directory",
+            {
+                "id": id,
+                "name": collection,
+                "child": [
+                    _directory_child(group_payload(books, collection, g, with_songs=False))
+                    for g in collection_groups(books, collection)
+                ],
+            },
+        )
+    found = find_group(books, id)
+    if found is not None:
+        collection, group = found
+        saved_at = {p.book_id: p.position_s for p in request.state.progress.all()}
+        return envelope(
+            "directory",
+            {
+                "id": id,
+                "name": group_name(collection, group),
+                "parent": collection_id(collection),
+                "child": [
+                    {**file_payload(b, 0, position_s=saved_at.get(b.id, 0.0)), "track": n}
+                    for n, b in enumerate(group_items(books, collection, group), start=1)
                 ],
             },
         )
