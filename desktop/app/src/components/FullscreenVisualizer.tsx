@@ -20,6 +20,7 @@ import {
     spectrumReadable,
     stageOpen,
     VISUALIZER_STYLE_LABELS,
+    visualizerShown,
     visualizerStyle,
     type VisualizerStyle,
 } from '@/lib/visualizer'
@@ -94,7 +95,10 @@ function Stage() {
     // Where the engine cannot hear a station, the room says so rather than drawing a flat line
     // under music that is plainly playing: see `spectrumReadable`.
     const readable = spectrumReadable(player.station !== null, undefined, session.phase !== 'radio')
-    const canvas = useSpectrum(playing && readable, STAGE_BANDS, true)
+    // V hides the spectrum here too: the setting is one, and a stage that kept drawing after the
+    // note said "hidden" contradicted it. The room stays, with what is playing and the transport.
+    const shown = useStore(visualizerShown)
+    const canvas = useSpectrum(playing && readable && shown, STAGE_BANDS, true)
     useOverlay(stage, closeStage)
 
     const book = player.book
@@ -154,7 +158,7 @@ function Stage() {
             </div>
 
             <div className="relative min-h-0 flex-1">
-                {readable ? (
+                {!shown ? null : readable ? (
                     <canvas
                         ref={canvas}
                         aria-hidden
@@ -254,19 +258,22 @@ function Stage() {
             <div className="absolute top-4 right-4 z-20 flex items-center gap-1" data-transport>
                 {/* The drawing is stepped from here, because which drawing the spectrum is is
                     a thing somebody decides while looking at it. What is done to the drawing --
-                    a glow, trails -- is chosen on the settings pane, where a list can be a list. */}
-                <Button
-                    variant="ghost"
-                    size="icon"
-                    aria-label={nextStyleLabel(style)}
-                    title={nextStyleLabel(style)}
-                    onClick={() => {
-                        cycleVisualizerStyle()
-                    }}
-                    className="stage-button"
-                >
-                    <AudioLines className="size-5" aria-hidden />
-                </Button>
+                    a glow, trails -- is chosen on the settings pane, where a list can be a list.
+                    Not while the spectrum is hidden: there is no drawing to step. */}
+                {shown && (
+                    <Button
+                        variant="ghost"
+                        size="icon"
+                        aria-label={nextStyleLabel(style)}
+                        title={nextStyleLabel(style)}
+                        onClick={() => {
+                            cycleVisualizerStyle()
+                        }}
+                        className="stage-button"
+                    >
+                        <AudioLines className="size-5" aria-hidden />
+                    </Button>
+                )}
                 <Button
                     variant="ghost"
                     size="icon"
