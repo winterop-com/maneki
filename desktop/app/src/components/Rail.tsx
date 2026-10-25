@@ -56,6 +56,7 @@ export function Rail() {
     const session = useStore(sessionStore)
     const caps = session.capabilities ?? null
     const sections = sectionsFor(caps)
+    const lightsOverRail = trafficLights()
     const aside = useRef<HTMLElement | null>(null)
     const { dragging, beginResize } = useDragSize('x', width, 1, setRailWidth, clampRailWidth, aside)
 
@@ -96,6 +97,28 @@ export function Rail() {
         document.addEventListener('pointerup', done)
     }
 
+    // COLLAPSED, THE MARK IS THE TOGGLE. There is no room beside a 28px mark in a 56px strip that
+    // does not read as a cram, so the mark itself expands the rail, showing the expand glyph under
+    // the hand -- and loses nothing as a link, because Home is the first entry right below it.
+    const expandMark = (
+        <Tooltip>
+            <TooltipTrigger
+                render={
+                    <button
+                        type="button"
+                        onClick={toggleRail}
+                        aria-label={EXPAND_LABEL}
+                        className="group/mark flex size-7 shrink-0 cursor-pointer items-center justify-center rounded-md bg-primary text-primary-foreground focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none"
+                    >
+                        <Cat className="size-4 group-hover/mark:hidden" aria-hidden />
+                        <PanelLeftOpen className="hidden size-4 group-hover/mark:block" aria-hidden />
+                    </button>
+                }
+            />
+            <TooltipContent side="right">{EXPAND_LABEL}</TooltipContent>
+        </Tooltip>
+    )
+
     return (
         <>
             <aside
@@ -107,15 +130,14 @@ export function Rail() {
                 )}
                 style={{ width: collapsed ? RAIL_COLLAPSED_WIDTH : width }}
             >
-                {/* COLLAPSED, THE MARK IS THE TOGGLE. There is no room beside a 28px mark in a
-                56px strip that does not read as a cram, so the mark itself expands the rail,
-                showing the expand glyph under the hand -- and loses nothing as a link, because
-                Home is the first entry right below it. Expanded, the mark is the home link and
-                the collapse control sits beside the wordmark, where it always was.
+                {/* Expanded, the mark is the home link and the collapse control sits beside the
+                wordmark, where it always was. Collapsed, the mark expands the rail.
 
                 `data-shell-lights` is what the traffic-light clearance in index.css hangs off:
                 this is the strip the window's own buttons are drawn over inside a desktop
-                shell on macOS. */}
+                shell on macOS. A collapsed rail is narrower than those buttons, so there the
+                strip is left to them and the mark heads the column of icons instead -- the
+                rail keeps its 56px rather than widening to clear them. */}
                 <div
                     data-shell-strip="top"
                     data-shell-lights="strip"
@@ -125,25 +147,7 @@ export function Rail() {
                     )}
                 >
                     {collapsed ? (
-                        <Tooltip>
-                            <TooltipTrigger
-                                render={
-                                    <button
-                                        type="button"
-                                        onClick={toggleRail}
-                                        aria-label={EXPAND_LABEL}
-                                        className="group/mark flex size-7 shrink-0 cursor-pointer items-center justify-center rounded-md bg-primary text-primary-foreground focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none"
-                                    >
-                                        <Cat className="size-4 group-hover/mark:hidden" aria-hidden />
-                                        <PanelLeftOpen
-                                            className="hidden size-4 group-hover/mark:block"
-                                            aria-hidden
-                                        />
-                                    </button>
-                                }
-                            />
-                            <TooltipContent side="right">{EXPAND_LABEL}</TooltipContent>
-                        </Tooltip>
+                        !lightsOverRail && expandMark
                     ) : (
                         <>
                             <NavLink
@@ -185,6 +189,9 @@ export function Rail() {
                 </div>
 
                 <div className="min-h-0 flex-1 overflow-y-auto pt-1 pb-2">
+                    {collapsed && lightsOverRail && (
+                        <div className="flex justify-center pt-2 pb-3">{expandMark}</div>
+                    )}
                     {sections.map((section) => (
                         <nav key={section.id} className="flex flex-col gap-1 px-2 pb-3">
                             {section.label !== null && !collapsed && (
@@ -236,6 +243,16 @@ export function Rail() {
             }
         </>
     )
+}
+
+/**
+ * Whether the window's traffic lights are drawn over the top-left of the page: a desktop shell
+ * on macOS. The same test as the clearance rules in index.css, off the attributes `index.html`
+ * sets before the first paint.
+ */
+function trafficLights(): boolean {
+    const root = document.documentElement
+    return root.dataset.platform === 'darwin' && root.dataset.shell !== 'browser'
 }
 
 /**

@@ -1089,13 +1089,28 @@ html[data-platform='darwin']:not([data-shell='browser']) [data-shell-lights='str
     padding-left: var(--traffic-lights);
 }
 
-/* A COLLAPSED RAIL IS NARROWER THAN THE LIGHTS ARE WIDE. 56px of centred icons has nowhere to
-   put a mark that clears them, so in this one shell the column holds the room the window has
-   already taken: `min-width` clamps the width the component sets inline, which is what lets
-   the whole thing stay a CSS rule. The expanded rail is wider than the lights at any width it
-   can be dragged to, and gives way with its wordmark rather than with its width. */
+/* A COLLAPSED RAIL IS NARROWER THAN THE LIGHTS ARE WIDE. It keeps its 56px of centred icons
+   rather than widening to hold the mark clear of them -- the rail moves the mark below the
+   strip in this shell -- so the lights reach past its edge into the topbar, and the topbar
+   stands clear of what is left of them. The expanded rail is wider than the lights at any
+   width it can be dragged to, and gives way with its wordmark rather than with its width. */
+html[data-platform='darwin']:not([data-shell='browser'])
+    body:has([data-shell-rail='collapsed'])
+    header[data-shell-strip='top'] {
+    padding-left: calc(var(--traffic-lights) - 56px);
+}
+
+/* The lights straddle the collapsed rail's edge, so its rule would run up between them and the
+   topbar. The rule starts under the strip instead: the border keeps its pixel, transparent,
+   and the column below the strip draws the line. */
 html[data-platform='darwin']:not([data-shell='browser']) [data-shell-rail='collapsed'] {
-    min-width: calc(var(--traffic-lights) + 32px);
+    border-right-color: transparent;
+}
+html[data-platform='darwin']:not([data-shell='browser'])
+    [data-shell-rail='collapsed']
+    > [data-shell-strip='top']
+    ~ * {
+    box-shadow: inset -1px 0 var(--border-strong);
 }
 
 /* The door's brand pane, which is a strip with the lockup at its left only below `lg`. Above
