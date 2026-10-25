@@ -6,7 +6,7 @@ name = "maneki-desktop"
 # reads the real `Compiling maneki-desktop vX.Y.Z`).
 version = "0.26.1"
 edition = "2024"
-rust-version = "1.88"
+rust-version = "1.90"
 description = "Native desktop wrapper around the Maneki web UI."
 authors = ["Morten Hansen <morten@winterop.com>"]
 license = "AGPL-3.0-or-later"
