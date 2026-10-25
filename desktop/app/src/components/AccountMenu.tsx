@@ -113,11 +113,16 @@ export function AccountMenu({
                 className="w-[calc(var(--anchor-width)-8px)] min-w-56"
             >
                 <DropdownMenuGroup>
-                    <DropdownMenuLabel className="flex items-center gap-2.5 px-1.5 py-1.5" title={name}>
+                    <DropdownMenuLabel
+                        className="flex items-center gap-2.5 px-1.5 py-1.5"
+                        title={host !== '' ? `${name}\n${host}` : name}
+                    >
                         <Badge username={radioOnly ? 'Radio' : session.username} large />
                         <span className="min-w-0">
                             <span className="block truncate text-sm font-medium text-foreground">{name}</span>
-                            {host !== '' && <span className="block truncate font-mono text-xs">{host}</span>}
+                            {/* The host wraps rather than truncating: a tailnet name is long, and
+                                which server this is was the one thing the ellipsis cut off. */}
+                            {host !== '' && <span className="block font-mono text-xs break-all">{host}</span>}
                         </span>
                     </DropdownMenuLabel>
                 </DropdownMenuGroup>
