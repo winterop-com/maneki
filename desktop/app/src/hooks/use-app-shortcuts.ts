@@ -141,6 +141,10 @@ export function useAppShortcuts(onShortcuts: () => void): void {
             }
             if (togglesVisualizer(press, focused())) {
                 event.preventDefault()
+                // NOT ON THE STAGE, WHICH IS THE SPECTRUM. Hiding it there leaves a black room,
+                // and flipping the bar's setting from behind it said "hidden" over bars that
+                // went on drawing. The key is taken and does nothing.
+                if (stageOpen.get()) return
                 toggleVisualizer()
                 // A lasting change made by one letter says so; see `toggleNotice`.
                 // One note per key, replaced rather than stacked: V twice showed "hidden" and
