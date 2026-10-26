@@ -66,6 +66,57 @@ export function articlesOf(ignoredArticles: string | undefined): string[] {
     return words.length > 0 ? words : DEFAULT_ARTICLES
 }
 
+/** The letters a Norwegian reader files after Z, which folding would otherwise merge into A and O. */
+const OWN_LETTERS = ['Æ', 'Ø', 'Å']
+
+/**
+ * The letter a name is filed under on the artist grid: its first letter once the article is off
+ * and the marks are folded away, so "The Beatles" is a B and "Émilie" an E. Æ, Ø and Å keep their
+ * own sections, as they do in a Norwegian index, and anything that does not start with a letter
+ * goes under `#`.
+ */
+export function letterOf(name: string, articles: readonly string[] = DEFAULT_ARTICLES): string {
+    const first = sortName(name, articles).charAt(0).toLocaleUpperCase()
+    if (OWN_LETTERS.includes(first)) return first
+    const base = fold(first).toLocaleUpperCase()
+    return /^[A-Z]$/.test(base) ? base : '#'
+}
+
+/** One section of the artist grid: a letter and the rows filed under it, in the order given. */
+export interface LetterSection<T> {
+    letter: string
+    rows: T[]
+}
+
+/**
+ * Rows already in reading order, cut into sections by `letterOf`. The sections come out in the
+ * order their first row does, so A-Z and Z-A both read the right way without a second sort.
+ */
+export function sectionsByLetter<T extends Sortable>(
+    rows: readonly T[],
+    articles: readonly string[] = DEFAULT_ARTICLES,
+): LetterSection<T>[] {
+    const sections: LetterSection<T>[] = []
+    for (const row of rows) {
+        const letter = letterOf(row.name, articles)
+        const last = sections.at(-1)
+        if (last?.letter === letter) last.rows.push(row)
+        else sections.push({ letter, rows: [row] })
+    }
+    return sections
+}
+
+/**
+ * The jump strip's letters: `#` first when the library has one, as the grid sorts a leading digit
+ * before any letter, then A to Z, then any of Æ, Ø and Å it has.
+ */
+export function jumpLetters(present: readonly string[]): string[] {
+    const latin = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('')
+    const digits = present.includes('#') ? ['#'] : []
+    const extra = OWN_LETTERS.filter((letter) => present.includes(letter))
+    return [...digits, ...latin, ...extra]
+}
+
 /** One row of anything that sorts by a name and a count. */
 export interface Sortable {
     name: string

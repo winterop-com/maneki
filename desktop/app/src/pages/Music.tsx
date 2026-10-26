@@ -16,7 +16,16 @@ import { play, playerStore } from '@/lib/player'
 import { sessionStore } from '@/lib/session'
 import { Input } from '@/components/ui/input'
 import { Segmented } from '@/components/Segmented'
-import { articlesOf, fold, SORT_LABELS, SORT_MODES, sortArtists, type SortMode } from '@/lib/sorting'
+import {
+    articlesOf,
+    fold,
+    jumpLetters,
+    sectionsByLetter,
+    SORT_LABELS,
+    SORT_MODES,
+    sortArtists,
+    type SortMode,
+} from '@/lib/sorting'
 import { starMarks, starName, starredNow, toggleStar, type Starrable } from '@/lib/star'
 import {
     coverUrl,
@@ -297,88 +306,169 @@ function Artists({ credentials }: { credentials: Credentials }) {
     // query shorter than that is not one, so the results are simply not shown.
     const results = typed.length >= SEARCH_MIN ? found : null
 
+    // A-Z and Z-A read in letter sections with a strip to jump between them; most-albums-first is
+    // one run, because a count has no letter to file it under.
+    const lettered = sort !== 'albums'
+    const sections = lettered ? sectionsByLetter(shown, articles) : [{ letter: '', rows: shown }]
+    const present = sections.map((section) => section.letter)
+    const albumTotal = artists.reduce((sum, artist) => sum + (artist.albumCount ?? 0), 0)
+
     return (
-        <div className="p-2">
-            <div className="mb-2 flex items-center gap-2">
-                <Input
-                    value={query}
-                    onChange={(event) => setQuery(event.target.value)}
-                    // Its own name: the header's field is "Search the library", and two controls
-                    // with one name are one control to a screen reader.
-                    aria-label="Filter artists"
-                    placeholder="Filter"
-                    className="min-w-0 flex-1"
-                />
-                <Segmented
-                    label="Order"
-                    value={sort}
-                    options={SORT_MODES.map((mode) => ({ value: mode, label: SORT_LABELS[mode] }))}
-                    onChoose={(chosen) => {
-                        setSort(chosen as SortMode)
-                        try {
-                            localStorage.setItem(SORT_KEY, chosen)
-                        } catch {
-                            // Storage denied: the order holds while this document is open.
-                        }
-                    }}
-                />
-            </div>
-            {results && (
-                <div className="mb-4 rounded-lg border p-2">
-                    <p className="mb-1 px-1 text-xs text-muted-foreground">
-                        {results.albums.length} albums, {results.songs.length} tracks
-                    </p>
-                    {results.albums.slice(0, 8).map((album) => (
-                        <button
-                            key={album.id}
-                            type="button"
-                            onClick={() => navigate(albumPath(album.id))}
-                            className="row-hover flex min-h-finger w-full min-w-0 items-center gap-3 rounded-md px-3 text-left text-sm"
-                        >
-                            <span className="min-w-0 flex-1 truncate">{album.name}</span>
-                            <span className="shrink-0 truncate text-xs text-muted-foreground">
-                                {album.artist}
-                            </span>
-                        </button>
-                    ))}
-                    {results.songs.slice(0, 8).map((song, index) => (
-                        <button
-                            key={song.id}
-                            type="button"
-                            onClick={() => {
-                                // A part of a book opens the book, as the search overlay does; see `albumPath`.
-                                const book = song.albumId === undefined ? null : bookOfAlbum(song.albumId)
-                                if (book !== null) void navigate(`/books/${book}`)
-                                else play(results.songs, index)
+        <div className="flex min-h-full shrink-0">
+            <div className="min-w-0 flex-1 px-4 pt-6 pb-10 sm:px-8">
+                <div className="mb-6 flex flex-wrap items-end justify-between gap-4">
+                    <div className="min-w-0">
+                        <h1 className="text-2xl font-semibold tracking-tight">Artists</h1>
+                        <p className="text-sm text-muted-foreground">
+                            {artists.length} {artists.length === 1 ? 'artist' : 'artists'} · {albumTotal}{' '}
+                            {albumTotal === 1 ? 'album' : 'albums'}
+                        </p>
+                    </div>
+                    <div className="flex min-w-0 items-center gap-2">
+                        <Input
+                            value={query}
+                            onChange={(event) => setQuery(event.target.value)}
+                            // Its own name: the header's field is "Search the library", and two controls
+                            // with one name are one control to a screen reader.
+                            aria-label="Filter artists"
+                            placeholder="Filter artists"
+                            className="w-56 min-w-0"
+                        />
+                        <Segmented
+                            label="Order"
+                            value={sort}
+                            options={SORT_MODES.map((mode) => ({ value: mode, label: SORT_LABELS[mode] }))}
+                            onChoose={(chosen) => {
+                                setSort(chosen as SortMode)
+                                try {
+                                    localStorage.setItem(SORT_KEY, chosen)
+                                } catch {
+                                    // Storage denied: the order holds while this document is open.
+                                }
                             }}
-                            className="row-hover flex min-h-finger w-full min-w-0 items-center gap-3 rounded-md px-3 text-left text-sm"
-                        >
-                            <span className="min-w-0 flex-1 truncate">{song.title}</span>
-                            <span className="shrink-0 truncate text-xs text-muted-foreground">
-                                {song.artist}
-                            </span>
-                        </button>
-                    ))}
+                        />
+                    </div>
                 </div>
-            )}
-            <ul>
-                {shown.map((artist) => (
-                    <li key={artist.id}>
-                        <button
-                            type="button"
-                            onClick={() => navigate(`/music/artist/${artist.id}`)}
-                            className="row-hover flex min-h-finger w-full min-w-0 items-center gap-3 rounded-md px-3 text-left text-sm"
-                        >
-                            <span className="min-w-0 flex-1 truncate">{artist.name}</span>
-                            <span className="shrink-0 text-xs text-muted-foreground">
-                                {artist.albumCount ?? 0} {artist.albumCount === 1 ? 'album' : 'albums'}
-                            </span>
-                        </button>
-                    </li>
+                {results && (
+                    <div className="mb-4 rounded-lg border p-2">
+                        <p className="mb-1 px-1 text-xs text-muted-foreground">
+                            {results.albums.length} albums, {results.songs.length} tracks
+                        </p>
+                        {results.albums.slice(0, 8).map((album) => (
+                            <button
+                                key={album.id}
+                                type="button"
+                                onClick={() => navigate(albumPath(album.id))}
+                                className="row-hover flex min-h-finger w-full min-w-0 items-center gap-3 rounded-md px-3 text-left text-sm"
+                            >
+                                <span className="min-w-0 flex-1 truncate">{album.name}</span>
+                                <span className="shrink-0 truncate text-xs text-muted-foreground">
+                                    {album.artist}
+                                </span>
+                            </button>
+                        ))}
+                        {results.songs.slice(0, 8).map((song, index) => (
+                            <button
+                                key={song.id}
+                                type="button"
+                                onClick={() => {
+                                    // A part of a book opens the book, as the search overlay does; see `albumPath`.
+                                    const book = song.albumId === undefined ? null : bookOfAlbum(song.albumId)
+                                    if (book !== null) void navigate(`/books/${book}`)
+                                    else play(results.songs, index)
+                                }}
+                                className="row-hover flex min-h-finger w-full min-w-0 items-center gap-3 rounded-md px-3 text-left text-sm"
+                            >
+                                <span className="min-w-0 flex-1 truncate">{song.title}</span>
+                                <span className="shrink-0 truncate text-xs text-muted-foreground">
+                                    {song.artist}
+                                </span>
+                            </button>
+                        ))}
+                    </div>
+                )}
+                {sections.map((section) => (
+                    <section
+                        key={section.letter || 'all'}
+                        id={section.letter ? letterAnchor(section.letter) : undefined}
+                        aria-label={section.letter || undefined}
+                        className="mb-8 scroll-mt-4"
+                    >
+                        {section.letter && (
+                            <h2 className="mb-4 border-b pb-2 text-xs font-semibold tracking-[0.14em] text-primary">
+                                {section.letter}
+                            </h2>
+                        )}
+                        <ul className="grid grid-cols-[repeat(auto-fill,minmax(9.5rem,1fr))] gap-x-5 gap-y-6">
+                            {section.rows.map((artist) => (
+                                <li key={artist.id}>
+                                    <button
+                                        type="button"
+                                        onClick={() => navigate(`/music/artist/${artist.id}`)}
+                                        className="group flex w-full min-w-0 flex-col gap-2.5 rounded-lg text-left focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none"
+                                    >
+                                        <Cover
+                                            credentials={credentials}
+                                            id={artist.id}
+                                            art={artist.coverArt}
+                                            size={300}
+                                            className="w-full rounded-lg bg-secondary transition-opacity group-hover:opacity-85"
+                                        />
+                                        <span className="min-w-0">
+                                            <span className="block truncate text-sm font-medium">
+                                                {artist.name}
+                                            </span>
+                                            <span className="block text-xs text-muted-foreground">
+                                                {artist.albumCount ?? 0}{' '}
+                                                {artist.albumCount === 1 ? 'album' : 'albums'}
+                                            </span>
+                                        </span>
+                                    </button>
+                                </li>
+                            ))}
+                        </ul>
+                    </section>
                 ))}
-            </ul>
+            </div>
+            {/* THE STRIP STAYS PUT WHILE THE GRID SCROLLS: sticky inside the shell's one scroller.
+                Letters the library has none of are drawn faint and do nothing. Not on a phone,
+                where a 9px target is no target. */}
+            {lettered && !typed && (
+                <nav
+                    aria-label="Jump to letter"
+                    className="sticky top-0 hidden max-h-svh shrink-0 flex-col items-center self-start overflow-y-auto py-6 pr-2 sm:flex"
+                >
+                    {jumpLetters(present).map((letter) => {
+                        const has = present.includes(letter)
+                        return (
+                            <button
+                                key={letter}
+                                type="button"
+                                disabled={!has}
+                                aria-label={`Jump to ${letter}`}
+                                onClick={() => {
+                                    document
+                                        .getElementById(letterAnchor(letter))
+                                        ?.scrollIntoView({ block: 'start', behavior: 'smooth' })
+                                }}
+                                className={cn(
+                                    'w-6 rounded text-[11px] leading-5 font-semibold',
+                                    has ? 'text-foreground hover:text-primary' : 'text-faint/50',
+                                )}
+                            >
+                                {letter}
+                            </button>
+                        )
+                    })}
+                </nav>
+            )}
         </div>
     )
+}
+
+/** Where a letter's section of the artist grid sits, for the strip to scroll to. */
+function letterAnchor(letter: string): string {
+    return `artists-${letter === '#' ? 'digits' : letter}`
 }
 
 /**
@@ -785,14 +875,17 @@ export function Cover({
     id,
     art,
     className,
+    size = 500,
 }: {
     credentials: Credentials
     /** What the drawing stands for when there is no sleeve: the album's own id. */
     id: string
     art: string | undefined
     className?: string
+    /** The pixel size asked of the server. A grid of tiles needs less than an album's sleeve. */
+    size?: number
 }) {
-    const src = coverUrl(credentials, art, 500)
+    const src = coverUrl(credentials, art, size)
     if (!src) return <CoverArt id={id} className={className} />
     return <img src={src} alt="" loading="lazy" className={cn('aspect-square object-cover', className)} />
 }

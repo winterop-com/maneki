@@ -1,6 +1,15 @@
 import { describe, expect, test } from 'vitest'
 
-import { articlesOf, DEFAULT_ARTICLES, fold, sortArtists, sortName } from '@/lib/sorting'
+import {
+    articlesOf,
+    DEFAULT_ARTICLES,
+    fold,
+    jumpLetters,
+    letterOf,
+    sectionsByLetter,
+    sortArtists,
+    sortName,
+} from '@/lib/sorting'
 
 const artists = [
     { name: 'The Beatles', albumCount: 12 },
@@ -114,5 +123,49 @@ describe('folding a name for a search', () => {
 
     test('case is not a filter anybody typed on purpose', () => {
         expect(fold('ABBA')).toBe(fold('abba'))
+    })
+})
+
+describe('the letter an artist is filed under', () => {
+    test('is the first letter once the article is off', () => {
+        expect(letterOf('The Beatles')).toBe('B')
+        expect(letterOf('AC-DC')).toBe('A')
+    })
+
+    test('folds the marks off, so a lowercase or accented name lands with its letter', () => {
+        expect(letterOf('beck')).toBe('B')
+        expect(letterOf('Émilie Simon')).toBe('E')
+    })
+
+    test('keeps Æ, Ø and Å as letters of their own', () => {
+        expect(letterOf('Åge Aleksandersen')).toBe('Å')
+        expect(letterOf('Ørkenkjøtt')).toBe('Ø')
+    })
+
+    test('files a name that starts with no letter under #', () => {
+        expect(letterOf('50 Cent')).toBe('#')
+    })
+})
+
+describe('the sections of the artist grid', () => {
+    test('follow the order of the rows, one section per letter', () => {
+        const sections = sectionsByLetter(sortArtists(artists, 'name'))
+        expect(sections.map((section) => section.letter)).toEqual(['#', 'A', 'B', 'R'])
+        expect(sections[2]?.rows.map((row) => row.name)).toEqual(['The Beatles', 'beck'])
+    })
+
+    test('read backwards when the rows do', () => {
+        const sections = sectionsByLetter(sortArtists(artists, 'name-desc'))
+        expect(sections.map((section) => section.letter)).toEqual(['R', 'B', 'A', '#'])
+    })
+})
+
+describe('the jump strip', () => {
+    test('is always A to Z, with # and Æ Ø Å only when the library has them', () => {
+        expect(jumpLetters(['A', 'B'])).toHaveLength(26)
+        const strip = jumpLetters(['A', 'Ø', '#'])
+        expect(strip[0]).toBe('#')
+        expect(strip.at(-1)).toBe('Ø')
+        expect(strip).toHaveLength(28)
     })
 })
