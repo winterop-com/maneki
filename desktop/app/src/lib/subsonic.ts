@@ -256,6 +256,26 @@ export async function getArtist(
     return { artist, albums: artist.album ?? [] }
 }
 
+/** Who took an artist's stored photo and under what licence: maneki's own addition to `artistInfo2`. */
+export interface ImageCredit {
+    author: string
+    license: string
+    page: string
+}
+
+/**
+ * The credit an artist's photo has to be shown with, or null when it needs none.
+ *
+ * Only a photo stored from Wikimedia Commons carries one; the artist's own file, a Deezer
+ * picture and an album cover standing in do not. A server too old to answer is no credit.
+ */
+export async function getArtistCredit(credentials: Credentials, id: string): Promise<ImageCredit | null> {
+    const inner = await call<{ artistInfo2?: { imageCredit?: ImageCredit } }>(credentials, 'getArtistInfo2', {
+        id,
+    }).catch(() => null)
+    return inner?.artistInfo2?.imageCredit ?? null
+}
+
 /** One album with its tracks, in order. */
 export async function getAlbum(
     credentials: Credentials,

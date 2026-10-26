@@ -31,6 +31,7 @@ import {
     coverUrl,
     getAlbum,
     getArtist,
+    getArtistCredit,
     getArtists,
     getMusicFolders,
     getStarred,
@@ -39,6 +40,7 @@ import {
     type Album,
     type Artist,
     type Credentials,
+    type ImageCredit,
     type Song,
 } from '@/lib/subsonic'
 import { cn } from '@/lib/utils'
@@ -488,7 +490,7 @@ export interface Held<T> {
 
 /** One artist's albums, oldest first. */
 function ArtistScreen({ credentials, id }: { credentials: Credentials; id: string }) {
-    const [held, setHeld] = useState<Held<{ artist: Artist; albums: Album[] }>>({
+    const [held, setHeld] = useState<Held<{ artist: Artist; albums: Album[]; credit: ImageCredit | null }>>({
         key: id,
         value: null,
         refusal: null,
@@ -497,12 +499,12 @@ function ArtistScreen({ credentials, id }: { credentials: Credentials; id: strin
 
     // The flag is the other half: without it a slow first read lands on top of a fast second
     // and puts the previous artist back, tag and all. `pages/Video` guards its own reads the
-    // same way.
+    // same way. The photo's credit is asked alongside and never fails the screen.
     useEffect(() => {
         let live = true
-        getArtist(credentials, id).then(
-            (answer) => {
-                if (live) setHeld({ key: id, value: answer, refusal: null })
+        Promise.all([getArtist(credentials, id), getArtistCredit(credentials, id)]).then(
+            ([answer, credit]) => {
+                if (live) setHeld({ key: id, value: { ...answer, credit }, refusal: null })
             },
             (error: Error) => {
                 if (live) setHeld({ key: id, value: null, refusal: error.message })
@@ -536,6 +538,28 @@ function ArtistScreen({ credentials, id }: { credentials: Credentials; id: strin
                 trail={[{ label: 'Music', to: '/music' }]}
                 action={<StarButton credentials={credentials} item={data.artist} />}
             />
+            {/* THE ARTIST, PICTURED. Their own photo when the server found one, else the first
+                record standing in, as on the grid. A Commons photo is shown with its author and
+                licence: that is the condition it may be shown on at all. */}
+            <div className="mb-6 flex items-end gap-5 px-2">
+                <Cover
+                    credentials={credentials}
+                    id={data.artist.id}
+                    art={data.artist.coverArt}
+                    size={400}
+                    className="size-32 shrink-0 rounded-xl bg-secondary sm:size-40"
+                />
+                <div className="min-w-0 pb-1">
+                    <p className="text-sm text-muted-foreground">
+                        {data.albums.length} {data.albums.length === 1 ? 'album' : 'albums'}
+                    </p>
+                    {data.credit && (
+                        <p className="mt-1 text-xs text-faint" title={data.credit.page}>
+                            Photo: {data.credit.author}, {data.credit.license}, Wikimedia Commons
+                        </p>
+                    )}
+                </div>
+            </div>
             <ul className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
                 {data.albums.map((album) => (
                     <li key={album.id}>
