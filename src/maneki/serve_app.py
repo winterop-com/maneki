@@ -94,6 +94,7 @@ def create_combined_app(
     prewarm_cache: bool = False,
     no_cover_images: bool = False,
     hls_cache_gb: float | None = None,
+    no_artist_images: bool = False,
 ) -> FastAPI:
     """Build a FastAPI app that auto-mounts whichever kinds are present at root.
 
@@ -147,6 +148,8 @@ def create_combined_app(
             recently watched segments are evicted past it. None reads
             `[media] hls_cache_gb` from maneki.toml (default 20); 0 is
             no cap.
+        no_artist_images: when True, no online artist-picture lookups and
+            no redirects to Deezer, whatever `[server] artist_images` says.
     """
     audio_present = has_audio(root)
     video_present = has_video(root)
@@ -175,6 +178,8 @@ def create_combined_app(
     # books as their own music folder.
     books_index = BooksIndex(root, use_cache=audio_use_cache) if books_present else None
     cfg = _resolve_cfg(audio_cfg)
+    if no_artist_images:
+        cfg = cfg.model_copy(update={"artist_images": False})
     token_store = TokenStore()
     # Accounts for the native (video) bearer login. Multi-user when [[users]]
     # is configured, else a single admin honouring --user/--password.
@@ -753,7 +758,14 @@ def _mount_audio(
     """
     from maneki.audio.serve import create_app as create_audio_app
 
-    audio_app = create_audio_app(root=library_root, cfg=cfg, use_cache=use_cache, users=users, books=books)
+    audio_app = create_audio_app(
+        root=library_root,
+        cfg=cfg,
+        use_cache=use_cache,
+        users=users,
+        books=books,
+        artist_images=cfg.artist_images,
+    )
     if scan_library:
         audio_app.state.cache.rebuild()
     combined.mount("/audio", audio_app)

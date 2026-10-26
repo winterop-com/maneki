@@ -21,6 +21,7 @@ from typing import Any
 from fastapi import APIRouter, Query, Request
 
 from maneki.audio.serve.app import envelope, error_envelope
+from maneki.audio.serve.artist_images import ArtistImages, deezer_sized
 from maneki.audio.serve.index import IndexCache
 from maneki.audio.serve.payloads import album_payload, artist_summary, song_payload
 from maneki.audio.serve.scrobble import ScrobbleDispatcher, ScrobbleEvent
@@ -131,18 +132,42 @@ def _empty_artist_info(_artist_id: str) -> dict[str, Any]:
     }
 
 
+def _artist_info(request: Request, artist_id: str) -> dict[str, Any]:
+    """Artist info with what the picture lookup found: the MusicBrainz id, and where the photo is.
+
+    A Deezer photo is named by its CDN URL at three sizes, which is what third-party clients
+    draw. A stored Commons photo is reached through `getCoverArt` like any cover, so it adds no
+    URL here; it adds `imageCredit`, the author and licence the photo must be shown with. Extra
+    keys are ignored by clients that do not know them.
+    """
+    info = _empty_artist_info(artist_id)
+    images: ArtistImages | None = getattr(request.app.state, "artist_images", None)
+    entry = images.entry(artist_id) if images is not None else None
+    if images is None or entry is None:
+        return info
+    if entry.mbid:
+        info["musicBrainzId"] = entry.mbid
+    if entry.source == "deezer" and entry.url and images.online:
+        info["smallImageUrl"] = deezer_sized(entry.url, 250)
+        info["mediumImageUrl"] = deezer_sized(entry.url, 500)
+        info["largeImageUrl"] = deezer_sized(entry.url, 1000)
+    if entry.source == "wikimedia" and entry.credit is not None and images.stored_file(entry) is not None:
+        info["imageCredit"] = entry.credit.model_dump()
+    return info
+
+
 @router.api_route("/getArtistInfo", methods=["GET", "POST", "HEAD"])
 @router.api_route("/getArtistInfo.view", methods=["GET", "POST", "HEAD"], include_in_schema=False)
-async def get_artist_info(id: str = Query(...)) -> dict:
-    """Empty artist info (legacy v1 endpoint) — no bio/similar-artist data tracked."""
-    return envelope("artistInfo", _empty_artist_info(id))
+async def get_artist_info(request: Request, id: str = Query(...)) -> dict:
+    """Artist info (legacy v1 endpoint): no biography or similar artists, a picture where one was found."""
+    return envelope("artistInfo", _artist_info(request, id))
 
 
 @router.api_route("/getArtistInfo2", methods=["GET", "POST", "HEAD"])
 @router.api_route("/getArtistInfo2.view", methods=["GET", "POST", "HEAD"], include_in_schema=False)
-async def get_artist_info2(id: str = Query(...)) -> dict:
-    """Empty artist info (modern v3 endpoint)."""
-    return envelope("artistInfo2", _empty_artist_info(id))
+async def get_artist_info2(request: Request, id: str = Query(...)) -> dict:
+    """Artist info (modern v3 endpoint): no biography or similar artists, a picture where one was found."""
+    return envelope("artistInfo2", _artist_info(request, id))
 
 
 # ---------------------------------------------------------------------------

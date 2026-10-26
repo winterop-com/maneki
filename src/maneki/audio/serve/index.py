@@ -10,6 +10,7 @@ the index from scratch.
 
 from __future__ import annotations
 
+import logging
 import sqlite3
 import threading
 from collections.abc import Callable
@@ -44,6 +45,8 @@ class IndexCache:
         # the sidecar read + Pillow resize on every row twice.
         self.cover_cache: CoverCache = CoverCache()
         self.scan_in_progress: bool = False
+        # Called after every reindex, on the thread that ran it: the artist-image lookups hang here.
+        self.listeners: list[Callable[[], None]] = []
         # `_scan_lock` guards `scan_in_progress` flips so two threads can't
         # both think they're the "first" rescan and double-walk the disk.
         self._scan_lock = threading.Lock()
@@ -146,6 +149,11 @@ class IndexCache:
         # Drop cached cover bytes — file content / sidecar may have
         # changed underneath us (e.g. a re-cover-picked album).
         self.cover_cache.clear()
+        for listener in self.listeners:
+            try:
+                listener()
+            except Exception:  # pragma: no cover - a listener must never break a scan
+                logging.getLogger(__name__).exception("index listener failed")
 
     @property
     def album_count(self) -> int:

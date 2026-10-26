@@ -117,8 +117,13 @@ def create_app(
     use_cache: bool = True,
     users: UserRegistry | None = None,
     books: BooksIndex | None = None,
+    artist_images: bool = False,
 ) -> FastAPI:
     """Build the FastAPI app for `root` with the given credentials.
+
+    `artist_images` turns on the online artist-picture lookups (see `artist_images.py`). Off by
+    default here, so tests and embedders make no outbound requests; the server turns it on from
+    `[server] artist_images`. Off or on, the artist's own file and stored photos are served.
 
     `use_cache=False` disables the persistent `<root>/.maneki/index.db`
     and falls back to in-memory scan on every rebuild.
@@ -173,6 +178,13 @@ def create_app(
     from maneki.audio.serve.scrobble import ScrobbleDispatcher
 
     app.state.scrobble = ScrobbleDispatcher(cfg.scrobble)
+
+    from maneki.audio.serve.artist_images import ArtistImages
+
+    images = ArtistImages(root, online=artist_images)
+    app.state.artist_images = images
+    cache = app.state.cache
+    cache.listeners.append(lambda: images.refresh(cache.artists_by_id, cache.artist_name_by_id))
 
     # Middleware order is REVERSE of registration — last add_middleware
     # is the outermost wrap. We need:

@@ -8,12 +8,13 @@ from pathlib import Path
 
 import httpx2 as httpx
 from fastapi import APIRouter, Query, Request
-from fastapi.responses import FileResponse, JSONResponse, Response, StreamingResponse
+from fastapi.responses import FileResponse, JSONResponse, RedirectResponse, Response, StreamingResponse
 
 from maneki import __version__
 from maneki.audio import radio
 from maneki.audio.library.models import LibraryTrack
 from maneki.audio.serve.app import error_envelope
+from maneki.audio.serve.artist_images import ArtistImages, deezer_sized, local_image
 from maneki.audio.serve.covers import load_album_cover, resize
 from maneki.audio.serve.index import IndexCache
 from maneki.audio.serve.payloads import content_type
@@ -88,6 +89,45 @@ def _station_logo(cover_id: str) -> tuple[bytes, str] | None:
         return None
     _station_logos[station.logo] = found
     return found
+
+
+_PICTURE_MIMES = {".png": "image/png", ".webp": "image/webp"}
+
+
+def _artist_picture(request: Request, cache: IndexCache, ar_id: str, size: int | None) -> Response | None:
+    """The artist's own file, a stored Commons photo, or a redirect to Deezer; None means none of them.
+
+    Deezer is a redirect rather than bytes because their terms do not allow storing the image:
+    the client fetches it from their CDN, which tells it how long to keep it. With lookups off
+    the redirect stops too, so a server told to stay offline sends nobody anywhere.
+    """
+    albums = cache.artists_by_id.get(ar_id)
+    if not albums:
+        return None
+    images: ArtistImages | None = getattr(request.app.state, "artist_images", None)
+    path = local_image(albums)
+    if path is None and images is not None:
+        entry = images.entry(ar_id)
+        if entry is not None:
+            path = images.stored_file(entry)
+            if path is None and entry.source == "deezer" and entry.url and images.online:
+                return RedirectResponse(deezer_sized(entry.url, size), status_code=307)
+    if path is None:
+        return None
+    # Its own key, so a first-album cover cached before the lookup finished never shadows it.
+    key = (f"{ar_id}:picture", size)
+    cached = cache.cover_cache.get(key)
+    if cached is not None:
+        return Response(content=cached[0], media_type=cached[1])
+    data = path.read_bytes()
+    mime = _PICTURE_MIMES.get(path.suffix.lower(), "image/jpeg")
+    if size is not None:
+        try:
+            data, mime = resize(data, max_size=size)
+        except Exception:  # pragma: no cover - Pillow refused; serve the original
+            pass
+    cache.cover_cache.put(key, data, mime)
+    return Response(content=data, media_type=mime)
 
 
 def _get_cache(request: Request) -> IndexCache:
@@ -354,7 +394,10 @@ async def get_cover_art(
         pair = cache.tracks_by_id.get(id)
         album = pair[0] if pair is not None else None
     elif id.startswith("ar_"):
-        # Use the first album of the artist (alphabetical) as the artist cover.
+        picture = _artist_picture(request, cache, id, size)
+        if picture is not None:
+            return picture
+        # No picture of the artist: the first album (alphabetical) stands in for one.
         albums = cache.artists_by_id.get(id)
         album = albums[0] if albums else None
     else:

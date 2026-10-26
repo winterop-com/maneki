@@ -119,6 +119,22 @@ url = "https://example.invalid/hook"
 broker = "mqtt://homeassistant:1883"
 ```
 
+Artist pictures are looked up online by default, whether or not `[[users]]` are
+defined. Each artist gets, in order: an `artist.jpg` (or `.jpeg`/`.png`/`.webp`)
+in their own folder; a photo from Wikimedia Commons, found through Wikidata by the
+MusicBrainz artist id in the files' tags and stored under
+`<library>/.maneki/artist-images/` with its author and licence; a Deezer picture,
+matched by exact name, of which only the link is kept (Deezer's terms do not allow
+storing their images, so clients load it from Deezer's CDN); else the first album
+cover. Turn the lookups off to make no outbound requests at all; your own files
+and photos already stored still show. `serve --no-artist-images` does the same for
+one run.
+
+```toml
+[server]
+artist_images = false
+```
+
 ### `[acoustid]`
 
 API key for `maneki audio convert --enrich` fingerprinting (free at

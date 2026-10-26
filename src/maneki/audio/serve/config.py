@@ -57,6 +57,7 @@ class ServeConfig(BaseModel):
     username: str
     password: str
     scrobble: ScrobbleConfig = ScrobbleConfig()
+    artist_images: bool = True
 
 
 DEFAULT_USERNAME = "admin"
@@ -82,4 +83,10 @@ def resolve_credentials(*, cli_user: str | None, cli_password: str | None) -> tu
     username = cli_user or admin.name
     password = cli_password or admin.password
     used_defaults = username == DEFAULT_USERNAME and password == DEFAULT_PASSWORD
-    return ServeConfig(username=username, password=password, scrobble=settings.server.scrobble), used_defaults
+    cfg = ServeConfig(
+        username=username,
+        password=password,
+        scrobble=settings.server.scrobble,
+        artist_images=settings.server.artist_images,
+    )
+    return cfg, used_defaults

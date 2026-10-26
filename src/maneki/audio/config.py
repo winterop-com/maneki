@@ -74,6 +74,8 @@ class ServerSection(BaseModel):
     username: str = "admin"
     password: str = "admin"
     scrobble: ScrobbleConfig = Field(default_factory=ScrobbleConfig)
+    # Look artist pictures up online (Wikimedia Commons, Deezer). Off: no outbound requests.
+    artist_images: bool = True
 
 
 class AcoustIDSection(BaseModel):

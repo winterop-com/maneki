@@ -18,6 +18,9 @@ maneki serve ~/Downloads/library
 maneki serve ~/library --prewarm-cache              # populate thumbs / posters / subs at startup
 maneki serve ~/library --no-cover-images            # skip contact sheets; fall back to row thumbnail
 maneki serve ~/library --rescan                     # rebuild every library from the files first
+
+# Music-side: no online lookups for artist pictures
+maneki serve ~/library --no-artist-images           # no Wikimedia Commons / Deezer requests
 ```
 
 Then:

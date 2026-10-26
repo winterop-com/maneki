@@ -166,6 +166,17 @@ def serve_cmd(
             ),
         ),
     ] = False,
+    no_artist_images: Annotated[
+        bool,
+        typer.Option(
+            "--no-artist-images",
+            help=(
+                "Look nothing up online for artist pictures: no Wikimedia Commons or Deezer "
+                "requests. The artist's own artist.jpg and photos already stored still show. "
+                "Default: [server] artist_images in maneki.toml, else on."
+            ),
+        ),
+    ] = False,
 ) -> None:
     """Start the Maneki server.
 
@@ -215,6 +226,7 @@ def serve_cmd(
         prewarm_cache=prewarm_cache,
         no_cover_images=no_cover_images,
         hls_cache_gb=hls_cache_gb,
+        no_artist_images=no_artist_images,
     )
     import structlog
 
@@ -228,6 +240,8 @@ def serve_cmd(
         flags.append("prewarm-cache")
     if no_cover_images:
         flags.append("no-cover-images")
+    if no_artist_images:
+        flags.append("no-artist-images")
     if hls_cache_gb is not None:
         flags.append(f"hls-cache-gb={hls_cache_gb:g}")
     actual_workers = workers or "auto"
