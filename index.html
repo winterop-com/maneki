@@ -1494,7 +1494,7 @@
 <p>Then on top of that:</p>
 <ul>
 <li><strong><code>maneki audio library</code></strong> — read, audit, fix, retag, cover, and manage the converted audio library. Subcommands:</li>
-<li><code>audio library tree DIR</code> / <code>audit DIR</code> / <code>fix DIR</code> — render, audit, auto-fix</li>
+<li><code>audio library tree DIR</code> / <code>audit DIR</code> / <code>fix DIR</code> / <code>faststart DIR</code> — render, audit, auto-fix, make tracks start streaming at once</li>
 <li><code>audio library cover IMAGE DIR</code> / <code>cover-pick DIR</code> / <code>retag DIR</code> — in-place tag and cover edits; semi-automated cover selection via <a href="https://covers.musichoarders.xyz/">musichoarders.xyz</a></li>
 <li><code>audio library lyrics fetch DIR</code> — populate <code>&lt;track&gt;.lrc</code> sidecars from <a href="https://lrclib.net">LRCLIB</a> (free, no API key, returns synced lyrics for popular tracks)</li>
 <li><code>audio library index status|drop|rebuild DIR</code> — manage the persistent SQLite index at <code>&lt;DIR&gt;/.maneki/index.db</code></li>
