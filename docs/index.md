@@ -52,7 +52,7 @@ End-to-end pipeline:
 Then on top of that:
 
 - **`maneki audio library`** — read, audit, fix, retag, cover, and manage the converted audio library. Subcommands:
-  - `audio library tree DIR` / `audit DIR` / `fix DIR` — render, audit, auto-fix
+  - `audio library tree DIR` / `audit DIR` / `fix DIR` / `faststart DIR` — render, audit, auto-fix, make tracks start streaming at once
   - `audio library cover IMAGE DIR` / `cover-pick DIR` / `retag DIR` — in-place tag and cover edits; semi-automated cover selection via [musichoarders.xyz](https://covers.musichoarders.xyz/)
   - `audio library lyrics fetch DIR` — populate `<track>.lrc` sidecars from [LRCLIB](https://lrclib.net) (free, no API key, returns synced lyrics for popular tracks)
   - `audio library index status|drop|rebuild DIR` — manage the persistent SQLite index at `<DIR>/.maneki/index.db`

@@ -149,11 +149,11 @@ def encode(src: Path, dst: Path, fmt: OutputFormat, *, bitrate: str = DEFAULT_LO
         "-vn",
     ]
     if fmt is OutputFormat.ALAC:
-        cmd += ["-c:a", "alac", "-f", "ipod"]
+        cmd += ["-c:a", "alac", "-movflags", "+faststart", "-f", "ipod"]
     elif fmt is OutputFormat.MP3:
         cmd += ["-c:a", "libmp3lame", "-b:a", bitrate, "-id3v2_version", "3", "-f", "mp3"]
     elif fmt is OutputFormat.AAC:
-        cmd += ["-c:a", "aac", "-b:a", bitrate, "-f", "ipod"]
+        cmd += ["-c:a", "aac", "-b:a", bitrate, "-movflags", "+faststart", "-f", "ipod"]
     cmd.append(str(tmp))
 
     result = subprocess.run(cmd, capture_output=True, text=True, check=False)
@@ -207,6 +207,8 @@ def remux_to_m4a(src: Path, dst: Path) -> None:
         "-c:a",
         "copy",
         "-vn",
+        "-movflags",
+        "+faststart",
         "-f",
         "mp4",  # `-f ipod` rejects MP3 inside MP4; plain mp4 accepts it
         str(tmp),

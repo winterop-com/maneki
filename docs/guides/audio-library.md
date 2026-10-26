@@ -76,6 +76,23 @@ Fixes that are NOT auto-applied:
 - Splitting an over-merged album — manual.
 - Re-tagging mixed-album_artist albums to a single value — `library retag` per dir.
 
+## `faststart` — tracks that start streaming at once
+
+```bash
+uvx maneki audio library faststart DIR [--dry-run]
+```
+
+Moves each `.m4a`'s index (`moov`) in front of its audio (`mdat`). With the index last, a
+player streaming the file has to fetch the head, then the tail, then the head again before it
+can play, which is slow over a remote link. The rewrite is lossless: audio, tags and cover keep
+their bytes.
+
+- A rewritten file gets a new modification time, so `media-sync` (or any rsync by size and time)
+  carries it to the server. rsync sends only what moved, about 0.1% of each file.
+- Album folders keep their modification time, so "Recently added" does not change.
+- Files already in order are skipped, so it is safe to run again. `convert` writes new files in
+  this order already.
+
 ## `cover` — embed an image
 
 ```bash

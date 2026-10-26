@@ -129,6 +129,46 @@ def library_audit(
 
 
 # ---------------------------------------------------------------------------
+# faststart
+# ---------------------------------------------------------------------------
+
+
+@library_app.command("faststart")
+def library_faststart(
+    target_dir: Annotated[
+        Path,
+        typer.Argument(exists=True, file_okay=False, envvar="MANEKI_LIBRARY", help="Library root."),
+    ],
+    dry_run: Annotated[
+        bool,
+        typer.Option("--dry-run", help="Count what would be rewritten; change nothing."),
+    ] = False,
+) -> None:
+    """Move each .m4a's index in front of its audio, so a track starts streaming at once.
+
+    Lossless: the audio, tags and cover keep their bytes. A rewritten file gets a new modification
+    time, so `media-sync` carries it to the server; album folders keep theirs, so "Recently added"
+    does not change. Files already in this order are left alone, so running it again is cheap.
+    """
+    from maneki.audio.faststart import Outcome, faststart_library
+
+    console = Console()
+    seen = 0
+
+    def heard(path: Path, result: Outcome | Exception) -> None:
+        nonlocal seen
+        seen += 1
+        status.update(f"{seen}  {path.name}")
+        if isinstance(result, Exception):
+            console.print(f"[yellow]skipped[/yellow] {path}: {result}")
+
+    with console.status("Checking files") as status:
+        counts = faststart_library(target_dir.resolve(), dry_run=dry_run, on_file=heard)
+    verb = "would rewrite" if dry_run else "rewrote"
+    console.print(f"{verb} {counts['converted']}, already in order {counts['already']}, skipped {counts['skipped']}")
+
+
+# ---------------------------------------------------------------------------
 # fix
 # ---------------------------------------------------------------------------
 
