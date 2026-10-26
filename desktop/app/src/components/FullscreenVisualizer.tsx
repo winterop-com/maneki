@@ -4,13 +4,14 @@ import { useRef } from 'react'
 import { Button } from '@/components/ui/button'
 import { useOverlay } from '@/hooks/use-overlay'
 import { useSpectrum } from '@/hooks/use-spectrum'
-import { useStore } from '@/hooks/use-store'
+import { useStore, useStoreValue } from '@/hooks/use-store'
 import { books as booksApi } from '@/lib/api'
 import { clock } from '@/lib/format'
 import { linerByline, linerEyebrow, linerTitle } from '@/lib/liner'
 import { currentSong, next, playerStore, previous, seek, toggle } from '@/lib/player'
 import { sessionStore } from '@/lib/session'
 import { starMarks, starredNow, toggleStar } from '@/lib/star'
+import { offlineStore } from '@/lib/offline'
 import { coverUrl } from '@/lib/subsonic'
 import { cn } from '@/lib/utils'
 import {
@@ -86,6 +87,8 @@ export function FullscreenVisualizer() {
 function Stage() {
     const player = useStore(playerStore)
     const session = useStore(sessionStore)
+    // Selected whole: the lookup by the playing album happens below, where the track is known.
+    const keptAlbums = useStoreValue(offlineStore, (state) => state.albums)
     const marks = useStore(starMarks)
     const style = useStore(visualizerStyle)
     const stage = useRef<HTMLDivElement | null>(null)
@@ -103,7 +106,8 @@ function Stage() {
             ? booksApi.coverUrl(book.id, 600)
             : null
         : song && session.music
-          ? coverUrl(session.music, song.coverArt, 600)
+          ? ((song.albumId ? keptAlbums[song.albumId]?.coverUrl : null) ??
+            coverUrl(session.music, song.coverArt, 600))
           : player.station && session.music
             ? coverUrl(session.music, player.station.coverArt, 600)
             : null

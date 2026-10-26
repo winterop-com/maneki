@@ -4,6 +4,7 @@ import { Navigate, Route, Routes } from 'react-router'
 
 import { AppShell } from '@/components/AppShell'
 import { useStore } from '@/hooks/use-store'
+import { loadOffline } from '@/lib/offline'
 import { connect, sessionStore } from '@/lib/session'
 import { setPlayerCredentials } from '@/lib/player'
 import { BooksPage } from '@/pages/Books'
@@ -26,6 +27,12 @@ export default function App() {
     // The player lives outside React and needs whatever the session holds.
     useEffect(() => {
         setPlayerCredentials(session.music)
+    }, [session.music])
+
+    // Which albums this device keeps for that account: the album screens, the downloads list and
+    // the player read it from `offlineStore`. Storage that will not open is no downloads.
+    useEffect(() => {
+        if (session.music) void loadOffline(session.music).catch(() => undefined)
     }, [session.music])
 
     // THE FIRST SECOND IS A SCREEN LIKE ANY OTHER. What `unknown` means is that the server has
@@ -77,6 +84,7 @@ export default function App() {
                 <Route path="/music/artist/:artistId" element={<MusicPage />} />
                 <Route path="/music/album/:albumId" element={<MusicPage />} />
                 <Route path="/music/starred" element={<MusicPage view="starred" />} />
+                <Route path="/music/downloaded" element={<MusicPage view="downloaded" />} />
                 <Route path="/playlists" element={<PlaylistsPage />} />
                 <Route path="/playlists/:playlistId" element={<PlaylistsPage />} />
                 <Route path="/radio" element={<RadioPage />} />

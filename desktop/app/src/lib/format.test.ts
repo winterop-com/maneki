@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'vitest'
 
-import { clock, duration, progressRatio, remaining, songLine, trackCount } from '@/lib/format'
+import { byteSize, clock, duration, progressRatio, remaining, songLine, trackCount } from '@/lib/format'
 
 describe('clock', () => {
     test('writes hours when a book has them', () => {
@@ -55,5 +55,14 @@ describe('the line under a track', () => {
         expect(songLine({ artist: 'New Order', year: 1983 })).toBe('New Order · 1983')
         expect(songLine({ album: 'Substance' })).toBe('Substance')
         expect(songLine({})).toBe('')
+    })
+})
+
+describe('a size', () => {
+    test('reads the way a disk is labelled', () => {
+        expect(byteSize(0)).toBe('0 B')
+        expect(byteSize(740_000)).toBe('740 KB')
+        expect(byteSize(86_400_000)).toBe('86 MB')
+        expect(byteSize(3_400_000_000)).toBe('3.4 GB')
     })
 })

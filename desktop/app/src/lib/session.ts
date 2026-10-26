@@ -22,6 +22,7 @@ import {
     signIn,
 } from '@/lib/api'
 import { noteRefusal } from '@/lib/connection'
+import { hasOfflineAlbums } from '@/lib/offline'
 import { clear } from '@/lib/player'
 import { forgetMarks } from '@/lib/star'
 import { createStore } from '@/lib/store'
@@ -61,6 +62,8 @@ interface StoredSession {
     admin?: boolean
     token?: string
     subsonic?: StoredSubsonic
+    /** What the server last said it has, kept so the app can open without it: see `openOffline`. */
+    capabilities?: Capabilities
 }
 
 export const sessionStore = createStore<SessionState>({ phase: 'unknown', baseUrl: defaultBaseUrl() })
@@ -181,7 +184,7 @@ export async function connect(stored: StoredSession = read(), submitted = false)
             return
         }
         const music = rest && stored.subsonic ? { restUrl: rest, ...stored.subsonic } : undefined
-        write(stored)
+        write({ ...stored, capabilities: caps })
         sessionStore.set({
             phase: 'ready',
             baseUrl: stored.baseUrl,
@@ -208,6 +211,7 @@ export async function connect(stored: StoredSession = read(), submitted = false)
         // drawn and no mount to stream from, so it falls to the door, which states the same
         // reason and asks nothing new.
         if (sessionStore.get().phase === 'ready') return
+        if (await openOffline(stored)) return
         sessionStore.set({
             phase: 'signed-out',
             baseUrl: stored.baseUrl,
@@ -215,6 +219,35 @@ export async function connect(stored: StoredSession = read(), submitted = false)
             refusal: reason,
         })
     }
+}
+
+/**
+ * Open on what this device keeps, when the server did not answer at all.
+ *
+ * DOWNLOADS ARE FOR EXACTLY THIS. Falling to the door would leave every kept album unreachable
+ * behind a sign-in nobody can complete. So a session kept from before, whose account keeps
+ * albums here, opens as it was left -- on the capabilities the server last stated -- with the
+ * banner saying the server is not answering. Only a quiet wire gets here: a refused sign-in has
+ * already signed out.
+ */
+async function openOffline(stored: StoredSession): Promise<boolean> {
+    const caps = stored.capabilities
+    if (caps === undefined || stored.subsonic === undefined) return false
+    const rest = restUrl(stored.baseUrl, caps)
+    if (rest === null) return false
+    const music = { restUrl: rest, ...stored.subsonic }
+    const keeps = await hasOfflineAlbums(music).catch(() => false)
+    if (!keeps) return false
+    setVideoMount(caps.endpoints.video_api)
+    sessionStore.set({
+        phase: 'ready',
+        baseUrl: stored.baseUrl,
+        username: stored.username,
+        admin: stored.admin,
+        capabilities: caps,
+        music,
+    })
+    return true
 }
 
 /** Sign in against `baseUrl`, to both grammars, and connect with what it hands back. */

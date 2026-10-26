@@ -3,10 +3,13 @@ import { Fragment, useEffect, useMemo, useState } from 'react'
 import { NavLink, useNavigate, useParams } from 'react-router'
 
 import { CoverArt } from '@/components/CoverArt'
+import { DownloadButton, Downloads } from '@/pages/Downloads'
 import { AddToPlaylistDialog, type Adding } from '@/components/PlaylistDialogs'
 import { Skeleton } from '@/components/Skeleton'
 import { Button } from '@/components/ui/button'
 import { useScrollMemory } from '@/hooks/use-scroll-memory'
+import { NETWORK_REFUSAL } from '@/lib/connection'
+import { offlineAlbum, offlineStore } from '@/lib/offline'
 import { useStore, useStoreValue } from '@/hooks/use-store'
 import { playingRow } from '@/lib/queue'
 import { albumPath, bookOfAlbum } from '@/lib/nav'
@@ -61,11 +64,12 @@ function storedSort(): SortMode {
     }
 }
 
-export function MusicPage({ view }: { view?: 'starred' } = {}) {
+export function MusicPage({ view }: { view?: 'starred' | 'downloaded' } = {}) {
     const { artistId, albumId } = useParams()
     const session = useStore(sessionStore)
     if (!session.music) return <Notice>This server has no music library.</Notice>
     if (view === 'starred') return <Favourites credentials={session.music} />
+    if (view === 'downloaded') return <Downloads credentials={session.music} />
     if (albumId) return <AlbumScreen credentials={session.music} id={albumId} />
     if (artistId) return <ArtistScreen credentials={session.music} id={artistId} />
     return <Artists credentials={session.music} />
@@ -290,7 +294,10 @@ function Artists({ credentials }: { credentials: Credentials }) {
 
     const typed = query.trim()
     const ordered = useMemo(() => sortArtists(artists ?? [], sort, articles), [articles, artists, sort])
+    const keepsAlbums = useStoreValue(offlineStore, (state) => Object.keys(state.albums).length > 0)
 
+    // NO SERVER, BUT ALBUMS KEPT HERE: those are what can be played, so they are what is shown.
+    if (refusal === NETWORK_REFUSAL && keepsAlbums) return <Downloads credentials={credentials} serverGone />
     if (refusal) return <Notice>{refusal}</Notice>
     if (!artists) {
         return (
@@ -617,20 +624,34 @@ function AlbumScreen({ credentials, id }: { credentials: Credentials; id: string
 
     // Tagged and guarded, for the reason the artist screen states: the tracks on screen belong
     // to the id in the address and to no other.
+    // A SERVER THAT DID NOT ANSWER IS NOT THE END OF A KEPT ALBUM. The album as it was downloaded
+    // is drawn instead; anything else the server refused says so as before.
     useEffect(() => {
         let live = true
         getAlbum(credentials, id).then(
             (answer) => {
                 if (live) setHeld({ key: id, value: answer, refusal: null })
             },
-            (error: Error) => {
-                if (live) setHeld({ key: id, value: null, refusal: error.message })
+            async (error: Error) => {
+                const kept =
+                    error.message === NETWORK_REFUSAL
+                        ? await offlineAlbum(credentials, id).catch(() => null)
+                        : null
+                if (!live) return
+                setHeld(
+                    kept === null
+                        ? { key: id, value: null, refusal: error.message }
+                        : { key: id, value: { album: kept.album, songs: kept.songs }, refusal: null },
+                )
             },
         )
         return () => {
             live = false
         }
     }, [credentials, id])
+    // The cover of a downloaded album is this device's, online or not.
+    const keptAlbums = useStoreValue(offlineStore, (state) => state.albums)
+    const keptSleeve = keptAlbums[id]?.coverUrl ?? null
 
     const answered = held.key === id
     const data = answered ? held.value : null
@@ -683,6 +704,7 @@ function AlbumScreen({ credentials, id }: { credentials: Credentials; id: string
                 ]}
                 action={
                     <>
+                        <DownloadButton credentials={credentials} albumId={album.id} />
                         <StarButton credentials={credentials} item={album} />
                         <Button
                             variant="ghost"
@@ -707,6 +729,7 @@ function AlbumScreen({ credentials, id }: { credentials: Credentials; id: string
                     credentials={credentials}
                     id={album.id}
                     art={album.coverArt}
+                    src={keptSleeve}
                     className="sticky top-4 hidden size-40 rounded-md sm:block @2xl:size-56 @5xl:size-72"
                 />
                 <ol className="min-w-0 flex-1 rounded-lg border">
@@ -900,6 +923,7 @@ export function Cover({
     art,
     className,
     size = 500,
+    src: local = null,
 }: {
     credentials: Credentials
     /** What the drawing stands for when there is no sleeve: the album's own id. */
@@ -908,8 +932,10 @@ export function Cover({
     className?: string
     /** The pixel size asked of the server. A grid of tiles needs less than an album's sleeve. */
     size?: number
+    /** An image this device already holds (a downloaded album's cover), used instead of asking. */
+    src?: string | null
 }) {
-    const src = coverUrl(credentials, art, size)
+    const src = local ?? coverUrl(credentials, art, size)
     if (!src) return <CoverArt id={id} className={className} />
     return <img src={src} alt="" loading="lazy" className={cn('aspect-square object-cover', className)} />
 }

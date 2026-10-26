@@ -21,6 +21,7 @@ import { chapterAt } from '@/lib/book-timeline'
 import { announced } from '@/lib/liner'
 import { next, playerStore, previous, seek, skipBy, SKIP_S, toggle, type PlayerState } from '@/lib/player'
 import { sessionStore } from '@/lib/session'
+import { keptCover } from '@/lib/offline'
 import { coverUrl } from '@/lib/subsonic'
 import { createStore } from '@/lib/store'
 
@@ -122,7 +123,8 @@ function artworkFor(state: PlayerState): string | null {
     if (state.station) return coverUrl(music, state.station.coverArt, ARTWORK_SIZE)
     const song = state.queue[state.index]
     if (!song) return null
-    return coverUrl(music, song.coverArt, ARTWORK_SIZE)
+    // A downloaded album's kept cover: the lock screen and media keys keep it with no server.
+    return keptCover(song.albumId) ?? coverUrl(music, song.coverArt, ARTWORK_SIZE)
 }
 
 /**

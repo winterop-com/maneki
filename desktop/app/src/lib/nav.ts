@@ -15,6 +15,7 @@
 import {
     BookAudio,
     Clapperboard,
+    Download,
     ListMusic,
     MonitorPlay,
     Music,
@@ -83,6 +84,13 @@ export const NAV: NavSection[] = [
                 label: 'Favourites',
                 hint: 'Everything starred, on any client',
                 icon: Star,
+                requires: 'audio',
+            },
+            {
+                path: '/music/downloaded',
+                label: 'Downloads',
+                hint: 'Albums kept on this device, to play without the server',
+                icon: Download,
                 requires: 'audio',
             },
             {

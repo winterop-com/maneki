@@ -18,6 +18,13 @@ import {
 import { getArtists, SubsonicError } from '@/lib/subsonic'
 import type { Capabilities } from '@/lib/types'
 
+/** Whether this device keeps albums for the account being connected: see `openOffline`. */
+const kept = vi.hoisted(() => ({ albums: false }))
+vi.mock('@/lib/offline', async (original) => ({
+    ...(await original<typeof import('@/lib/offline')>()),
+    hasOfflineAlbums: vi.fn(async () => kept.albums),
+}))
+
 function server(has: Partial<Capabilities>): Capabilities {
     return {
         server: 'maneki',
@@ -62,6 +69,7 @@ function refusing(): void {
 
 beforeEach(() => {
     vi.unstubAllGlobals()
+    kept.albums = false
     // Each of these starts from a session nobody has established, or one test's `ready` would
     // be the next one's starting point.
     sessionStore.set({ phase: 'unknown', baseUrl: '' })
@@ -129,6 +137,52 @@ describe('connecting to a server', () => {
         await connect({ baseUrl: 'https://host' })
         expect(sessionStore.get().phase).toBe('signed-out')
         expect(sessionStore.get().refusal).toBeTruthy()
+    })
+
+    test('a session that worked once keeps what the server said it has', async () => {
+        answering(server({}))
+        await connect({
+            baseUrl: 'https://host',
+            username: 'mort',
+            subsonic: { username: 'mort', salt: 'abc', token: 'def' },
+        })
+        const stored = JSON.parse(localStorage.getItem('maneki.session') ?? '{}') as {
+            capabilities?: Capabilities
+        }
+        expect(stored.capabilities?.server).toBe('maneki')
+    })
+
+    // DOWNLOADS ARE FOR THIS. Falling to the door would put every kept album behind a sign-in
+    // nobody can complete while the server is gone.
+    test('a server that never answered opens on the albums this device keeps', async () => {
+        kept.albums = true
+        refusing()
+        await connect({
+            baseUrl: 'https://host',
+            username: 'mort',
+            subsonic: { username: 'mort', salt: 'abc', token: 'def' },
+            capabilities: server({}),
+        })
+        const state = sessionStore.get()
+        expect(state.phase).toBe('ready')
+        expect(state.music?.restUrl).toBe('https://host/audio/rest')
+        expect(connectionStore.get().down).toBe(true)
+    })
+
+    test('with nothing kept, or nothing known about the server, a quiet start is still the door', async () => {
+        refusing()
+        const stored = {
+            baseUrl: 'https://host',
+            username: 'mort',
+            subsonic: { username: 'mort', salt: 'abc', token: 'def' },
+        }
+        await connect({ ...stored, capabilities: server({}) })
+        expect(sessionStore.get().phase).toBe('signed-out')
+
+        kept.albums = true
+        sessionStore.set({ phase: 'unknown', baseUrl: '' })
+        await connect(stored)
+        expect(sessionStore.get().phase).toBe('signed-out')
     })
 
     // Signing somebody out here would empty the app to fix a router: the credentials are still

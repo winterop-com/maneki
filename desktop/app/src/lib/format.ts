@@ -52,3 +52,16 @@ export function songLine(song: { artist?: string; album?: string; year?: number 
         .filter((part): part is string => Boolean(part))
         .join(' · ')
 }
+
+/** A size as a reader says it: "740 KB", "86 MB", "3.4 GB". Decimal units, as disks are sold. */
+export function byteSize(bytes: number): string {
+    if (bytes < 1000) return `${String(Math.max(0, Math.round(bytes)))} B`
+    const units = ['KB', 'MB', 'GB', 'TB']
+    let value = bytes / 1000
+    let unit = 0
+    while (value >= 1000 && unit < units.length - 1) {
+        value /= 1000
+        unit += 1
+    }
+    return `${value >= 10 ? String(Math.round(value)) : value.toFixed(1)} ${units[unit] ?? 'TB'}`
+}

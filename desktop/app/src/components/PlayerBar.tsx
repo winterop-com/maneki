@@ -21,7 +21,7 @@ import { Button } from '@/components/ui/button'
 import { useDragSize } from '@/hooks/use-drag-size'
 import { useSmallScreen } from '@/hooks/use-small-screen'
 import { useSpectrum } from '@/hooks/use-spectrum'
-import { useStore } from '@/hooks/use-store'
+import { useStore, useStoreValue } from '@/hooks/use-store'
 import { books as booksApi } from '@/lib/api'
 import { clock, songLine } from '@/lib/format'
 import { nowPlayingFace } from '@/lib/lcd'
@@ -48,6 +48,7 @@ import {
 } from '@/lib/player'
 import { REPEAT_LABELS } from '@/lib/queue'
 import { sessionStore } from '@/lib/session'
+import { offlineStore } from '@/lib/offline'
 import { coverUrl } from '@/lib/subsonic'
 import {
     BAR_ROOM_MAX,
@@ -117,6 +118,9 @@ export function PlayerBar() {
     const player = useStore(playerStore)
     // A station on an engine that cannot hear one has no spectrum to draw: see `spectrumReadable`.
     const session = useStore(sessionStore)
+    // A downloaded album's cover is this device's, there whether or not the server is.
+    // Selected whole: the lookup by the playing album happens below, where the track is known.
+    const keptAlbums = useStoreValue(offlineStore, (state) => state.albums)
     const spectrumShown =
         useStore(visualizerShown) &&
         spectrumReadable(player.station !== null, undefined, session.phase !== 'radio')
@@ -199,7 +203,8 @@ export function PlayerBar() {
             ? booksApi.coverUrl(book.id, 600)
             : null
         : song && session.music
-          ? coverUrl(session.music, song.coverArt, 600)
+          ? ((song.albumId ? keptAlbums[song.albumId]?.coverUrl : null) ??
+            coverUrl(session.music, song.coverArt, 600))
           : station && session.music
             ? coverUrl(session.music, station.coverArt, 600)
             : null

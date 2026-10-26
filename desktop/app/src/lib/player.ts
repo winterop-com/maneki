@@ -44,6 +44,8 @@ import {
     reorderAround,
     type Repeat,
 } from '@/lib/queue'
+import { connectionStore } from '@/lib/connection'
+import { offlineSongIds, offlineStore, offlineTrack } from '@/lib/offline'
 import { PRELOAD_DELAY_MS, songToPreload, worthHolding } from '@/lib/preload'
 import { claimSound, registerSilencer } from '@/lib/sound'
 import { createStore } from '@/lib/store'
@@ -555,6 +557,23 @@ function onElementError(): void {
     const failing = audio
     if (failing === null) return
     if (failing.error?.code === MEDIA_ERR_ABORTED) return
+    // A STREAM THAT FAILS IS ANSWERED FROM THIS DEVICE WHEN IT CAN BE. The line dropping
+    // mid-album is the case downloads exist for, and it arrives here before anything has told
+    // the app the server is gone: the kept copy carries on from where the stream stopped.
+    const { book, station } = state()
+    const song = currentSong()
+    if (!book && !station && song && keptHere(song.id) && !failing.src.startsWith('blob:')) {
+        const at = failing.currentTime
+        void playKept(failing, song.id, at, true).then((played) => {
+            if (!played) refuseLater(failing)
+        })
+        return
+    }
+    refuseLater(failing)
+}
+
+/** Say the source would not play, unless something replaces it first: see `REFUSAL_SETTLE_MS`. */
+function refuseLater(failing: HTMLAudioElement): void {
     const seq = loadSeq
     stopRefusing()
     refusing = setTimeout(() => {
@@ -591,7 +610,11 @@ function load(index: number, autoplay: boolean, orderAt?: number): void {
     const player = element()
     // Fetched ahead while the last one played: it starts from memory instead of the network.
     const fetched = takeAhead(song.id)
-    putSource(player, fetched ?? streamUrl(credentials, song.id), fetched)
+    // With the server gone, a track kept on this device plays from here. Online it streams like
+    // any other: a download is for when the server cannot be reached, not instead of it.
+    const fromDevice = fetched === null && connectionStore.get().down && keptHere(song.id)
+    if (fromDevice) player.pause()
+    else putSource(player, fetched ?? streamUrl(credentials, song.id), fetched)
     patch({
         index,
         orderAt: orderAt ?? order.indexOf(index),
@@ -605,7 +628,51 @@ function load(index: number, autoplay: boolean, orderAt?: number): void {
         announced = song.id
         void scrobble(credentials, song.id, false)
     }
+    if (fromDevice) {
+        const kept = credentials
+        void playKept(player, song.id, 0, autoplay).then((played) => {
+            // Listed as kept but not there after all: the stream is the only other way.
+            if (played || currentSong()?.id !== song.id) return
+            putSource(player, streamUrl(kept, song.id))
+            if (autoplay) start(player)
+        })
+        return
+    }
     if (autoplay) start(player)
+}
+
+/** Whether this device keeps the song, as the downloaded albums list it. */
+function keptHere(songId: string): boolean {
+    return offlineSongIds(offlineStore.get()).has(songId)
+}
+
+/**
+ * Play this device's copy of a song from `at` seconds. Resolves whether it did: not when the
+ * copy is missing, or when something else was put on the element while it was being read.
+ */
+async function playKept(
+    player: HTMLAudioElement,
+    songId: string,
+    at: number,
+    autoplay: boolean,
+): Promise<boolean> {
+    if (credentials === null) return false
+    const seq = loadSeq
+    const blob = await offlineTrack(credentials, songId).catch(() => null)
+    if (blob === null || seq !== loadSeq || player !== audio || currentSong()?.id !== songId) return false
+    const url = URL.createObjectURL(blob)
+    putSource(player, url, url)
+    if (at > 0) {
+        player.addEventListener(
+            'loadedmetadata',
+            () => {
+                player.currentTime = at
+            },
+            { once: true },
+        )
+    }
+    if (autoplay) start(player)
+    return true
 }
 
 /** Play `songs`, starting at `startIndex`. */
