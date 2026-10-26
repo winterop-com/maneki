@@ -44,6 +44,7 @@ import {
     reorderAround,
     type Repeat,
 } from '@/lib/queue'
+import { PRELOAD_DELAY_MS, songToPreload, worthHolding } from '@/lib/preload'
 import { claimSound, registerSilencer } from '@/lib/sound'
 import { createStore } from '@/lib/store'
 import type { BookDetail, BookFile, Chapter } from '@/lib/types'
@@ -244,10 +245,90 @@ let loadSeq = 0
 /** Counts the pauses somebody asked for, so a play they interrupted is not asked again. */
 let pauseSeq = 0
 
-/** Put a source on the element, counting it: see `loadSeq`. */
-function putSource(player: HTMLAudioElement, url: string): void {
+/**
+ * The next track, fetched whole while this one plays, so it starts the moment it is asked for.
+ * See `lib/preload`. `url` is null until the bytes are in.
+ */
+let ahead: { songId: string; url: string | null; abort: AbortController } | null = null
+/** The wait before the next track is fetched, so the two do not compete for the line. */
+let aheadTimer: ReturnType<typeof setTimeout> | null = null
+/** The fetched copy the element is playing, given back when anything else replaces it. */
+let heldUrl: string | null = null
+
+/**
+ * Put a source on the element, counting it: see `loadSeq`.
+ *
+ * `held` says the source is a fetched copy (see `ahead`) the element now owns. Whatever copy it
+ * held before is given back, and anything fetched for later is dropped: a new source is a new
+ * place in the queue, or a book or a station, and what comes after it is asked again from there.
+ */
+function putSource(player: HTMLAudioElement, url: string, held: string | null = null): void {
     loadSeq += 1
+    dropAhead()
     player.src = url
+    if (heldUrl !== null && heldUrl !== url) URL.revokeObjectURL(heldUrl)
+    heldUrl = held
+}
+
+/** Forget the track fetched ahead, stopping the fetch if it is still on its way. */
+function dropAhead(): void {
+    if (aheadTimer !== null) {
+        clearTimeout(aheadTimer)
+        aheadTimer = null
+    }
+    if (ahead === null) return
+    ahead.abort.abort()
+    if (ahead.url !== null) URL.revokeObjectURL(ahead.url)
+    ahead = null
+}
+
+/** The fetched copy of a song, if it is in; taken, so it is never handed out twice. */
+function takeAhead(songId: string): string | null {
+    if (ahead === null || ahead.songId !== songId || ahead.url === null) return null
+    const url = ahead.url
+    ahead = null
+    return url
+}
+
+/** Fetch the next track after a moment, once this one is playing. Music only. */
+function scheduleAhead(): void {
+    if (aheadTimer !== null) clearTimeout(aheadTimer)
+    aheadTimer = setTimeout(fetchAhead, PRELOAD_DELAY_MS)
+}
+
+function fetchAhead(): void {
+    aheadTimer = null
+    const { queue, order, orderAt, repeat, book, station } = state()
+    if (book || station || !credentials) return
+    const songId = songToPreload(queue, order, orderAt, repeat)
+    if (songId === ahead?.songId) return
+    if (ahead !== null) {
+        ahead.abort.abort()
+        if (ahead.url !== null) URL.revokeObjectURL(ahead.url)
+        ahead = null
+    }
+    if (songId === null) return
+    const holding: { songId: string; url: string | null; abort: AbortController } = {
+        songId,
+        url: null,
+        abort: new AbortController(),
+    }
+    ahead = holding
+    // NOT A RACE WITH THE PLAYER: if the track is asked for before the bytes are in, it streams
+    // as it always did and this copy is dropped by the source change.
+    fetch(streamUrl(credentials, songId), { signal: holding.abort.signal })
+        .then(async (response) => {
+            if (!response.ok || !worthHolding(response.headers.get('content-length'))) {
+                holding.abort.abort()
+                return
+            }
+            const blob = await response.blob()
+            if (ahead === holding) holding.url = URL.createObjectURL(blob)
+        })
+        .catch(() => {
+            // Aborted, or the network went: the track will stream when its turn comes.
+            if (ahead === holding) ahead = null
+        })
 }
 
 /** Whether a refused `play()` was refused because the source was changed under it. */
@@ -414,6 +495,11 @@ function element(): HTMLAudioElement {
     })
     // Sound coming out is the answer to whatever went wrong last time, so the line goes.
     audio.addEventListener('play', () => patch({ playing: true, refusal: null }))
+    // Buffered enough to play through: the moment to start fetching what comes after it.
+    audio.addEventListener('canplaythrough', () => {
+        const { book, station } = state()
+        if (!book && !station) scheduleAhead()
+    })
     audio.addEventListener('error', onElementError)
     audio.addEventListener('pause', () => {
         patch({ playing: false })
@@ -503,7 +589,9 @@ function load(index: number, autoplay: boolean, orderAt?: number): void {
     const song = queue[index]
     if (!song || !credentials) return
     const player = element()
-    putSource(player, streamUrl(credentials, song.id))
+    // Fetched ahead while the last one played: it starts from memory instead of the network.
+    const fetched = takeAhead(song.id)
+    putSource(player, fetched ?? streamUrl(credentials, song.id), fetched)
     patch({
         index,
         orderAt: orderAt ?? order.indexOf(index),
@@ -988,6 +1076,8 @@ export function toggleShuffle(): void {
     }
     const rebuilt = reorderAround(order, orderAt, wanted)
     patch({ shuffle: wanted, order: rebuilt.order, orderAt: rebuilt.at })
+    // What comes next has changed, so the track fetched for it is asked again.
+    if (!state().book && !state().station) scheduleAhead()
 }
 
 /** Cycle what happens at the end of the queue: off, the whole queue, this track. */
@@ -999,6 +1089,7 @@ export function cycleRepeat(): Repeat {
         // Storage denied: the choice holds while this document is open.
     }
     patch({ repeat: wanted })
+    if (!state().book && !state().station) scheduleAhead()
     return wanted
 }
 
@@ -1147,6 +1238,7 @@ export function clear(): void {
     // would name whatever the store says is playing, which by then is nothing at all.
     stopRefusing()
     if (audio) putSource(audio, '')
+    dropAhead()
     audio = null
     analyser = null
     level = null
