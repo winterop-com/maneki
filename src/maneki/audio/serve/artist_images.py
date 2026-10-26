@@ -70,6 +70,10 @@ _MBID_KEYS = (
 _MBID_RE = re.compile(r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}")
 
 
+class WikimediaRefusal(ValueError):
+    """Wikidata or Commons declined to answer; ask again on a later pass."""
+
+
 class ImageCredit(BaseModel):
     """Who took a stored photo and under what licence, as Commons states it."""
 
@@ -176,28 +180,42 @@ class Lookups:
     def _get(self, url: str, host: str, **params: str) -> httpx.Response:
         return _http.throttled_get(self.http, url, host_key=host, params=params)
 
+    def _api(self, url: str, host: str, **params: str) -> dict[str, Any]:
+        """A MediaWiki API answer, or an error if it is a refusal rather than an answer.
+
+        Wikidata and Commons report a refusal -- rate limited, replication lag -- as HTTP 200 with
+        an `error` body. Read as an answer, that was "this artist has no photo", and the artist was
+        filed under Deezer for a month. Raised, the pass skips the artist and asks again next time.
+        """
+        response = self._get(url, host, **params)
+        response.raise_for_status()
+        body = response.json()
+        if not isinstance(body, dict):
+            raise WikimediaRefusal("not a JSON object")
+        if "error" in body:
+            raise WikimediaRefusal(str(body["error"].get("code", "error")))
+        return body
+
     def wikimedia(self, mbid: str) -> tuple[bytes, str, ImageCredit] | None:
         """The Commons photo Wikidata names for this MusicBrainz artist, with its credit."""
-        found = self._get(
+        found = self._api(
             WIKIDATA_API,
             "wikidata",
             action="query",
             list="search",
             srsearch=f"haswbstatement:P434={mbid}",
             format="json",
-        ).json()
+        )
         hits = found.get("query", {}).get("search", [])
         if not hits:
             return None
         entity = hits[0]["title"]
-        claims = self._get(
-            WIKIDATA_API, "wikidata", action="wbgetclaims", entity=entity, property="P18", format="json"
-        ).json()
+        claims = self._api(WIKIDATA_API, "wikidata", action="wbgetclaims", entity=entity, property="P18", format="json")
         images = claims.get("claims", {}).get("P18", [])
         if not images:
             return None
         filename = images[0]["mainsnak"]["datavalue"]["value"]
-        info = self._get(
+        info = self._api(
             COMMONS_API,
             "commons",
             action="query",
@@ -206,7 +224,7 @@ class Lookups:
             iiprop="url|extmetadata",
             iiurlwidth=str(STORED_WIDTH),
             format="json",
-        ).json()
+        )
         pages = list(info.get("query", {}).get("pages", {}).values())
         details = (pages[0].get("imageinfo") or [None])[0] if pages else None
         if not details:

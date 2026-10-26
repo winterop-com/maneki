@@ -376,3 +376,21 @@ def test_artist_info_carries_the_credit_of_a_stored_photo(tmp_path: Path) -> Non
     cover = client.get("/rest/getCoverArt", params=_params(id=ar_id))
     assert cover.status_code == 200
     assert cover.headers["content-type"] == "image/jpeg"
+
+
+def test_a_wikidata_refusal_is_not_read_as_no_photo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Wikidata answers a rate limit with HTTP 200 and an error body; the artist must be asked again."""
+    monkeypatch.setattr("maneki.audio.serve.artist_images.read_artist_mbid", lambda _albums: MBID)
+    deezer_asked: list[str] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.host == "www.wikidata.org":
+            return httpx.Response(200, json={"error": {"code": "ratelimited", "info": "slow down"}})
+        deezer_asked.append(str(request.url))
+        return httpx.Response(200, json={"data": [{"name": "Coldplay", "picture_xl": DEEZER_URL}]})
+
+    images = ArtistImages(tmp_path, online=True, lookups=_lookups(handler))
+    album = _album(tmp_path, "Coldplay")
+    images.run_pass({artist_id("Coldplay"): [album]}, {artist_id("Coldplay"): "Coldplay"})
+    assert images.entry(artist_id("Coldplay")) is None
+    assert deezer_asked == []
