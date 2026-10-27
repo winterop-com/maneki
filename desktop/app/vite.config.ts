@@ -4,6 +4,7 @@ import path from 'node:path'
 import { defineConfig } from 'vite'
 
 import { appVersionDefine } from './build-version.ts'
+import { serviceWorker } from './service-worker.ts'
 
 /**
  * Relative asset URLs, because this bundle is also opened from a file.
@@ -16,7 +17,7 @@ import { appVersionDefine } from './build-version.ts'
 export default defineConfig({
     base: './',
     define: appVersionDefine(),
-    plugins: [react(), tailwindcss()],
+    plugins: [react(), tailwindcss(), serviceWorker()],
     resolve: { alias: { '@': path.resolve(import.meta.dirname, 'src') } },
     build: { outDir: 'dist', emptyOutDir: true },
 })

@@ -14,6 +14,16 @@ import '@/index.css'
 installWindowDrag()
 installMediaSession()
 
+// A browser keeps its own copy of the app (`service-worker.js`), so with the server out of
+// reach a reload still opens on what was downloaded. The desktop shells carry the app on disk.
+if (
+    import.meta.env.PROD &&
+    'serviceWorker' in navigator &&
+    document.documentElement.dataset.shell === 'browser'
+) {
+    navigator.serviceWorker.register('./sw.js').catch(() => undefined)
+}
+
 /**
  * Hash routing, because the bundle is also opened from disk.
  *
