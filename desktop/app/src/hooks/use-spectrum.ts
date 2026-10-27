@@ -27,7 +27,7 @@
  * behind.
  */
 
-import { useEffect, useRef, type RefObject } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 
 import { usePrefersReducedMotion } from '@/hooks/use-reduced-motion'
 import { useStore } from '@/hooks/use-store'
@@ -66,6 +66,12 @@ const TRAIL_WASH = 'rgba(0, 0, 0, 0.35)'
  *
  * `bands` is how many bars the caller's width can carry: the strip is 112px and the stage is a
  * screen, and a band count that suited both would be wrong for one of them.
+ *
+ * A NEW CANVAS RESTARTS THE LOOP. The player bar draws its spectrum in one canvas as a strip and
+ * in another behind the liner notes, and dragging it past `LINER_ROOM` swaps one for the other
+ * while the music plays. Held in a ref, the swap changed nothing the loop depends on, so it went
+ * on painting the canvas that had left the page and the bar went blank. A callback ref counts
+ * each canvas that arrives, and the count starts the loop again on whichever one is there.
  */
 export function useSpectrum(
     active: boolean,
@@ -76,8 +82,13 @@ export function useSpectrum(
      * faint behind the player bar's liner notes, whatever the stage was last switched to.
      */
     withEffect = false,
-): RefObject<HTMLCanvasElement | null> {
+): (element: HTMLCanvasElement | null) => void {
     const canvas = useRef<HTMLCanvasElement | null>(null)
+    const [arrivals, setArrivals] = useState(0)
+    const attach = useCallback((element: HTMLCanvasElement | null) => {
+        canvas.current = element
+        setArrivals((count) => count + 1)
+    }, [])
     const chosenStyle = useStore(visualizerStyle)
     const style = withEffect ? chosenStyle : 'bars'
     // The ramp is the palette's, not a choice of its own: see `lib/spectrum-themes`.
@@ -203,9 +214,9 @@ export function useSpectrum(
             painted.disconnect()
             context.clearRect(0, 0, width, height)
         }
-    }, [active, bands, effect, still, style, theme])
+    }, [active, arrivals, bands, effect, still, style, theme])
 
-    return canvas
+    return attach
 }
 
 /** One settled frame of heights, in whichever column drawing is chosen. */
