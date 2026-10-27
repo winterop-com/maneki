@@ -1,6 +1,6 @@
 {
   "name": "maneki-desktop-electron",
-  "version": "0.30.0",
+  "version": "0.30.1",
   "description": "Electron sibling of the Maneki desktop wrapper, for comparison with the Tauri build.",
   "author": {
     "name": "Morten Hansen",
