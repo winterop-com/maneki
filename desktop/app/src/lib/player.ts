@@ -46,6 +46,7 @@ import {
 } from '@/lib/queue'
 import { connectionStore } from '@/lib/connection'
 import { offlineSongIds, offlineStore, offlineTrack } from '@/lib/offline'
+import { sendPlay } from '@/lib/outbox'
 import { PRELOAD_DELAY_MS, songToPreload, worthHolding } from '@/lib/preload'
 import { claimSound, registerSilencer } from '@/lib/sound'
 import { createStore } from '@/lib/store'
@@ -515,7 +516,7 @@ function element(): HTMLAudioElement {
             return
         }
         const song = currentSong()
-        if (song && credentials) void scrobble(credentials, song.id, true)
+        if (song && credentials) void sendPlay(credentials, song.id)
         onEnded()
     })
     return audio

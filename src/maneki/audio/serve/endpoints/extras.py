@@ -59,6 +59,20 @@ def _get_stars(request: Request) -> StarStore:
 # Scrobble — clients send this after every play. We don't track plays.
 # ---------------------------------------------------------------------------
 
+# How far back a client's own `time` is believed. A play kept while the server was out of reach
+# is sent with the moment it happened, so history lands in order; anything older than this, or
+# ahead of the server's clock, is a wrong clock rather than a late play, and is filed as now.
+_LATE_PLAY_S = 30 * 24 * 3600
+_CLOCK_SKEW_S = 60
+
+
+def _played_at(time_ms: int | None, now: float) -> float:
+    """When a play happened: the client's `time` if it is believable, otherwise now."""
+    if time_ms is None:
+        return now
+    told = time_ms / 1000
+    return told if now - _LATE_PLAY_S <= told <= now + _CLOCK_SKEW_S else now
+
 
 @router.api_route("/scrobble", methods=["GET", "POST", "HEAD"])
 @router.api_route("/scrobble.view", methods=["GET", "POST", "HEAD"], include_in_schema=False)
@@ -77,10 +91,10 @@ async def scrobble(
     Forwarders default to true-only; flip `[scrobble].include_now_playing`
     to receive both.
 
-    `time` is the start time of playback in unix-millis (per the spec).
-    Falls back to "now" when the client doesn't send it.
+    `time` is the start time of playback in unix-millis (per the spec). A client sends it
+    for plays it kept while the server was out of reach; see `_played_at` for when it is
+    believed. Falls back to "now" when the client doesn't send it.
     """
-    del time  # client-supplied wall-clock; we use server-side `played_at` for stability
     cache = _get_cache(request)
     dispatcher: ScrobbleDispatcher = request.app.state.scrobble
 
@@ -96,8 +110,10 @@ async def scrobble(
     # The authenticated account (require_auth verified `u` against it).
     user = request.state.username
 
+    import time as time_mod
     from datetime import UTC, datetime
 
+    played = _played_at(time, time_mod.time())
     event = ScrobbleEvent(
         user=user,
         track_id=id,
@@ -105,13 +121,13 @@ async def scrobble(
         artist=track.artist or album.artist_dir,
         album=album.tag_album or album.album_dir,
         duration_s=float(track.duration_s or 0.0),
-        played_at=datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ"),
+        played_at=datetime.fromtimestamp(played, UTC).strftime("%Y-%m-%dT%H:%M:%SZ"),
         submission=bool(submission),
     )
     dispatcher.dispatch(event)
     # Record to the user's listening history (powers now-playing + recent/
     # frequent + play counts). submission=False is the now-playing probe.
-    request.state.history.record(id, submission=bool(submission))
+    request.state.history.record(id, submission=bool(submission), now=played)
     return envelope()
 
 

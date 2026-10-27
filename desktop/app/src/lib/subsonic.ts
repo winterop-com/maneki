@@ -487,11 +487,6 @@ export async function getStarred(credentials: Credentials): Promise<Starred> {
     return { artists: found.artist ?? [], albums: found.album ?? [], songs: found.song ?? [] }
 }
 
-/** Mark a track, album or artist as a favourite, or take the mark off. */
-export async function setStarred(credentials: Credentials, id: string, starred: boolean): Promise<void> {
-    await call(credentials, starred ? 'star' : 'unstar', { id })
-}
-
 /**
  * Tell the server a track is playing, or has played.
  *

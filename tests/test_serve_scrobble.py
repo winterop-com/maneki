@@ -313,3 +313,31 @@ def test_endpoint_returns_ok_even_when_dispatcher_disabled(tmp_path: Path) -> No
         assert response.json()["subsonic-response"]["status"] == "ok"
     finally:
         app.state.scrobble.shutdown()
+
+
+def test_endpoint_files_a_late_play_at_its_own_time(tmp_path: Path) -> None:
+    """A play kept offline arrives with `time`: it is filed at that moment, not at now."""
+    import time
+
+    client, app, tid = _client_with_track(tmp_path, ScrobbleConfig())
+    captured: list[ScrobbleEvent] = []
+    app.state.scrobble.dispatch = lambda event: captured.append(event)
+    two_hours_ago = int(time.time() - 7200)
+    try:
+        response = client.get("/rest/scrobble", params=_params(id=tid, submission="true", time=two_hours_ago * 1000))
+        assert response.status_code == 200
+        assert captured[0].played_at == time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(two_hours_ago))
+    finally:
+        app.state.scrobble.shutdown()
+
+
+def test_played_at_believes_only_a_sane_clock() -> None:
+    """A client's clock is believed for a month back and not at all ahead."""
+    from maneki.audio.serve.endpoints.extras import _played_at
+
+    now = 1_800_000_000.0
+    assert _played_at(None, now) == now
+    assert _played_at(int((now - 3600) * 1000), now) == now - 3600
+    # Older than a month, or from the future: a wrong clock, filed as now.
+    assert _played_at(int((now - 40 * 86400) * 1000), now) == now
+    assert _played_at(int((now + 3600) * 1000), now) == now

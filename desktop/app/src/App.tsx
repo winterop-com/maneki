@@ -5,8 +5,10 @@ import { Navigate, Route, Routes } from 'react-router'
 import { AppShell } from '@/components/AppShell'
 import { useStore } from '@/hooks/use-store'
 import { loadOffline } from '@/lib/offline'
+import { startOutbox } from '@/lib/outbox'
 import { connect, sessionStore } from '@/lib/session'
 import { setPlayerCredentials } from '@/lib/player'
+import { markKept } from '@/lib/star'
 import { BooksPage } from '@/pages/Books'
 import { MusicPage } from '@/pages/Music'
 import { NotFound } from '@/pages/NotFound'
@@ -33,6 +35,14 @@ export default function App() {
     // the player read it from `offlineStore`. Storage that will not open is no downloads.
     useEffect(() => {
         if (session.music) void loadOffline(session.music).catch(() => undefined)
+    }, [session.music])
+
+    // Plays and stars made while the server was out of reach: drawn again, and sent when it
+    // answers.
+    useEffect(() => {
+        if (!session.music) return
+        markKept(session.music)
+        return startOutbox(session.music)
     }, [session.music])
 
     // THE FIRST SECOND IS A SCREEN LIKE ANY OTHER. What `unknown` means is that the server has

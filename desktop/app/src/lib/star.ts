@@ -21,7 +21,8 @@
 import { toast } from 'sonner'
 
 import { createStore } from '@/lib/store'
-import { setStarred, type Credentials } from '@/lib/subsonic'
+import { keptFor, sendStar } from '@/lib/outbox'
+import type { Credentials } from '@/lib/subsonic'
 
 /**
  * Anything the server keeps a star for: a track, an album or an artist.
@@ -88,11 +89,18 @@ export function toggleStar(credentials: Credentials | undefined, item: Starrable
     if (!credentials || item === null) return null
     const wanted = !starredNow(starMarks.get(), item)
     starMarks.update((marks) => withMark(marks, item.id, wanted))
-    void setStarred(credentials, item.id, wanted).catch((error: unknown) => {
+    void sendStar(credentials, item.id, wanted).catch((error: unknown) => {
         starMarks.update((marks) => withMark(marks, item.id, !wanted))
         toast.error(refusedStar(starName(item), wanted, error))
     })
     return wanted
+}
+
+/** Draw the stars this device kept for an account while its server was out of reach. */
+export function markKept(credentials: Credentials): void {
+    for (const entry of keptFor(credentials)) {
+        if (entry.kind === 'star') starMarks.update((marks) => withMark(marks, entry.id, entry.starred))
+    }
 }
 
 /** Forget what this client wrote. The session going away, and tests, call this. */
