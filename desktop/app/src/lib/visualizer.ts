@@ -247,7 +247,12 @@ export const BAR_ROOM_KEY = 'maneki.playerBarRoom'
 export const BAR_ROOM_MAX = 320
 /** The least the room can be: enough for a spectrum to read as one, never nothing. */
 export const BAR_ROOM_MIN = 72
-export const BAR_ROOM_DEFAULT = 72
+/**
+ * Where an undragged bar starts. The sleeve beside the room is the room's height plus the
+ * controls', so this is also how big the cover is: at the least it was a 118 px thumbnail.
+ * Kept under `LINER_ROOM`, so a first start is the strip and not the liner notes.
+ */
+export const BAR_ROOM_DEFAULT = 112
 
 export function clampBarRoom(room: number): number {
     if (!Number.isFinite(room)) return BAR_ROOM_DEFAULT

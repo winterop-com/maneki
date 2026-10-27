@@ -1,8 +1,10 @@
 import { describe, expect, test } from 'vitest'
 
+import { LINER_ROOM } from '@/lib/liner'
 import {
     ATTACK,
     BAND_COUNT,
+    BAR_ROOM_DEFAULT,
     BAR_ROOM_MIN,
     barLayout,
     bars,
@@ -360,5 +362,12 @@ describe('the room a window has for the player bar', () => {
         expect(roomInWindow(320, 500)).toBe(153)
         expect(roomInWindow(320, 343)).toBe(90)
         expect(roomInWindow(320, 200)).toBe(BAR_ROOM_MIN)
+    })
+})
+
+describe('the bar a first start draws', () => {
+    test('has a cover bigger than the least the bar allows, still under the liner notes', () => {
+        expect(BAR_ROOM_DEFAULT).toBeGreaterThan(BAR_ROOM_MIN)
+        expect(BAR_ROOM_DEFAULT).toBeLessThan(LINER_ROOM)
     })
 })
