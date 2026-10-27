@@ -171,3 +171,24 @@ def jpeg_bytes(size: int = 1200) -> bytes:
     buffer = io.BytesIO()
     Image.new("RGB", (size, size), (200, 40, 40)).save(buffer, format="JPEG")
     return buffer.getvalue()
+
+
+@pytest.fixture(autouse=True)
+def _no_live_artist_lookups(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Keep the server's artist-picture pass off the network in tests.
+
+    `ServeConfig` turns lookups on by default, so any test that builds the full server started a
+    background pass against Wikidata and Deezer. The thread outlived its test and logged into
+    whichever CLI test was capturing output next, breaking its JSON. Tests that hand
+    `ArtistImages` their own `lookups` still run the pass.
+    """
+    from maneki.audio.serve.artist_images import ArtistImages
+
+    real_refresh = ArtistImages.refresh
+
+    def refresh(self: ArtistImages, *args: object, **kwargs: object) -> None:
+        if self._lookups is None:  # noqa: SLF001
+            return
+        real_refresh(self, *args, **kwargs)  # type: ignore[arg-type]
+
+    monkeypatch.setattr(ArtistImages, "refresh", refresh)
