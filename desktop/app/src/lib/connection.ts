@@ -19,7 +19,7 @@
  * of its own -- and that sentence is declared here, where both can read it.
  */
 
-import { createStore } from '@/lib/store'
+import { createStore } from '@winterop-com/sokkel-ui/lib/stored'
 
 /**
  * What both wire modules say when the request did not come back.

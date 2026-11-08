@@ -19,7 +19,7 @@
  * than a zero it would be read as.
  */
 
-import { createStore } from '@/lib/store'
+import { createStore } from '@winterop-com/sokkel-ui/lib/stored'
 
 /** How many cells the title line has. Twenty-two is what the deck this is ported from had. */
 export const LCD_WIDTH = 22

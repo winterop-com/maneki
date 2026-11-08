@@ -30,7 +30,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 
 import { usePrefersReducedMotion } from '@/hooks/use-reduced-motion'
-import { useStore } from '@/hooks/use-store'
+import { useStore } from '@winterop-com/sokkel-ui/hooks/use-store'
 import { spectrum, spectrumContext } from '@/lib/player'
 import { rampForPalette, themeGradient, themeStops, themeSweep } from '@/lib/spectrum-themes'
 import { makeDelayLine, outputDelayMs, spectrumDelayMs } from '@/lib/sync'

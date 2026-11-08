@@ -9,7 +9,7 @@ import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Kbd, KbdGroup } from '@/components/ui/kbd'
-import { useStore } from '@/hooks/use-store'
+import { useStore } from '@winterop-com/sokkel-ui/hooks/use-store'
 import { APP_VERSION } from '@/lib/app-version'
 import {
     chooseLcdTint,

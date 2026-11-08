@@ -30,7 +30,7 @@
  * without its key.
  */
 
-import { createStore } from '@/lib/store'
+import { createStore } from '@winterop-com/sokkel-ui/lib/stored'
 
 /** What a claimed key does when it is pressed. */
 export type KeyAction = () => void

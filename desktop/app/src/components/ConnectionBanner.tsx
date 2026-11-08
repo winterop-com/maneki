@@ -2,7 +2,7 @@ import { WifiOff, X } from 'lucide-react'
 import { useEffect } from 'react'
 
 import { Button } from '@/components/ui/button'
-import { useStore } from '@/hooks/use-store'
+import { useStore } from '@winterop-com/sokkel-ui/hooks/use-store'
 import { connectionStore, dismissRefusal } from '@/lib/connection'
 import { connect, sessionStore } from '@/lib/session'
 

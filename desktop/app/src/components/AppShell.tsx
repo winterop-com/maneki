@@ -51,7 +51,7 @@ import { MODES, MODE_LABELS, ThemeToggle } from '@/components/ThemeToggle'
 import { Button } from '@/components/ui/button'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { useAppShortcuts } from '@/hooks/use-app-shortcuts'
-import { useStore, useStoreValue } from '@/hooks/use-store'
+import { useStore, useStoreValue } from '@winterop-com/sokkel-ui/hooks/use-store'
 import { recoveries } from '@/lib/connection'
 import { entriesFor, homePath } from '@/lib/nav'
 import {

@@ -16,7 +16,7 @@
  * worth a test; the store is the one line that has to be shared.
  */
 
-import { createStore } from '@/lib/store'
+import { createStore } from '@winterop-com/sokkel-ui/lib/stored'
 
 /**
  * The dialogs standing over the app. Named rather than counted, so a stuck flag has an owner.

@@ -28,8 +28,11 @@ on:
         description: "Existing tag to build + upload (e.g. v0.11.0)"
         required: true
 
+# `packages: read` lets the client install @winterop-com/sokkel-ui from GitHub
+# Packages; desktop/app/.npmrc reads GITHUB_TOKEN for it.
 permissions:
   contents: write
+  packages: read
 
 concurrency:
   group: desktop-release-${{ github.event.inputs.tag || github.ref }}
@@ -84,6 +87,7 @@ jobs:
           APPLE_ID: ${{ secrets.APPLE_ID }}
           APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           projectPath: desktop/tauri
 
@@ -130,6 +134,8 @@ jobs:
       # frontend build itself).
       - name: Build the client (Vite)
         working-directory: desktop/app
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: bun install --frozen-lockfile && bun run build
 
       - name: Build Electron bundles (unsigned)

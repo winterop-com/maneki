@@ -13,7 +13,7 @@ import {
 } from '@/components/ui/command'
 import { Button } from '@/components/ui/button'
 import { Kbd, KbdGroup } from '@/components/ui/kbd'
-import { useStore } from '@/hooks/use-store'
+import { useStore } from '@winterop-com/sokkel-ui/hooks/use-store'
 import { albumPath, bookOfAlbum } from '@/lib/nav'
 import { play } from '@/lib/player'
 import {

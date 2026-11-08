@@ -5,7 +5,7 @@
  * renders at its settled size on the first paint rather than snapping into place.
  */
 
-import { createStore } from '@/lib/store'
+import { createStore } from '@winterop-com/sokkel-ui/lib/stored'
 
 /** The rail's width when it shows labels and nobody has dragged it. */
 export const RAIL_WIDTH = 240

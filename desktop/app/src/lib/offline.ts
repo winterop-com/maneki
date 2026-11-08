@@ -17,7 +17,7 @@
  */
 
 import { assetUrl, coverUrl, getAlbum, type Album, type Credentials, type Song } from '@/lib/subsonic'
-import { createStore } from '@/lib/store'
+import { createStore } from '@winterop-com/sokkel-ui/lib/stored'
 
 const DB_NAME = 'maneki-offline'
 const DB_VERSION = 1

@@ -9,7 +9,7 @@
  * testable in Node, and the bar stays one row whatever it holds.
  */
 
-import { createStore } from '@/lib/store'
+import { createStore } from '@winterop-com/sokkel-ui/lib/stored'
 
 /** How loudly the note is drawn: a scan in progress is not a warning and must not read as one. */
 export type StatusTone = 'live' | 'quiet' | 'warn'

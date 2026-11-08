@@ -17,7 +17,7 @@
  * an app that wrote an absolute size would be overruling them to honour its own slider.
  */
 
-import { createStore } from '@/lib/store'
+import { createStore } from '@winterop-com/sokkel-ui/lib/stored'
 
 /** How tall a row stands: `comfortable` is the design's own spacing, `compact` closes it up. */
 export type Density = 'compact' | 'comfortable'

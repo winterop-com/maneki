@@ -5,7 +5,7 @@ import { toast } from 'sonner'
 
 import { CoverArt } from '@/components/CoverArt'
 import { Button } from '@/components/ui/button'
-import { useStore } from '@/hooks/use-store'
+import { useStore } from '@winterop-com/sokkel-ui/hooks/use-store'
 import { byteSize } from '@/lib/format'
 import {
     cancelDownload,

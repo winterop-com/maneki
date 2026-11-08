@@ -18,7 +18,7 @@
  * so the canvas is a loop over points and the shape of the thing has tests.
  */
 
-import { createStore } from '@/lib/store'
+import { createStore } from '@winterop-com/sokkel-ui/lib/stored'
 
 /** Where the choice is kept between visits. */
 export const VISUALIZER_KEY = 'maneki.visualizer'

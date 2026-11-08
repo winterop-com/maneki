@@ -25,7 +25,7 @@ import { noteRefusal } from '@/lib/connection'
 import { hasOfflineAlbums } from '@/lib/offline'
 import { clear } from '@/lib/player'
 import { forgetMarks } from '@/lib/star'
-import { createStore } from '@/lib/store'
+import { createStore } from '@winterop-com/sokkel-ui/lib/stored'
 import { makeCredentials, ownAdminRole, ping, SubsonicError, type Credentials } from '@/lib/subsonic'
 import type { Capabilities } from '@/lib/types'
 

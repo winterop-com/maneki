@@ -1,5 +1,5 @@
 import { AccountMenu } from '@/components/AccountMenu'
-import { useStore } from '@/hooks/use-store'
+import { useStore } from '@winterop-com/sokkel-ui/hooks/use-store'
 import { RAIL_COLLAPSED_WIDTH, railCollapsed, railDragging, railWidth } from '@/lib/panels'
 import { screenStatus, type StatusTone } from '@/lib/screen-status'
 import { cn } from '@/lib/utils'

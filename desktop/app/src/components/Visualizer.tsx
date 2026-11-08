@@ -1,5 +1,5 @@
 import { useSpectrum } from '@/hooks/use-spectrum'
-import { useStore, useStoreValue } from '@/hooks/use-store'
+import { useStore, useStoreValue } from '@winterop-com/sokkel-ui/hooks/use-store'
 import { playerStore } from '@/lib/player'
 import { BAND_COUNT, visualizerShown } from '@/lib/visualizer'
 

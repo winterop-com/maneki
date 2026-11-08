@@ -19,7 +19,7 @@
  * module writes, so the store below starts on the palette the document is already painted in.
  */
 
-import { createStore } from '@/lib/store'
+import { createStore } from '@winterop-com/sokkel-ui/lib/stored'
 
 /** The name a palette is stored and written under: its `data-theme` value. */
 export type PaletteName = 'maneki' | 'paper' | 'contrast' | 'tokyo' | 'vinyl' | 'cassette' | 'neon'

@@ -19,7 +19,7 @@
  * has to be shared.
  */
 
-import { createStore } from '@/lib/store'
+import { createStore } from '@winterop-com/sokkel-ui/lib/stored'
 import type { YouTubeCounts } from '@/lib/types'
 
 /** What each channel was last counted at, by channel id. */

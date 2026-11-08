@@ -6,7 +6,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip
 import { useEffect, useRef, type PointerEvent as ReactPointerEvent } from 'react'
 
 import { useDragSize } from '@/hooks/use-drag-size'
-import { useStore } from '@/hooks/use-store'
+import { useStore } from '@winterop-com/sokkel-ui/hooks/use-store'
 import { sessionStore } from '@/lib/session'
 import { homePath, marks, sectionsFor, type NavEntry } from '@/lib/nav'
 import {

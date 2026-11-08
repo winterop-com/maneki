@@ -49,7 +49,7 @@ import { offlineSongIds, offlineStore, offlineTrack } from '@/lib/offline'
 import { sendPlay } from '@/lib/outbox'
 import { PRELOAD_DELAY_MS, songToPreload, worthHolding } from '@/lib/preload'
 import { claimSound, registerSilencer } from '@/lib/sound'
-import { createStore } from '@/lib/store'
+import { createStore } from '@winterop-com/sokkel-ui/lib/stored'
 import type { BookDetail, BookFile, Chapter } from '@/lib/types'
 
 /**

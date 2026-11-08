@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 
 import { usePrefersReducedMotion } from '@/hooks/use-reduced-motion'
 import { useSmallScreen } from '@/hooks/use-small-screen'
-import { useStore } from '@/hooks/use-store'
+import { useStore } from '@winterop-com/sokkel-ui/hooks/use-store'
 import { useVuLevels } from '@/hooks/use-vu'
 import {
     LCD_WIDTH,

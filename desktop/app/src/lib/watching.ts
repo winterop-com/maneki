@@ -10,7 +10,7 @@
  * default and keeps the choice until the tab closes. Nothing here throws at a reader.
  */
 
-import { createStore } from '@/lib/store'
+import { createStore } from '@winterop-com/sokkel-ui/lib/stored'
 
 /** Where the theater choice is kept between visits. */
 export const THEATER_KEY = 'maneki.theater'

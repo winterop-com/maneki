@@ -3,7 +3,7 @@ import { useEffect } from 'react'
 import { Navigate, Route, Routes } from 'react-router'
 
 import { AppShell } from '@/components/AppShell'
-import { useStore } from '@/hooks/use-store'
+import { useStore } from '@winterop-com/sokkel-ui/hooks/use-store'
 import { loadOffline } from '@/lib/offline'
 import { startOutbox } from '@/lib/outbox'
 import { connect, sessionStore } from '@/lib/session'

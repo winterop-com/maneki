@@ -16,7 +16,7 @@
  * test and cannot have one.
  */
 
-import { createStore } from '@/lib/store'
+import { createStore } from '@winterop-com/sokkel-ui/lib/stored'
 import {
     getPlainLyrics,
     getStructuredLyrics,

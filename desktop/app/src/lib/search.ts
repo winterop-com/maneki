@@ -18,7 +18,7 @@
 
 import { fold } from '@/lib/sorting'
 import type { SearchResult } from '@/lib/subsonic'
-import { createStore } from '@/lib/store'
+import { createStore } from '@winterop-com/sokkel-ui/lib/stored'
 
 /**
  * Whether the search is on screen.

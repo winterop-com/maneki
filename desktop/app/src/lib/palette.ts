@@ -17,7 +17,7 @@
 
 import { Dot, type LucideIcon } from 'lucide-react'
 
-import { createStore } from '@/lib/store'
+import { createStore } from '@winterop-com/sokkel-ui/lib/stored'
 
 /** What a row with no mark of its own is drawn as, rather than a gap in the column. */
 export const NEUTRAL_GLYPH: LucideIcon = Dot

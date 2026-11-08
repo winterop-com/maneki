@@ -17,7 +17,7 @@
  * setting is added on top of it.
  */
 
-import { createStore } from '@/lib/store'
+import { createStore } from '@winterop-com/sokkel-ui/lib/stored'
 
 /** How many frames are held. About a second and a half at sixty a second, which is the ceiling. */
 export const DELAY_SLOTS = 96

@@ -20,7 +20,7 @@
 
 import { toast } from 'sonner'
 
-import { createStore } from '@/lib/store'
+import { createStore } from '@winterop-com/sokkel-ui/lib/stored'
 import { keptFor, sendStar } from '@/lib/outbox'
 import type { Credentials } from '@/lib/subsonic'
 

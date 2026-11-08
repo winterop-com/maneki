@@ -23,7 +23,7 @@ import { next, playerStore, previous, seek, skipBy, SKIP_S, toggle, type PlayerS
 import { sessionStore } from '@/lib/session'
 import { keptCover } from '@/lib/offline'
 import { coverUrl } from '@/lib/subsonic'
-import { createStore } from '@/lib/store'
+import { createStore } from '@winterop-com/sokkel-ui/lib/stored'
 
 /** The size the OS is asked to draw the artwork at; the widget and the lock screen are small. */
 const ARTWORK_SIZE = 512

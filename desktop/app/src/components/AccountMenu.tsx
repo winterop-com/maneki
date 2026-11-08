@@ -19,7 +19,7 @@ import {
     DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { useSmallScreen } from '@/hooks/use-small-screen'
-import { useStore } from '@/hooks/use-store'
+import { useStore } from '@winterop-com/sokkel-ui/hooks/use-store'
 import { accountInitial, serverHost } from '@/lib/account'
 import { sessionStore, signOut } from '@/lib/session'
 import { SHORTCUTS_KEY } from '@/lib/shortcuts'
