@@ -13,7 +13,7 @@ export APPLE_ID APPLE_PASSWORD APPLE_TEAM_ID APPLE_SIGNING_IDENTITY APPLE_APP_SP
 endif
 
 # The client installs @winterop-com/sokkel-ui from GitHub Packages, which
-# desktop/app/.npmrc reads with GITHUB_TOKEN. CI sets it; locally it comes
+# desktop/app/bunfig.toml reads with GITHUB_TOKEN. CI sets it; locally it comes
 # from the signed-in gh CLI, so nothing is written to disk.
 export GITHUB_TOKEN ?= $(shell gh auth token 2> /dev/null)
 

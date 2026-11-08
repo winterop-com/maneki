@@ -37,7 +37,7 @@ Both `make lint` and `make test` must pass before commit, and `make app-gate` wh
 
 It is hash-routed with relative asset URLs, because the desktop shells load the bundle from disk.
 
-The client is moving onto [sokkel-ui][sokkel], the shared React component library, one pattern per change. It installs `@winterop-com/sokkel-ui` at a pinned version from GitHub Packages, so `bun install` needs a token that can read packages as `GITHUB_TOKEN`. The Makefile takes it from the signed-in `gh` CLI; running `bun` by hand, `export GITHUB_TOKEN=$(gh auth token)` first. A pattern taken from the library gets a row in `src/lib/library-parts.test.ts`, which fails when an own copy comes back; a part that needs to differ becomes an option in the library, never a local copy.
+The client is moving onto [sokkel-ui][sokkel], the shared React component library, one pattern per change. It installs `@winterop-com/sokkel-ui` at a pinned version from GitHub Packages, so `bun install` needs a token that can read packages as `GITHUB_TOKEN`, which `desktop/app/bunfig.toml` passes to the registry (not `.npmrc`: Dependabot reads that file literally). The Makefile takes it from the signed-in `gh` CLI; running `bun` by hand, `export GITHUB_TOKEN=$(gh auth token)` first. A pattern taken from the library gets a row in `src/lib/library-parts.test.ts`, which fails when an own copy comes back; a part that needs to differ becomes an option in the library, never a local copy.
 
 [conventions]: https://github.com/winterop-com/dirigent/blob/main/docs/ui-conventions.md
 [sokkel]: https://github.com/winterop-com/sokkel-ui

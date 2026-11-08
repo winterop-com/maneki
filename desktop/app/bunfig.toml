@@ -1,0 +1,7 @@
+# @winterop-com/sokkel-ui comes from GitHub Packages, which wants a token even to read. Bun
+# takes it from GITHUB_TOKEN here: CI passes the job's token, the Makefile the signed-in gh
+# CLI's. It is not in .npmrc on purpose: Dependabot reads a committed .npmrc literally, so a
+# variable there becomes an empty token that GitHub Packages refuses, where without one
+# Dependabot authenticates by itself.
+[install.scopes]
+"@winterop-com" = { url = "https://npm.pkg.github.com/", token = "$GITHUB_TOKEN" }

@@ -29,7 +29,7 @@ on:
         required: true
 
 # `packages: read` lets the client install @winterop-com/sokkel-ui from GitHub
-# Packages; desktop/app/.npmrc reads GITHUB_TOKEN for it.
+# Packages; desktop/app/bunfig.toml reads GITHUB_TOKEN for it.
 permissions:
   contents: write
   packages: read

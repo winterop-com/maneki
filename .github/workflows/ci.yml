@@ -16,7 +16,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     # The client installs @winterop-com/sokkel-ui from GitHub Packages, which
-    # desktop/app/.npmrc reads with this token.
+    # desktop/app/bunfig.toml reads with this token.
     env:
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
