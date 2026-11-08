@@ -98,6 +98,8 @@ function Watch({ id }: { id: string }) {
     const [stats, setStats] = useState(false)
     const [filled, setFilled] = useState(false)
     const player = useRef<VideoHandle | null>(null)
+    // The box around the player and what it draws over the picture, which fills the screen in a shell.
+    const stage = useRef<HTMLDivElement | null>(null)
     const navigate = useNavigate()
 
     // The video itself. A link somebody was sent names an id and nothing else, so the screen
@@ -612,6 +614,7 @@ function Watch({ id }: { id: string }) {
                     the picture to a strip, WebKit drew the list over it. With a list below, the
                     player is a 16:9 box and the list has the rest. */}
                 <div
+                    ref={stage}
                     className={cn(
                         'relative flex min-w-0 flex-col',
                         listed
@@ -632,6 +635,7 @@ function Watch({ id }: { id: string }) {
                             onPause={stopEncoding}
                             onFullscreenChange={setFilled}
                             onReady={onReady}
+                            fullscreenTarget={stage}
                         />
                     )}
                     {stats && video !== null && (

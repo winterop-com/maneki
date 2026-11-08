@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState, type RefObject } from 'react'
 
 import {
     enterFullscreen,
@@ -82,6 +82,11 @@ export interface VideoPlayerProps {
     onPause?: () => void
     /** Whether the picture is filling the screen right now, so a control can say which. */
     onFullscreenChange?: (on: boolean) => void
+    /**
+     * What fills the screen in a desktop shell: the screen's own box around the player, so what
+     * it draws over the picture (Up next, the stats) comes along. The player's root without one.
+     */
+    fullscreenTarget?: RefObject<HTMLElement | null>
     /** Handed the player once there is one, and null when it goes. */
     onReady?: (handle: VideoHandle | null) => void
 }
@@ -122,9 +127,12 @@ async function fill(live: Player): Promise<boolean> {
  * In a desktop shell, the player's own ways into full screen -- its control bar button, a
  * double click, `fill` -- go through the library, and the player is told when the library lets
  * it go: Escape, or the window leaving by its own way. Answers with the way to stop.
+ *
+ * What fills the window is `target` when the screen gives one, so its overlays come along, as
+ * they did when the shell's full screen was the whole page.
  */
-function throughTheShell(live: Player): () => void {
-    const root = live.el()
+function throughTheShell(live: Player, target: HTMLElement | null): () => void {
+    const root = target ?? live.el()
     live.requestFullscreen = () => {
         enterFullscreen(root)
         return Promise.resolve()
@@ -196,6 +204,7 @@ export function VideoPlayer({
     onPause,
     onFullscreenChange,
     onReady,
+    fullscreenTarget,
 }: VideoPlayerProps) {
     const frame = useRef<HTMLDivElement | null>(null)
     const element = useRef<HTMLVideoElement | null>(null)
@@ -308,7 +317,7 @@ export function VideoPlayer({
             controlBar: { subsCapsButton: true, skipButtons: { forward: 10, backward: 10 } },
         })
         player.current = built
-        const shell = inDesktopShell() ? throughTheShell(built) : null
+        const shell = inDesktopShell() ? throughTheShell(built, fullscreenTarget?.current ?? null) : null
 
         try {
             const settings = (built as unknown as { textTrackSettings?: CaptionSettings }).textTrackSettings
@@ -503,7 +512,8 @@ export function VideoPlayer({
             player.current = null
             built.dispose()
         }
-    }, [autoplay, load, report, videojs])
+        // `fullscreenTarget` is a ref, the same object for the screen's whole life.
+    }, [autoplay, fullscreenTarget, load, report, videojs])
 
     /**
      * A new source is a swap rather than a rebuild, so the player, its decoder and its control
