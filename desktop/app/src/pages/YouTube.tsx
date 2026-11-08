@@ -408,17 +408,17 @@ function Channel({ id }: { id: string }) {
     }, [channel, id])
 
     useEffect(() => {
-        let live = true
+        const live = { now: true }
         youtubeApi.videos(id, tab, ask.refreshing === read).then(
             (listed) => {
-                if (live) setAnswer({ key, value: listed, refusal: null })
+                if (live.now) setAnswer({ key, value: listed, refusal: null })
             },
             (error: Error) => {
-                if (live) setAnswer({ key, value: null, refusal: channelRefusal(error.message) })
+                if (live.now) setAnswer({ key, value: null, refusal: channelRefusal(error.message) })
             },
         )
         return () => {
-            live = false
+            live.now = false
         }
     }, [ask.refreshing, id, key, read, tab])
 

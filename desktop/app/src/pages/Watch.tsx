@@ -147,17 +147,17 @@ function Watch({ id }: { id: string }) {
     const folder = video === null ? null : parentOf(video.rel_path)
     useEffect(() => {
         if (folder === null) return
-        let live = true
+        const live = { now: true }
         void videoApi.browse(folder).then(
             (answer) => {
-                if (live) setBeside(answer.videos)
+                if (live.now) setBeside(answer.videos)
             },
             () => {
                 // The list beside the player is a convenience; the video plays without it.
             },
         )
         return () => {
-            live = false
+            live.now = false
         }
     }, [folder])
 
@@ -188,12 +188,11 @@ function Watch({ id }: { id: string }) {
      */
     useEffect(() => {
         if (posterToken !== undefined) return
-        let live = true
-        let timer: ReturnType<typeof setTimeout>
+        const poll = { live: true, timer: undefined as ReturnType<typeof setTimeout> | undefined }
         const look = async (): Promise<void> => {
             try {
                 const answer = await videoApi.thumbnailsReady()
-                if (!live) return
+                if (!poll.live) return
                 if (answer.posters_ready.includes(id)) {
                     setPosterToken(1)
                     return
@@ -201,12 +200,12 @@ function Watch({ id }: { id: string }) {
             } catch {
                 // The next tick asks again.
             }
-            if (live) timer = setTimeout(() => void look(), POSTER_POLL_MS)
+            if (poll.live) poll.timer = setTimeout(() => void look(), POSTER_POLL_MS)
         }
-        timer = setTimeout(() => void look(), POSTER_POLL_MS)
+        poll.timer = setTimeout(() => void look(), POSTER_POLL_MS)
         return () => {
-            live = false
-            clearTimeout(timer)
+            poll.live = false
+            clearTimeout(poll.timer)
         }
     }, [id, posterToken])
 
