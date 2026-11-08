@@ -215,6 +215,11 @@ const LIBRARY_PARTS: { part: string; use: string; marks: RegExp[] }[] = [
         ],
     },
     {
+        part: "the music library's tree and the split it stands in",
+        use: '@winterop-com/sokkel-ui/Tree with `loadChildren` and `search`, in @winterop-com/sokkel-ui/SplitPane',
+        marks: [/role="tree"/, /role="treeitem"/, /\bfunction visibleRows\b/, /\bfunction ResizeHandle\b/],
+    },
+    {
         part: "the search results' popover, told apart by its own mark",
         use: 'the popover\'s `data-slot="search-results"` from @winterop-com/sokkel-ui/Search',
         marks: [/\[aria-controls\]/, /\[role="listbox"\]\[id\]/],
