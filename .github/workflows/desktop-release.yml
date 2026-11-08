@@ -44,7 +44,9 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [macos-14, ubuntu-22.04, windows-latest]
+        # macos-15, Apple silicon: GitHub retired the macos-14 image, which
+        # cancelled both macOS jobs of v0.31.0 before they started.
+        os: [macos-15, ubuntu-22.04, windows-latest]
     runs-on: ${{ matrix.os }}
     timeout-minutes: 60
     steps:
@@ -110,7 +112,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [macos-14, ubuntu-22.04, windows-latest]
+        os: [macos-15, ubuntu-22.04, windows-latest]
     runs-on: ${{ matrix.os }}
     timeout-minutes: 45
     steps:
