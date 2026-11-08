@@ -64,22 +64,22 @@
 }
 
 /* ---------------------------------------------------------------------------
-   A RESIZE HANDLE.
+   A RESIZE HANDLE: THE PLAYER'S TOP EDGE.
 
-   The panel edges are dragged, and a drag edge that lights up in border gray reads as a
-   second scrollbar beside the real one. The identity tint says "control", and saying it
-   once here keeps every drag edge in the app from drifting apart.
+   The edge is dragged up and down, and a drag edge that lights up in border gray reads as a
+   second scrollbar beside the real one. The identity tint says "control". The rail's edge is
+   sokkel-ui's own.
    --------------------------------------------------------------------------- */
 .resize-handle {
     position: relative;
     background-color: transparent;
     transition: background-color 150ms ease-out;
 }
-/* The strip is 6px; pointer hits count 4px beyond it on both sides. */
+/* Pointer hits count 4px beyond the strip on both sides. */
 .resize-handle::before {
     content: '';
     position: absolute;
-    inset: 0 -4px;
+    inset: -4px 0;
 }
 /* A resting grip mark, so the edge says it can be held before anyone hovers it. */
 .resize-handle::after {
@@ -87,20 +87,20 @@
     position: absolute;
     left: 50%;
     top: 50%;
-    width: 3px;
-    height: 36px;
+    width: 36px;
+    height: 3px;
     border-radius: 2px;
     transform: translate(-50%, -50%);
     background-color: var(--border-strong);
     transition:
         background-color 150ms ease-out,
-        height 150ms ease-out;
+        width 150ms ease-out;
 }
 .resize-handle:hover::after,
 .resize-handle:focus-visible::after,
 .resize-handle[data-dragging='true']::after {
     background-color: var(--primary);
-    height: 56px;
+    width: 56px;
 }
 .resize-handle:hover,
 .resize-handle:focus-visible {
@@ -109,23 +109,6 @@
 }
 .resize-handle[data-dragging='true'] {
     background-color: color-mix(in oklab, var(--primary) 55%, transparent);
-}
-
-/* The same handle turned on its side, for an edge dragged up and down rather than across: the
-   player's top edge. The orientation is the one the separator already states, so nothing
-   carries a second attribute saying it twice. */
-.resize-handle[aria-orientation='horizontal']::before {
-    inset: -4px 0;
-}
-.resize-handle[aria-orientation='horizontal']::after {
-    width: 36px;
-    height: 3px;
-}
-.resize-handle[aria-orientation='horizontal']:hover::after,
-.resize-handle[aria-orientation='horizontal']:focus-visible::after,
-.resize-handle[aria-orientation='horizontal'][data-dragging='true']::after {
-    width: 56px;
-    height: 3px;
 }
 
 /* ---------------------------------------------------------------------------
@@ -194,52 +177,6 @@
     --tw-ring-color: color-mix(in oklab, var(--critical) 25%, transparent);
 }
 
-/* ---------------------------------------------------------------------------
-   THE COMMAND PALETTE.
-
-   The generated `components/ui/command` files are pristine, so what this app wants of them is
-   said here against their slots: a search row that is a row rather than a boxed input, shelf
-   headings that read as headings, and a selected row that wears the identity colour on its
-   left edge -- because choosing is an action, and that is the one colour this app spends on
-   one.
-   --------------------------------------------------------------------------- */
-.mk-palette [data-slot='command-input-wrapper'] {
-    padding: 0;
-    border-bottom: 1px solid var(--border);
-}
-.mk-palette [data-slot='command-input-wrapper'] > * {
-    height: 3.5rem;
-    border: 0;
-    border-radius: 0;
-    background-color: transparent;
-    box-shadow: none;
-    padding-inline: 0.875rem;
-    gap: 0.625rem;
-}
-.mk-palette [cmdk-group-heading] {
-    padding: 0.75rem 0.5rem 0.375rem;
-    font-size: var(--text-xs);
-    font-weight: 600;
-    letter-spacing: 0.06em;
-    text-transform: uppercase;
-    color: var(--faint);
-}
-.mk-palette [data-slot='command-item'] {
-    position: relative;
-}
-.mk-palette [data-slot='command-item'][data-selected='true'] {
-    background-color: color-mix(in oklab, var(--accent) 70%, transparent);
-}
-.mk-palette [data-slot='command-item'][data-selected='true']::before {
-    content: '';
-    position: absolute;
-    inset-block: 0.25rem;
-    inset-inline-start: 0;
-    width: 3px;
-    border-radius: 2px;
-    background-color: var(--primary);
-}
-
 /* An identifier is a machine's string -- a run uuid, a block id, a cursor -- read character
    by character rather than skimmed, so it is set in the mono face and never in the prose
    one. A hint is prose and stays sans; the two must not look alike. */
@@ -302,56 +239,17 @@
 }
 
 /* ---------------------------------------------------------------------------
-   THE WINDOW A DESKTOP SHELL PUTS THIS PAGE IN.
+   THE DOOR IN A DESKTOP SHELL'S WINDOW.
 
-   Both shells hide the native title bar and hand the whole window to the page -- Tauri with
-   `titleBarStyle: "Overlay"`, Electron with `hiddenInset`. Two things follow from that, and
-   both are the page's to deal with.
-
-   THE TRAFFIC LIGHTS ARE STILL DRAWN, over the top-left of the document, in a band about 72px
-   wide. Whatever the page puts there is underneath three buttons belonging to the window, so
-   the strips that reach that corner stand clear of it. A browser tab has no such buttons and
-   gets none of this, which is what `:not([data-shell='browser'])` says; `index.html` sets both
-   attributes before the first paint.
-
-   THE TOP STRIP IS THE TITLE BAR, so grabbing it moves the window, the way grabbing a native
-   one does. Electron's Chromium honours `-webkit-app-region`, and the controls inside the
-   strip have to opt back out of it or they stop being clickable. Tauri's WKWebView honours
-   none of it: there the same press is delegated to the window by `lib/window-drag`, and what
-   is left here is the cursor and the selection, which WKWebView otherwise draws as a text
-   I-beam mid-drag.
+   Both shells hide the native title bar, and on macOS the window's traffic lights are still
+   drawn over the top-left of the document. The app's frame is sokkel-ui's and keeps clear of
+   them itself, as it makes its top strip the title bar; what is left here is the sign-in's
+   brand pane. A browser tab has no such buttons, which is what `:not([data-shell='browser'])`
+   says; `index.html` sets both attributes before the first paint.
    --------------------------------------------------------------------------- */
 html[data-platform='darwin']:not([data-shell='browser']) {
     /* Three buttons and the inset around them, as the client this one replaces measured it. */
     --traffic-lights: 80px;
-}
-
-html[data-platform='darwin']:not([data-shell='browser']) [data-shell-lights='strip'] {
-    padding-left: var(--traffic-lights);
-}
-
-/* A COLLAPSED RAIL IS NARROWER THAN THE LIGHTS ARE WIDE. It keeps its 56px of centred icons
-   rather than widening to hold the mark clear of them -- the rail moves the mark below the
-   strip in this shell -- so the lights reach past its edge into the topbar, and the topbar
-   stands clear of what is left of them. The expanded rail is wider than the lights at any
-   width it can be dragged to, and gives way with its wordmark rather than with its width. */
-html[data-platform='darwin']:not([data-shell='browser'])
-    body:has([data-shell-rail='collapsed'])
-    header[data-shell-strip='top'] {
-    padding-left: calc(var(--traffic-lights) - 56px);
-}
-
-/* The lights straddle the collapsed rail's edge, so its rule would run up between them and the
-   topbar. The rule starts under the strip instead: the border keeps its pixel, transparent,
-   and the column below the strip draws the line. */
-html[data-platform='darwin']:not([data-shell='browser']) [data-shell-rail='collapsed'] {
-    border-right-color: transparent;
-}
-html[data-platform='darwin']:not([data-shell='browser'])
-    [data-shell-rail='collapsed']
-    > [data-shell-strip='top']
-    ~ * {
-    box-shadow: inset -1px 0 var(--border-strong);
 }
 
 /* The door's brand pane, which is a strip with the lockup at its left only below `lg`. Above
@@ -361,33 +259,6 @@ html[data-platform='darwin']:not([data-shell='browser'])
     html[data-platform='darwin']:not([data-shell='browser']) [data-shell-lights='pane'] {
         padding-left: var(--traffic-lights);
     }
-}
-
-html:not([data-shell='browser']) :is([data-window-drag], [data-shell-strip='top']) {
-    cursor: default;
-    user-select: none;
-    -webkit-user-select: none;
-}
-
-html[data-shell='electron'] :is([data-window-drag], [data-shell-strip='top']) {
-    -webkit-app-region: drag;
-}
-
-html[data-shell='electron']
-    :is([data-window-drag], [data-shell-strip='top'])
-    :is(
-        a,
-        button,
-        input,
-        label,
-        select,
-        textarea,
-        [role='button'],
-        [role='slider'],
-        [role='tab'],
-        [data-window-no-drag]
-    ) {
-    -webkit-app-region: no-drag;
 }
 
 /* ---------------------------------------------------------------------------

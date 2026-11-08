@@ -16,15 +16,18 @@
  * worth a test; the store is the one line that has to be shared.
  */
 
+import { layerOpen } from '@winterop-com/sokkel-ui/lib/shortcuts'
 import { createStore } from '@winterop-com/sokkel-ui/lib/stored'
 
 /**
  * The dialogs standing over the app. Named rather than counted, so a stuck flag has an owner.
  *
- * `playlist` is the one a screen raises rather than the shell: choosing a playlist, naming
- * one, or saying yes to deleting one. A bare key through it is the same two-things-at-once.
+ * `palette` is the frame's command palette, which the shell holds open for the app; it is
+ * named here because it loads on first use, and a key pressed before it has drawn is still a
+ * key pressed into it. `playlist` is the one a screen raises rather than the shell: choosing a
+ * playlist, naming one, or saying yes to deleting one.
  */
-export type DialogName = 'settings' | 'shortcuts' | 'playlist'
+export type DialogName = 'settings' | 'palette' | 'playlist'
 
 /** Which of them are standing right now. */
 export const dialogsOpen = createStore<ReadonlySet<DialogName>>(new Set())
@@ -57,9 +60,14 @@ export function setDialogOpen(name: DialogName, standing: boolean): void {
     dialogsOpen.update((open) => withDialog(open, name, standing))
 }
 
-/** Whether a bare key belongs to a dialog rather than to the app. */
+/**
+ * Whether a bare key belongs to a dialog rather than to the app.
+ *
+ * The named ones, and whatever dialog or menu the document has open: the frame's shortcuts
+ * list is the library's, held inside its shell, and is seen here the way the library sees it.
+ */
 export function dialogUp(): boolean {
-    return anyOpen(dialogsOpen.get())
+    return anyOpen(dialogsOpen.get()) || layerOpen()
 }
 
 /** What a key would open over the app. */

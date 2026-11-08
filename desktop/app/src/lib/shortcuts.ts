@@ -4,7 +4,7 @@
  * KEYS ARE MATCHED BY THE CHARACTER THEY PRODUCE, NOT BY THE KEY THAT PRODUCED IT, and every
  * chord sits on a letter. On a Norwegian layout the bracket, brace, pipe and backslash keys all
  * need Alt to reach at all, so a binding over one of them is a binding nobody on these machines
- * can press. A letter is a letter on every layout, and `?` is tested as the character rather
+ * can press. A letter is a letter on every layout, and `*` is tested as the character rather
  * than as Shift plus a physical key, because which physical key makes it moves with the layout.
  *
  * THE PRESS IS DECIDED HERE AND READ ELSEWHERE. These take a plain description of the press and
@@ -13,14 +13,8 @@
  * buried in an effect.
  */
 
-/** The letter that opens the command palette, under either modifier. */
-export const PALETTE_KEY = 'k'
-
 /** The letter that collapses and expands the navigation rail, under the platform's own modifier. */
 export const RAIL_KEY = 'b'
-
-/** The character that puts this list on screen. */
-export const SHORTCUTS_KEY = '?'
 
 /** The character that starts and stops what is playing, pressed bare. */
 export const PLAY_KEY = ' '
@@ -154,19 +148,6 @@ export function isTypingField(focused: FocusedField | null): boolean {
 }
 
 /**
- * Whether this press opens the command palette.
- *
- * Either modifier, unlike the rail: Cmd+K and Ctrl+K both mean the palette in every app that
- * has one, and neither is claimed by anything here. It fires while a box has focus, because
- * the palette is how somebody leaves the box they are in.
- */
-export function opensPalette(press: KeyPress): boolean {
-    if (press.key.toLowerCase() !== PALETTE_KEY) return false
-    if (press.altKey) return false
-    return press.metaKey || press.ctrlKey
-}
-
-/**
  * Whether this press collapses or expands the navigation rail.
  *
  * CMD ON APPLE KEYBOARDS AND CTRL EVERYWHERE ELSE, rather than either modifier. Ctrl+B on macOS
@@ -178,20 +159,6 @@ export function togglesRail(press: KeyPress, focused: FocusedField | null, apple
     if (press.altKey) return false
     if (apple ? !press.metaKey : !press.ctrlKey || press.metaKey) return false
     return !(focused?.isContentEditable ?? false)
-}
-
-/**
- * Whether this press asks for the list of shortcuts.
- *
- * No modifier beyond whatever the layout needs to produce the character: Shift is how most
- * keyboards make a `?` and so is not a modifier this can refuse, while Ctrl, Cmd and Alt each
- * mean something else somewhere. Never while something is being typed into -- a `?` typed into
- * a filter box is a question mark and nothing else.
- */
-export function opensShortcuts(press: KeyPress, focused: FocusedField | null): boolean {
-    if (press.key !== SHORTCUTS_KEY) return false
-    if (press.ctrlKey || press.metaKey || press.altKey) return false
-    return !isTypingField(focused)
 }
 
 /**
@@ -301,7 +268,7 @@ export function togglesMute(press: KeyPress, focused: FocusedField | null): bool
 /**
  * Whether this press stars what is playing.
  *
- * MATCHED AS THE CHARACTER, like `?`. Which physical key makes a `*` moves with the layout --
+ * MATCHED AS THE CHARACTER, like `/`. Which physical key makes a `*` moves with the layout --
  * Shift and the digit row here, a key of its own on the numeric pad -- so Shift is not a
  * modifier this can refuse, while Ctrl, Cmd and Alt each mean something else somewhere.
  */
@@ -381,11 +348,15 @@ export interface Shortcut {
     keys: string[]
 }
 
-/** Every shortcut this app answers, chords first because they are the ones nobody discovers. */
+/**
+ * Every shortcut this app answers itself, chords first because they are the ones nobody discovers.
+ *
+ * The palette's chord and `?` are the frame's: sokkel-ui's shell binds both and lists them
+ * itself, so they are not here.
+ */
 export function shortcuts(apple: boolean): Shortcut[] {
     const modifier = modifierLabel(apple)
     return [
-        { id: 'palette', action: 'Open the command palette', keys: [modifier, 'K'] },
         { id: 'rail', action: 'Collapse or expand the navigation', keys: [modifier, 'B'] },
         // The transport means what somebody is looking at: a screen with a video on it claims
         // these three for the video while it is open, and they are the queue's everywhere else.
@@ -407,7 +378,6 @@ export function shortcuts(apple: boolean): Shortcut[] {
         { id: 'star', action: 'Star what is playing', keys: [STAR_KEY] },
         { id: 'search', action: 'Search the library', keys: [SEARCH_KEY] },
         { id: 'lyrics', action: 'Show the words of what is playing', keys: ['L'] },
-        { id: 'shortcuts', action: 'Open this list', keys: [SHORTCUTS_KEY] },
         { id: 'dismiss', action: 'Close a dialog, a menu, or the palette', keys: ['Esc'] },
         { id: 'choose', action: 'Open the row that has focus', keys: ['Enter'] },
     ]

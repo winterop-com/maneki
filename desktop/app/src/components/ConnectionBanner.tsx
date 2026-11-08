@@ -1,6 +1,7 @@
-import { WifiOff, X } from 'lucide-react'
+import { WifiOff } from 'lucide-react'
 import { useEffect } from 'react'
 
+import { Banner } from '@winterop-com/sokkel-ui/Banner'
 import { Button } from '@/components/ui/button'
 import { useStore } from '@winterop-com/sokkel-ui/hooks/use-store'
 import { connectionStore, dismissRefusal } from '@/lib/connection'
@@ -16,9 +17,9 @@ export const DISMISS_LABEL = 'Dismiss'
  * server that is not there is about to break every screen the same way, so it is said once,
  * above all of them, instead of each screen reporting its own mystery.
  *
- * IT DOES NOT COVER ANYTHING. It is a row in the content column's own flow, under the top strip
- * and above the work, so the screen moves down by its height rather than losing its first line
- * under a floating bar. Nothing is dismissed and nothing is unmounted: what was already read
+ * IT DOES NOT COVER ANYTHING. It is sokkel-ui's `Banner` in the shell's `banner` slot, under the
+ * top strip and above the work, so the screen moves down by its height rather than losing its
+ * first line under a floating bar. Nothing is dismissed and nothing is unmounted: what was already read
  * stays on screen, because a server going quiet does not make what it already said untrue.
  *
  * TWO VERBS, AND THEY ARE DIFFERENT THINGS. Retry asks the server again, which is the whole of
@@ -46,36 +47,27 @@ export function ConnectionBanner() {
     if (!connection.down) return null
 
     return (
-        <div
-            role="status"
-            className="flex shrink-0 items-center gap-2 border-b border-critical/35 bg-critical/12 px-3 py-1.5 text-critical-ink"
+        <Banner
+            tone="critical"
+            icon={<WifiOff className="size-4 shrink-0" aria-hidden />}
+            onDismiss={dismissRefusal}
+            words={{ dismiss: DISMISS_LABEL }}
+            actions={
+                <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                        void connect()
+                    }}
+                >
+                    Retry
+                </Button>
+            }
         >
-            <WifiOff className="size-4 shrink-0" aria-hidden />
             {/* The address is what tells somebody which server went quiet, and on a phone it is
                 the first thing off the row: the sentence is the news, the host is the detail. */}
-            <p className="min-w-0 flex-1 truncate text-sm">
-                No answer from{' '}
-                <span className="font-mono">{session.baseUrl === '' ? 'this server' : session.baseUrl}</span>.
-            </p>
-            <Button
-                variant="outline"
-                size="sm"
-                className="shrink-0"
-                onClick={() => {
-                    void connect()
-                }}
-            >
-                Retry
-            </Button>
-            <Button
-                variant="ghost"
-                size="icon-sm"
-                aria-label={DISMISS_LABEL}
-                className="shrink-0"
-                onClick={dismissRefusal}
-            >
-                <X className="size-4" aria-hidden />
-            </Button>
-        </div>
+            No answer from{' '}
+            <span className="font-mono">{session.baseUrl === '' ? 'this server' : session.baseUrl}</span>.
+        </Banner>
     )
 }

@@ -7,7 +7,7 @@
  * and a page says so through the Media Session API. Without this, the keys start Apple Music
  * while maneki is playing, and the Now Playing widget names nothing.
  *
- * WHAT IS PURE IS SEPARATE, as in `lib/window-drag`. What to show, which keys apply and when the
+ * WHAT IS PURE IS SEPARATE, as in `lib/desktop`. What to show, which keys apply and when the
  * OS needs a fresh position are decisions about the player's state, and they are the part worth
  * a test. The installer is the one place that touches `navigator.mediaSession`.
  *

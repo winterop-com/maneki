@@ -1,11 +1,11 @@
 "use client"
 
-import { useTheme } from "next-themes"
+import { useScheme } from "@winterop-com/sokkel-ui/hooks/use-scheme"
 import { Toaster as Sonner, type ToasterProps } from "sonner"
 import { CircleCheckIcon, InfoIcon, TriangleAlertIcon, OctagonXIcon, Loader2Icon } from "lucide-react"
 
 const Toaster = ({ ...props }: ToasterProps) => {
-  const { theme = "system" } = useTheme()
+  const { scheme: theme } = useScheme()
 
   return (
     <Sonner

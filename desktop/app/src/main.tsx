@@ -1,4 +1,3 @@
-import { ThemeProvider } from 'next-themes'
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import { HashRouter } from 'react-router'
@@ -6,12 +5,8 @@ import { HashRouter } from 'react-router'
 import App from '@/App'
 import { Toaster } from '@/components/ui/sonner'
 import { installMediaSession } from '@/lib/media-session'
-import { installWindowDrag } from '@/lib/window-drag'
 import '@/index.css'
 
-// The shell's top strip is the window's title bar, and in one of the three homes dragging it
-// has to be asked for rather than declared. Once, on the document, before anything is drawn.
-installWindowDrag()
 installMediaSession()
 
 // A browser keeps its own copy of the app (`service-worker.js`), so with the server out of
@@ -33,11 +28,9 @@ if (
  */
 createRoot(document.getElementById('root')!).render(
     <StrictMode>
-        <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>
-            <HashRouter>
-                <App />
-            </HashRouter>
-            <Toaster richColors />
-        </ThemeProvider>
+        <HashRouter>
+            <App />
+        </HashRouter>
+        <Toaster richColors />
     </StrictMode>,
 )

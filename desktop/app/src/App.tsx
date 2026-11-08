@@ -4,6 +4,8 @@ import { Navigate, Route, Routes } from 'react-router'
 
 import { AppShell } from '@/components/AppShell'
 import { useStore } from '@winterop-com/sokkel-ui/hooks/use-store'
+import { windowPressHandler } from '@winterop-com/sokkel-ui/lib/desktop'
+import { desktopWindow } from '@/lib/desktop'
 import { loadOffline } from '@/lib/offline'
 import { startOutbox } from '@/lib/outbox'
 import { connect, sessionStore } from '@/lib/session'
@@ -56,6 +58,7 @@ export default function App() {
             // sign-in read as one thing rather than a small mark and then a large one.
             <div
                 data-window-drag
+                onMouseDown={windowPressHandler(desktopWindow())}
                 className="flex h-svh flex-col items-center justify-center gap-6 bg-terminal text-terminal-foreground"
             >
                 <div className="flex items-center gap-5">

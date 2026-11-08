@@ -5,9 +5,7 @@ import {
     applePlatform,
     isTypingField,
     opensLyrics,
-    opensPalette,
     opensSearch,
-    opensShortcuts,
     opensStage,
     SEEK_STEP_S,
     seeks,
@@ -34,25 +32,6 @@ function press(
 const TEXT_BOX = { tagName: 'INPUT', isContentEditable: false }
 const PROSE = { tagName: 'DIV', isContentEditable: true }
 
-describe('the palette chord', () => {
-    test('answers either modifier, because both mean the palette everywhere it exists', () => {
-        expect(opensPalette(press('k', { metaKey: true }))).toBe(true)
-        expect(opensPalette(press('k', { ctrlKey: true }))).toBe(true)
-    })
-
-    test('is a letter, matched by the character the press produced', () => {
-        expect(opensPalette(press('K', { metaKey: true }))).toBe(true)
-    })
-
-    test('needs a modifier, so typing k into a box is typing', () => {
-        expect(opensPalette(press('k'))).toBe(false)
-    })
-
-    test('refuses Alt, which a Nordic layout needs for other characters entirely', () => {
-        expect(opensPalette(press('k', { metaKey: true, altKey: true }))).toBe(false)
-    })
-})
-
 describe('the rail chord', () => {
     test('is Cmd on an Apple keyboard and Ctrl everywhere else', () => {
         expect(togglesRail(press('b', { metaKey: true }), null, true)).toBe(true)
@@ -69,22 +48,6 @@ describe('the rail chord', () => {
 
     test('leaves a rich-text region alone, where the chord has meant bold for forty years', () => {
         expect(togglesRail(press('b', { metaKey: true }), PROSE, true)).toBe(false)
-    })
-})
-
-describe('the shortcuts key', () => {
-    test('is the character, whatever the layout pressed to make it', () => {
-        expect(opensShortcuts(press('?'), null)).toBe(true)
-    })
-
-    test('never interrupts something being typed into', () => {
-        expect(opensShortcuts(press('?'), TEXT_BOX)).toBe(false)
-        expect(opensShortcuts(press('?'), PROSE)).toBe(false)
-    })
-
-    test('refuses every chord modifier, each of which means something else somewhere', () => {
-        expect(opensShortcuts(press('?', { metaKey: true }), null)).toBe(false)
-        expect(opensShortcuts(press('?', { altKey: true }), null)).toBe(false)
     })
 })
 
@@ -139,9 +102,7 @@ describe('the transport keys', () => {
 
     test('none of them is claimed by anything else this app binds', () => {
         for (const key of [' ', 'n', 'p', 'v', 'f']) {
-            expect(opensPalette(press(key))).toBe(false)
             expect(togglesRail(press(key), null, true)).toBe(false)
-            expect(opensShortcuts(press(key), null)).toBe(false)
         }
     })
 })
@@ -305,7 +266,6 @@ describe('the rest of the listening keys', () => {
             expect(togglesPlayback(press(key), null)).toBe(false)
             expect(togglesVisualizer(press(key), null)).toBe(false)
             expect(opensStage(press(key), null)).toBe(false)
-            expect(opensShortcuts(press(key), null)).toBe(false)
         }
     })
 })

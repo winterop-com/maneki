@@ -1,9 +1,7 @@
 import { Check, Copy, Volume2, VolumeX } from 'lucide-react'
-import { useTheme } from 'next-themes'
 import { useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react'
 
 import { Segmented } from '@/components/Segmented'
-import { MODE_LABELS, MODES, type Mode } from '@/components/ThemeToggle'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
@@ -48,7 +46,16 @@ import {
     type SettingsRow,
 } from '@/lib/settings'
 import { applePlatform, shortcuts } from '@/lib/shortcuts'
-import { choosePalette, paletteAfter, PALETTES, paletteStore, type PaletteName } from '@/lib/theme'
+import { useScheme } from '@winterop-com/sokkel-ui/hooks/use-scheme'
+import {
+    choosePalette,
+    MODE_LABELS,
+    MODES,
+    paletteAfter,
+    PALETTES,
+    paletteStore,
+    type PaletteName,
+} from '@/lib/theme'
 import { cn } from '@/lib/utils'
 import { autoplayNext, setAutoplayNext } from '@/lib/watching'
 import {
@@ -74,8 +81,8 @@ export const SETTINGS_TITLE = 'Settings'
  * category is one function with a test, and not a traversal of markup. What a row puts on its
  * right edge is this file's, keyed by the row's id.
  *
- * NOTHING HERE IS A COPY OF A SETTING. Appearance writes next-themes, which is the same store
- * the toggle in the top strip writes; the palette writes `lib/theme`; the volume and the
+ * NOTHING HERE IS A COPY OF A SETTING. Appearance writes sokkel-ui's `useScheme`, which is the
+ * same store the toggle in the top strip writes; the palette writes `lib/theme`; the volume and the
  * spectrum write the player and `lib/visualizer`, which the player bar reads. A dialog that
  * held its own copy of a setting would be a second answer to the same question.
  *
@@ -464,8 +471,7 @@ function ramp(stops: readonly string[]): CSSProperties {
 
 /** The look: the two axes, one row each. */
 function ThemePane({ rows }: { rows: SettingsRow[] }) {
-    const { theme, setTheme } = useTheme()
-    const mode = (theme ?? 'system') as Mode
+    const { scheme: mode, setScheme } = useScheme()
     const palette = useStore(paletteStore)
 
     return (
@@ -478,7 +484,7 @@ function ThemePane({ rows }: { rows: SettingsRow[] }) {
                                 label="Appearance"
                                 value={mode}
                                 options={MODES.map((one) => ({ value: one, label: MODE_LABELS[one] }))}
-                                onChoose={setTheme}
+                                onChoose={setScheme}
                             />
                         </Row>
                     )

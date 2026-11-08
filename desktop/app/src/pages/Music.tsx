@@ -10,11 +10,11 @@ import { Button } from '@/components/ui/button'
 import { useScrollMemory } from '@/hooks/use-scroll-memory'
 import { NETWORK_REFUSAL } from '@/lib/connection'
 import { offlineAlbum, offlineStore } from '@/lib/offline'
+import { useCommands } from '@winterop-com/sokkel-ui/hooks/use-commands'
 import { useStore, useStoreValue } from '@winterop-com/sokkel-ui/hooks/use-store'
 import { playingRow } from '@/lib/queue'
-import { albumPath, bookOfAlbum } from '@/lib/nav'
+import { albumPath, bookOfAlbum, SCREEN_GROUP } from '@/lib/nav'
 import { clock, trackCount } from '@/lib/format'
-import { registerActions, SCREEN_GROUP } from '@/lib/palette'
 import { play, playerStore } from '@/lib/player'
 import { sessionStore } from '@/lib/session'
 import { Input } from '@/components/ui/input'
@@ -664,20 +664,26 @@ function AlbumScreen({ credentials, id }: { credentials: Credentials; id: string
             data ? { songs: data.songs, what: `${data.album.name}, ${trackCount(data.songs.length)}` } : null,
         [data],
     )
-    useEffect(() => {
-        if (wholeAlbum === null) return
-        return registerActions([
+    useCommands(
+        [
             {
-                id: 'album:add-to-playlist',
-                title: ADD_ALBUM_LABEL,
-                group: SCREEN_GROUP,
-                screen: true,
-                icon: ListPlus,
-                keywords: ['playlist', 'add', 'album'],
-                run: () => setAdding(wholeAlbum),
+                title: SCREEN_GROUP,
+                commands:
+                    wholeAlbum === null
+                        ? []
+                        : [
+                              {
+                                  id: 'album:add-to-playlist',
+                                  label: ADD_ALBUM_LABEL,
+                                  icon: ListPlus,
+                                  keywords: ['playlist', 'add', 'album'],
+                                  onSelect: () => setAdding(wholeAlbum),
+                              },
+                          ],
             },
-        ])
-    }, [wholeAlbum])
+        ],
+        [wholeAlbum],
+    )
 
     if (refusal) return <Notice>{refusal}</Notice>
     if (!data) {

@@ -2,8 +2,8 @@
  * How this app is painted.
  *
  * TWO INDEPENDENT AXES, AND KEEPING THEM APART IS THE WHOLE ARRANGEMENT. The **mode** is light
- * or dark: next-themes owns it, writes it as a `dark` class on `<html>`, and follows the
- * operating system until somebody says otherwise. The **palette** is which set of colours the
+ * or dark: sokkel-ui's `useScheme` owns it, writes it as a `dark` class on `<html>`, and follows
+ * the operating system until somebody says otherwise. The **palette** is which set of colours the
  * app spends inside that mode: this module owns it, writes it as `data-theme` on the same
  * element, and every palette is designed for both modes. Neither axis knows about the other.
  *
@@ -20,6 +20,19 @@
  */
 
 import { createStore } from '@winterop-com/sokkel-ui/lib/stored'
+import type { Scheme } from '@winterop-com/sokkel-ui/lib/appearance'
+
+/** The three settings of the mode axis; the settings dialog and the palette offer all of them. */
+export const MODES = ['light', 'dark', 'system'] as const satisfies readonly Scheme[]
+
+export type Mode = (typeof MODES)[number]
+
+/** What each setting is called: on the Theme pane's segmented control, and in the palette. */
+export const MODE_LABELS: Record<Mode, string> = {
+    light: 'Light',
+    dark: 'Dark',
+    system: 'System',
+}
 
 /** The name a palette is stored and written under: its `data-theme` value. */
 export type PaletteName = 'amber' | 'paper' | 'contrast' | 'tokyo' | 'vinyl' | 'cassette' | 'neon'

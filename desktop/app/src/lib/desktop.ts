@@ -20,6 +20,8 @@
  * worth probing are the two decisions worth a test, and neither needs a window to make.
  */
 
+import type { DesktopWindow } from '@winterop-com/sokkel-ui/lib/desktop'
+
 /** Where the bundle is running. */
 export type ShellKind = 'tauri' | 'electron' | 'browser'
 
@@ -171,7 +173,7 @@ export async function exitNativeFullscreen(): Promise<boolean> {
  * Move the window with the pointer that is already down, where there is a window to move.
  *
  * ONLY ONE SHELL NEEDS ASKING. Electron's Chromium moves its own window out of the
- * `-webkit-app-region: drag` the top strip wears in index.css, and a browser tab has no window
+ * `-webkit-app-region: drag` sokkel-ui puts on the top strip, and a browser tab has no window
  * of its own. Tauri's WKWebView honours neither that property nor Tauri's own drag attribute
  * on a tree React renders after mount, so there the press is handed to the window here.
  *
@@ -191,4 +193,29 @@ export async function isNativeFullscreen(): Promise<boolean> {
     const bridge = electronBridge()
     if (bridge) return bridge.isFullscreen()
     return typeof document !== 'undefined' && document.fullscreenElement !== null
+}
+
+/**
+ * The desktop window the frame stands in, as sokkel-ui's `desktop` takes it; undefined in a tab.
+ *
+ * Both shells hide the native title bar, so the frame's top strip is the title bar. On macOS the
+ * window's traffic lights are drawn over its start, which `index.html` says with `data-platform`
+ * before the first paint. Tauri's WKWebView ignores `app-region`, so there a press on the strip
+ * is handed to the window here.
+ */
+export function desktopWindow(): DesktopWindow | undefined {
+    const shell = currentShell()
+    if (shell === 'browser') return undefined
+    return {
+        trafficLights: document.documentElement.dataset.platform === 'darwin',
+        onWindowDrag: shell === 'tauri' ? dragWindow : undefined,
+    }
+}
+
+function dragWindow(): void {
+    startNativeWindowDrag().catch((error: unknown) => {
+        // A window that will not move is the shell's business and not the app's: the press is
+        // already spent, and there is nothing a screen could do about it.
+        console.warn('the window did not take the drag', error)
+    })
 }

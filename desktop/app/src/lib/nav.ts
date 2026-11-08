@@ -55,6 +55,9 @@ export interface NavSection {
     entries: NavEntry[]
 }
 
+/** The palette heading a screen's own commands go under, which the palette lists first. */
+export const SCREEN_GROUP = 'This screen'
+
 /** Where a reader with no address of their own lands, when this server has music. */
 export const MUSIC_PATH = '/music'
 

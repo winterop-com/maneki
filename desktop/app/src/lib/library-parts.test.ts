@@ -33,6 +33,41 @@ const LIBRARY_PARTS: { part: string; use: string; marks: RegExp[] }[] = [
         use: '@winterop-com/sokkel-ui/styles.css and its themes/<name>.css, imported by index.css',
         marks: [/^@import 'tailwindcss'/m, /^@theme\b/m, /^(html(\.dark)?)?\[data-theme='[a-z]+'\][^{]*\{/m],
     },
+    {
+        part: 'the rail and its phone drawer',
+        use: '@winterop-com/sokkel-ui/Rail in the Shell, which draws the drawer itself',
+        marks: [/\bfunction Rail\b/, /\bfunction RailEntry\b/, /\bfunction NavDrawer\b/],
+    },
+    {
+        part: 'the account menu',
+        use: '@winterop-com/sokkel-ui/AccountMenu in the rail foot',
+        marks: [/\bfunction AccountMenu\b/],
+    },
+    {
+        part: 'the status line',
+        use: "@winterop-com/sokkel-ui/StatusLine as the Shell's foot",
+        marks: [/\bfunction StatusBar\b/],
+    },
+    {
+        part: 'the command palette',
+        use: "the Shell's palette, with @winterop-com/sokkel-ui/hooks/use-commands for a screen's rows",
+        marks: [/\bfunction CommandPalette\b/, /\bfunction registerActions\b/, /\bfunction shelve\b/],
+    },
+    {
+        part: 'the shortcuts dialog',
+        use: "the Shell's `shortcuts`, which binds `?` once",
+        marks: [/\bfunction ShortcutsDialog\b/],
+    },
+    {
+        part: 'the light and dark switch',
+        use: '@winterop-com/sokkel-ui/SchemeToggle and hooks/use-scheme',
+        marks: [/\bfunction ThemeToggle\b/, /from ['"]next-themes['"]/],
+    },
+    {
+        part: 'the desktop title strip',
+        use: "the Shell's `desktop`, which marks the strips and hands a press to the window",
+        marks: [/\binstallWindowDrag\b/, /-webkit-app-region:\s*drag\s*;/],
+    },
 ]
 
 const SRC = fileURLToPath(new URL('..', import.meta.url))

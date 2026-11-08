@@ -1,12 +1,12 @@
 import {
     AudioLines,
+    Cat,
     Gauge,
     FastForward,
     Keyboard,
     ListMusic,
     LogIn,
     LogOut,
-    Menu,
     Monitor,
     Moon,
     Pause,
@@ -31,41 +31,53 @@ import {
     Volume2,
     VolumeX,
 } from 'lucide-react'
-import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
-import { useNavigate } from 'react-router'
-import { useTheme } from 'next-themes'
+import {
+    Suspense,
+    lazy,
+    useCallback,
+    useContext,
+    useEffect,
+    useMemo,
+    useRef,
+    useState,
+    type ReactNode,
+} from 'react'
+import { Link, useLocation, useNavigate } from 'react-router'
 
-import { CommandPalette } from '@/components/CommandPalette'
+import { AccountMenu } from '@winterop-com/sokkel-ui/AccountMenu'
+import type { PaletteCommand, PaletteGroup } from '@winterop-com/sokkel-ui/CommandPalette'
+import { Rail, type RailEntry, type RailGroup } from '@winterop-com/sokkel-ui/Rail'
+import { SchemeToggle } from '@winterop-com/sokkel-ui/SchemeToggle'
+import { Shell } from '@winterop-com/sokkel-ui/Shell'
+import { ShellShortcuts } from '@winterop-com/sokkel-ui/shell-context'
+import { StatusItem, StatusLine } from '@winterop-com/sokkel-ui/StatusLine'
+import { TopBar } from '@winterop-com/sokkel-ui/TopBar'
+import { useScheme } from '@winterop-com/sokkel-ui/hooks/use-scheme'
+import { useShortcutRegistry } from '@winterop-com/sokkel-ui/hooks/use-shortcuts'
+import { useStore, useStoreValue } from '@winterop-com/sokkel-ui/hooks/use-store'
+import type { ShortcutGroup } from '@winterop-com/sokkel-ui/lib/shortcuts'
 import { ConnectionBanner } from '@/components/ConnectionBanner'
 import { FullscreenVisualizer } from '@/components/FullscreenVisualizer'
 import { LyricsOverlay } from '@/components/LyricsOverlay'
-import { NavDrawer, OPEN_NAV_LABEL } from '@/components/NavDrawer'
 import { PlayerBar } from '@/components/PlayerBar'
-import { Rail } from '@/components/Rail'
-import { SearchBox } from '@/components/SearchBox'
 import { SearchOverlay, SEARCH_TITLE } from '@/components/SearchOverlay'
-import { ShortcutsDialog } from '@/components/ShortcutsDialog'
-import { SIGN_IN_LABEL, SIGN_OUT_LABEL } from '@/components/AccountMenu'
-import { StatusBar } from '@/components/StatusBar'
-import { MODES, MODE_LABELS, ThemeToggle } from '@/components/ThemeToggle'
-import { Button } from '@/components/ui/button'
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
-import { useAppShortcuts } from '@/hooks/use-app-shortcuts'
-import { useStore, useStoreValue } from '@winterop-com/sokkel-ui/hooks/use-store'
+import { standingNow, useAppShortcuts } from '@/hooks/use-app-shortcuts'
+import { serverHost } from '@/lib/account'
 import { recoveries } from '@/lib/connection'
-import { entriesFor, homePath } from '@/lib/nav'
+import { desktopWindow } from '@/lib/desktop'
+import { mayOpen, setDialogOpen } from '@/lib/dialogs'
+import { lyricsOpen, openLyrics } from '@/lib/lyrics'
+import { entriesFor, homePath, marks, sectionsFor } from '@/lib/nav'
 import {
-    APPEARANCE_GROUP,
-    GO_GROUP,
-    PLAYBACK_GROUP,
-    SESSION_GROUP,
-    VIEW_GROUP,
-    paletteOpen,
-    registerActions,
-    type PaletteAction,
-} from '@/lib/palette'
-import { setDialogOpen } from '@/lib/dialogs'
-import { railCollapsed, toggleRail } from '@/lib/panels'
+    RAIL_MAX_WIDTH,
+    RAIL_MIN_WIDTH,
+    RAIL_WIDTH,
+    railCollapsed,
+    railWidth,
+    setRailCollapsed,
+    setRailWidth,
+    toggleRail,
+} from '@/lib/panels'
 import { RESCAN_LABEL, rescan } from '@/lib/rescan'
 import {
     currentSong,
@@ -83,14 +95,20 @@ import {
     toggleMuted,
     toggleShuffle,
 } from '@/lib/player'
-import { openLyrics } from '@/lib/lyrics'
 import { nextRepeat, REPEAT_LABELS } from '@/lib/queue'
-import { openSearch } from '@/lib/search'
+import { screenStatus } from '@/lib/screen-status'
+import { closeSearch, openSearch } from '@/lib/search'
 import { isAdmin, sessionStore, signOut } from '@/lib/session'
-import { applePlatform, modifierLabel, SEEK_STEP_S, VOLUME_STEP } from '@/lib/shortcuts'
+import { applePlatform, SEEK_STEP_S, shortcuts, VOLUME_STEP } from '@/lib/shortcuts'
 import { toggleStar } from '@/lib/star'
-import { choosePalette, PALETTES } from '@/lib/theme'
-import { cycleVisualizerStyle, openStage, toggleVisualizer, visualizerShown } from '@/lib/visualizer'
+import { choosePalette, MODE_LABELS, MODES, PALETTES } from '@/lib/theme'
+import {
+    cycleVisualizerStyle,
+    openStage,
+    stageOpen,
+    toggleVisualizer,
+    visualizerShown,
+} from '@/lib/visualizer'
 
 /** The facts the shell reads off the player. Module scope, so each is one stable function. */
 const selectPlaying = (state: { playing: boolean }) => state.playing
@@ -102,7 +120,22 @@ const selectBookId = (state: { book: { id: string } | null }) => state.book?.id 
 const selectChapterCount = (state: { book: { chapter_list: unknown[] } | null }) =>
     state.book?.chapter_list.length ?? 0
 
-export const OPEN_PALETTE_LABEL = 'Open the command palette'
+export const SIGN_OUT_LABEL = 'Sign out'
+export const SIGN_IN_LABEL = 'Sign in to a server'
+
+/** The palette's headings, in the order the app's own groups are listed. */
+const GO_GROUP = 'Go to'
+/** The transport, which is the app's whatever screen is in front of somebody. */
+const PLAYBACK_GROUP = 'Playback'
+const VIEW_GROUP = 'View'
+const APPEARANCE_GROUP = 'Appearance'
+const SESSION_GROUP = 'Session'
+
+/**
+ * The heading the app's own keys are listed under in the frame's shortcuts dialog: the one the
+ * shell lists the palette's chord and `?` under, so the list reads as one.
+ */
+const SHORTCUTS_GROUP = 'General'
 
 /**
  * The settings dialog is fetched the first time somebody asks for it.
@@ -116,17 +149,16 @@ const SettingsDialog = lazy(() =>
 )
 
 /**
- * The chassis: a rail on the left, the screen in the middle, a panel on the right, the
- * transport across the foot and one line under all of it.
+ * The chassis, drawn by sokkel-ui's `Shell`: the rail on the left, the top bar, the screen in the
+ * middle, the transport across the foot and the status line under all of it.
  *
- * `h-svh` rather than `min-h-svh`. The shell claims the viewport and the content column is the
- * one thing that scrolls, so there is exactly one scrollbar on every screen -- and a screen
- * that wants to fill the height it was given can be told how much that is.
+ * THE TRANSPORT SPANS THE WHOLE WIDTH, under the rail as well as under the screen, as the
+ * shell's `bottom` strip. What is playing is the app's rather than one screen's: it survives
+ * navigation, the keys that drive it are bound on the document, and a bar that stopped at the
+ * rail's edge would read as the screen's own furniture.
  *
- * THE TRANSPORT SPANS THE WHOLE WIDTH, under the rail as well as under the screen. What is
- * playing is the app's rather than one screen's: it survives navigation, the keys that drive it
- * are bound on the document, and a bar that stopped at the rail's edge would read as the
- * screen's own furniture.
+ * WHAT IS LEFT HERE IS MANEKI'S: what the rail offers this server, the palette's rows, the keys
+ * the shell lists beside its own, and when the palette may open at all.
  */
 export function AppShell({ children }: { children: ReactNode }) {
     const session = useStore(sessionStore)
@@ -134,6 +166,8 @@ export function AppShell({ children }: { children: ReactNode }) {
     // Rescanning is the whole library's disk; a listener is not offered it. See `isAdmin`.
     const admin = isAdmin(session)
     const collapsed = useStore(railCollapsed)
+    const width = useStore(railWidth)
+    const status = useStore(screenStatus)
     // One fact each, not the whole player: its store publishes four times a second while a
     // track plays, and the shell has no business re-rendering the screen under it that often.
     const playing = useStoreValue(playerStore, selectPlaying)
@@ -145,102 +179,112 @@ export function AppShell({ children }: { children: ReactNode }) {
     const chapterCount = useStoreValue(playerStore, selectChapterCount)
     const spectrum = useStore(visualizerShown)
     const navigate = useNavigate()
-    const { setTheme } = useTheme()
-    const [shortcutsOpen, setShortcutsOpen] = useState(false)
+    const { pathname } = useLocation()
+    const { setScheme } = useScheme()
     const [settingsOpen, setSettingsOpen] = useState(false)
     const [settingsAsked, setSettingsAsked] = useState(false)
-    const [drawerOpen, setDrawerOpen] = useState(false)
-    const menu = useRef<HTMLButtonElement | null>(null)
-    const wasOpen = useRef(false)
-    /** Whether this session has already been shown where what is playing lives. */
+    const [paletteOpen, setPaletteOpen] = useState(false)
+    // The shell holds the shortcuts dialog; the palette's row reaches it through `ShellBridge`.
+    const openShortcuts = useRef<(() => void) | undefined>(undefined)
+    const holdShortcuts = useCallback((open: (() => void) | undefined) => {
+        openShortcuts.current = open
+    }, [])
     const caps = session.capabilities ?? null
     // Listening without a server: no library to search, no spectrum to draw, no account to leave.
     const radioOnly = session.phase === 'radio'
     const music = session.music ?? null
-
-    useEffect(() => {
-        wasOpen.current = drawerOpen
-    }, [drawerOpen])
-
-    // The focus goes back where it came from: the button that raised the drawer. Only when the
-    // drawer was actually standing -- a navigation closes it whether or not it was open, and
-    // taking the focus off what somebody just clicked is not a close.
-    const closeDrawer = useCallback(() => {
-        if (!wasOpen.current) return
-        setDrawerOpen(false)
-        menu.current?.focus()
-    }, [])
+    const apple = applePlatform(navigator.userAgent)
 
     const openSettings = useCallback(() => {
-        // One surface at a time: the palette could open Settings over the shortcuts list.
-        setShortcutsOpen(false)
         setSettingsAsked(true)
         setSettingsOpen(true)
     }, [])
 
-    const openShortcuts = useCallback(() => {
-        setShortcutsOpen(true)
-    }, [])
-    useAppShortcuts(openShortcuts)
+    useAppShortcuts()
 
     // A bare key belongs to whatever is in front of somebody, and while one of these is up
     // that is the dialog rather than the app. `lib/dialogs` is what the key listener reads.
     useEffect(() => setDialogOpen('settings', settingsOpen), [settingsOpen])
-    useEffect(() => setDialogOpen('shortcuts', shortcutsOpen), [shortcutsOpen])
+    useEffect(() => setDialogOpen('palette', paletteOpen), [paletteOpen])
 
-    const actions = useMemo<PaletteAction[]>(() => {
-        const pages: PaletteAction[] = entriesFor(caps).map((entry) => ({
+    // One surface at a time: the palette opens over nothing else; see `mayOpen`.
+    const mayOpenPalette = useCallback(() => mayOpen('palette', standingNow()), [])
+    const choosePaletteOpen = useCallback((open: boolean) => {
+        // Two modals stacked is one scrim over the thing the other is about.
+        if (open) closeSearch()
+        setPaletteOpen(open)
+    }, [])
+
+    const rail = useMemo<RailGroup[]>(
+        () =>
+            sectionsFor(caps).map((section) => ({
+                id: section.id,
+                title: section.label ?? undefined,
+                entries: section.entries.map((entry) => ({
+                    id: entry.path,
+                    label: entry.label,
+                    icon: entry.icon,
+                    href: entry.path,
+                    // What is marked is `lib/nav`'s decision, not the router's; see `marks`.
+                    active: marks(entry.path, pathname),
+                })),
+            })),
+        [caps, pathname],
+    )
+
+    const keys = useMemo<ShortcutGroup[]>(
+        () => [{ title: SHORTCUTS_GROUP, shortcuts: shortcuts(apple) }],
+        [apple],
+    )
+
+    const palette = useMemo<PaletteGroup[]>(() => {
+        const pages: PaletteCommand[] = entriesFor(caps).map((entry) => ({
             id: `go:${entry.path}`,
-            title: entry.label,
-            group: GO_GROUP,
+            label: entry.label,
             hint: entry.hint,
             icon: entry.icon,
             keywords: [entry.path],
-            run: () => {
+            onSelect: () => {
                 void navigate(entry.path)
             },
         }))
         // WHAT THE PALETTE OFFERS IS WHAT IS PLAYING. A book steps by chapters and jumps by
         // fifteen seconds and is read at a speed; a record shuffles and repeats. Offering both
         // sets at once would be a list of rows half of which do nothing to the thing sounding.
-        const bookRows: PaletteAction[] = [
+        const bookRows: PaletteCommand[] = [
             ...(chapterCount > 0
                 ? [
                       {
                           id: 'play:next',
-                          title: 'Next chapter',
-                          group: PLAYBACK_GROUP,
+                          label: 'Next chapter',
                           icon: SkipForward,
                           keywords: ['skip', 'forward', 'chapter'],
-                          run: next,
+                          onSelect: next,
                       },
                       {
                           id: 'play:previous',
-                          title: 'Previous chapter',
-                          group: PLAYBACK_GROUP,
+                          label: 'Previous chapter',
                           icon: SkipBack,
                           keywords: ['back', 'again', 'chapter'],
-                          run: previous,
+                          onSelect: previous,
                       },
                   ]
                 : []),
             {
                 id: 'play:forward',
-                title: `Forward ${String(SKIP_S)} seconds`,
-                group: PLAYBACK_GROUP,
+                label: `Forward ${String(SKIP_S)} seconds`,
                 icon: RotateCw,
                 keywords: ['skip', 'jump', 'ahead'],
-                run: () => {
+                onSelect: () => {
                     skipBy(SKIP_S)
                 },
             },
             {
                 id: 'play:back',
-                title: `Back ${String(SKIP_S)} seconds`,
-                group: PLAYBACK_GROUP,
+                label: `Back ${String(SKIP_S)} seconds`,
                 icon: RotateCcw,
                 keywords: ['skip', 'jump', 'again', 'missed'],
-                run: () => {
+                onSelect: () => {
                     skipBy(-SKIP_S)
                 },
             },
@@ -248,60 +292,54 @@ export function AppShell({ children }: { children: ReactNode }) {
             // half is asking for one and a half, not for four presses of "a bit faster".
             ...SPEEDS.map((speed) => ({
                 id: `play:speed-${String(speed)}`,
-                title: `Read at ${String(speed)}x`,
-                group: PLAYBACK_GROUP,
+                label: `Read at ${String(speed)}x`,
                 icon: Gauge,
                 keywords: ['speed', 'rate', 'faster', 'slower', 'narration'],
-                run: () => {
+                onSelect: () => {
                     setSpeed(speed)
                 },
             })),
         ]
-        const transport: PaletteAction[] =
+        const transport: PaletteCommand[] =
             queuedCount > 0 || station !== null || bookId !== null
                 ? [
                       {
                           id: 'play:toggle',
-                          title: playing ? 'Pause' : 'Play',
-                          group: PLAYBACK_GROUP,
+                          label: playing ? 'Pause' : 'Play',
                           icon: playing ? Pause : Play,
                           keywords: ['stop', 'resume', 'transport'],
-                          run: toggle,
+                          onSelect: toggle,
                       },
                       ...(bookId !== null ? bookRows : []),
                       ...(bookId === null && station === null
                           ? [
                                 {
                                     id: 'play:next',
-                                    title: 'Next track',
-                                    group: PLAYBACK_GROUP,
+                                    label: 'Next track',
                                     icon: SkipForward,
                                     keywords: ['skip', 'forward'],
-                                    run: next,
+                                    onSelect: next,
                                 },
                                 {
                                     id: 'play:previous',
-                                    title: 'Previous track',
-                                    group: PLAYBACK_GROUP,
+                                    label: 'Previous track',
                                     icon: SkipBack,
                                     keywords: ['back', 'again'],
-                                    run: previous,
+                                    onSelect: previous,
                                 },
                                 {
                                     id: 'play:shuffle',
-                                    title: shuffle ? 'Play in the album order' : 'Shuffle the queue',
-                                    group: PLAYBACK_GROUP,
+                                    label: shuffle ? 'Play in the album order' : 'Shuffle the queue',
                                     icon: Shuffle,
                                     keywords: ['random', 'mix'],
-                                    run: toggleShuffle,
+                                    onSelect: toggleShuffle,
                                 },
                                 {
                                     id: 'play:repeat',
-                                    title: REPEAT_LABELS[nextRepeat(repeat)],
-                                    group: PLAYBACK_GROUP,
+                                    label: REPEAT_LABELS[nextRepeat(repeat)],
                                     icon: Repeat,
                                     keywords: ['loop', 'again', 'repeat'],
-                                    run: cycleRepeat,
+                                    onSelect: cycleRepeat,
                                 },
                                 // WHAT ONLY A KEYBOARD COULD DO, OFFERED TO EVERYBODY. The star
                                 // and the two arrows were a chord each and nothing on any
@@ -309,31 +347,28 @@ export function AppShell({ children }: { children: ReactNode }) {
                                 // has no row in the library to star and nothing to seek in.
                                 {
                                     id: 'play:star',
-                                    title: 'Star what is playing',
-                                    group: PLAYBACK_GROUP,
+                                    label: 'Star what is playing',
                                     icon: Star,
                                     keywords: ['favourite', 'favorite', 'love', 'mark', 'unstar'],
-                                    run: () => {
+                                    onSelect: () => {
                                         toggleStar(music ?? undefined, currentSong())
                                     },
                                 },
                                 {
                                     id: 'play:seek-back',
-                                    title: `Move ${String(SEEK_STEP_S)} seconds back`,
-                                    group: PLAYBACK_GROUP,
+                                    label: `Move ${String(SEEK_STEP_S)} seconds back`,
                                     icon: Rewind,
                                     keywords: ['seek', 'rewind', 'scrub', 'position'],
-                                    run: () => {
+                                    onSelect: () => {
                                         seek(playerStore.get().positionS - SEEK_STEP_S)
                                     },
                                 },
                                 {
                                     id: 'play:seek-forward',
-                                    title: `Move ${String(SEEK_STEP_S)} seconds forward`,
-                                    group: PLAYBACK_GROUP,
+                                    label: `Move ${String(SEEK_STEP_S)} seconds forward`,
                                     icon: FastForward,
                                     keywords: ['seek', 'skip', 'scrub', 'position'],
-                                    run: () => {
+                                    onSelect: () => {
                                         seek(playerStore.get().positionS + SEEK_STEP_S)
                                     },
                                 },
@@ -345,21 +380,19 @@ export function AppShell({ children }: { children: ReactNode }) {
                       // moves under a dragged slider is what `useStoreValue` exists to avoid.
                       {
                           id: 'play:louder',
-                          title: 'Turn it up',
-                          group: PLAYBACK_GROUP,
+                          label: 'Turn it up',
                           icon: Volume2,
                           keywords: ['volume', 'loud', 'level', 'up'],
-                          run: () => {
+                          onSelect: () => {
                               setVolume(playerStore.get().volume + VOLUME_STEP)
                           },
                       },
                       {
                           id: 'play:quieter',
-                          title: 'Turn it down',
-                          group: PLAYBACK_GROUP,
+                          label: 'Turn it down',
                           icon: Volume1,
                           keywords: ['volume', 'quiet', 'level', 'down'],
-                          run: () => {
+                          onSelect: () => {
                               setVolume(playerStore.get().volume - VOLUME_STEP)
                           },
                       },
@@ -368,35 +401,30 @@ export function AppShell({ children }: { children: ReactNode }) {
                           // read whether it is muted and a row that said "Unmute" to somebody
                           // who is not muted would be worse than one that says neither.
                           id: 'play:mute',
-                          title: 'Silence it, or bring it back',
-                          group: PLAYBACK_GROUP,
+                          label: 'Silence it, or bring it back',
                           icon: VolumeX,
                           keywords: ['mute', 'unmute', 'quiet', 'silence', 'volume'],
-                          run: toggleMuted,
+                          onSelect: toggleMuted,
                       },
                   ]
                 : []
-        return [
-            ...pages,
-            ...transport,
+        const view: PaletteCommand[] = [
             {
                 id: 'view:rail',
-                title: collapsed ? 'Expand the navigation' : 'Collapse the navigation',
-                group: VIEW_GROUP,
+                label: collapsed ? 'Expand the navigation' : 'Collapse the navigation',
                 icon: PanelLeft,
                 keywords: ['sidebar', 'rail'],
-                run: toggleRail,
+                onSelect: toggleRail,
             },
             ...(radioOnly
                 ? []
                 : [
                       {
                           id: 'view:search',
-                          title: SEARCH_TITLE,
-                          group: VIEW_GROUP,
+                          label: SEARCH_TITLE,
                           icon: Search,
                           keywords: ['find', 'artist', 'album', 'track', 'song'],
-                          run: openSearch,
+                          onSelect: openSearch,
                       },
                   ]),
             // The words are a track's, so the row is offered while there is one. A station has
@@ -405,11 +433,10 @@ export function AppShell({ children }: { children: ReactNode }) {
                 ? [
                       {
                           id: 'view:lyrics',
-                          title: 'Show the words of what is playing',
-                          group: VIEW_GROUP,
+                          label: 'Show the words of what is playing',
                           icon: MicVocal,
                           keywords: ['lyrics', 'words', 'sing', 'along'],
-                          run: openLyrics,
+                          onSelect: openLyrics,
                       },
                   ]
                 : []),
@@ -418,28 +445,25 @@ export function AppShell({ children }: { children: ReactNode }) {
                 : [
                       {
                           id: 'view:visualizer',
-                          title: spectrum ? 'Hide the spectrum' : 'Show the spectrum',
-                          group: VIEW_GROUP,
+                          label: spectrum ? 'Hide the spectrum' : 'Show the spectrum',
                           icon: ListMusic,
                           keywords: ['visualiser', 'visualizer', 'bars', 'analyser'],
-                          run: toggleVisualizer,
+                          onSelect: toggleVisualizer,
                       },
                       {
                           id: 'view:stage',
-                          title: 'Put the spectrum over the whole screen',
-                          group: VIEW_GROUP,
+                          label: 'Put the spectrum over the whole screen',
                           icon: Maximize2,
                           keywords: ['fullscreen', 'full screen', 'stage', 'visualiser', 'visualizer'],
-                          run: openStage,
+                          onSelect: openStage,
                       },
                   ]),
             {
                 id: 'view:settings',
-                title: 'Open settings',
-                group: VIEW_GROUP,
+                label: 'Open settings',
                 icon: Settings,
                 keywords: ['preferences', 'appearance', 'volume', 'account', 'server'],
-                run: openSettings,
+                onSelect: openSettings,
             },
             // Offered only where there is a library to walk: a row that asked a server with no
             // music to reindex its music would be a row that can only fail.
@@ -447,11 +471,10 @@ export function AppShell({ children }: { children: ReactNode }) {
                 ? [
                       {
                           id: 'view:rescan',
-                          title: RESCAN_LABEL,
-                          group: VIEW_GROUP,
+                          label: RESCAN_LABEL,
                           icon: RefreshCw,
                           keywords: ['scan', 'refresh', 'reindex', 'library', 'reload', 'new albums'],
-                          run: () => {
+                          onSelect: () => {
                               void rescan(music)
                           },
                       },
@@ -459,56 +482,62 @@ export function AppShell({ children }: { children: ReactNode }) {
                 : []),
             {
                 id: 'view:shortcuts',
-                title: 'Keyboard shortcuts',
-                group: VIEW_GROUP,
+                label: 'Keyboard shortcuts',
                 icon: Keyboard,
                 keywords: ['keys', 'chords', 'help'],
-                run: () => {
-                    setShortcutsOpen(true)
+                onSelect: () => {
+                    openShortcuts.current?.()
                 },
             },
+        ]
+        const appearance: PaletteCommand[] = [
             ...MODES.map((mode) => ({
                 id: `appearance:${mode}`,
-                title: MODE_LABELS[mode],
-                group: APPEARANCE_GROUP,
+                label: MODE_LABELS[mode],
                 icon: mode === 'light' ? Sun : mode === 'dark' ? Moon : Monitor,
                 keywords: ['theme', 'appearance', mode],
-                run: () => {
-                    setTheme(mode)
+                onSelect: () => {
+                    setScheme(mode)
                 },
             })),
             {
                 id: 'appearance:spectrum-style',
-                title: 'Next spectrum style',
-                group: APPEARANCE_GROUP,
+                label: 'Next spectrum style',
                 icon: AudioLines,
                 // Every style, not the one that happens to be next: a row found by typing
                 // "scope" is a row that answers whichever style is in front of somebody.
                 keywords: ['spectrum', 'visualiser', 'visualizer', 'bars', 'mirror', 'ridge', 'scope'],
-                run: () => {
+                onSelect: () => {
                     cycleVisualizerStyle()
                 },
             },
             // The palette carries the spectrum's ramp, so this is the one colour row there is:
             // what used to be a list of ramps here is a list of palettes.
-            ...PALETTES.map((palette) => ({
-                id: `appearance:palette-${palette.name}`,
-                title: `Palette: ${palette.label}`,
-                group: APPEARANCE_GROUP,
+            ...PALETTES.map((one) => ({
+                id: `appearance:palette-${one.name}`,
+                label: `Palette: ${one.label}`,
                 icon: Palette,
-                keywords: ['palette', 'theme', 'colour', 'color', 'spectrum', palette.name],
-                run: () => {
-                    choosePalette(palette.name)
+                keywords: ['palette', 'theme', 'colour', 'color', 'spectrum', one.name],
+                onSelect: () => {
+                    choosePalette(one.name)
                 },
             })),
+        ]
+        const leaving: PaletteCommand[] = [
             {
                 id: 'session:sign-out',
-                title: radioOnly ? SIGN_IN_LABEL : SIGN_OUT_LABEL,
-                group: SESSION_GROUP,
+                label: radioOnly ? SIGN_IN_LABEL : SIGN_OUT_LABEL,
                 icon: radioOnly ? LogIn : LogOut,
                 keywords: ['logout', 'leave', 'server'],
-                run: signOut,
+                onSelect: signOut,
             },
+        ]
+        return [
+            { title: GO_GROUP, commands: pages },
+            { title: PLAYBACK_GROUP, commands: transport },
+            { title: VIEW_GROUP, commands: view },
+            { title: APPEARANCE_GROUP, commands: appearance },
+            { title: SESSION_GROUP, commands: leaving },
         ]
     }, [
         admin,
@@ -525,115 +554,145 @@ export function AppShell({ children }: { children: ReactNode }) {
         repeat,
         shuffle,
         station,
-        setTheme,
+        setScheme,
         spectrum,
     ])
 
-    useEffect(() => registerActions(actions), [actions])
-
-    const modifier = modifierLabel(applePlatform(navigator.userAgent))
+    // Listening without a server there is no account: the corner says so, and the way out is
+    // to sign in to one rather than to sign out of nothing.
+    const name = radioOnly ? 'Radio only' : (session.username ?? 'Signed in')
+    const host = radioOnly ? 'No server' : serverHost(session.baseUrl)
+    const saying = status.note !== null || status.identifier !== null
 
     return (
-        // The page is laid out under the notch and the home indicator (`viewport-fit=cover`), so
-        // the shell keeps clear of them itself: the safe areas are zero everywhere else.
-        <div className="flex h-svh flex-col overflow-hidden bg-background pt-[env(safe-area-inset-top)] pr-[env(safe-area-inset-right)] pb-[env(safe-area-inset-bottom)] pl-[env(safe-area-inset-left)] text-foreground">
-            {/* THE THREE COLUMNS, AND ONE RULE UNDER ALL OF THEM. The rail's head, the top strip
-                and the panel's tab strip are each `h-shell-top`, and the line beneath them is
-                drawn once across the whole width rather than three times -- three borders
-                meeting at two column edges is a rule that can come apart. */}
-            <div className="relative flex min-h-0 flex-1">
-                <Rail />
-                <div className="flex min-h-0 min-w-0 flex-1 flex-col">
-                    <header
-                        data-shell-strip="top"
-                        className="flex h-shell-top shrink-0 items-center gap-2 bg-sidebar px-3"
-                    >
-                        {/* The rail is not drawn below the breakpoint, so this is the way to it. */}
-                        <Button
-                            ref={menu}
-                            variant="ghost"
-                            size="icon-sm"
-                            aria-label={OPEN_NAV_LABEL}
-                            className="md:hidden"
-                            onClick={() => {
-                                setDrawerOpen(true)
-                            }}
-                        >
-                            <Menu className="size-4" aria-hidden />
-                        </Button>
-                        {/* Where the client this replaces kept it. It holds nothing and opens
-                            the overlay with whatever was typed into it -- see `SearchBox`. */}
-                        <SearchBox />
-                        <div className="flex-1" />
-                        {caps !== null && (
-                            <span className="hidden font-mono text-xs text-muted-foreground sm:inline">
-                                {caps.server} {caps.version}
-                            </span>
-                        )}
-                        <Tooltip>
-                            <TooltipTrigger
-                                render={
-                                    <Button
-                                        variant="outline"
-                                        size="sm"
-                                        className="px-2 font-mono text-xs text-muted-foreground"
-                                        onClick={() => {
-                                            paletteOpen.set(true)
-                                        }}
-                                        aria-label={OPEN_PALETTE_LABEL}
-                                    >
-                                        {/* There is no keyboard below the breakpoint, so what the
-                                            button carries there is the glyph rather than the chord. */}
-                                        <Search className="size-4 md:hidden" aria-hidden />
-                                        <span className="hidden md:inline">{modifier}K</span>
-                                    </Button>
-                                }
+        <>
+            <Shell
+                rail={
+                    <Rail
+                        mark={<Cat className="size-4" aria-hidden />}
+                        name="maneki"
+                        groups={rail}
+                        collapsed={collapsed}
+                        onCollapsedChange={setRailCollapsed}
+                        size={width}
+                        onSizeChange={setRailWidth}
+                        minSize={RAIL_MIN_WIDTH}
+                        maxSize={RAIL_MAX_WIDTH}
+                        defaultSize={RAIL_WIDTH}
+                        renderLink={railLink}
+                        foot={
+                            <AccountMenu
+                                name={name}
+                                where={host === '' ? undefined : host}
+                                collapsed={collapsed}
+                                onSettings={openSettings}
+                                onSignOut={signOut}
+                                words={{ signOut: radioOnly ? SIGN_IN_LABEL : SIGN_OUT_LABEL }}
                             />
-                            <TooltipContent side="bottom">{OPEN_PALETTE_LABEL}</TooltipContent>
-                        </Tooltip>
-                        <ThemeToggle />
-                    </header>
-
-                    {/* A server that has stopped answering is the app's news, not one screen's,
-                        so it is said once above the work rather than by each screen in turn. */}
-                    <ConnectionBanner />
-
-                    {/* Keyed on the server coming back, so a screen that failed while it was gone loads
-                        again instead of keeping the sentence; see `recoveries`. */}
-                    <main key={recovered} className="flex min-h-0 w-full flex-1 flex-col overflow-y-auto">
-                        {children}
-                    </main>
+                        }
+                    />
+                }
+                top={
+                    <TopBar
+                        actions={
+                            <>
+                                {caps !== null && (
+                                    <span className="hidden font-mono text-xs text-muted-foreground sm:inline">
+                                        {caps.server} {caps.version}
+                                    </span>
+                                )}
+                                <SchemeToggle />
+                            </>
+                        }
+                    />
+                }
+                // A server that has stopped answering is the app's news, not one screen's, so
+                // it is said once above the work rather than by each screen in turn.
+                banner={<ConnectionBanner />}
+                bottom={<PlayerBar />}
+                // On a phone a foot with nothing to say is a strip of nothing under the player,
+                // so the status line is drawn only while a screen has something to state.
+                foot={
+                    saying ? (
+                        <StatusLine note={status.note ?? undefined} tone={status.tone}>
+                            {status.identifier !== null && <StatusItem code>{status.identifier}</StatusItem>}
+                        </StatusLine>
+                    ) : undefined
+                }
+                route={pathname}
+                palette={palette}
+                paletteOpen={paletteOpen}
+                onPaletteOpenChange={choosePaletteOpen}
+                mayOpenPalette={mayOpenPalette}
+                shortcuts={keys}
+                desktop={desktopWindow()}
+            >
+                <ShellBridge onShortcuts={holdShortcuts} />
+                {/* Keyed on the server coming back, so a screen that failed while it was gone
+                    loads again instead of keeping the sentence; see `recoveries`. As tall as the
+                    content, so a screen that fills the height it was given still can. */}
+                <div key={recovered} className="flex h-full w-full flex-col">
+                    {children}
                 </div>
-                <div
-                    data-shell-rule="top"
-                    className="pointer-events-none absolute inset-x-0 top-shell-top z-20 h-px bg-border-strong"
-                    aria-hidden
-                />
-            </div>
+            </Shell>
 
-            <PlayerBar />
-            <StatusBar onSettings={openSettings} onShortcuts={openShortcuts} />
-
-            <NavDrawer
-                open={drawerOpen}
-                onClose={closeDrawer}
-                onSettings={openSettings}
-                onShortcuts={openShortcuts}
-            />
-
+            {/* Outside the shell's content, which contains what is fixed inside it: these cover
+                the whole window, and make everything beside them inert while they stand. */}
             <FullscreenVisualizer />
             <LyricsOverlay />
-
             <SearchOverlay />
-            <CommandPalette />
-            <ShortcutsDialog open={shortcutsOpen} onOpenChange={setShortcutsOpen} />
             {settingsAsked && (
                 <Suspense fallback={null}>
                     <SettingsDialog open={settingsOpen} onOpenChange={setSettingsOpen} />
                 </Suspense>
             )}
-        </div>
+        </>
     )
+}
+
+/**
+ * A rail entry as the router's link, so a hash route is followed rather than reloaded.
+ *
+ * WebKit (the macOS app, Safari) leaves links out of the Tab order unless the reader turned a
+ * system setting on, so without `tabIndex` the rail could not be reached from the keyboard.
+ */
+function railLink(entry: RailEntry, children: ReactNode, className: string): ReactNode {
+    return (
+        <Link
+            to={entry.href ?? '/'}
+            tabIndex={0}
+            className={className}
+            aria-current={entry.active === true ? 'page' : undefined}
+        >
+            {children}
+        </Link>
+    )
+}
+
+/**
+ * What the shell holds that the app reaches from outside it.
+ *
+ * The shortcuts dialog is the shell's, and the palette's row for it is built out here. The stage
+ * and the lyrics are the app's own full-screen views, so the shell's keys (the palette's chord
+ * and `?`) stay quiet over them, as `mayOpen` says no dialog stacks on either.
+ */
+function ShellBridge({ onShortcuts }: { onShortcuts: (open: (() => void) | undefined) => void }) {
+    const showShortcuts = useContext(ShellShortcuts)
+    const registry = useShortcutRegistry()
+    const stage = useStore(stageOpen)
+    const lyrics = useStore(lyricsOpen)
+    useEffect(() => {
+        onShortcuts(showShortcuts)
+    }, [onShortcuts, showShortcuts])
+    useEffect(() => {
+        registry.surface('stage', stage)
+        registry.surface('lyrics', lyrics)
+        return () => {
+            registry.surface('stage', false)
+            registry.surface('lyrics', false)
+        }
+    }, [registry, stage, lyrics])
+    return null
 }
 
 /** Where a reader with no address of their own lands, which the router asks for. */

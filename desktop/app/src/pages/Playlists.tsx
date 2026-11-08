@@ -6,11 +6,11 @@ import { toast } from 'sonner'
 import { DeletePlaylistDialog, NameDialog } from '@/components/PlaylistDialogs'
 import { Skeleton } from '@/components/Skeleton'
 import { Button } from '@/components/ui/button'
+import { useCommands } from '@winterop-com/sokkel-ui/hooks/use-commands'
 import { useStore, useStoreValue } from '@winterop-com/sokkel-ui/hooks/use-store'
 import { playingRow } from '@/lib/queue'
 import { clock, duration, trackCount } from '@/lib/format'
-import { PLAYLISTS_PATH } from '@/lib/nav'
-import { registerActions, SCREEN_GROUP } from '@/lib/palette'
+import { PLAYLISTS_PATH, SCREEN_GROUP } from '@/lib/nav'
 import { play, playerStore } from '@/lib/player'
 import { clearScreenStatus, setScreenStatus } from '@/lib/screen-status'
 import { sessionStore } from '@/lib/session'
@@ -79,19 +79,21 @@ function PlaylistList({ credentials }: { credentials: Credentials }) {
         }
     }, [credentials])
 
-    useEffect(
-        () =>
-            registerActions([
-                {
-                    id: 'playlists:new',
-                    title: NEW_LABEL,
-                    group: SCREEN_GROUP,
-                    screen: true,
-                    icon: Plus,
-                    keywords: ['playlist', 'create', 'make'],
-                    run: () => setNaming(true),
-                },
-            ]),
+    useCommands(
+        [
+            {
+                title: SCREEN_GROUP,
+                commands: [
+                    {
+                        id: 'playlists:new',
+                        label: NEW_LABEL,
+                        icon: Plus,
+                        keywords: ['playlist', 'create', 'make'],
+                        onSelect: () => setNaming(true),
+                    },
+                ],
+            },
+        ],
         [],
     )
 
@@ -224,42 +226,44 @@ function PlaylistScreen({ credentials, id }: { credentials: Credentials; id: str
             ),
         [queue, queueIndex, songs],
     )
-    useEffect(() => {
-        if (name === null) return
-        return registerActions([
-            ...(songs.length > 0
-                ? [
-                      {
-                          id: 'playlist:play',
-                          title: 'Play this playlist',
-                          group: SCREEN_GROUP,
-                          screen: true,
-                          icon: Play,
-                          keywords: ['playlist', 'start'],
-                          run: () => play(songs, 0),
-                      },
-                  ]
-                : []),
+    useCommands(
+        [
             {
-                id: 'playlist:rename',
-                title: RENAME_LABEL,
-                group: SCREEN_GROUP,
-                screen: true,
-                icon: Pencil,
-                keywords: ['playlist', 'name', 'title'],
-                run: () => setRenaming(true),
+                title: SCREEN_GROUP,
+                commands:
+                    name === null
+                        ? []
+                        : [
+                              ...(songs.length > 0
+                                  ? [
+                                        {
+                                            id: 'playlist:play',
+                                            label: 'Play this playlist',
+                                            icon: Play,
+                                            keywords: ['playlist', 'start'],
+                                            onSelect: () => play(songs, 0),
+                                        },
+                                    ]
+                                  : []),
+                              {
+                                  id: 'playlist:rename',
+                                  label: RENAME_LABEL,
+                                  icon: Pencil,
+                                  keywords: ['playlist', 'name', 'title'],
+                                  onSelect: () => setRenaming(true),
+                              },
+                              {
+                                  id: 'playlist:delete',
+                                  label: DELETE_LABEL,
+                                  icon: Trash2,
+                                  keywords: ['playlist', 'remove'],
+                                  onSelect: () => setDeleting(true),
+                              },
+                          ],
             },
-            {
-                id: 'playlist:delete',
-                title: DELETE_LABEL,
-                group: SCREEN_GROUP,
-                screen: true,
-                icon: Trash2,
-                keywords: ['playlist', 'remove'],
-                run: () => setDeleting(true),
-            },
-        ])
-    }, [name, songs])
+        ],
+        [name, songs],
+    )
 
     if (refusal) return <Notice>{refusal}</Notice>
     if (!data) {

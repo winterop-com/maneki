@@ -8,8 +8,9 @@ import { Button } from '@/components/ui/button'
 import { claimMediaSession } from '@/lib/media-session'
 import { video as videoApi } from '@/lib/api'
 import { clock } from '@/lib/format'
+import { useCommands } from '@winterop-com/sokkel-ui/hooks/use-commands'
+import { SCREEN_GROUP } from '@/lib/nav'
 import { useStore } from '@winterop-com/sokkel-ui/hooks/use-store'
-import { registerActions, SCREEN_GROUP } from '@/lib/palette'
 import { inDesktopShell } from '@/lib/desktop'
 import { claimMuteKey, claimStageKey, claimTransport, claimVolumeKeys } from '@/lib/screen-keys'
 import { clearScreenStatus, setScreenStatus } from '@/lib/screen-status'
@@ -498,37 +499,35 @@ function Watch({ id }: { id: string }) {
         }
     }, [])
 
-    useEffect(
-        () =>
-            registerActions([
-                {
-                    id: 'video:theater',
-                    title: theater ? 'Show the list beside the video' : THEATER_LABEL,
-                    group: SCREEN_GROUP,
-                    screen: true,
-                    icon: PanelRight,
-                    keywords: ['theater', 'theatre', 'wide', 'list'],
-                    run: toggleTheater,
-                },
-                {
-                    id: 'video:fullscreen',
-                    title: filled ? LEAVE_FULLSCREEN_LABEL : FULLSCREEN_LABEL,
-                    group: SCREEN_GROUP,
-                    screen: true,
-                    icon: Maximize2,
-                    keywords: ['full screen', 'fullscreen', 'stage'],
-                    run: fullscreen,
-                },
-                {
-                    id: 'video:stats',
-                    title: stats ? 'Hide the stream stats' : STATS_LABEL,
-                    group: SCREEN_GROUP,
-                    screen: true,
-                    icon: Activity,
-                    keywords: ['transcode', 'buffer', 'encoder', 'bandwidth', 'diagnostics'],
-                    run: toggleStats,
-                },
-            ]),
+    useCommands(
+        [
+            {
+                title: SCREEN_GROUP,
+                commands: [
+                    {
+                        id: 'video:theater',
+                        label: theater ? 'Show the list beside the video' : THEATER_LABEL,
+                        icon: PanelRight,
+                        keywords: ['theater', 'theatre', 'wide', 'list'],
+                        onSelect: toggleTheater,
+                    },
+                    {
+                        id: 'video:fullscreen',
+                        label: filled ? LEAVE_FULLSCREEN_LABEL : FULLSCREEN_LABEL,
+                        icon: Maximize2,
+                        keywords: ['full screen', 'fullscreen', 'stage'],
+                        onSelect: fullscreen,
+                    },
+                    {
+                        id: 'video:stats',
+                        label: stats ? 'Hide the stream stats' : STATS_LABEL,
+                        icon: Activity,
+                        keywords: ['transcode', 'buffer', 'encoder', 'bandwidth', 'diagnostics'],
+                        onSelect: toggleStats,
+                    },
+                ],
+            },
+        ],
         [filled, fullscreen, stats, theater, toggleStats],
     )
 

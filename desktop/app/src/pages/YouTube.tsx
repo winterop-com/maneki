@@ -1,5 +1,5 @@
 import { ChevronLeft, Plus, RefreshCw, Trash2 } from 'lucide-react'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useLocation, useNavigate, useParams, useSearchParams } from 'react-router'
 
 import { Skeleton } from '@/components/Skeleton'
@@ -7,12 +7,13 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { VideoPlayer, type VideoHandle } from '@/components/video/VideoPlayer'
+import { useCommands } from '@winterop-com/sokkel-ui/hooks/use-commands'
+import { SCREEN_GROUP } from '@/lib/nav'
 import { useStore } from '@winterop-com/sokkel-ui/hooks/use-store'
 import { claimMediaSession } from '@/lib/media-session'
 import { youtube as youtubeApi } from '@/lib/api'
 import { inDesktopShell } from '@/lib/desktop'
 import { clock } from '@/lib/format'
-import { registerActions, SCREEN_GROUP, type PaletteAction } from '@/lib/palette'
 import { claimMuteKey, claimStageKey, claimTransport, claimVolumeKeys } from '@/lib/screen-keys'
 import { clearScreenStatus, setScreenStatus, type StatusTone } from '@/lib/screen-status'
 import { sessionStore } from '@/lib/session'
@@ -198,30 +199,30 @@ function Channels() {
         setAsk(again(CHANNELS_READ))
     }, [])
 
-    const actions = useMemo<PaletteAction[]>(
-        () => [
+    useCommands(
+        [
             {
-                id: 'youtube:add',
-                title: 'Add a channel',
-                group: SCREEN_GROUP,
-                screen: true,
-                icon: Plus,
-                keywords: ['subscribe', 'channel', 'youtube', 'follow'],
-                run: focusBox,
-            },
-            {
-                id: 'youtube:refresh',
-                title: 'Check the channels for new uploads',
-                group: SCREEN_GROUP,
-                screen: true,
-                icon: RefreshCw,
-                keywords: ['reload', 'refresh', 'again', 'uploads'],
-                run: refresh,
+                title: SCREEN_GROUP,
+                commands: [
+                    {
+                        id: 'youtube:add',
+                        label: 'Add a channel',
+                        icon: Plus,
+                        keywords: ['subscribe', 'channel', 'youtube', 'follow'],
+                        onSelect: focusBox,
+                    },
+                    {
+                        id: 'youtube:refresh',
+                        label: 'Check the channels for new uploads',
+                        icon: RefreshCw,
+                        keywords: ['reload', 'refresh', 'again', 'uploads'],
+                        onSelect: refresh,
+                    },
+                ],
             },
         ],
         [focusBox, refresh],
     )
-    useEffect(() => registerActions(actions), [actions])
 
     /**
      * Subscribe to whatever was pasted.
@@ -427,32 +428,32 @@ function Channel({ id }: { id: string }) {
         setAsk(again(read))
     }, [read])
 
-    const actions = useMemo<PaletteAction[]>(
-        () => [
+    useCommands(
+        [
             {
-                id: 'youtube:refresh',
-                title: 'Check this channel for new uploads',
-                group: SCREEN_GROUP,
-                screen: true,
-                icon: RefreshCw,
-                keywords: ['reload', 'refresh', 'again', 'uploads'],
-                run: refresh,
-            },
-            {
-                id: 'youtube:add',
-                title: 'Add a channel',
-                group: SCREEN_GROUP,
-                screen: true,
-                icon: Plus,
-                keywords: ['subscribe', 'channel', 'youtube', 'follow'],
-                run: () => {
-                    navigate('/youtube')
-                },
+                title: SCREEN_GROUP,
+                commands: [
+                    {
+                        id: 'youtube:refresh',
+                        label: 'Check this channel for new uploads',
+                        icon: RefreshCw,
+                        keywords: ['reload', 'refresh', 'again', 'uploads'],
+                        onSelect: refresh,
+                    },
+                    {
+                        id: 'youtube:add',
+                        label: 'Add a channel',
+                        icon: Plus,
+                        keywords: ['subscribe', 'channel', 'youtube', 'follow'],
+                        onSelect: () => {
+                            navigate('/youtube')
+                        },
+                    },
+                ],
             },
         ],
         [navigate, refresh],
     )
-    useEffect(() => registerActions(actions), [actions])
 
     const shown = held?.value === undefined || held.value === null ? null : itemsOn(held.value, tab)
     const refusal = held?.refusal ?? null

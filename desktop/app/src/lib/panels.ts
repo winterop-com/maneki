@@ -16,9 +16,6 @@ export const RAIL_MIN_WIDTH = 160
 /** Wider is dead space: the longest label fits long before this. */
 export const RAIL_MAX_WIDTH = 320
 
-/** Its width when collapsed: icons, and the room for a focus ring around them. */
-export const RAIL_COLLAPSED_WIDTH = 56
-
 const RAIL_KEY = 'maneki.railCollapsed'
 const RAIL_WIDTH_KEY = 'maneki.railWidth'
 
@@ -56,21 +53,15 @@ export function clampRailWidth(width: number): number {
 export const railCollapsed = createStore(readFlag(RAIL_KEY, false))
 export const railWidth = createStore(readWidth(RAIL_WIDTH_KEY, RAIL_WIDTH, clampRailWidth))
 
-/**
- * Whether the rail's edge is being dragged right now.
- *
- * Everything that follows the rail's width -- the status bar's settings cell as much as the
- * rail itself -- animates a committed width and follows a dragged one raw: a transition
- * chasing a hand makes the edge rubber-band behind it.
- */
-export const railDragging = createStore(false)
+/** Collapse or expand the navigation rail, as the rail's own control asks. */
+export function setRailCollapsed(collapsed: boolean): void {
+    railCollapsed.set(collapsed)
+    write(RAIL_KEY, String(collapsed))
+}
 
 /** Collapse or expand the navigation rail. */
 export function toggleRail(): void {
-    railCollapsed.update((collapsed) => {
-        write(RAIL_KEY, String(!collapsed))
-        return !collapsed
-    })
+    setRailCollapsed(!railCollapsed.get())
 }
 
 /** Set the rail's width, in pixels, clamped to what the shell can draw. */

@@ -7,10 +7,11 @@ import { Spinner } from '@/components/Spinner'
 import { Skeleton } from '@/components/Skeleton'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { useCommands } from '@winterop-com/sokkel-ui/hooks/use-commands'
+import { SCREEN_GROUP } from '@/lib/nav'
 import { useStore } from '@winterop-com/sokkel-ui/hooks/use-store'
 import { video as videoApi } from '@/lib/api'
 import { clock, progressRatio } from '@/lib/format'
-import { registerActions, SCREEN_GROUP } from '@/lib/palette'
 import { clearScreenStatus, scanNote, setScreenStatus } from '@/lib/screen-status'
 import { isAdmin, sessionStore } from '@/lib/session'
 import type { VideoBrowse, VideoEntry, VideoProgress, VideoScanState } from '@/lib/types'
@@ -257,23 +258,23 @@ function Browser({ path }: { path: string }) {
         )
     }, [watchScan])
 
-    useEffect(
-        () =>
-            registerActions(
-                admin
+    useCommands(
+        [
+            {
+                title: SCREEN_GROUP,
+                commands: admin
                     ? [
                           {
                               id: 'video:rescan',
-                              title: RESCAN_LABEL,
-                              group: SCREEN_GROUP,
-                              screen: true,
+                              label: RESCAN_LABEL,
                               icon: RefreshCw,
                               keywords: ['scan', 'refresh', 'reload', 'library', 'video'],
-                              run: rescan,
+                              onSelect: rescan,
                           },
                       ]
                     : [],
-            ),
+            },
+        ],
         [admin, rescan],
     )
 

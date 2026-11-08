@@ -30,15 +30,15 @@ describe('what is standing over the app', () => {
     })
 
     test('holds each dialog by name, so one closing does not answer for the other', () => {
-        const both = withDialog(withDialog(new Set(), 'settings', true), 'shortcuts', true)
+        const both = withDialog(withDialog(new Set(), 'settings', true), 'palette', true)
         expect(anyOpen(withDialog(both, 'settings', false))).toBe(true)
-        expect(anyOpen(withDialog(withDialog(both, 'settings', false), 'shortcuts', false))).toBe(false)
+        expect(anyOpen(withDialog(withDialog(both, 'settings', false), 'palette', false))).toBe(false)
     })
 })
 
 describe('writing a dialog down', () => {
     test('leaves the set it was given alone, so a store publishes on identity', () => {
-        const before: ReadonlySet<'settings' | 'shortcuts'> = new Set()
+        const before: ReadonlySet<'settings' | 'palette'> = new Set()
         const after = withDialog(before, 'settings', true)
         expect(before.size).toBe(0)
         expect(after.has('settings')).toBe(true)
@@ -49,7 +49,7 @@ describe('writing a dialog down', () => {
         const open = withDialog(new Set(), 'settings', true)
         expect(withDialog(open, 'settings', true)).toBe(open)
         expect(withDialog(new Set(), 'settings', false)).toBeInstanceOf(Set)
-        const shut: ReadonlySet<'settings' | 'shortcuts'> = new Set()
+        const shut: ReadonlySet<'settings' | 'palette'> = new Set()
         expect(withDialog(shut, 'settings', false)).toBe(shut)
     })
 })

@@ -15,11 +15,10 @@ import {
 } from '@/lib/player'
 import { REPEAT_LABELS } from '@/lib/queue'
 import { dialogUp, mayOpen, menuStanding, type Standing } from '@/lib/dialogs'
-import { paletteOpen } from '@/lib/palette'
 import { toggleRail } from '@/lib/panels'
 import { lyricsOpen, toggleLyrics } from '@/lib/lyrics'
 import { muteKeyClaim, stageKeyClaim, transportClaim, volumeKeysClaim } from '@/lib/screen-keys'
-import { closeSearch, openSearch, searchOpen } from '@/lib/search'
+import { openSearch, searchOpen } from '@/lib/search'
 import { sessionStore } from '@/lib/session'
 import {
     adjustsVolume,
@@ -28,9 +27,7 @@ import {
     focusedFieldOf,
     type FocusedField,
     opensLyrics,
-    opensPalette,
     opensSearch,
-    opensShortcuts,
     opensStage,
     REPEAT_KEY,
     seeks,
@@ -46,18 +43,29 @@ import {
 import { toggleStar } from '@/lib/star'
 import { stageOpen, toggleStage, toggleVisualizer, visualizerShown } from '@/lib/visualizer'
 
+/** What is standing over the app right now, as `mayOpen` reads it. */
+export function standingNow(): Standing {
+    return {
+        dialog: dialogUp(),
+        stage: stageOpen.get(),
+        lyrics: lyricsOpen.get(),
+        song: currentSong() !== null,
+    }
+}
+
 /**
- * The one place a real `KeyboardEvent` is read.
+ * The one place a real `KeyboardEvent` is read for the app's own keys.
  *
  * All it does is describe the press and the focused element to `lib/shortcuts`, which decides.
  * Bound on the document rather than on the shell, so a chord works with focus anywhere --
- * inside the palette, inside a dialog, on the page's own body.
+ * inside a dialog, on the page's own body. The palette's chord and `?` are not here: sokkel-ui's
+ * shell binds them.
  *
  * THE TRANSPORT IS BOUND HERE AS WELL, because what is playing is the app's rather than any one
  * screen's: Space pauses the album while somebody is reading a book's chapter list, which is
  * the behaviour every player has and the reason the keys are not the player bar's own.
  */
-export function useAppShortcuts(onShortcuts: () => void): void {
+export function useAppShortcuts(): void {
     useEffect(() => {
         const apple = applePlatform(navigator.userAgent)
 
@@ -65,16 +73,6 @@ export function useAppShortcuts(onShortcuts: () => void): void {
             const element = document.activeElement
             if (!(element instanceof HTMLElement)) return null
             return focusedFieldOf(element)
-        }
-
-        // What is standing over the app when a key is pressed; see `mayOpen`.
-        function standing(): Standing {
-            return {
-                dialog: dialogUp(),
-                stage: stageOpen.get(),
-                lyrics: lyricsOpen.get(),
-                song: currentSong() !== null,
-            }
         }
 
         function onKeyDown(event: KeyboardEvent): void {
@@ -86,17 +84,6 @@ export function useAppShortcuts(onShortcuts: () => void): void {
                 metaKey: event.metaKey,
                 altKey: event.altKey,
             }
-            if (opensPalette(press)) {
-                event.preventDefault()
-                // One surface at a time; see `mayOpen`.
-                if (!mayOpen('palette', standing())) return
-                // One dialog at a time: the chord is answered wherever focus is, so it is
-                // answered inside the search too, and two modals stacked is one scrim over
-                // the thing the other is about.
-                closeSearch()
-                paletteOpen.update((open) => !open)
-                return
-            }
             if (togglesRail(press, focused(), apple)) {
                 event.preventDefault()
                 toggleRail()
@@ -106,12 +93,12 @@ export function useAppShortcuts(onShortcuts: () => void): void {
             // anything is standing over the app -- the palette or the search, where every press
             // belongs to its own box and the arrows walk the rows under it, and the settings
             // and shortcuts dialogs, where a key that opened a second surface would be two
-            // things at once in a place that can hold one.
-            if (paletteOpen.get() || searchOpen.get() || dialogUp()) return
+            // things at once in a place that can hold one. `dialogUp` sees the frame's own.
+            if (searchOpen.get() || dialogUp()) return
             if (opensSearch(press, focused())) {
                 event.preventDefault()
                 // Radio-only has no library to search: the key is left alone there.
-                if (sessionStore.get().phase !== 'radio' && mayOpen('search', standing())) openSearch()
+                if (sessionStore.get().phase !== 'radio' && mayOpen('search', standingNow())) openSearch()
                 return
             }
             // What is playing is what somebody is looking at. A screen with a video on it
@@ -159,7 +146,7 @@ export function useAppShortcuts(onShortcuts: () => void): void {
                 // has it everywhere else.
                 const claimed = stageKeyClaim()
                 if (claimed !== null) claimed()
-                else if (stageOpen.get() || mayOpen('stage', standing())) toggleStage()
+                else if (stageOpen.get() || mayOpen('stage', standingNow())) toggleStage()
                 return
             }
             // A station has no queue and a book is read in one order: the bar offers neither
@@ -226,18 +213,13 @@ export function useAppShortcuts(onShortcuts: () => void): void {
             if (opensLyrics(press, focused())) {
                 event.preventDefault()
                 // Closing is always allowed; opening only where it can be seen and has words.
-                if (lyricsOpen.get() || mayOpen('lyrics', standing())) toggleLyrics()
+                if (lyricsOpen.get() || mayOpen('lyrics', standingNow())) toggleLyrics()
                 return
             }
             if (starsCurrent(press, focused())) {
                 event.preventDefault()
                 const starred = toggleStar(sessionStore.get().music, currentSong())
                 if (starred !== null) toast(toggleNotice('star', starred), { id: 'key:star' })
-                return
-            }
-            if (opensShortcuts(press, focused())) {
-                event.preventDefault()
-                if (mayOpen('shortcuts', standing())) onShortcuts()
             }
         }
 
@@ -251,5 +233,5 @@ export function useAppShortcuts(onShortcuts: () => void): void {
         return () => {
             document.removeEventListener('keydown', onKeyDown, true)
         }
-    }, [onShortcuts])
+    }, [])
 }

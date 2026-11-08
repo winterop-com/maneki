@@ -6,11 +6,12 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { useStore } from '@winterop-com/sokkel-ui/hooks/use-store'
+import { windowPressHandler } from '@winterop-com/sokkel-ui/lib/desktop'
 import { NETWORK_REFUSAL } from '@/lib/connection'
 import { probe } from '@/lib/api'
 import { APP_VERSION } from '@/lib/app-version'
 import { answering, candidates } from '@/lib/server-address'
-import { currentShell, inDesktopShell, probeOrigins } from '@/lib/desktop'
+import { currentShell, desktopWindow, inDesktopShell, probeOrigins } from '@/lib/desktop'
 import { connect, hasKeptSignIn, listenWithoutServer, sessionStore, signInTo } from '@/lib/session'
 import type { Capabilities } from '@/lib/types'
 
@@ -156,8 +157,12 @@ export function SignIn() {
     return (
         // From xl the form pane is the bounded one: 544px to 640px, enough for the form and its
         // margins, so a wide display spends what it gains on the mark rather than on empty
-        // space around a fixed-width form.
-        <div className="flex min-h-svh flex-col bg-background lg:grid lg:grid-cols-[minmax(35rem,45%)_1fr] xl:grid-cols-[1fr_clamp(34rem,36vw,40rem)]">
+        // space around a fixed-width form. A press on either pane's `data-window-drag` moves the
+        // window, handed over by sokkel-ui's handler where the webview will not do it alone.
+        <div
+            onMouseDown={windowPressHandler(desktopWindow())}
+            className="flex min-h-svh flex-col bg-background lg:grid lg:grid-cols-[minmax(35rem,45%)_1fr] xl:grid-cols-[1fr_clamp(34rem,36vw,40rem)]"
+        >
             {/* The version is whichever server has answered: the one found, or the one typed
                 once it has been asked -- a wrong password still says which maneki it is. */}
             <BrandPane
