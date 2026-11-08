@@ -43,8 +43,9 @@ interface Answer {
  * field comes back behind a link for the server this client was not served by and did not
  * guess.
  *
- * NOTHING IS REQUIRED BUT THE SERVER. A server without `--auth` takes a username alone, and one
- * with no accounts takes nothing, so the credentials are `optional` as a whole.
+ * THE CREDENTIALS ARE REQUIRED ONLY WHERE THE SERVER SAYS SO. A server without `--auth` takes a
+ * username alone, and one with no accounts takes nothing, so they are `optional` until a server
+ * that has answered says it requires sign-in (`auth_required`).
  *
  * NO REMEMBER ME. The sign-in is already kept on this device until somebody signs out, and the
  * server's token lifetime is fixed, so the box would promise nothing.
@@ -162,6 +163,11 @@ export function SignIn() {
                     }
     }
 
+    // A server that has said it requires sign-in asks for both fields; one that has said it does
+    // not, or that has not answered yet, leaves them optional, as the door always has.
+    const answered = typing ? heardNow?.answer : found
+    const optional = answered?.caps.auth_required === true ? undefined : 'credentials'
+
     return (
         <LibrarySignIn
             desktop={desktop}
@@ -185,7 +191,7 @@ export function SignIn() {
             onChangeServer={() => {
                 setAsking(true)
             }}
-            optional="credentials"
+            optional={optional}
             icons
             values={values}
             onValuesChange={(next) => {
