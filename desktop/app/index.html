@@ -52,9 +52,9 @@
              * Which shell this is and which platform it is on, before the first paint.
              *
              * The window's traffic lights are drawn over the top-left of the page by both
-             * desktop shells on macOS, and the clearance the strips under them need is a CSS
-             * rule keyed on these two attributes -- so they have to be on <html> before the
-             * first paint, or the rail's mark is drawn once beneath the lights and then jumps.
+             * desktop shells on macOS, and lib/desktop.ts reads `data-platform` to tell
+             * sokkel-ui's frame and sign-in to clear them -- so it has to be on <html> before
+             * the first paint, or the rail's mark is drawn once beneath the lights and then jumps.
              *
              * The shell test is the one in lib/desktop.ts: the Tauri global first, because it
              * is a fact about the runtime, then the version Electron writes into its own user

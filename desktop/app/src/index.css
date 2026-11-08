@@ -240,29 +240,6 @@
 }
 
 /* ---------------------------------------------------------------------------
-   THE DOOR IN A DESKTOP SHELL'S WINDOW.
-
-   Both shells hide the native title bar, and on macOS the window's traffic lights are still
-   drawn over the top-left of the document. The app's frame is sokkel-ui's and keeps clear of
-   them itself, as it makes its top strip the title bar; what is left here is the sign-in's
-   brand pane. A browser tab has no such buttons, which is what `:not([data-shell='browser'])`
-   says; `index.html` sets both attributes before the first paint.
-   --------------------------------------------------------------------------- */
-html[data-platform='darwin']:not([data-shell='browser']) {
-    /* Three buttons and the inset around them, as the client this one replaces measured it. */
-    --traffic-lights: 80px;
-}
-
-/* The door's brand pane, which is a strip with the lockup at its left only below `lg`. Above
-   it the pane positions its own contents against its padding box, so padding there would move
-   the mark and the facts rather than clear the lights they already clear. */
-@media (width < 64rem) {
-    html[data-platform='darwin']:not([data-shell='browser']) [data-shell-lights='pane'] {
-        padding-left: var(--traffic-lights);
-    }
-}
-
-/* ---------------------------------------------------------------------------
    A DIALOG IS A SHEET BELOW THE BREAKPOINT.
 
    A centred card with a margin either side is a card on a phone with no room to be one, so

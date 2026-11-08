@@ -1,51 +1,18 @@
-import { ArrowRight, CircleAlert, Eye, EyeOff, Globe, Lock, Radio as RadioIcon, User } from 'lucide-react'
-import { useEffect, useState, type FormEvent } from 'react'
+import { Cat, Radio as RadioIcon } from 'lucide-react'
+import { useEffect, useState } from 'react'
 
-import { BrandPane } from '@/components/login/BrandPane'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
 import { useStore } from '@winterop-com/sokkel-ui/hooks/use-store'
-import { windowPressHandler } from '@winterop-com/sokkel-ui/lib/desktop'
+import { SignIn as LibrarySignIn, type SignInProbe, type SignInValues } from '@winterop-com/sokkel-ui/SignIn'
+import { LevelBars } from '@winterop-com/sokkel-ui/SignInArt'
 import { NETWORK_REFUSAL } from '@/lib/connection'
 import { probe } from '@/lib/api'
 import { APP_VERSION } from '@/lib/app-version'
 import { answering, candidates } from '@/lib/server-address'
-import { currentShell, desktopWindow, inDesktopShell, probeOrigins } from '@/lib/desktop'
+import { currentShell, inDesktopShell, probeOrigins, useDesktopWindow } from '@/lib/desktop'
 import { connect, hasKeptSignIn, listenWithoutServer, sessionStore, signInTo } from '@/lib/session'
 import type { Capabilities } from '@/lib/types'
 
-export const CHANGE_SERVER_LABEL = 'Connect to a different server'
-export const SHOW_PASSWORD_LABEL = 'Show password'
-export const HIDE_PASSWORD_LABEL = 'Hide password'
-
-/** The field treatment this screen alone wears: taller than a control, and edged in every palette. */
-const FIELD = 'border-border-strong h-12 rounded-lg pl-11'
-
-/**
- * The way in: which server, and credentials when it asks for them.
- *
- * OUTSIDE THE SHELL, deliberately: there is no rail to draw for somebody who cannot reach any
- * of it. TWO PANES, BECAUSE THE DOOR HAS TWO JOBS. The brand pane says what is behind it -- the
- * mark the rail wears, the wordmark, the server and the version it answered with -- and the
- * form pane asks the one question. Below lg they stack, brand first and compact.
- *
- * THE SERVER IS FOUND RATHER THAN TYPED, WHEREVER IT CAN BE. A browser tab was served this
- * bundle by a maneki instance, so the answer is the origin it came from. A desktop shell loaded
- * the bundle off disk and has no origin, so it asks the address `maneki serve` listens on.
- * `lib/desktop` decides which addresses that is; this asks them in order and takes the first
- * that answers. FOUND MEANS THE FIELD GOES: what was found is stated on the brand pane, and the
- * field comes back behind a link for the server this client was not served by and did not
- * guess.
- *
- * THE DOOR GREETS, AND NOTHING BEHIND IT DOES. This is the one screen a person meets before the
- * product's own facts are on it, so it carries an eyebrow, a heading at display size, a
- * one-line subtitle and placeholders -- and no other screen may copy any of it.
- *
- * THE REFUSAL IS THE SERVER'S OWN SENTENCE, AND IT TAKES NO ROOM. The form is centred in its
- * column, so a notice that took space would move every field the moment somebody got a
- * password wrong. It hangs below the button, out of the flow.
- */
 /** How often a kept sign-in asks a quiet server again. */
 const KEPT_SIGN_IN_RETRY_MS = 10_000
 
@@ -55,15 +22,42 @@ const TYPED_ASK_DELAY_MS = 500
 /** The sign-in screen's way to radio with no server. */
 export const LISTEN_WITHOUT_SERVER_LABEL = 'Just listen to radio'
 
+/** A server that answered, and where. */
+interface Answer {
+    origin: string
+    caps: Capabilities
+}
+
+/**
+ * The way in: which server, and credentials when it asks for them, drawn by sokkel-ui's `SignIn`.
+ *
+ * OUTSIDE THE SHELL, deliberately: there is no rail to draw for somebody who cannot reach any
+ * of it. The library draws both panes; what is maneki's is finding the server, asking a typed
+ * address as it is typed, and what signing in does.
+ *
+ * THE SERVER IS FOUND RATHER THAN TYPED, WHEREVER IT CAN BE. A browser tab was served this
+ * bundle by a maneki instance, so the answer is the origin it came from. A desktop shell loaded
+ * the bundle off disk and has no origin, so it asks the address `maneki serve` listens on.
+ * `lib/desktop` decides which addresses that is; this asks them in order and takes the first
+ * that answers. FOUND MEANS THE FIELD GOES: what was found is stated on the brand pane, and the
+ * field comes back behind a link for the server this client was not served by and did not
+ * guess.
+ *
+ * NOTHING IS REQUIRED BUT THE SERVER. A server without `--auth` takes a username alone, and one
+ * with no accounts takes nothing, so the credentials are `optional` as a whole.
+ *
+ * NO REMEMBER ME. The sign-in is already kept on this device until somebody signs out, and the
+ * server's token lifetime is fixed, so the box would promise nothing.
+ */
 export function SignIn() {
+    const desktop = useDesktopWindow()
     const session = useStore(sessionStore)
     const [baseUrl, setBaseUrl] = useState(session.baseUrl)
     const [username, setUsername] = useState(session.username ?? '')
     const [password, setPassword] = useState('')
-    const [shown, setShown] = useState(false)
     const [busy, setBusy] = useState(false)
     const [looking, setLooking] = useState(true)
-    const [found, setFound] = useState<{ origin: string; caps: Capabilities } | null>(null)
+    const [found, setFound] = useState<Answer | null>(null)
     const [asking, setAsking] = useState(false)
     // THE REFUSAL IS SHOWN FOR WHAT THIS SCREEN ASKED, NOT FOR WHAT THE APP TRIED ON ITS WAY
     // HERE. The session carries the boot probe's failure -- a shell finding nothing on the desk
@@ -71,19 +65,16 @@ export function SignIn() {
     // scolding somebody who has not typed anything yet.
     const [submitted, setSubmitted] = useState(false)
     // What the typed address answered, and for which spelling of it; see the effect below.
-    const [heard, setHeard] = useState<{
-        typed: string
-        answer: { origin: string; caps: Capabilities } | null
-    } | null>(null)
-    // The server went quiet under a sign-in that is still good; see the note under the button.
+    const [heard, setHeard] = useState<{ typed: string; answer: Answer | null } | null>(null)
+    // The server went quiet under a sign-in that is still good; see the footer below.
     const waiting = session.refusal === NETWORK_REFUSAL && hasKeptSignIn()
     useEffect(() => {
         if (!waiting) return
-        const asking = setInterval(() => {
+        const retrying = setInterval(() => {
             void connect()
         }, KEPT_SIGN_IN_RETRY_MS)
         return () => {
-            clearInterval(asking)
+            clearInterval(retrying)
         }
     }, [waiting])
 
@@ -92,9 +83,7 @@ export function SignIn() {
         // ONE AT A TIME, IN ORDER. The first address that answers is the one this client should
         // use, and asking both together would race whatever is on the desk against the server
         // that actually sent the page.
-        const look = async (
-            origins: readonly string[],
-        ): Promise<{ origin: string; caps: Capabilities } | null> => {
+        const look = async (origins: readonly string[]): Promise<Answer | null> => {
             const [first, ...rest] = origins
             if (first === undefined) return null
             const caps = await probe(first)
@@ -135,8 +124,7 @@ export function SignIn() {
     }, [typing, baseUrl])
     const heardNow = typing && heard?.typed === baseUrl ? heard : null
 
-    async function submit(event: FormEvent): Promise<void> {
-        event.preventDefault()
+    async function submit(): Promise<void> {
         setBusy(true)
         setSubmitted(true)
         // A NAME IS ENOUGH. `macmini` is tried the ways a server is reached -- see
@@ -150,232 +138,105 @@ export function SignIn() {
         setBusy(false)
     }
 
-    const server = typing
-        ? (heardNow?.answer?.origin ?? (baseUrl === '' ? null : baseUrl))
-        : (found?.origin ?? null)
+    const values: SignInValues = { server: baseUrl, user: username, password, token: '', remember: false }
+
+    // WHAT THE BRAND PANE SAYS: whichever server has answered -- the one found, or the one typed
+    // once it has been asked, so a wrong password still says which maneki it is -- or that
+    // nothing answered there. A pane that has found nothing yet names nothing.
+    let said: SignInProbe | undefined
+    if (!typing) {
+        said =
+            found === null
+                ? undefined
+                : { server: found.origin, state: 'answered', version: found.caps.version }
+    } else if (baseUrl.trim() !== '') {
+        said =
+            heardNow === null
+                ? { server: baseUrl, state: 'asking' }
+                : heardNow.answer === null
+                  ? { server: baseUrl, state: 'silent' }
+                  : {
+                        server: heardNow.answer.origin,
+                        state: 'answered',
+                        version: heardNow.answer.caps.version,
+                    }
+    }
 
     return (
-        // From xl the form pane is the bounded one: 544px to 640px, enough for the form and its
-        // margins, so a wide display spends what it gains on the mark rather than on empty
-        // space around a fixed-width form. A press on either pane's `data-window-drag` moves the
-        // window, handed over by sokkel-ui's handler where the webview will not do it alone.
-        <div
-            onMouseDown={windowPressHandler(desktopWindow())}
-            className="flex min-h-svh flex-col bg-background lg:grid lg:grid-cols-[minmax(35rem,45%)_1fr] xl:grid-cols-[1fr_clamp(34rem,36vw,40rem)]"
-        >
-            {/* The version is whichever server has answered: the one found, or the one typed
-                once it has been asked -- a wrong password still says which maneki it is. */}
-            <BrandPane
-                server={server}
-                version={
-                    typing
-                        ? (heardNow?.answer?.caps.version ?? null)
-                        : (found?.caps.version ?? session.capabilities?.version ?? null)
-                }
-                silent={heardNow !== null && heardNow.answer === null}
-                app={inDesktopShell() ? APP_VERSION : null}
-            />
-            {/* The form pane is the lit surface in the dark mode: against a brand pane that is
-                dark in both, a form on the page ground would be one rung from it.
-
-                AND IT MOVES THE WINDOW, as the brand pane does. The door has no title bar, so
-                the whole of it is one; the fields, the button and the links opt back out. */}
-            <main
-                data-window-drag
-                className="relative flex flex-1 items-start justify-center p-6 lg:items-center lg:p-12 dark:bg-card"
-            >
-                {/* `noValidate` and the fields keep their `required`: both webviews surface
-                    "The string did not match the expected pattern" out of a password autofill
-                    while native validation is on, and the server's own refusal is the sentence
-                    this screen has to draw. */}
-                <form
-                    noValidate
-                    className="relative grid w-full max-w-xs gap-5 xl:w-[26.875rem] xl:max-w-none"
-                    onSubmit={(event) => {
-                        void submit(event)
-                    }}
-                >
-                    <div className="grid gap-2">
-                        <p className="text-sm tracking-[0.18em] text-primary-ink uppercase">
-                            Welcome to maneki
-                        </p>
-                        <h2 className="text-welcome-title">Sign in</h2>
-                        <p className="text-sm text-muted-foreground">
-                            {typing
-                                ? 'Say where the server is, and who you are.'
-                                : looking
-                                  ? 'Looking for a server.'
-                                  : 'Enter your credentials to continue.'}
-                        </p>
-                    </div>
-
-                    {typing ? (
-                        <div className="grid gap-1.5">
-                            <Label htmlFor="server">Server</Label>
-                            <div className="relative">
-                                <Globe
-                                    className="pointer-events-none absolute top-1/2 left-4 size-4.5 -translate-y-1/2 text-muted-foreground"
-                                    aria-hidden
-                                />
-                                <Input
-                                    id="server"
-                                    name="server"
-                                    autoComplete="url"
-                                    required
-                                    placeholder="macmini, or http://host:8765"
-                                    className={`${FIELD} font-mono`}
-                                    value={baseUrl}
-                                    onChange={(event) => {
-                                        setBaseUrl(event.target.value)
-                                    }}
-                                />
-                            </div>
-                        </div>
-                    ) : (
-                        !looking && (
-                            <p className="text-xs text-muted-foreground">
-                                <button
-                                    type="button"
-                                    className="control-link text-primary-ink underline-offset-2 hover:underline"
-                                    onClick={() => {
-                                        setAsking(true)
-                                    }}
-                                >
-                                    {CHANGE_SERVER_LABEL}
-                                </button>
-                            </p>
-                        )
-                    )}
-
-                    <div className="grid gap-1.5">
-                        <Label htmlFor="username">Username</Label>
-                        <div className="relative">
-                            <User
-                                className="pointer-events-none absolute top-1/2 left-4 size-4.5 -translate-y-1/2 text-muted-foreground"
-                                aria-hidden
-                            />
-                            <Input
-                                id="username"
-                                name="username"
-                                autoComplete="username"
-                                autoFocus={!typing}
-                                required
-                                placeholder="Your username"
-                                className={FIELD}
-                                value={username}
-                                onChange={(event) => {
-                                    setUsername(event.target.value)
-                                }}
-                            />
-                        </div>
-                    </div>
-
-                    <div className="grid gap-1.5">
-                        <Label htmlFor="password">Password</Label>
-                        <div className="relative">
-                            <Lock
-                                className="pointer-events-none absolute top-1/2 left-4 size-4.5 -translate-y-1/2 text-muted-foreground"
-                                aria-hidden
-                            />
-                            <Input
-                                id="password"
-                                name="password"
-                                type={shown ? 'text' : 'password'}
-                                autoComplete="current-password"
-                                required
-                                placeholder="Your password"
-                                className={`${FIELD} pr-12`}
-                                value={password}
-                                onChange={(event) => {
-                                    setPassword(event.target.value)
-                                }}
-                            />
-                            <button
-                                type="button"
-                                aria-label={shown ? HIDE_PASSWORD_LABEL : SHOW_PASSWORD_LABEL}
-                                aria-pressed={shown}
-                                onClick={() => {
-                                    setShown(!shown)
-                                }}
-                                className="absolute top-1/2 right-1 flex size-finger -translate-y-1/2 items-center justify-center rounded-md text-muted-foreground outline-none hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50 md:right-3 md:size-auto md:p-1"
-                            >
-                                {shown ? (
-                                    <EyeOff className="size-4.5" aria-hidden />
-                                ) : (
-                                    <Eye className="size-4.5" aria-hidden />
-                                )}
-                            </button>
-                        </div>
-                    </div>
-
-                    <Button
-                        type="submit"
-                        className="h-13 w-full rounded-lg"
-                        disabled={busy || looking}
-                        title={busy ? 'Signing in' : undefined}
+        <LibrarySignIn
+            desktop={desktop}
+            mark={<Cat aria-hidden />}
+            name="maneki"
+            eyebrow="Welcome to maneki"
+            description={
+                typing
+                    ? 'Say where the server is, and who you are.'
+                    : looking
+                      ? 'Looking for a server.'
+                      : 'Enter your credentials to continue.'
+            }
+            // What a record looks like while it plays, breathing, lit in the pane's accent.
+            art={<LevelBars color="var(--terminal-accent)" className="h-full w-full" />}
+            probe={said}
+            // A shell's copy of the client is its own and drifts from the server's; a browser tab
+            // was served the server's, so it has nothing to add there.
+            facts={inDesktopShell() ? [{ label: 'app', value: APP_VERSION }] : []}
+            server={looking ? 'looking' : found === null ? true : 'found'}
+            onChangeServer={() => {
+                setAsking(true)
+            }}
+            optional="credentials"
+            icons
+            values={values}
+            onValuesChange={(next) => {
+                setBaseUrl(next.server)
+                setUsername(next.user)
+                setPassword(next.password)
+            }}
+            error={submitted ? session.refusal : undefined}
+            busy={busy}
+            onSubmit={() => {
+                void submit()
+            }}
+            words={{
+                serverHint: 'macmini, or http://host:8765',
+                userHint: 'Your username',
+                passwordHint: 'Your password',
+            }}
+            // RADIO NEEDS NO SERVER. Somebody without one, or away from theirs, can still listen:
+            // the built-in stations and the open directory, kept on this device.
+            alternatives={
+                <Button type="button" variant="outline" onClick={listenWithoutServer}>
+                    <RadioIcon aria-hidden />
+                    {LISTEN_WITHOUT_SERVER_LABEL}
+                </Button>
+            }
+            // A SIGN-IN KEPT FROM BEFORE AND A SERVER THAT DID NOT ANSWER is not a door to knock at
+            // again: the sign-in is still good and the server is away, so this says so, keeps
+            // asking, and offers Retry.
+            footer={
+                !submitted && waiting ? (
+                    <span
+                        role="status"
+                        className="flex min-h-12 items-center gap-3 rounded-lg border border-border bg-muted px-4 text-sm text-foreground"
                     >
-                        Sign in
-                        <ArrowRight className="size-4.5" aria-hidden />
-                    </Button>
-                    {/* UNDER THE BUTTON IT ANSWERS, in the flow. Hung below the whole form, it fell
-                        under "Just listen to radio" -- off a phone's screen, and read as that
-                        button's failure. */}
-                    {submitted && session.refusal && (
-                        <p
-                            role="alert"
-                            className="flex min-h-12 items-center gap-3 rounded-lg border border-critical/40 bg-critical/10 px-4 text-sm text-critical-ink"
+                        <span className="min-w-0 flex-1">
+                            No answer from <span className="font-mono">{session.baseUrl}</span>. Your sign-in
+                            is kept; trying again.
+                        </span>
+                        <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={() => {
+                                void connect()
+                            }}
                         >
-                            <CircleAlert className="size-4 shrink-0" aria-hidden />
-                            <span className="min-w-0">{session.refusal}</span>
-                        </p>
-                    )}
-
-                    {/* RADIO NEEDS NO SERVER. Somebody without one, or away from theirs, can still
-                        listen: the built-in stations and the open directory, kept on this device.
-                        See `listenWithoutServer`. */}
-                    <div className="mt-4 flex items-center gap-3 text-xs text-muted-foreground">
-                        <span className="h-px flex-1 bg-border" />
-                        or
-                        <span className="h-px flex-1 bg-border" />
-                    </div>
-                    <Button
-                        type="button"
-                        variant="outline"
-                        className="mt-4 h-13 w-full rounded-lg"
-                        onClick={listenWithoutServer}
-                    >
-                        <RadioIcon className="size-4.5" aria-hidden />
-                        {LISTEN_WITHOUT_SERVER_LABEL}
-                    </Button>
-
-                    {/* A SIGN-IN KEPT FROM BEFORE AND A SERVER THAT DID NOT ANSWER is not a door to
-                        knock at again: the sign-in is still good and the server is away. Reloaded
-                        then, this screen was a blank form with no reason; it now says the server
-                        is not answering, keeps asking, and offers Retry. */}
-                    {!submitted && waiting && (
-                        <p
-                            role="status"
-                            // In the flow, under the button, so a short window never hides it.
-                            className="mt-6 flex min-h-12 items-center gap-3 rounded-lg border border-border bg-muted px-4 text-sm"
-                        >
-                            <span className="min-w-0 flex-1">
-                                No answer from <span className="font-mono">{session.baseUrl}</span>. Your
-                                sign-in is kept; trying again.
-                            </span>
-                            <Button
-                                type="button"
-                                variant="outline"
-                                size="sm"
-                                onClick={() => {
-                                    void connect()
-                                }}
-                            >
-                                Retry
-                            </Button>
-                        </p>
-                    )}
-                </form>
-            </main>
-        </div>
+                            Retry
+                        </Button>
+                    </span>
+                ) : undefined
+            }
+        />
     )
 }

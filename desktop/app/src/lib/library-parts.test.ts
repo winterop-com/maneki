@@ -204,6 +204,16 @@ const LIBRARY_PARTS: { part: string; use: string; marks: RegExp[] }[] = [
             /Nothing matches that\./,
         ],
     },
+    {
+        part: 'the sign-in screen and its brand pane',
+        use: '@winterop-com/sokkel-ui/SignIn with `probe`, `server`, `optional` and `alternatives`',
+        marks: [
+            /\bfunction BrandPane\b/,
+            /from '@\/components\/login\/BrandPane'/,
+            /data-shell-lights/,
+            /autoComplete="current-password"/,
+        ],
+    },
 ]
 
 const SRC = fileURLToPath(new URL('..', import.meta.url))
