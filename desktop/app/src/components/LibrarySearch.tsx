@@ -174,7 +174,7 @@ export function LibrarySearch({
                     results: SEARCH_RESULTS,
                     searching: SEARCH_ASKING,
                     empty: () => SEARCH_EMPTY,
-                    failed: SEARCH_FAILED,
+                    failed: () => SEARCH_FAILED,
                 }}
             />
         </div>

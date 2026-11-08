@@ -17,13 +17,22 @@
              */
             ;(function () {
                 var root = document.documentElement
-                var palette = 'amber'
+                var palette = 'tidevann'
                 var density = 'comfortable'
                 var scale = 1
                 try {
-                    var names = ['amber', 'paper', 'contrast', 'tokyo', 'vinyl', 'cassette', 'neon']
+                    var names = [
+                        'tidevann',
+                        'amber',
+                        'paper',
+                        'contrast',
+                        'tokyo',
+                        'vinyl',
+                        'cassette',
+                        'neon',
+                    ]
                     var stored = localStorage.getItem('maneki.palette')
-                    // The default palette was stored as 'maneki' before it took sokkel-ui's name.
+                    // Amber, the old default, was stored as 'maneki'; whoever has it keeps amber.
                     if (stored === 'maneki') stored = 'amber'
                     if (names.indexOf(stored) !== -1) palette = stored
                     if (localStorage.getItem('maneki.density') === 'compact') density = 'compact'

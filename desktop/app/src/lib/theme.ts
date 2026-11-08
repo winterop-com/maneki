@@ -12,6 +12,8 @@
  * module carries the names and nothing else, so adding a palette is one import plus one row in
  * `PALETTES`. The same blocks answer to `[data-theme-scope='<name>']`, which is what lets the
  * swatch card on the Theme pane paint one palette's tokens while the app is wearing another.
+ * Tidevann is the one with no file: it is sokkel-ui's base, in styles.css, worn by any
+ * `data-theme` no theme file claims.
  *
  * APPLIED BEFORE FIRST PAINT, by the inline script in index.html rather than here. A palette
  * read in a React effect arrives one frame after the document does, and every load flashes the
@@ -35,7 +37,15 @@ export const MODE_LABELS: Record<Mode, string> = {
 }
 
 /** The name a palette is stored and written under: its `data-theme` value. */
-export type PaletteName = 'amber' | 'paper' | 'contrast' | 'tokyo' | 'vinyl' | 'cassette' | 'neon'
+export type PaletteName =
+    | 'tidevann'
+    | 'amber'
+    | 'paper'
+    | 'contrast'
+    | 'tokyo'
+    | 'vinyl'
+    | 'cassette'
+    | 'neon'
 
 /** One palette: what it is called on screen. What it looks like is the swatch, not a sentence. */
 export interface Palette {
@@ -46,11 +56,13 @@ export interface Palette {
 /**
  * The palettes this build has, ordered quiet to loud.
  *
- * The first three are the app's own. The four after them are the presets the client before this
+ * Tidevann, sokkel-ui's base, comes first and is the default. The three after it are the app's
+ * own. The four after them are the presets the client before this
  * one shipped, each carrying the accent it was drawn around -- and the palette carries the
  * spectrum's ramp with it, in `lib/spectrum-themes`, so the colour is chosen here and once.
  */
 export const PALETTES: Palette[] = [
+    { name: 'tidevann', label: 'Tidevann' },
     { name: 'amber', label: 'Amber' },
     { name: 'paper', label: 'Paper' },
     { name: 'contrast', label: 'Contrast' },
@@ -60,11 +72,12 @@ export const PALETTES: Palette[] = [
     { name: 'neon', label: 'Neon' },
 ]
 
-export const DEFAULT_PALETTE: PaletteName = 'amber'
+export const DEFAULT_PALETTE: PaletteName = 'tidevann'
 
 /**
- * Names a palette was once stored under, and the palette each is now. The default was called
- * `maneki` before the look came from sokkel-ui, which names it for how it looks.
+ * Names a palette was once stored under, and the palette each is now. Amber was the default
+ * called `maneki` before the look came from sokkel-ui; a stored `maneki` stays amber, since
+ * whoever has it was wearing amber, and only an empty store meets tidevann.
  */
 export const RENAMED_PALETTES: Readonly<Record<string, PaletteName>> = { maneki: 'amber' }
 

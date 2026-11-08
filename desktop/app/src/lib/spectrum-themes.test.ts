@@ -38,6 +38,7 @@ describe('the ramp a palette carries', () => {
     })
 
     test('spends the accent it was drawn around, cold for tokyo and grey for contrast', () => {
+        expect(rampForPalette('tidevann')).toBe('ice')
         expect(rampForPalette('tokyo')).toBe('ice')
         expect(rampForPalette('contrast')).toBe('mono')
         expect(rampForPalette('neon')).toBe('aurora')
@@ -63,6 +64,7 @@ describe('the ramp the library draws', () => {
         expect(soundRampFor('amber')).toEqual(['#ffd24a', '#ff7a1a', '#e02020'])
         expect(soundRampFor('vinyl')).toEqual(['#ffd24a', '#ff7a1a', '#e02020'])
         expect(soundRampFor('tokyo')).toEqual(['#7fe8ff', '#4aa8f0', '#9a7af0'])
+        expect(soundRampFor('tidevann')).toEqual(['#7fe8ff', '#4aa8f0', '#9a7af0'])
         expect(soundRampFor('neon')).toEqual(['#7cffb2', '#3cc6d8', '#c86cf0'])
         expect(soundRampFor('cassette')).toEqual(['#ffe08a', '#ff9e64', '#ff5a8a'])
         expect(soundRampFor('contrast')).toEqual(['#6b7280', '#c4c8ce', '#ffffff'])
