@@ -6,12 +6,12 @@
     "type": "module",
     "scripts": {
         "dev": "vite",
-        "build": "tsc -b && vite build",
+        "build": "bun check && vite build",
         "preview": "vite preview",
         "lint": "oxlint",
         "fmt": "oxfmt",
         "fmt:check": "oxfmt --check",
-        "typecheck": "tsc -b",
+        "typecheck": "bun check",
         "test": "vitest run"
     },
     "dependencies": {
