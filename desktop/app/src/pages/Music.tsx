@@ -3,7 +3,7 @@ import { Fragment, useEffect, useMemo, useState } from 'react'
 import { NavLink, useNavigate, useParams } from 'react-router'
 
 import { CoverArt } from '@/components/CoverArt'
-import { DownloadButton, Downloads } from '@/pages/Downloads'
+import { AlbumDownloadButton, Downloads } from '@/pages/Downloads'
 import { AddToPlaylistDialog, type Adding } from '@/components/PlaylistDialogs'
 import { Skeleton } from '@/components/Skeleton'
 import { Button } from '@/components/ui/button'
@@ -704,7 +704,7 @@ function AlbumScreen({ credentials, id }: { credentials: Credentials; id: string
                 ]}
                 action={
                     <>
-                        <DownloadButton credentials={credentials} albumId={album.id} />
+                        <AlbumDownloadButton credentials={credentials} albumId={album.id} />
                         <StarButton credentials={credentials} item={album} />
                         <Button
                             variant="ghost"

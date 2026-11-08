@@ -1,11 +1,11 @@
-import { CircleCheck, Download, X } from 'lucide-react'
+import { DownloadButton as SokkelDownloadButton } from '@winterop-com/sokkel-ui/DownloadButton'
+import { useStore } from '@winterop-com/sokkel-ui/hooks/use-store'
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router'
 import { toast } from 'sonner'
 
 import { CoverArt } from '@/components/CoverArt'
 import { Button } from '@/components/ui/button'
-import { useStore } from '@winterop-com/sokkel-ui/hooks/use-store'
 import { byteSize } from '@/lib/format'
 import {
     cancelDownload,
@@ -43,67 +43,42 @@ function useConfirm(): [boolean, () => boolean] {
     return [armed, press]
 }
 
+/** What the album's download control says, where the library's words are not this app's. */
+const DOWNLOAD_WORDS = {
+    running: 'Starting',
+    kept: 'Downloaded',
+    removeLabel: 'Downloaded. Remove from this device',
+}
+
 /**
  * Keep an album on this device, watch it arrive, or let it go: one control in the album's header.
+ * The control is sokkel-ui's; what it is wired to (the offline store, the album) is this app's.
  */
-export function DownloadButton({ credentials, albumId }: { credentials: Credentials; albumId: string }) {
+export function AlbumDownloadButton({ credentials, albumId }: { credentials: Credentials; albumId: string }) {
     const offline = useStore(offlineStore)
-    const [armed, press] = useConfirm()
     const progress = offline.downloading[albumId]
     const kept = offline.albums[albumId]
+    const state = progress ? 'running' : kept ? 'kept' : 'idle'
 
-    if (progress) {
-        const label =
-            progress.total > 0 ? `${String(progress.done)} of ${String(progress.total)}` : 'Starting'
-        return (
-            <Button
-                variant="ghost"
-                size="sm"
-                aria-label={`Downloading, ${label}. Cancel`}
-                title="Cancel the download"
-                onClick={() => cancelDownload(albumId)}
-            >
-                <X aria-hidden />
-                <span className="font-mono text-xs tabular-nums">{label}</span>
-            </Button>
-        )
-    }
-    if (kept) {
-        return (
-            <Button
-                variant="ghost"
-                size="sm"
-                aria-label={
-                    armed ? 'Press again to remove this download' : 'Downloaded. Remove from this device'
-                }
-                title={
-                    armed ? 'Press again to remove' : `On this device (${byteSize(kept.bytes)}). Remove it`
-                }
-                onClick={() => {
-                    if (press()) void removeAlbum(credentials, albumId)
-                }}
-                className={cn(armed ? 'text-critical-ink' : 'text-primary')}
-            >
-                <CircleCheck aria-hidden />
-                <span className="hidden sm:inline">{armed ? 'Remove?' : 'Downloaded'}</span>
-            </Button>
-        )
-    }
     return (
-        <Button
+        <SokkelDownloadButton
+            state={state}
             variant="ghost"
             size="sm"
-            aria-label="Download this album to this device"
-            title={offline.failed[albumId] ?? 'Keep this album on this device, to play without the server'}
-            onClick={() => {
+            compact="narrow"
+            count={progress && progress.total > 0 ? progress.done : undefined}
+            total={progress && progress.total > 0 ? progress.total : undefined}
+            keptDetail={kept ? `On this device (${byteSize(kept.bytes)}). Remove it` : undefined}
+            error={offline.failed[albumId]}
+            words={DOWNLOAD_WORDS}
+            onDownload={() => {
                 downloadAlbum(credentials, albumId).catch((error: unknown) => {
                     toast.error(error instanceof Error ? error.message : 'The download failed.')
                 })
             }}
-        >
-            <Download aria-hidden />
-            <span className="hidden sm:inline">Download</span>
-        </Button>
+            onCancel={() => cancelDownload(albumId)}
+            onRemove={() => void removeAlbum(credentials, albumId)}
+        />
     )
 }
 

@@ -24,6 +24,11 @@ const LIBRARY_PARTS: { part: string; use: string; marks: RegExp[] }[] = [
         ],
     },
     {
+        part: 'the download button',
+        use: '@winterop-com/sokkel-ui/DownloadButton',
+        marks: [/\bfunction DownloadButton\b/, /aria-label="Download this album/],
+    },
+    {
         part: 'the look: Tailwind, the tokens and the palettes',
         use: '@winterop-com/sokkel-ui/styles.css and its themes/<name>.css, imported by index.css',
         marks: [/^@import 'tailwindcss'/m, /^@theme\b/m, /^(html(\.dark)?)?\[data-theme='[a-z]+'\][^{]*\{/m],
