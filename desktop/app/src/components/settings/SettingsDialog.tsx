@@ -1,13 +1,14 @@
-import { Check, Copy, Volume2, VolumeX } from 'lucide-react'
-import { useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react'
+import { Check, Volume2, VolumeX } from 'lucide-react'
+import { useMemo, useRef, useState, type CSSProperties } from 'react'
 
-import { Segmented } from '@/components/Segmented'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
-import { Input } from '@/components/ui/input'
 import { Kbd, KbdGroup } from '@/components/ui/kbd'
+import { CopyButton } from '@winterop-com/sokkel-ui/CopyButton'
+import { useScheme } from '@winterop-com/sokkel-ui/hooks/use-scheme'
 import { useStore } from '@winterop-com/sokkel-ui/hooks/use-store'
+import { Segmented } from '@winterop-com/sokkel-ui/Segmented'
+import { SettingsDialog as LibrarySettingsDialog, type Setting } from '@winterop-com/sokkel-ui/SettingsDialog'
 import { APP_VERSION } from '@/lib/app-version'
 import { playerStore, setVolume, spectrumContext, toggleMuted } from '@/lib/player'
 import {
@@ -23,20 +24,10 @@ import {
     formatFontScale,
 } from '@/lib/preferences'
 import { sessionStore, signOut } from '@/lib/session'
+import { FIRST_CATEGORY, settingsGroups, settingsRows, type SettingsRow } from '@/lib/settings'
+import { applePlatform, shortcuts } from '@/lib/shortcuts'
 import { rampForPalette, themeStops } from '@/lib/spectrum-themes'
 import { outputDelayMs, setSpectrumDelay, SPECTRUM_DELAY_MAX_MS, spectrumDelayMs } from '@/lib/sync'
-import type { Capabilities } from '@/lib/types'
-import {
-    categoriesWith,
-    FIRST_CATEGORY,
-    filterSettings,
-    rowsOf,
-    SETTINGS_GROUPS,
-    settingsRows,
-    type SettingsRow,
-} from '@/lib/settings'
-import { applePlatform, shortcuts } from '@/lib/shortcuts'
-import { useScheme } from '@winterop-com/sokkel-ui/hooks/use-scheme'
 import {
     choosePalette,
     MODE_LABELS,
@@ -46,11 +37,12 @@ import {
     paletteStore,
     type PaletteName,
 } from '@/lib/theme'
+import type { Capabilities } from '@/lib/types'
 import { cn } from '@/lib/utils'
 import { autoplayNext, setAutoplayNext } from '@/lib/watching'
 import {
-    setVisualizer,
     setSpectrumEffect,
+    setVisualizer,
     setVisualizerStyle,
     SPECTRUM_EFFECT_LABELS,
     SPECTRUM_EFFECTS,
@@ -61,20 +53,16 @@ import {
     visualizerStyle,
 } from '@/lib/visualizer'
 
-export const SETTINGS_TITLE = 'Settings'
-
 /**
- * Two panes: what there is on the left, one category of it on the right.
+ * Settings, drawn by sokkel-ui's `SettingsDialog`: its navigation, search, footer and Done.
  *
- * THE ROWS ARE DATA AND THE SEARCH IS A PURE FUNCTION OVER THEM. `lib/settings` holds every row
- * as a record -- what it is called, what else it can be found by -- so filtering across every
- * category is one function with a test, and not a traversal of markup. What a row puts on its
- * right edge is this file's, keyed by the row's id.
+ * THE ROWS ARE `lib/settings`'S AND THE CONTROLS ARE THIS FILE'S. The registry says what each row
+ * is called and what else it is found by; `control` below puts the control on it, keyed by the
+ * row's id. Radio-only has no account and no server, so the registry offers neither.
  *
  * NOTHING HERE IS A COPY OF A SETTING. Appearance writes sokkel-ui's `useScheme`, which is the
  * same store the toggle in the top strip writes; the palette writes `lib/theme`; the volume and the
- * spectrum write the player and `lib/visualizer`, which the player bar reads. A dialog that
- * held its own copy of a setting would be a second answer to the same question.
+ * spectrum write the player and `lib/visualizer`, which the player bar reads.
  *
  * SIGN OUT IS STILL IN THE PALETTE. This adds a second way to reach it rather than moving it.
  */
@@ -86,227 +74,132 @@ export function SettingsDialog({
     onOpenChange: (open: boolean) => void
 }) {
     const apple = applePlatform(navigator.userAgent)
-    const [query, setQuery] = useState('')
-    const [chosen, setChosen] = useState(FIRST_CATEGORY)
+    const [search, setSearch] = useState('')
+    const [active, setActive] = useState(FIRST_CATEGORY)
 
-    const radioOnly = useStore(sessionStore).phase === 'radio'
+    const session = useStore(sessionStore)
+    const radioOnly = session.phase === 'radio'
     const rows = useMemo(() => settingsRows(apple, { server: !radioOnly }), [apple, radioOnly])
-    const shown = useMemo(() => filterSettings(rows, query), [query, rows])
-    const categories = useMemo(() => categoriesWith(shown), [shown])
-    const active = categories.some((category) => category.id === chosen)
-        ? chosen
-        : (categories[0]?.id ?? null)
-    const heading = categories.find((category) => category.id === active) ?? null
+    const control = useControls(apple)
+    const groups = settingsGroups(rows, (row) => ({
+        id: row.id,
+        title: row.label,
+        description: row.description,
+        keywords: row.keywords,
+        ...control(row),
+    }))
 
     return (
-        <Dialog open={open} onOpenChange={onOpenChange}>
-            {/* Never taller than the window: a phone on its side is 360 px tall, and a fixed 32rem put
-                the Close button above the top of the screen. */}
-            <DialogContent className="flex h-[min(32rem,calc(100dvh-2rem))] flex-col gap-0 p-0 sm:max-w-3xl">
-                <DialogHeader className="shrink-0 gap-1 border-b border-border px-4 py-3">
-                    <DialogTitle>{SETTINGS_TITLE}</DialogTitle>
-                </DialogHeader>
-
-                {/* ON A PHONE THE SECTIONS ARE A ROW ABOVE THE SETTINGS, not a column beside them:
-                    beside, they took a third of the width and every description wrapped to four
-                    lines. The row scrolls sideways; above the breakpoint it is the column. */}
-                <div className="flex min-h-0 flex-1 flex-col md:flex-row">
-                    <nav className="flex shrink-0 flex-row items-center gap-1 overflow-x-auto border-b border-border bg-sidebar p-2 md:w-52 md:flex-col md:items-stretch md:overflow-x-visible md:overflow-y-auto md:border-r md:border-b-0">
-                        <Input
-                            value={query}
-                            aria-label="Search the settings"
-                            placeholder="Search"
-                            className="w-28 shrink-0 md:mb-1 md:w-auto"
-                            onChange={(event) => {
-                                setQuery(event.target.value)
-                            }}
-                        />
-                        {SETTINGS_GROUPS.map((group) => {
-                            const inGroup = categories.filter((category) => category.group === group.id)
-                            if (inGroup.length === 0) return null
-                            return (
-                                <div key={group.id} className="flex shrink-0 gap-1 md:mb-1 md:block">
-                                    <p className="hidden px-2 py-1 text-xs text-faint md:block">
-                                        {group.label}
-                                    </p>
-                                    {inGroup.map((category) => (
-                                        <button
-                                            key={category.id}
-                                            type="button"
-                                            aria-current={category.id === active}
-                                            className={cn(
-                                                // A category is a destination inside the sheet,
-                                                // and takes the row a drawer entry takes.
-                                                'flex min-h-finger shrink-0 items-center rounded-md px-2 py-1 text-left text-sm whitespace-nowrap md:min-h-0 md:w-full',
-                                                category.id === active
-                                                    ? 'bg-primary/15 font-medium text-foreground'
-                                                    : 'text-muted-foreground hover:bg-accent',
-                                            )}
-                                            onClick={() => {
-                                                setChosen(category.id)
-                                            }}
-                                        >
-                                            {category.label}
-                                        </button>
-                                    ))}
-                                </div>
-                            )
-                        })}
-                    </nav>
-
-                    <div className="min-h-0 flex-1 overflow-y-auto p-4">
-                        {heading === null ? (
-                            <p className="text-sm text-muted-foreground">Nothing matches that.</p>
-                        ) : (
-                            <>
-                                <h2 className="mb-3 text-sm font-semibold">{heading.label}</h2>
-                                <Pane category={heading.id} rows={rowsOf(shown, heading.id)} apple={apple} />
-                            </>
-                        )}
-                    </div>
-                </div>
-            </DialogContent>
-        </Dialog>
+        <LibrarySettingsDialog
+            open={open}
+            onOpenChange={onOpenChange}
+            groups={groups}
+            active={active}
+            onActiveChange={setActive}
+            search={search}
+            onSearchChange={setSearch}
+        />
     )
 }
 
-/** Which pane one category is. */
-function Pane({ category, rows, apple }: { category: string; rows: SettingsRow[]; apple: boolean }) {
-    if (rows.length === 0) return <p className="text-sm text-muted-foreground">Nothing matches that.</p>
-    switch (category) {
-        case 'general':
-            return <GeneralPane rows={rows} />
-        case 'theme':
-            return <ThemePane rows={rows} />
-        case 'account':
-            return <AccountPane rows={rows} />
-        case 'shortcuts':
-            return <ShortcutsPane rows={rows} apple={apple} />
-        default:
-            return <ServerPane rows={rows} />
-    }
-}
+/** What a row adds to the library's setting: its control, and a note or a layout where it has one. */
+type Control = Pick<Setting, 'control' | 'note' | 'layout'>
 
-/**
- * One row: what it is called, the control on its right edge, and whatever it expands into.
- *
- * The description is the row's own and is usually absent: a line restating the label is a line
- * that says nothing, so only a row with a fact the control cannot show carries one.
- */
-function Row({ row, children, under }: { row: SettingsRow; children?: ReactNode; under?: ReactNode }) {
-    return (
-        <div className="row-hover -mx-2 border-b border-border px-2 py-3 last:border-b-0">
-            {/* Below the breakpoint the control sits under what it is called: a label column
-                and a control column on a 390px screen is two words a line. */}
-            <div className="flex flex-col items-start gap-2 md:flex-row md:items-start md:justify-between md:gap-4">
-                <div className="min-w-0 space-y-0.5">
-                    <p className="text-sm font-medium">{row.label}</p>
-                    {row.description !== undefined && (
-                        <p className="text-xs text-muted-foreground">{row.description}</p>
-                    )}
-                </div>
-                {children !== undefined && <div className="flex shrink-0 items-center gap-1">{children}</div>}
-            </div>
-            {under !== undefined && <div className="mt-3">{under}</div>}
-        </div>
-    )
-}
-
-/**
- * What this browser reports about its own output, as a sentence.
- *
- * The figure is a fact the slider cannot show: what somebody is dialling in is what the browser
- * failed to admit to, so knowing it already reports 190ms is the difference between dragging
- * with a reason and dragging until it looks right.
- */
-function delayNote(playing: boolean, auto: number): string {
-    if (!playing) return 'Nothing has played yet, so this browser has not said what its output is behind by.'
-    if (auto > 0) return `This output reports ${String(auto)} ms of its own, which is held back as well.`
-    return 'This output reports no delay of its own, which is the case this slider is for.'
-}
-
-/** Listening: the spectrum, how loud, what the bar shows, and how big and how close the rows are. */
-function GeneralPane({ rows }: { rows: SettingsRow[] }) {
+/** The control each row carries, keyed by its id, over the stores the rows set. */
+function useControls(apple: boolean): (row: SettingsRow) => Control {
     const player = useStore(playerStore)
     const spectrum = useStore(visualizerShown)
     const style = useStore(visualizerStyle)
     const effect = useStore(spectrumEffect)
     const delay = useStore(spectrumDelayMs)
-    // Read as the pane renders rather than held in state: what the browser reports changes the
+    // Read as the dialog renders rather than held in state: what the browser reports changes the
     // moment somebody puts headphones on, and this dialog stands open for minutes.
     const graph = spectrumContext()
     const auto = Math.round(outputDelayMs(graph))
     const density = useStore(densityStore)
     const fontScale = useStore(fontScaleStore)
     const upNext = useStore(autoplayNext)
+    const { scheme: mode, setScheme } = useScheme()
+    const palette = useStore(paletteStore)
+    const session = useStore(sessionStore)
+    const caps = session.capabilities
+    const subsonic = subsonicAddress(session.baseUrl, caps)
+    const libraries = caps
+        ? (['audio', 'video', 'books', 'radio'] as const).filter((library) => caps[library])
+        : []
+    const keys = new Map(shortcuts(apple).map((shortcut) => [`shortcuts:${shortcut.id}`, shortcut.keys]))
 
-    return (
-        <div>
-            {rows.map((row) => {
-                if (row.id === 'general:density') {
-                    return (
-                        <Row key={row.id} row={row}>
-                            <Segmented
-                                label="Density"
-                                value={density}
-                                options={DENSITIES.map((one) => ({
-                                    value: one,
-                                    label: DENSITY_LABELS[one],
-                                }))}
-                                onChoose={chooseDensity}
-                            />
-                        </Row>
-                    )
+    return (row) => {
+        switch (row.id) {
+            case 'general:visualizer':
+                return {
+                    control: (
+                        <Toggle
+                            on={spectrum}
+                            words={['Shown', 'Hidden']}
+                            onChange={() => {
+                                setVisualizer(!spectrum)
+                            }}
+                        />
+                    ),
                 }
-                if (row.id === 'general:font-scale') {
-                    return (
-                        <Row key={row.id} row={row}>
-                            {/* The readout is what the slider cannot say: a notch along a track
-                                is not a size until it carries the number it stands for. */}
-                            <span className="w-10 shrink-0 text-right font-mono text-xs tabular-nums">
-                                {formatFontScale(fontScale)}
+            case 'general:visualizer-style':
+                return {
+                    control: (
+                        <Segmented
+                            size="sm"
+                            label={row.label}
+                            value={style}
+                            options={VISUALIZER_STYLES.map((one) => ({
+                                value: one,
+                                label: VISUALIZER_STYLE_LABELS[one],
+                            }))}
+                            onValueChange={setVisualizerStyle}
+                        />
+                    ),
+                }
+            case 'general:spectrum-effect':
+                return {
+                    control: (
+                        <Segmented
+                            size="sm"
+                            label={row.label}
+                            value={effect}
+                            options={SPECTRUM_EFFECTS.map((one) => ({
+                                value: one,
+                                label: SPECTRUM_EFFECT_LABELS[one],
+                            }))}
+                            onValueChange={setSpectrumEffect}
+                        />
+                    ),
+                }
+            case 'general:spectrum-delay':
+                return {
+                    note: delayNote(graph !== null, auto),
+                    control: (
+                        <span className="flex items-center gap-1">
+                            <span className="w-14 text-right font-mono text-xs text-muted-foreground tabular-nums">
+                                {delay} ms
                             </span>
                             <input
                                 type="range"
-                                aria-label="Text size"
-                                min={FONT_SCALE_MIN}
-                                max={FONT_SCALE_MAX}
-                                step={FONT_SCALE_STEP}
-                                value={fontScale}
+                                aria-label={row.label}
+                                min={0}
+                                max={SPECTRUM_DELAY_MAX_MS}
+                                step={10}
+                                value={delay}
                                 onChange={(event) => {
-                                    chooseFontScale(Number(event.target.value))
+                                    setSpectrumDelay(Number(event.target.value))
                                 }}
                                 className="w-40 accent-primary"
                             />
-                        </Row>
-                    )
+                        </span>
+                    ),
                 }
-                if (row.id === 'general:autoplay-next') {
-                    return (
-                        <Row key={row.id} row={row}>
-                            <Button
-                                variant={upNext ? 'secondary' : 'outline'}
-                                size="sm"
-                                aria-pressed={upNext}
-                                onClick={() => {
-                                    setAutoplayNext(!upNext)
-                                }}
-                            >
-                                {upNext ? 'On' : 'Off'}
-                            </Button>
-                        </Row>
-                    )
-                }
-                if (row.id === 'general:app-version') {
-                    return (
-                        <Row key={row.id} row={row}>
-                            <span className="font-mono text-sm">{APP_VERSION}</span>
-                        </Row>
-                    )
-                }
-                if (row.id === 'general:volume') {
-                    return (
-                        <Row key={row.id} row={row}>
+            case 'general:volume':
+                return {
+                    control: (
+                        <span className="flex items-center gap-1">
                             <Button
                                 variant="ghost"
                                 size="icon-sm"
@@ -331,85 +224,178 @@ function GeneralPane({ rows }: { rows: SettingsRow[] }) {
                                 }}
                                 className="w-40 accent-primary"
                             />
-                        </Row>
-                    )
+                        </span>
+                    ),
                 }
-                if (row.id === 'general:visualizer-style') {
-                    return (
-                        <Row key={row.id} row={row}>
-                            <Segmented
-                                label={row.label}
-                                value={style}
-                                options={VISUALIZER_STYLES.map((one) => ({
-                                    value: one,
-                                    label: VISUALIZER_STYLE_LABELS[one],
-                                }))}
-                                onChoose={setVisualizerStyle}
-                            />
-                        </Row>
-                    )
+            case 'general:density':
+                return {
+                    control: (
+                        <Segmented
+                            size="sm"
+                            label="Density"
+                            value={density}
+                            options={DENSITIES.map((one) => ({ value: one, label: DENSITY_LABELS[one] }))}
+                            onValueChange={chooseDensity}
+                        />
+                    ),
                 }
-                if (row.id === 'general:spectrum-effect') {
-                    return (
-                        <Row key={row.id} row={row}>
-                            <Segmented
-                                label={row.label}
-                                value={effect}
-                                options={SPECTRUM_EFFECTS.map((one) => ({
-                                    value: one,
-                                    label: SPECTRUM_EFFECT_LABELS[one],
-                                }))}
-                                onChoose={setSpectrumEffect}
-                            />
-                        </Row>
-                    )
-                }
-                if (row.id === 'general:spectrum-delay') {
-                    return (
-                        <Row
-                            key={row.id}
-                            row={row}
-                            under={
-                                <p className="text-xs text-muted-foreground">
-                                    {delayNote(graph !== null, auto)}
-                                </p>
-                            }
-                        >
-                            <span className="w-14 text-right font-mono text-xs text-muted-foreground tabular-nums">
-                                {delay} ms
+            case 'general:font-scale':
+                return {
+                    control: (
+                        <span className="flex items-center gap-1">
+                            {/* The readout is what the slider cannot say: a notch along a track
+                                is not a size until it carries the number it stands for. */}
+                            <span className="w-10 shrink-0 text-right font-mono text-xs tabular-nums">
+                                {formatFontScale(fontScale)}
                             </span>
                             <input
                                 type="range"
-                                aria-label={row.label}
-                                min={0}
-                                max={SPECTRUM_DELAY_MAX_MS}
-                                step={10}
-                                value={delay}
+                                aria-label="Text size"
+                                min={FONT_SCALE_MIN}
+                                max={FONT_SCALE_MAX}
+                                step={FONT_SCALE_STEP}
+                                value={fontScale}
                                 onChange={(event) => {
-                                    setSpectrumDelay(Number(event.target.value))
+                                    chooseFontScale(Number(event.target.value))
                                 }}
                                 className="w-40 accent-primary"
                             />
-                        </Row>
-                    )
+                        </span>
+                    ),
                 }
-                return (
-                    <Row key={row.id} row={row}>
-                        <Button
-                            variant={spectrum ? 'secondary' : 'outline'}
-                            size="sm"
-                            aria-pressed={spectrum}
-                            onClick={() => {
-                                setVisualizer(!spectrum)
+            case 'general:autoplay-next':
+                return {
+                    control: (
+                        <Toggle
+                            on={upNext}
+                            words={['On', 'Off']}
+                            onChange={() => {
+                                setAutoplayNext(!upNext)
                             }}
-                        >
-                            {spectrum ? 'Shown' : 'Hidden'}
+                        />
+                    ),
+                }
+            case 'general:app-version':
+                return { control: <span className="font-mono text-sm">{APP_VERSION}</span> }
+            case 'theme:appearance':
+                return {
+                    control: (
+                        <Segmented
+                            size="sm"
+                            label="Appearance"
+                            value={mode}
+                            options={MODES.map((one) => ({ value: one, label: MODE_LABELS[one] }))}
+                            onValueChange={setScheme}
+                        />
+                    ),
+                }
+            case 'theme:palette':
+                return {
+                    layout: 'below',
+                    control: (
+                        <PaletteSwatches
+                            value={palette}
+                            onChoose={(name) => {
+                                choosePalette(name)
+                            }}
+                        />
+                    ),
+                }
+            case 'account:identity':
+                return { control: <span className="font-mono text-sm">{session.username ?? 'nobody'}</span> }
+            case 'account:sign-out':
+                return {
+                    control: (
+                        <Button variant="outline" size="sm" onClick={signOut}>
+                            Sign out
                         </Button>
-                    </Row>
-                )
-            })}
-        </div>
+                    ),
+                }
+            case 'server:address':
+                return {
+                    control: (
+                        <span className="identifier break-all">
+                            {session.baseUrl === '' ? 'this origin' : session.baseUrl}
+                        </span>
+                    ),
+                }
+            case 'server:subsonic':
+                return subsonic === null
+                    ? {
+                          control: (
+                              <span className="text-sm text-muted-foreground">
+                                  this server serves no music
+                              </span>
+                          ),
+                      }
+                    : {
+                          note: (
+                              <>
+                                  Amperfy, play:Sub, Symfonium and DSub all take this address, your username
+                                  and your password, and append their own{' '}
+                                  <code className="identifier">/rest</code>. Downloading an album in one of
+                                  them keeps it on the phone with no server in reach.
+                              </>
+                          ),
+                          control: (
+                              <span className="flex items-center gap-1">
+                                  <span className="identifier break-all">{subsonic}</span>
+                                  <CopyButton value={subsonic} words={{ copy: 'Copy the address' }} />
+                              </span>
+                          ),
+                      }
+            case 'server:version':
+                return { control: <span className="font-mono text-sm">{caps?.version ?? 'unknown'}</span> }
+            case 'server:libraries':
+                return {
+                    control:
+                        libraries.length === 0 ? (
+                            <span className="text-sm text-muted-foreground">none</span>
+                        ) : (
+                            <span className="flex flex-wrap gap-1">
+                                {libraries.map((library) => (
+                                    <Badge key={library} variant="secondary">
+                                        {library === 'audio' ? 'music' : library}
+                                    </Badge>
+                                ))}
+                            </span>
+                        ),
+                }
+            default:
+                // Every other row is a shortcut, its keys drawn from `lib/shortcuts`.
+                return {
+                    control: (
+                        <KbdGroup>
+                            {(keys.get(row.id) ?? []).map((key) => (
+                                <Kbd key={key}>{key}</Kbd>
+                            ))}
+                        </KbdGroup>
+                    ),
+                }
+        }
+    }
+}
+
+/** A setting that is on or off, as the pressed button the rows have always had. */
+function Toggle({ on, words, onChange }: { on: boolean; words: [string, string]; onChange: () => void }) {
+    return (
+        <Button variant={on ? 'secondary' : 'outline'} size="sm" aria-pressed={on} onClick={onChange}>
+            {on ? words[0] : words[1]}
+        </Button>
     )
+}
+
+/**
+ * What this browser reports about its own output, as a sentence.
+ *
+ * The figure is a fact the slider cannot show: what somebody is dialling in is what the browser
+ * failed to admit to, so knowing it already reports 190ms is the difference between dragging
+ * with a reason and dragging until it looks right.
+ */
+function delayNote(playing: boolean, auto: number): string {
+    if (!playing) return 'Nothing has played yet, so this browser has not said what its output is behind by.'
+    if (auto > 0) return `This output reports ${String(auto)} ms of its own, which is held back as well.`
+    return 'This output reports no delay of its own, which is the case this slider is for.'
 }
 
 /**
@@ -421,45 +407,6 @@ function GeneralPane({ rows }: { rows: SettingsRow[] }) {
 function ramp(stops: readonly string[]): CSSProperties {
     const across = stops.length === 1 ? [stops[0], stops[0]] : stops
     return { backgroundImage: `linear-gradient(to right, ${across.join(', ')})` }
-}
-
-/** The look: the two axes, one row each. */
-function ThemePane({ rows }: { rows: SettingsRow[] }) {
-    const { scheme: mode, setScheme } = useScheme()
-    const palette = useStore(paletteStore)
-
-    return (
-        <div>
-            {rows.map((row) => {
-                if (row.id === 'theme:appearance') {
-                    return (
-                        <Row key={row.id} row={row}>
-                            <Segmented
-                                label="Appearance"
-                                value={mode}
-                                options={MODES.map((one) => ({ value: one, label: MODE_LABELS[one] }))}
-                                onChoose={setScheme}
-                            />
-                        </Row>
-                    )
-                }
-                return (
-                    <Row
-                        key={row.id}
-                        row={row}
-                        under={
-                            <PaletteSwatches
-                                value={palette}
-                                onChoose={(name) => {
-                                    choosePalette(name)
-                                }}
-                            />
-                        }
-                    />
-                )
-            })}
-        </div>
-    )
 }
 
 /** The tokens a swatch shows, ground first and accent last: the ladder plus the two inks. */
@@ -495,9 +442,9 @@ function PaletteSwatches({ value, onChoose }: { value: PaletteName; onChoose: (n
     }
 
     return (
-        // Seven cards in one row were 24 px each on a phone, their names run together; under the
-        // breakpoint they wrap three to a row.
-        <div role="radiogroup" aria-label="Palette" className="grid grid-cols-3 gap-2 md:flex">
+        // Eight cards in one row were too narrow for their names on a phone; under the
+        // breakpoint they wrap four to a row.
+        <div role="radiogroup" aria-label="Palette" className="grid grid-cols-4 gap-2 md:flex">
             {PALETTES.map((palette, index) => {
                 const chosen = palette.name === value
                 return (
@@ -554,49 +501,6 @@ function PaletteSwatches({ value, onChoose }: { value: PaletteName; onChoose: (n
     )
 }
 
-/** Every key this app answers, drawn from `lib/shortcuts` rather than listed again here. */
-function ShortcutsPane({ rows, apple }: { rows: SettingsRow[]; apple: boolean }) {
-    const keys = new Map(shortcuts(apple).map((shortcut) => [`shortcuts:${shortcut.id}`, shortcut.keys]))
-    return (
-        <div>
-            {rows.map((row) => (
-                <Row key={row.id} row={row}>
-                    <KbdGroup>
-                        {(keys.get(row.id) ?? []).map((key) => (
-                            <Kbd key={key}>{key}</Kbd>
-                        ))}
-                    </KbdGroup>
-                </Row>
-            ))}
-        </div>
-    )
-}
-
-/** Who this is, and the way out. */
-function AccountPane({ rows }: { rows: SettingsRow[] }) {
-    const session = useStore(sessionStore)
-    return (
-        <div>
-            {rows.map((row) => {
-                if (row.id === 'account:identity') {
-                    return (
-                        <Row key={row.id} row={row}>
-                            <span className="font-mono text-sm">{session.username ?? 'nobody'}</span>
-                        </Row>
-                    )
-                }
-                return (
-                    <Row key={row.id} row={row}>
-                        <Button variant="outline" size="sm" onClick={signOut}>
-                            Sign out
-                        </Button>
-                    </Row>
-                )
-            })}
-        </div>
-    )
-}
-
 /**
  * The address a Subsonic app on a phone wants, which is not the one in the browser's bar.
  *
@@ -611,110 +515,4 @@ function subsonicAddress(baseUrl: string, caps: Capabilities | undefined): strin
     const origin = baseUrl === '' ? window.location.origin : baseUrl
     // The client appends `/rest`, so what a person types stops before it.
     return `${origin}${mount.replace(/\/rest$/, '')}`
-}
-
-/** Copy to the clipboard, saying so where the button was. */
-function CopyButton({ text, label }: { text: string; label: string }) {
-    const [copied, setCopied] = useState(false)
-    return (
-        <Button
-            variant="ghost"
-            size="icon-sm"
-            aria-label={copied ? 'Copied' : label}
-            onClick={() => {
-                void navigator.clipboard
-                    .writeText(text)
-                    .then(() => {
-                        setCopied(true)
-                        setTimeout(() => {
-                            setCopied(false)
-                        }, 1500)
-                    })
-                    .catch(() => {
-                        // A browser that refuses the clipboard still shows the text to select.
-                    })
-            }}
-        >
-            {copied ? (
-                <Check className="size-4 text-primary" aria-hidden />
-            ) : (
-                <Copy className="size-4" aria-hidden />
-            )}
-        </Button>
-    )
-}
-
-/** What this server is, read off the capabilities the session already holds. */
-function ServerPane({ rows }: { rows: SettingsRow[] }) {
-    const session = useStore(sessionStore)
-    const caps = session.capabilities
-    const subsonic = subsonicAddress(session.baseUrl, caps)
-    const libraries = caps
-        ? (['audio', 'video', 'books', 'radio'] as const).filter((library) => caps[library])
-        : []
-
-    return (
-        <div>
-            {rows.map((row) => {
-                if (row.id === 'server:address') {
-                    return (
-                        <Row key={row.id} row={row}>
-                            <span className="identifier break-all">
-                                {session.baseUrl === '' ? 'this origin' : session.baseUrl}
-                            </span>
-                        </Row>
-                    )
-                }
-                if (row.id === 'server:subsonic') {
-                    return (
-                        <Row
-                            key={row.id}
-                            row={row}
-                            under={
-                                subsonic === null ? null : (
-                                    <p className="text-xs text-muted-foreground">
-                                        Amperfy, play:Sub, Symfonium and DSub all take this address, your
-                                        username and your password, and append their own{' '}
-                                        <code className="identifier">/rest</code>. Downloading an album in one
-                                        of them keeps it on the phone with no server in reach.
-                                    </p>
-                                )
-                            }
-                        >
-                            {subsonic === null ? (
-                                <span className="text-sm text-muted-foreground">
-                                    this server serves no music
-                                </span>
-                            ) : (
-                                <>
-                                    <span className="identifier break-all">{subsonic}</span>
-                                    <CopyButton text={subsonic} label="Copy the address" />
-                                </>
-                            )}
-                        </Row>
-                    )
-                }
-                if (row.id === 'server:version') {
-                    return (
-                        <Row key={row.id} row={row}>
-                            <span className="font-mono text-sm">{caps?.version ?? 'unknown'}</span>
-                        </Row>
-                    )
-                }
-                return (
-                    <Row key={row.id} row={row}>
-                        {libraries.length === 0 ? (
-                            <span className="text-sm text-muted-foreground">none</span>
-                        ) : (
-                            libraries.map((library) => (
-                                <Badge key={library} variant="secondary">
-                                    {library === 'audio' ? 'music' : library}
-                                </Badge>
-                            ))
-                        )}
-                    </Row>
-                )
-            })}
-        </div>
-    )
 }

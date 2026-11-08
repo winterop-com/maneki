@@ -1,26 +1,27 @@
 /**
  * Everything the settings dialog offers, as data.
  *
- * ROWS RATHER THAN PANES. A pane written as markup can only be searched by searching markup;
- * a row that is a record -- what it is called, what it is for, which category it is filed
- * under, what else it can be found by -- can be filtered by a pure function, and that function
- * is the whole of the search box. The control on the right of a row is the dialog's, keyed by
- * the row's id, so the registry stays free of React and is exercised in plain Node.
+ * ROWS RATHER THAN PANES. A row is a record -- what it is called, what it is for, which category
+ * it is filed under, what else it can be found by -- and sokkel-ui's `SettingsDialog` searches
+ * those words and the category's name. The control on a row is the dialog's, keyed by the row's
+ * id, so the registry stays free of React and is exercised in plain Node.
  *
  * THE SHORTCUT ROWS ARE NOT WRITTEN DOWN. `lib/shortcuts` already holds every key this app
  * answers, and a second list here would be a list that drifts. They are derived from it, which
  * is why building the registry needs to know what kind of keyboard this is.
  */
 
+import type { Setting, SettingsGroup } from '@winterop-com/sokkel-ui/SettingsDialog'
+
 import { shortcuts } from '@/lib/shortcuts'
 
 /** The headings the left nav lays categories out under. */
-export interface SettingsGroup {
+export interface SettingsHeading {
     id: string
     label: string
 }
 
-export const SETTINGS_GROUPS: readonly SettingsGroup[] = [
+export const SETTINGS_GROUPS: readonly SettingsHeading[] = [
     { id: 'preferences', label: 'Preferences' },
     { id: 'you', label: 'You' },
     { id: 'instance', label: 'This server' },
@@ -227,46 +228,24 @@ function allRows(apple: boolean): SettingsRow[] {
     ]
 }
 
-/** Every word a row can be found by, lowercased. */
-function haystack(row: SettingsRow, categories: readonly SettingsCategory[]): string {
-    const category = categories.find((one) => one.id === row.category)
-    return [row.label, row.description ?? '', category?.label ?? '', ...(row.keywords ?? [])]
-        .join(' ')
-        .toLowerCase()
-}
-
 /**
- * The rows one query names, in the order they were registered.
- *
- * EVERY TERM HAS TO MATCH, the way the command palette's filter works, so typing more words
- * narrows. An empty query is not a filter and answers everything, which is what a dialog opened
- * with no intention should show. There is no ranking: these rows are laid out under headings
- * and reordering them would move a control out from under the heading that explains it.
+ * The rows as sokkel-ui's `SettingsDialog` lays them out: groups, their sections, and each row as
+ * the setting `setting` makes of it. A section with no row, and a group with no section, is left
+ * out, so radio-only shows neither You nor This server.
  */
-export function filterSettings(
+export function settingsGroups(
     rows: readonly SettingsRow[],
-    query: string,
-    categories: readonly SettingsCategory[] = SETTINGS_CATEGORIES,
-): SettingsRow[] {
-    const trimmed = query.trim().toLowerCase()
-    if (trimmed === '') return [...rows]
-    const terms = trimmed.split(/\s+/)
-    return rows.filter((row) => {
-        const words = haystack(row, categories)
-        return terms.every((term) => words.includes(term))
-    })
-}
-
-/** The categories that still hold a row, which is what the left nav lists while a query narrows. */
-export function categoriesWith(
-    rows: readonly SettingsRow[],
-    categories: readonly SettingsCategory[] = SETTINGS_CATEGORIES,
-): SettingsCategory[] {
-    const held = new Set(rows.map((row) => row.category))
-    return categories.filter((category) => held.has(category.id))
-}
-
-/** The rows of one category, which is one pane of the dialog. */
-export function rowsOf(rows: readonly SettingsRow[], category: string): SettingsRow[] {
-    return rows.filter((row) => row.category === category)
+    setting: (row: SettingsRow) => Setting,
+): SettingsGroup[] {
+    return SETTINGS_GROUPS.map((group) => ({
+        id: group.id,
+        title: group.label,
+        sections: SETTINGS_CATEGORIES.filter((category) => category.group === group.id)
+            .map((category) => ({
+                id: category.id,
+                label: category.label,
+                settings: rows.filter((row) => row.category === category.id).map(setting),
+            }))
+            .filter((section) => section.settings.length > 0),
+    })).filter((group) => group.sections.length > 0)
 }

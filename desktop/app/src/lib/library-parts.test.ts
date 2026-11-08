@@ -193,6 +193,17 @@ const LIBRARY_PARTS: { part: string; use: string; marks: RegExp[] }[] = [
             /data-search-overlay/,
         ],
     },
+    {
+        part: 'the settings dialog: its navigation, search, rows and footer',
+        use: "@winterop-com/sokkel-ui/SettingsDialog over lib/settings' settingsGroups, and its CopyButton",
+        marks: [
+            /\bfunction filterSettings\b/,
+            /\bfunction categoriesWith\b/,
+            /\bfunction CopyButton\b/,
+            /aria-label="Search the settings"/,
+            /Nothing matches that\./,
+        ],
+    },
 ]
 
 const SRC = fileURLToPath(new URL('..', import.meta.url))

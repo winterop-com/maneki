@@ -1,17 +1,50 @@
+import { filterSettings } from '@winterop-com/sokkel-ui/SettingsDialog'
 import { describe, expect, test } from 'vitest'
 
 import {
-    categoriesWith,
     FIRST_CATEGORY,
-    filterSettings,
-    rowsOf,
     SETTINGS_CATEGORIES,
     SETTINGS_GROUPS,
+    settingsGroups,
     settingsRows,
+    type SettingsRow,
 } from '@/lib/settings'
 import { shortcuts } from '@/lib/shortcuts'
 
 const ROWS = settingsRows(false)
+
+/** The groups the dialog draws, with no controls: the search reads only the words. */
+function groupsOf(rows: readonly SettingsRow[]) {
+    return settingsGroups(rows, (row) => ({
+        id: row.id,
+        title: row.label,
+        description: row.description,
+        keywords: row.keywords,
+        control: null,
+    }))
+}
+
+const GROUPS = groupsOf(ROWS)
+
+/** The ids of the rows sokkel-ui's search keeps for `search`, in the order they are drawn. */
+function found(search: string): string[] {
+    return filterSettings(GROUPS, search)
+        .flatMap((group) => group.sections)
+        .flatMap((section) => section.settings)
+        .map((setting) => setting.id)
+}
+
+/** The ids of the sections the navigation lists while `search` narrows. */
+function sectionsFor(search: string): string[] {
+    return filterSettings(GROUPS, search)
+        .flatMap((group) => group.sections)
+        .map((section) => section.id)
+}
+
+/** The rows of one category, as one section of the dialog. */
+function rowsOf(rows: readonly SettingsRow[], category: string): SettingsRow[] {
+    return rows.filter((row) => row.category === category)
+}
 
 describe('the settings registry', () => {
     test('files every row under a category the left nav has', () => {
@@ -32,7 +65,7 @@ describe('the settings registry', () => {
     // to one question -- which is how an ice-blue spectrum ended up under an amber app.
     test('offers the colours in one row, the palette, and nowhere else', () => {
         expect(ROWS.map((row) => row.id)).not.toContain('general:spectrum-theme')
-        expect(filterSettings(ROWS, 'spectrum colour').map((row) => row.id)).toEqual(['theme:palette'])
+        expect(found('spectrum colour')).toEqual(['theme:palette'])
     })
 
     test('gives every row an id of its own, because the control on its right is keyed by it', () => {
@@ -71,77 +104,74 @@ describe('the settings registry', () => {
 })
 
 describe('the search box', () => {
-    test('an empty query is not a filter and answers every row in order', () => {
-        expect(filterSettings(ROWS, '')).toEqual(ROWS)
-        expect(filterSettings(ROWS, '   ')).toHaveLength(ROWS.length)
+    test('an empty search is not a filter and answers every row in order', () => {
+        expect(found('')).toEqual(ROWS.map((row) => row.id))
+        expect(found('   ')).toHaveLength(ROWS.length)
     })
 
     test('finds a row by a word in its own name', () => {
-        expect(filterSettings(ROWS, 'appearance').map((row) => row.id)).toEqual(['theme:appearance'])
+        expect(found('appearance')).toEqual(['theme:appearance'])
     })
 
     test('finds a row by a word nothing renders', () => {
-        expect(filterSettings(ROWS, 'oscilloscope').map((row) => row.id)).toEqual([
-            'general:visualizer-style',
-        ])
+        expect(found('oscilloscope')).toEqual(['general:visualizer-style'])
     })
 
-    test('finds a row by the category it is filed under', () => {
-        expect(filterSettings(ROWS, 'account').every((row) => row.category === 'account')).toBe(true)
+    test('finds every row of a section by the section name', () => {
+        expect(found('account')).toEqual(rowsOf(ROWS, 'account').map((row) => row.id))
     })
 
     test('reaches across categories, which is the whole point of one box', () => {
-        const found = filterSettings(ROWS, 'palette')
-        expect(new Set(found.map((row) => row.category))).toEqual(new Set(['theme', 'shortcuts']))
+        expect(new Set(sectionsFor('palette'))).toEqual(new Set(['theme', 'shortcuts']))
     })
 
     test('every term has to match, so typing more words narrows', () => {
-        const one = filterSettings(ROWS, 'colour')
-        const two = filterSettings(ROWS, 'colour paper')
-        expect(two.length).toBeLessThan(one.length)
-        expect(two.map((row) => row.id)).toEqual(['theme:palette'])
+        expect(found('colour paper').length).toBeLessThan(found('colour').length)
+        expect(found('colour paper')).toEqual(['theme:palette'])
     })
 
     test('is not case sensitive', () => {
-        expect(filterSettings(ROWS, 'UTC')).toEqual(filterSettings(ROWS, 'utc'))
+        expect(found('UTC')).toEqual(found('utc'))
     })
 
-    test('a query nothing matches answers nothing rather than everything', () => {
-        expect(filterSettings(ROWS, 'stroopwafel')).toEqual([])
+    test('a search nothing matches answers nothing rather than everything', () => {
+        expect(found('stroopwafel')).toEqual([])
     })
 
     test('does not reorder what it keeps, because a row sits under the heading that explains it', () => {
-        const kept = filterSettings(ROWS, 'the')
-        expect(kept).toEqual(ROWS.filter((row) => kept.includes(row)))
+        const kept = found('the')
+        expect(kept).toEqual(ROWS.map((row) => row.id).filter((id) => kept.includes(id)))
     })
 })
 
-describe('the left nav while a query narrows', () => {
-    test('lists only the categories that still hold a row', () => {
-        const found = filterSettings(ROWS, 'appearance')
-        expect(categoriesWith(found).map((category) => category.id)).toEqual(['theme'])
+describe('the navigation while a search narrows', () => {
+    test('lists only the sections that still hold a row', () => {
+        expect(sectionsFor('appearance')).toEqual(['theme'])
     })
 
     test('lists nothing when nothing matches', () => {
-        expect(categoriesWith(filterSettings(ROWS, 'stroopwafel'))).toEqual([])
+        expect(sectionsFor('stroopwafel')).toEqual([])
     })
 
     test('keeps the nav order rather than the order rows happened to match in', () => {
-        const every = categoriesWith(ROWS).map((category) => category.id)
-        expect(every).toEqual(SETTINGS_CATEGORIES.map((category) => category.id))
+        expect(sectionsFor('')).toEqual(SETTINGS_CATEGORIES.map((category) => category.id))
+    })
+
+    test('lays the sections under the group titles they are filed under', () => {
+        expect(GROUPS.map((group) => group.title)).toEqual(SETTINGS_GROUPS.map((group) => group.label))
     })
 })
 
 describe('the phone row', () => {
     test('is findable by the app somebody is holding', () => {
         for (const app of ['amperfy', 'play:sub', 'symfonium', 'dsub']) {
-            expect(filterSettings(ROWS, app).map((row) => row.id)).toContain('server:subsonic')
+            expect(found(app)).toContain('server:subsonic')
         }
     })
 
     test('is findable by what somebody is trying to do', () => {
-        expect(filterSettings(ROWS, 'phone').map((row) => row.id)).toContain('server:subsonic')
-        expect(filterSettings(ROWS, 'offline').map((row) => row.id)).toContain('server:subsonic')
+        expect(found('phone')).toContain('server:subsonic')
+        expect(found('offline')).toContain('server:subsonic')
     })
 })
 
@@ -152,6 +182,7 @@ describe('listening without a server', () => {
         expect(radioOnly.some((row) => row.category === 'account' || row.category === 'server')).toBe(false)
         expect(radioOnly.some((row) => row.category === 'general')).toBe(true)
         expect(settingsRows(false).some((row) => row.category === 'server')).toBe(true)
+        expect(groupsOf(radioOnly).map((group) => group.id)).toEqual(['preferences'])
     })
 })
 
