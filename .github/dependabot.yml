@@ -4,6 +4,18 @@
 # workflows, the two desktop wrappers (Electron / Tauri), and the client
 # that both wrappers embed and the wheel ships.
 version: 2
+
+# GitHub Packages asks for a token even to read a public package, and
+# Dependabot's own token is refused there, so it reads @winterop-com/sokkel-ui
+# with SOKKEL_PACKAGES_TOKEN: a Dependabot secret holding a classic token with
+# read:packages only. The scope makes Dependabot write its own .npmrc for it.
+registries:
+  github-packages:
+    type: npm-registry
+    url: https://npm.pkg.github.com
+    token: ${{secrets.SOKKEL_PACKAGES_TOKEN}}
+    scope: "@winterop-com"
+
 updates:
   # "uv", not "pip": the uv ecosystem rewrites uv.lock alongside pyproject.
   - package-ecosystem: "uv"
@@ -45,14 +57,15 @@ updates:
   # use the "bun" ecosystem, which rewrites bun.lock itself. Under "npm"
   # Dependabot refuses a tree with a bun.lock and every update job fails.
   #
-  # @winterop-com/sokkel-ui comes from GitHub Packages. Dependabot reads it
-  # with its own token, through the package's Actions access grant to this
-  # repository; desktop/app/.npmrc only names the registry, because a
-  # variable there would be read as an empty token. It is never bumped here:
-  # each sokkel-ui version is taken on purpose, in a change that adopts what
-  # it brings.
+  # @winterop-com/sokkel-ui comes from GitHub Packages, read through the
+  # github-packages registry above; desktop/app/.npmrc only names the
+  # registry, because a variable there would be read as an empty token. It is
+  # never bumped here: each sokkel-ui version is taken on purpose, in a change
+  # that adopts what it brings.
   - package-ecosystem: "bun"
     directory: "/desktop/app"
+    registries:
+      - github-packages
     schedule:
       interval: "weekly"
     ignore:
