@@ -205,8 +205,8 @@ export function PlayerBar() {
             onPlayingChange={(wanted) => {
                 if (wanted !== player.playing) toggle()
             }}
-            // `lib/player` claims the sound for its element through `lib/sound`, which the video
-            // player shares; a second claim here would be a second arbiter.
+            // `lib/player` claims the sound for its element through sokkel-ui's `media/one-sound`,
+            // which the video player shares; a second claim here would claim it twice.
             exclusive={false}
             position={player.positionS}
             // The element's clock read every frame, so the scrubber glides rather than steps.

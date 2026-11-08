@@ -49,7 +49,7 @@ import { connectionStore } from '@/lib/connection'
 import { offlineSongIds, offlineStore, offlineTrack } from '@/lib/offline'
 import { sendPlay } from '@/lib/outbox'
 import { PRELOAD_DELAY_MS, songToPreload, worthHolding } from '@/lib/preload'
-import { claimSound, registerSilencer } from '@/lib/sound'
+import { claimSound } from '@winterop-com/sokkel-ui/media/one-sound'
 import { createStore } from '@winterop-com/sokkel-ui/lib/stored'
 import type { BookDetail, BookFile, Chapter } from '@/lib/types'
 
@@ -224,8 +224,8 @@ let credentials: Credentials | null = null
 let announced: string | null = null
 /** The poll that follows a station's own announcements, while one is playing. */
 let icy: ReturnType<typeof setInterval> | null = null
-/** Undoes this player's registration with the sound arbiter when the element goes. */
-let unregister: (() => void) | null = null
+/** Gives up the sound this player last claimed, when the element goes. */
+let release: (() => void) | null = null
 /**
  * Which of a book's files the element is holding.
  *
@@ -462,6 +462,18 @@ function silence(): void {
     if (state().station) releaseStation(audio)
 }
 
+/**
+ * Only one thing makes sound at a time: this player claims the sound through sokkel-ui's
+ * `media/one-sound` as it starts, which pauses a video, and a video claiming it pauses this.
+ * Music, a station and a book are all this element, so between those three there is nothing to
+ * arbitrate.
+ */
+const MUSIC = { pause: silence }
+
+function takeSound(): void {
+    release = claimSound(MUSIC)
+}
+
 /** Where the element's clock stands this instant, for a scrubber drawn every frame. */
 export function positionNow(): number {
     return audio?.currentTime ?? state().positionS
@@ -470,10 +482,6 @@ export function positionNow(): number {
 function element(): HTMLAudioElement {
     if (audio) return audio
     audio = new Audio()
-    // Only one thing makes sound at a time: a video starting stops this, and this starting
-    // stops the video. Music, a station and a book are all this element, so between those
-    // three there is nothing to arbitrate.
-    unregister = registerSilencer(silence)
     audio.preload = 'metadata'
     applyVolume()
     // The spectrum reads the audio through a WebAudio graph, and the browser
@@ -688,7 +696,7 @@ export function play(songs: Song[], startIndex = 0): void {
     if (!songs.length) return
     stopIcy()
     leaveBook()
-    claimSound(silence)
+    takeSound()
     const at = Math.min(Math.max(0, startIndex), songs.length - 1)
     const order = [...createQueue(songs, { start: at, shuffle: state().shuffle }).order]
     patch({ queue: songs, order, station: null, book: null, stationTitle: '' })
@@ -704,7 +712,7 @@ export function play(songs: Song[], startIndex = 0): void {
 export function playStation(station: Station): void {
     const player = element()
     leaveBook()
-    claimSound(silence)
+    takeSound()
     // WITH NO SERVER THE STATION IS PLAYED AS IT IS. Radio-only has no relay, so the stream is
     // the directory's own address, and the element asks for no CORS: most stations send none,
     // and an element that asked would be refused. Without CORS the spectrum cannot listen, so
@@ -875,7 +883,7 @@ function placeBook(at: number, resume: boolean, reload = false): void {
     player.playbackRate = book.speed
     patch({ positionS: at, durationS: book.duration_s, refusal: null })
     if (resume) {
-        claimSound(silence)
+        takeSound()
         start(player)
     }
 }
@@ -1019,7 +1027,7 @@ export function retry(): void {
         return
     }
     if (index < 0 || !credentials) return
-    claimSound(silence)
+    takeSound()
     load(index, true, orderAt)
     if (positionS <= 0) return
     const player = element()
@@ -1053,7 +1061,7 @@ export function toggle(): void {
         return
     }
     if (player.paused) {
-        claimSound(silence)
+        takeSound()
         // A book whose element holds nothing has been picked up rather than resumed -- the
         // source is put on before it is asked to play. A finished book is begun again: its
         // element has ended, and playing that would rewind it under a bar left at the end.
@@ -1306,8 +1314,8 @@ export function clear(): void {
     loadedFile = 0
     savedAt = 0
     savedStamp = 0
-    unregister?.()
-    unregister = null
+    release?.()
+    release = null
     audio?.pause()
     // The element is going, so a refusal still waiting out its settle is about nothing: it
     // would name whatever the store says is playing, which by then is nothing at all.

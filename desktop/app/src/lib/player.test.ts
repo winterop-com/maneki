@@ -1,4 +1,4 @@
-import { claimSound } from '@/lib/sound'
+import { claimSound } from '@winterop-com/sokkel-ui/media/one-sound'
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest'
 
 import {
@@ -485,7 +485,7 @@ describe('a station something else silenced', () => {
         // A video opening paused the station, but the stream stayed connected the whole film.
         playStation(stations[0]!)
         expect(fake.src).not.toBe('')
-        claimSound(() => undefined)
+        claimSound({ pause: () => undefined })
         expect(fake.src).toBe('')
         expect(playerStore.get().playing).toBe(false)
     })

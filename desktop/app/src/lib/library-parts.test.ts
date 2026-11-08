@@ -219,6 +219,31 @@ const LIBRARY_PARTS: { part: string; use: string; marks: RegExp[] }[] = [
         use: 'the popover\'s `data-slot="search-results"` from @winterop-com/sokkel-ui/Search',
         marks: [/\[aria-controls\]/, /\[role="listbox"\]\[id\]/],
     },
+    {
+        part: 'the video player, its HLS engine, captions and stall recovery',
+        use: '@winterop-com/sokkel-ui/media/VideoPlayer with hlsSource from @winterop-com/sokkel-ui-media/hls-source',
+        marks: [
+            /from ['"]video\.js['"]/,
+            /import\(['"]video\.js['"]\)/,
+            /from ['"]@videojs\//,
+            /['"]videojs-[a-z-]+['"]/,
+            /from ['"]hls\.js['"]/,
+            /\.vjs-[a-z-]+/,
+            /from '@\/components\/video\/VideoPlayer'/,
+            /\bpersistTextTrackSettings\b/,
+            /\bfunction sampleOf\(live\b/,
+        ],
+    },
+    {
+        part: "the player's stats reading",
+        use: "@winterop-com/sokkel-ui/media/video-stats' useVideoStats over the player's `stats()`",
+        marks: [/getVideoPlaybackQuality\(/, /\bvhs\?\.bandwidth\b/],
+    },
+    {
+        part: 'one sound at a time',
+        use: '@winterop-com/sokkel-ui/media/one-sound, whose claim the VideoPlayer shares',
+        marks: [/from '@\/lib\/sound'/, /\bfunction registerSilencer\b/, /\bfunction forgetSilencers\b/],
+    },
 ]
 
 const SRC = fileURLToPath(new URL('..', import.meta.url))

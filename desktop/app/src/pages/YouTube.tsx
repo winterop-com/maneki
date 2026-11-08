@@ -6,12 +6,14 @@ import { Skeleton } from '@/components/Skeleton'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { VideoPlayer, type VideoHandle } from '@/components/video/VideoPlayer'
+import { crossOriginVideo, videoSource } from '@/components/video/source'
+import { VideoPlayer, type VideoPlayerHandle } from '@winterop-com/sokkel-ui/media/VideoPlayer'
 import { useCommands } from '@winterop-com/sokkel-ui/hooks/use-commands'
 import { SCREEN_GROUP } from '@/lib/nav'
 import { useStore } from '@winterop-com/sokkel-ui/hooks/use-store'
 import { claimMediaSession } from '@/lib/media-session'
 import { youtube as youtubeApi } from '@/lib/api'
+import { menuStanding } from '@/lib/dialogs'
 import { clock } from '@/lib/format'
 import { claimMuteKey, claimStageKey, claimTransport, claimVolumeKeys } from '@/lib/screen-keys'
 import { clearScreenStatus, setScreenStatus, type StatusTone } from '@/lib/screen-status'
@@ -20,6 +22,7 @@ import { cyclesRepeat, opensLyrics, seeks, togglesShuffle, type FocusedField } f
 import { countsHeld, rememberCounts, uncounted } from '@/lib/youtube-counts'
 import type { YouTubeChannel, YouTubeTab, YouTubeVideo } from '@/lib/types'
 import { cn } from '@/lib/utils'
+import { PLAY_RETRIES, STALL_AFTER_MS } from '@/lib/video'
 import {
     AUTO_HEIGHT,
     countsSummary,
@@ -656,23 +659,16 @@ function Watch({ id }: { id: string }) {
      * Left to the shell, `f` put the spectrum over a video somebody was watching and Space
      * stopped an album they were not listening to. So `f` is this player's full screen, Space is
      * its play, `m` its mute, and the arrows move its playhead -- read on the window in the
-     * capture phase, because a video.js component answers a keydown it has no use for by
-     * stopping it. `n` and `p` are claimed as nothing: a channel's upload is not part of any
+     * capture phase, before anything under it can take the press; the player answers no keys
+     * itself. `n` and `p` are claimed as nothing: a channel's upload is not part of any
      * queue, and a key that did nothing is better than a key that quietly moved the album
      * instead.
      */
-    const player = useRef<VideoHandle | null>(null)
-    // Where the picture was when its quality changed, for the new player to pick up from.
-    const carried = useRef<number | null>(null)
+    const player = useRef<VideoPlayerHandle | null>(null)
+    // Where the picture was when its quality changed, for the new player to start from.
+    const [carried, setCarried] = useState<number | null>(null)
     // Which video and quality opened paused, after a change of quality while paused.
     const [pausedFor, setPausedFor] = useState<string | null>(null)
-    const onReady = useCallback((handle: VideoHandle | null) => {
-        player.current = handle
-        if (handle !== null && carried.current !== null) {
-            handle.seekTo(carried.current)
-            carried.current = null
-        }
-    }, [])
     useEffect(
         () =>
             claimStageKey(() => {
@@ -683,7 +679,7 @@ function Watch({ id }: { id: string }) {
     useEffect(
         () =>
             claimTransport({
-                play: () => player.current?.togglePlay(),
+                play: () => player.current?.toggle(),
                 next: null,
                 previous: null,
             }),
@@ -704,25 +700,24 @@ function Watch({ id }: { id: string }) {
         return claimMediaSession({
             title: video.title,
             artwork: youtubeApi.posterUrl(id),
-            play: () => {
-                if (player.current?.sample()?.paused !== false) player.current?.togglePlay()
-            },
-            pause: () => {
-                if (player.current?.sample()?.paused === false) player.current?.togglePlay()
-            },
-            playing: () => player.current?.sample()?.paused === false,
+            play: () => player.current?.play(),
+            pause: () => player.current?.pause(),
+            playing: () => player.current?.playing() === true,
         })
     }, [id, video])
     // Up and Down turn the picture up, not the album under it; see `claimVolumeKeys`.
     useEffect(
         () =>
             claimVolumeKeys((step) => {
-                player.current?.nudgeVolume(step)
+                const handle = player.current
+                handle?.setVolume(handle.volume() + step)
             }),
         [],
     )
     useEffect(() => {
         const onKeyDown = (event: KeyboardEvent): void => {
+            // An open menu, such as the player's speed menu, keeps every key.
+            if (menuStanding(document)) return
             const element = document.activeElement
             const focused: FocusedField | null =
                 element instanceof HTMLElement
@@ -767,13 +762,11 @@ function Watch({ id }: { id: string }) {
     const length = video === null || video.duration_s === null ? null : clock(video.duration_s)
 
     const choose = (next: number): void => {
-        carried.current = placeAfterQualityChange(
-            player.current?.positionS() ?? null,
-            video?.duration_s ?? null,
-        )
+        setCarried(placeAfterQualityChange(player.current?.time() ?? null, video?.duration_s ?? null))
         // PAUSED STAYS PAUSED. The new player opened playing, so picking 720p while paused set
         // the video going. Kept for this video at this quality alone: the next one plays.
-        setPausedFor(player.current?.sample()?.paused === true ? `${id}:${String(next)}` : null)
+        const paused = player.current !== null && !player.current.playing()
+        setPausedFor(paused ? `${id}:${String(next)}` : null)
         setHeight(next)
         try {
             localStorage.setItem(QUALITY_KEY, String(next))
@@ -827,13 +820,22 @@ function Watch({ id }: { id: string }) {
                 <div className="flex min-h-0 flex-1 overflow-hidden rounded-lg bg-black">
                     <VideoPlayer
                         key={height}
-                        src={youtubeApi.hlsUrl(id, height === AUTO_HEIGHT ? undefined : height)}
-                        kind="hls"
+                        ref={player}
+                        videoRef={crossOriginVideo}
+                        source={videoSource(
+                            youtubeApi.hlsUrl(id, height === AUTO_HEIGHT ? undefined : height),
+                        )}
                         poster={youtubeApi.posterUrl(id)}
-                        autoplay={pausedFor !== `${id}:${String(height)}`}
-                        onReady={onReady}
-                        onError={(message) => {
-                            setResolved({ key: id, value: video, refusal: message })
+                        autoPlay={pausedFor !== `${id}:${String(height)}`}
+                        preload="auto"
+                        startAt={carried ?? undefined}
+                        retries={PLAY_RETRIES}
+                        stallAfter={STALL_AFTER_MS}
+                        keys={false}
+                        className="aspect-auto min-h-0 flex-1"
+                        onError={(error) => {
+                            // Once its tries are spent: the stream is a sentence, as a refused resolve is.
+                            if (error.fatal) setResolved({ key: id, value: video, refusal: error.message })
                         }}
                     />
                 </div>

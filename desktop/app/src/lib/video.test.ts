@@ -25,11 +25,13 @@ import {
     neighbours,
     otherStreams,
     parentOf,
+    playsHlsItself,
     posterPath,
     preferredSubtitles,
     resolutionLabel,
     resumeAt,
     rowsOf,
+    sampleOf,
     scanProgress,
     sessionFor,
     started,
@@ -603,5 +605,61 @@ describe('which place is worth saving', () => {
         expect(keepsPlace(0, false, false)).toBe(false)
         expect(keepsPlace(42, false, false)).toBe(true)
         expect(keepsPlace(0, true, false)).toBe(true)
+    })
+})
+
+describe('who plays the HLS', () => {
+    const safari =
+        'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Safari/605.1.15'
+    const webview = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko)'
+    const iphone =
+        'Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) CriOS/130.0 Mobile/15E148 Safari/604.1'
+    const chrome =
+        'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36'
+    const electron =
+        'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) maneki/1.0 Chrome/130.0 Electron/33.0 Safari/537.36'
+    const firefox = 'Mozilla/5.0 (X11; Linux x86_64; rv:130.0) Gecko/20100101 Firefox/130.0'
+
+    it('is the browser itself on Apple WebKit, the macOS webview and every iPhone browser included', () => {
+        expect(playsHlsItself(safari)).toBe(true)
+        expect(playsHlsItself(webview)).toBe(true)
+        expect(playsHlsItself(iphone)).toBe(true)
+    })
+
+    it('is hls.js on Chromium, Electron and Firefox', () => {
+        expect(playsHlsItself(chrome)).toBe(false)
+        expect(playsHlsItself(electron)).toBe(false)
+        expect(playsHlsItself(firefox)).toBe(false)
+    })
+})
+
+describe("the player's stats as the verdict reads them", () => {
+    it('is nothing before the first reading', () => {
+        expect(sampleOf(null)).toBeNull()
+    })
+
+    it('reads a stopped player as paused, and carries the rest across', () => {
+        const read = sampleOf({
+            resolution: { width: 1920, height: 1080 },
+            bitrate: 4_000_000,
+            bandwidth: 9_000_000,
+            bufferAhead: 12,
+            droppedFrames: 3,
+            totalFrames: 900,
+            level: 0,
+            levels: 1,
+            engine: 'hls.js',
+            live: false,
+            playing: false,
+            readyState: 4,
+        })
+        expect(read).toEqual({
+            paused: true,
+            bufferAheadS: 12,
+            bandwidthBps: 9_000_000,
+            readyState: 4,
+            droppedFrames: 3,
+            totalFrames: 900,
+        })
     })
 })

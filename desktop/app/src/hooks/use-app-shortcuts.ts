@@ -216,12 +216,9 @@ export function useAppShortcuts(): void {
             }
         }
 
-        // IN THE CAPTURE PHASE, WHICH IS ABOUT THE VIDEO PLAYER AND NOTHING ELSE. video.js
-        // answers a keydown it has no use for by calling `stopPropagation` on it, so a
-        // bubble-phase listener here heard nothing at all while the picture had focus -- which
-        // is where focus is from the moment somebody clicks play, and why `f` did not fill the
-        // screen while watching. Capture runs from the document down to whatever was pressed
-        // on, so the press is read before anything can swallow it.
+        // IN THE CAPTURE PHASE, so a press is read before anything under it can swallow it: a
+        // focused part that stops a keydown it has no use for would otherwise take the key from
+        // the whole app.
         document.addEventListener('keydown', onKeyDown, true)
         return () => {
             document.removeEventListener('keydown', onKeyDown, true)

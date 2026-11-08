@@ -458,35 +458,6 @@
 }
 
 /* ---------------------------------------------------------------------------
-   THE CAPTIONS ARE WORDS ON THE PICTURE, NOT A BOX OVER IT.
-
-   videojs-vtt writes `background-color: rgba(0, 0, 0, 0.8)` inline on every cue and on the div
-   inside it -- the opaque-box look -- and an inline style beats any rule here that does not say
-   otherwise. So the background, and only the background, is taken with `!important`: an outline
-   and a soft shadow hold the words against a bright frame without a black band across the
-   bottom third of the film.
-
-   EVERYTHING ELSE IS PLAIN CSS ON PURPOSE. video.js writes nothing inline for the colour, the
-   weight or the shadow, so these win by cascade alone -- which leaves the player's own captions
-   settings menu able to override each of them, and `persistTextTrackSettings` able to remember
-   what was chosen. Size and face are not set here at all: the size baseline is written through
-   `textTrackSettings` at player init, where the menu can still dial relative to it.
-   ------------------------------------------------------------------------- */
-.video-js .vjs-text-track-display .vjs-text-track-cue,
-.video-js .vjs-text-track-display .vjs-text-track-cue > div {
-    background: transparent !important;
-    color: #fff;
-    font-weight: 500;
-    line-height: 1.25;
-    text-shadow:
-        -1px 0 0 #000,
-        1px 0 0 #000,
-        0 -1px 0 #000,
-        0 1px 0 #000,
-        0 1px 3px rgba(0, 0, 0, 0.85);
-}
-
-/* ---------------------------------------------------------------------------
    THE STAGE.
 
    The spectrum over the whole screen is a dark room whatever the mode and the palette: the
@@ -563,25 +534,5 @@
     [data-slot^='dropdown-menu'][role^='menuitem'][data-highlighted] {
         outline: 2px solid Highlight;
         outline-offset: -2px;
-    }
-}
-
-/* CAPTIONS CLEAR THE CONTROL BAR WHILE IT IS UP. video.js lifts its caption area by its own 3em
-   bar, and the city theme's bar is 70px, so a two-line caption's second line sat under the
-   progress bar whenever the controls showed. While they show, the captions sit above them. */
-.video-js.vjs-has-started:not(.vjs-user-inactive) .vjs-text-track-display,
-.video-js.vjs-paused .vjs-text-track-display {
-    bottom: 76px;
-}
-
-/* ON A TOUCH SCREEN THE PLAYER'S BUTTONS ARE FINGER-SIZED. Picture-in-picture and full screen were
-   11 to 18 px wide on a phone, and the volume ramp took room on a phone where page volume does
-   nothing at all (the hardware buttons are the volume). */
-@media (pointer: coarse) {
-    .video-js .vjs-control-bar .vjs-button {
-        min-width: 44px;
-    }
-    .video-js .vjs-volume-panel {
-        display: none;
     }
 }

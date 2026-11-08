@@ -16,7 +16,7 @@
  * other screen in this app.
  *
  * AND `m` SILENCES WHATEVER IS MAKING THE SOUND. Only one thing in this app makes any at a time
- * -- a player starting stops the other, through `lib/sound` -- so a mute that always meant the
+ * -- a player starting stops the other, through sokkel-ui's `media/one-sound` -- so a mute that always meant the
  * album meant the wrong player exactly when a video was the one playing, and somebody muting a
  * film got a film still talking and a record they could not hear when they went back to it.
  *

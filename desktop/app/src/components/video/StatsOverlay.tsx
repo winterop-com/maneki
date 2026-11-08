@@ -1,6 +1,7 @@
 import { X } from 'lucide-react'
 import { useEffect, useState } from 'react'
 
+import type { VideoStats } from '@winterop-com/sokkel-ui/media/video-stats'
 import { Button } from '@/components/ui/button'
 import { video as videoApi } from '@/lib/api'
 import type { VideoStatsFrame } from '@/lib/types'
@@ -8,9 +9,9 @@ import {
     bitrateLabel,
     encoderOf,
     otherStreams,
+    sampleOf,
     sessionFor,
     streamVerdict,
-    type PlaybackSample,
     type StreamLevel,
 } from '@/lib/video'
 import { cn } from '@/lib/utils'
@@ -27,12 +28,15 @@ import { cn } from '@/lib/utils'
  * TWO SOURCES, NEITHER OF WHICH KNOWS THE OTHER. The server's half arrives as events -- one
  * frame a second carrying the shared transcode budget and every session on it, which is how
  * somebody else's 4K stream shows up as the reason this one is thin -- and the player's half is
- * read off the player once a second. The stream is opened only while this is on screen: a
- * connection held open for a panel nobody has asked for is a connection spent on nothing.
+ * the screen's `useVideoStats` reading of sokkel-ui's player, once a second. The stream is opened
+ * only while this is on screen: a connection held open for a panel nobody has asked for is a
+ * connection spent on nothing.
+ *
+ * MANEKI'S OWN RATHER THAN THE LIBRARY'S `VideoStatsOverlay`, which draws the player's half only:
+ * the verdict and the server's figures (transcode speed, encoder, its load, segments, other
+ * streams) are what this is opened for. It sits in the player's `overlay`, so it stays over the
+ * picture in full screen.
  */
-
-/** How often the player is asked how it is doing. The server's own frames arrive at that rate. */
-const SAMPLE_MS = 1000
 
 export const STATS_LABEL = 'Show the stream stats'
 
@@ -46,19 +50,16 @@ const TONE: Record<StreamLevel, string> = {
 
 export function StatsOverlay({
     videoId,
-    sample,
+    stats,
     onClose,
-    below = false,
 }: {
     videoId: string
-    /** How the player answers what it is doing, or null before there is a player. */
-    sample: () => PlaybackSample | null
+    /** The player's reading from `useVideoStats`, or null before the first. */
+    stats: VideoStats | null
     onClose: () => void
-    /** Hung under the screen's own strip, for the theater case where that strip floats. */
-    below?: boolean
 }) {
     const [frame, setFrame] = useState<VideoStatsFrame | null>(null)
-    const [reading, setReading] = useState<PlaybackSample | null>(null)
+    const reading = sampleOf(stats)
 
     // The server's half. EventSource reconnects on its own schedule, which is the right
     // behaviour for a panel: a stats stream that dropped is not worth a sentence on screen.
@@ -81,18 +82,6 @@ export function StatsOverlay({
         }
     }, [])
 
-    // The player's half.
-    useEffect(() => {
-        const tick = (): void => {
-            setReading(sample())
-        }
-        tick()
-        const timer = setInterval(tick, SAMPLE_MS)
-        return () => {
-            clearInterval(timer)
-        }
-    }, [sample])
-
     const session = sessionFor(frame, videoId)
     const verdict = streamVerdict(reading, session)
     const budget = frame?.budget ?? null
@@ -102,12 +91,7 @@ export function StatsOverlay({
             : `${String(reading.droppedFrames)} of ${String(reading.totalFrames ?? 0)}`
 
     return (
-        <div
-            className={cn(
-                'absolute left-2 z-10 w-72 max-w-[calc(100%-1rem)] rounded-md border bg-card/95 p-2',
-                below ? 'top-14' : 'top-2',
-            )}
-        >
+        <div className="w-72 max-w-full rounded-md border bg-card/95 p-2 text-card-foreground">
             <div className="flex items-start gap-2">
                 <p className={cn('min-w-0 flex-1 text-sm', TONE[verdict.level])}>{verdict.text}</p>
                 <Button variant="ghost" size="icon-sm" aria-label="Close the stream stats" onClick={onClose}>

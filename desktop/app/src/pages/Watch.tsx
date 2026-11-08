@@ -2,8 +2,14 @@ import { Activity, ChevronLeft, Maximize2, Minimize2, PanelRight, Play } from 'l
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router'
 
+import { useVideoStats } from '@winterop-com/sokkel-ui/media/video-stats'
+import {
+    VideoPlayer,
+    type VideoPlayerHandle,
+    type VideoTrack,
+} from '@winterop-com/sokkel-ui/media/VideoPlayer'
+import { crossOriginVideo, videoSource } from '@/components/video/source'
 import { StatsOverlay, STATS_LABEL } from '@/components/video/StatsOverlay'
-import { VideoPlayer, type PlayerSubtitle, type VideoHandle } from '@/components/video/VideoPlayer'
 import { Button } from '@/components/ui/button'
 import { claimMediaSession } from '@/lib/media-session'
 import { video as videoApi } from '@/lib/api'
@@ -12,6 +18,7 @@ import { useCommands } from '@winterop-com/sokkel-ui/hooks/use-commands'
 import { SCREEN_GROUP } from '@/lib/nav'
 import { useStore } from '@winterop-com/sokkel-ui/hooks/use-store'
 import { claimMuteKey, claimStageKey, claimTransport, claimVolumeKeys } from '@/lib/screen-keys'
+import { menuStanding } from '@/lib/dialogs'
 import { clearScreenStatus, setScreenStatus } from '@/lib/screen-status'
 import {
     cyclesRepeat,
@@ -28,9 +35,11 @@ import {
     fileSize,
     neighbours,
     parentOf,
+    PLAY_RETRIES,
     preferredSubtitles,
     resolutionLabel,
     resumeAt,
+    STALL_AFTER_MS,
     subtitleLabel,
     subtitleNote,
     watchHref,
@@ -49,8 +58,11 @@ const POSTER_POLL_MS = 4000
 const THUMB_WIDTH = 160
 const THUMB_HEIGHT = 90
 
-/** How often the playhead is read. Cheap, and nothing on the screen re-renders for it. */
-const TICK_MS = 1000
+/**
+ * Captions start at half the player's usual size, which fills less of a full screen; whatever is
+ * picked from the captions menu afterwards is kept and wins.
+ */
+const CAPTION_DEFAULTS = { size: 0.5 }
 
 /** How far the playhead has to move before the server is told again. */
 const SAVE_EVERY_S = 10
@@ -97,9 +109,7 @@ function Watch({ id }: { id: string }) {
     const listed = !theater && beside.length > 1
     const [stats, setStats] = useState(false)
     const [filled, setFilled] = useState(false)
-    const player = useRef<VideoHandle | null>(null)
-    // The box around the player and what it draws over the picture, which fills the screen in a shell.
-    const stage = useRef<HTMLDivElement | null>(null)
+    const player = useRef<VideoPlayerHandle | null>(null)
     const navigate = useNavigate()
 
     // The video itself. A link somebody was sent names an id and nothing else, so the screen
@@ -166,7 +176,7 @@ function Watch({ id }: { id: string }) {
     useEffect(() => {
         if (size !== null) return
         const timer = setInterval(() => {
-            const found = player.current?.frameSize() ?? null
+            const found = player.current?.stats()?.resolution ?? null
             if (found !== null) setSize(found)
         }, SIZE_POLL_MS)
         return () => {
@@ -233,10 +243,8 @@ function Watch({ id }: { id: string }) {
     /**
      * WHERE THIS ACCOUNT STOPPED, ASKED FOR BEFORE THE PLAYER EXISTS.
      *
-     * The read and the player race: the chunk may land first or the answer may. So the position
-     * is held here and a second effect applies it once both are in, and the handle's own seek
-     * waits on the media besides -- a `currentTime` written before there is metadata is
-     * discarded, and what somebody sees then is a resume that did not happen.
+     * The player is drawn once the answer is in and starts there (`startAt`), so hls.js loads
+     * the resumed segment first rather than the film's opening one and then seeking away.
      */
     const [resume, setResume] = useState<number | null>(null)
     useEffect(() => {
@@ -259,35 +267,28 @@ function Watch({ id }: { id: string }) {
     // The video whose playhead has been past its start this visit: see `keepsPlace`. Kept by
     // id, so the next episode's opening 0 is never taken for a start over.
     const movedFor = useRef<string | null>(null)
-    // Where the playhead was last read; see the tick below.
+    // Where the playhead was last told; see `onTime` below.
     const at = useRef(0)
-    const applied = useRef<string | null>(null)
-    const [havePlayer, setHavePlayer] = useState(false)
-    const onReady = useCallback((handle: VideoHandle | null) => {
-        player.current = handle
-        setHavePlayer(handle !== null)
-    }, [])
     useEffect(() => {
-        if (!havePlayer || resume === null || resume <= 0 || applied.current === id) return
-        applied.current = id
-        player.current?.seekTo(resume)
+        if (resume === null || resume <= 0) return
         // The playhead has been somewhere: a scrub straight back to 0 is a start over. And the
-        // place is the resumed one until the first tick reads it, so leaving at once keeps it.
+        // place is the resumed one until the player first tells it, so leaving at once keeps it.
         movedFor.current = id
         at.current = resume
-    }, [havePlayer, id, resume])
+    }, [id, resume])
 
     /**
      * SAVED WHILE WATCHING, NOT ONLY AT THE END. The books player's rules, for the same reason:
-     * forty minutes in, a closed laptop must not cost the forty minutes. One tick a second reads
-     * the playhead into a ref -- cheap, and nothing re-renders -- and a report goes out every
-     * `SAVE_EVERY_S` of movement, when playback pauses, and when the screen or the tab goes.
+     * forty minutes in, a closed laptop must not cost the forty minutes. The player's `onTime`
+     * keeps the playhead in a ref -- cheap, and nothing re-renders -- and a report goes out every
+     * `SAVE_EVERY_S` of movement while playing, when playback pauses, and when the screen or the
+     * tab goes.
      *
      * A seek backwards is movement too, which is why the comparison is on distance rather than
      * on having climbed: somebody who skips back to rewatch a scene has moved their position.
      */
     const savedAt = useRef(0)
-    const paused = useRef(true)
+    const playing = useRef(false)
     const save = useCallback(
         (positionS: number, finished?: boolean) => {
             if (!keepsPlace(positionS, finished === true, movedFor.current === id)) return
@@ -299,24 +300,26 @@ function Watch({ id }: { id: string }) {
         [id],
     )
 
-    useEffect(() => {
-        const tick = setInterval(() => {
-            const reading = player.current?.sample() ?? null
-            if (reading === null) return
-            const now = player.current?.positionS() ?? 0
+    const onTime = useCallback(
+        (now: number) => {
             at.current = now
             if (now > 0) movedFor.current = id
-            const stopped = reading.paused
-            // The transition, not the state: a paused player would otherwise report once a
-            // second for as long as somebody left the room.
-            if (stopped && !paused.current) save(now)
-            paused.current = stopped
-            if (!stopped && Math.abs(now - savedAt.current) >= SAVE_EVERY_S) save(now)
-        }, TICK_MS)
-        return () => {
-            clearInterval(tick)
-        }
-    }, [id, save])
+            if (playing.current && Math.abs(now - savedAt.current) >= SAVE_EVERY_S) save(now)
+        },
+        [id, save],
+    )
+
+    // A pause is told once, so it is saved once rather than for as long as somebody is away, and
+    // the server stops encoding ahead of a film nobody is watching (see `stopEncoding`).
+    const onPlayingChange = useCallback(
+        (now: boolean) => {
+            playing.current = now
+            if (now) return
+            save(at.current)
+            stopEncoding()
+        },
+        [save, stopEncoding],
+    )
 
     useEffect(() => {
         const keep = (): void => save(at.current)
@@ -367,20 +370,17 @@ function Watch({ id }: { id: string }) {
                 beside.map((one) => one.name),
             ),
             artwork: videoApi.thumbnailUrl(video.id),
-            play: () => {
-                if (player.current?.sample()?.paused !== false) player.current?.togglePlay()
-            },
-            pause: () => {
-                if (player.current?.sample()?.paused === false) player.current?.togglePlay()
-            },
-            playing: () => player.current?.sample()?.paused === false,
+            play: () => player.current?.play(),
+            pause: () => player.current?.pause(),
+            playing: () => player.current?.playing() === true,
         })
     }, [beside, video])
     // Up and Down turn the picture up, not the album under it; see `claimVolumeKeys`.
     useEffect(
         () =>
             claimVolumeKeys((step) => {
-                player.current?.nudgeVolume(step)
+                const handle = player.current
+                handle?.setVolume(handle.volume() + step)
             }),
         [],
     )
@@ -412,7 +412,7 @@ function Watch({ id }: { id: string }) {
                       void navigate(watchHref(to))
                   }
         return claimTransport({
-            play: () => player.current?.togglePlay(),
+            play: () => player.current?.toggle(),
             next: step(nextId),
             previous: step(previousId),
         })
@@ -425,11 +425,10 @@ function Watch({ id }: { id: string }) {
      * whatever is in front of somebody -- a list walks its rows with them -- and a screen that
      * is not playing anything has nothing for them to do.
      *
-     * ON THE WINDOW, IN THE CAPTURE PHASE, AND THAT IS THE WHOLE OF WHY `t` DID NOTHING. Every
-     * video.js component answers a keydown it has no use for by calling `stopPropagation` on
-     * it, so a listener on the document never hears a press made while the picture has focus --
-     * which is where focus is from the moment somebody clicks play. Capture runs from the window
-     * down to whatever was pressed on, so this reads the press before the player can swallow it.
+     * ON THE WINDOW, IN THE CAPTURE PHASE, so the press is read before anything under it can
+     * take it. The player answers no keys itself (`keys={false}`): this and the app's shortcuts
+     * drive it through its handle. An open menu, such as the player's captions menu, keeps every
+     * key, as its arrows walk its rows and open its submenus.
      *
      * AND IT STOPS WHAT IT ANSWERS. The shell binds the arrows to the track that is playing, and
      * a screen with a video on it is a screen where an arrow means the video -- so a press this
@@ -437,6 +436,7 @@ function Watch({ id }: { id: string }) {
      */
     useEffect(() => {
         const onKeyDown = (event: KeyboardEvent): void => {
+            if (menuStanding(document)) return
             const press = {
                 key: event.key,
                 ctrlKey: event.ctrlKey,
@@ -519,24 +519,26 @@ function Watch({ id }: { id: string }) {
     /**
      * The tracks the player is handed, which is not all of them.
      *
-     * Memoised because the list is what the player registers against: a fresh array every
+     * Memoised because the list is what the player draws its tracks from: a fresh array every
      * render would take every track off and put it back on, and each of those is an ffmpeg
      * extraction on the server.
      */
-    const subtitles = useMemo<PlayerSubtitle[]>(
+    const subtitles = useMemo<VideoTrack[]>(
         () =>
             preferredSubtitles(tracks ?? []).map((track) => ({
                 label: subtitleLabel(track.track_id, track.lang, track.label),
                 src: videoApi.subtitleUrl(id, track.track_id),
-                lang: track.lang === 'und' ? '' : track.lang,
+                lang: track.lang === 'und' ? undefined : track.lang,
                 default: track.default,
             })),
         [id, tracks],
     )
 
-    const sample = useCallback(() => player.current?.sample() ?? null, [])
+    const reading = useVideoStats(player, { enabled: stats })
 
     if (refusal !== null) return <Notice>{refusal}</Notice>
+
+    const upNext = ended ? around.next : null
 
     const meta = [
         video === null || video.duration_s === null ? null : clock(video.duration_s),
@@ -614,7 +616,6 @@ function Watch({ id }: { id: string }) {
                     the picture to a strip, WebKit drew the list over it. With a list below, the
                     player is a 16:9 box and the list has the rest. */}
                 <div
-                    ref={stage}
                     className={cn(
                         'relative flex min-w-0 flex-col',
                         listed
@@ -624,34 +625,54 @@ function Watch({ id }: { id: string }) {
                             : 'min-h-0 flex-1',
                     )}
                 >
-                    {video !== null && (
+                    {/* Drawn once the saved place is known, so it starts there. */}
+                    {video !== null && resume !== null && (
                         <VideoPlayer
-                            src={videoApi.hlsUrl(video.id)}
-                            kind="hls"
+                            ref={player}
+                            videoRef={crossOriginVideo}
+                            source={videoSource(videoApi.hlsUrl(video.id))}
                             poster={videoApi.posterUrl(video.id, posterToken)}
-                            subtitles={subtitles}
-                            autoplay
+                            tracks={subtitles}
+                            captionDefaults={CAPTION_DEFAULTS}
+                            autoPlay
+                            preload="auto"
+                            startAt={resume}
+                            onTime={onTime}
+                            onPlayingChange={onPlayingChange}
                             onEnded={onEnded}
-                            onPause={stopEncoding}
                             onFullscreenChange={setFilled}
-                            onReady={onReady}
-                            fullscreenTarget={stage}
-                        />
-                    )}
-                    {stats && video !== null && (
-                        <StatsOverlay
-                            videoId={video.id}
-                            sample={sample}
-                            onClose={toggleStats}
-                            below={theater}
-                        />
-                    )}
-                    {ended && around.next !== null && (
-                        <UpNext
-                            title={episodeName(around.next.name, besideNames)}
-                            countdown={autoplay}
-                            onPlay={playNext}
-                            onDismiss={() => setEnded(false)}
+                            retries={PLAY_RETRIES}
+                            stallAfter={STALL_AFTER_MS}
+                            keys={false}
+                            className="aspect-auto min-h-0 flex-1 rounded-none"
+                            // Inside what fills the screen, in a browser and a desktop shell alike.
+                            overlay={
+                                stats || upNext !== null ? (
+                                    // Under the screen's own strip while theater floats it over the picture.
+                                    <div
+                                        className={cn(
+                                            'flex flex-col items-start gap-2',
+                                            theater && !filled && 'mt-12',
+                                        )}
+                                    >
+                                        {stats && (
+                                            <StatsOverlay
+                                                videoId={video.id}
+                                                stats={reading}
+                                                onClose={toggleStats}
+                                            />
+                                        )}
+                                        {upNext !== null && (
+                                            <UpNext
+                                                title={episodeName(upNext.name, besideNames)}
+                                                countdown={autoplay}
+                                                onPlay={playNext}
+                                                onDismiss={() => setEnded(false)}
+                                            />
+                                        )}
+                                    </div>
+                                ) : undefined
+                            }
                         />
                     )}
                 </div>
@@ -747,22 +768,20 @@ function UpNext({
     }, [countdown, left, onPlay])
 
     return (
-        <div className="absolute inset-0 z-10 flex items-center justify-center bg-background/80 p-4">
-            <div className="w-full max-w-sm rounded-lg border bg-card p-4">
-                <p className="truncate text-sm" title={title}>
-                    Up next: <span className="font-medium">{title}</span>
-                </p>
-                {countdown && (
-                    <p className="mt-1 text-xs text-muted-foreground">Playing in {Math.max(0, left)}s</p>
-                )}
-                <div className="mt-3 flex items-center gap-2">
-                    <Button size="sm" onClick={onPlay}>
-                        Play
-                    </Button>
-                    <Button size="sm" variant="outline" onClick={onDismiss}>
-                        Stay
-                    </Button>
-                </div>
+        <div className="w-80 max-w-full rounded-lg border bg-card p-4 text-card-foreground shadow-md">
+            <p className="truncate text-sm" title={title}>
+                Up next: <span className="font-medium">{title}</span>
+            </p>
+            {countdown && (
+                <p className="mt-1 text-xs text-muted-foreground">Playing in {Math.max(0, left)}s</p>
+            )}
+            <div className="mt-3 flex items-center gap-2">
+                <Button size="sm" onClick={onPlay}>
+                    Play
+                </Button>
+                <Button size="sm" variant="outline" onClick={onDismiss}>
+                    Stay
+                </Button>
             </div>
         </div>
     )

@@ -134,7 +134,7 @@ export function mayOpen(opener: Opener, standing: Standing): boolean {
  * search and the palette over it. While a menu is open the app answers no key at all.
  */
 export function menuStanding(doc: Pick<Document, 'querySelector'>): boolean {
-    // The app's own menus, by their slot: the video player keeps hidden `role="menu"` lists in
-    // the page at all times, and matching those would take every key from the watch screen.
+    // Menus by their slot, the video player's captions and speed menus among them, rather than
+    // by `role="menu"`, which would also match a list that is in the page but not open.
     return doc.querySelector('[data-slot="dropdown-menu-content"], [data-slot="select-content"]') !== null
 }

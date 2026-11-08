@@ -12,6 +12,8 @@
  * and `lib/api` puts the server in front of it.
  */
 
+import type { VideoStats } from '@winterop-com/sokkel-ui/media/video-stats'
+
 import type {
     VideoBrowse,
     VideoEntry,
@@ -501,6 +503,44 @@ export interface PlaybackSample {
     droppedFrames: number | null
     totalFrames: number | null
 }
+
+/** A reading of the player's handle (`stats()`, through `useVideoStats`) as the verdict reads one. */
+export function sampleOf(stats: VideoStats | null): PlaybackSample | null {
+    if (stats === null) return null
+    return {
+        paused: !stats.playing,
+        bufferAheadS: stats.bufferAhead,
+        bandwidthBps: stats.bandwidth,
+        readyState: stats.readyState,
+        droppedFrames: stats.droppedFrames,
+        totalFrames: stats.totalFrames,
+    }
+}
+
+/**
+ * Whether the browser is to play the server's HLS itself rather than through hls.js.
+ *
+ * APPLE WEBKIT ONLY. Safari, the macOS app's webview and every browser on an iPhone play the
+ * server's MPEG-TS playlists natively and refused them through Media Source Extensions. A
+ * Chromium agent (Electron, Chrome, Edge, Android's webview) names itself and goes through hls.js,
+ * which is also what reports the bandwidth the stats read.
+ */
+export function playsHlsItself(userAgent: string): boolean {
+    if (!userAgent.includes('AppleWebKit/')) return false
+    // No word boundary: a headless Chromium names itself `HeadlessChrome/`.
+    return !/(Chrome|Chromium|Edg|Electron)\//.test(userAgent)
+}
+
+/**
+ * How a video is played wherever this app plays one, the library's own screen and YouTube alike.
+ *
+ * A stall is met after five seconds rather than the player's eight: ffmpeg makes segments either
+ * side of the playhead, and one that has not come in five will not come by waiting. Four tries
+ * with the player's doubling waits are about fifteen seconds, which covers a segment the encoder
+ * is still making after a long seek, before it says the video could not be played.
+ */
+export const STALL_AFTER_MS = 5000
+export const PLAY_RETRIES = 4
 
 /**
  * How playback is going, in one word and one sentence.
