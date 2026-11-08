@@ -7,11 +7,11 @@
  * app spends inside that mode: this module owns it, writes it as `data-theme` on the same
  * element, and every palette is designed for both modes. Neither axis knows about the other.
  *
- * WHERE THE COLOURS ARE. Nowhere near here. A palette is a block of custom-property overrides
- * in index.css hung off `html[data-theme='<name>']`, beside the base one. This module carries
- * the names and nothing else, so adding a palette is a block of CSS plus one row in `PALETTES`.
- * The same blocks answer to `[data-palette='<name>']`, which is what lets the swatch card on the
- * Theme pane paint one palette's tokens while the app is wearing another.
+ * WHERE THE COLOURS ARE. Nowhere near here. A palette is one of sokkel-ui's theme files, a block
+ * of custom-property overrides hung off `html[data-theme='<name>']`, imported by index.css. This
+ * module carries the names and nothing else, so adding a palette is one import plus one row in
+ * `PALETTES`. The same blocks answer to `[data-theme-scope='<name>']`, which is what lets the
+ * swatch card on the Theme pane paint one palette's tokens while the app is wearing another.
  *
  * APPLIED BEFORE FIRST PAINT, by the inline script in index.html rather than here. A palette
  * read in a React effect arrives one frame after the document does, and every load flashes the
@@ -22,7 +22,7 @@
 import { createStore } from '@winterop-com/sokkel-ui/lib/stored'
 
 /** The name a palette is stored and written under: its `data-theme` value. */
-export type PaletteName = 'maneki' | 'paper' | 'contrast' | 'tokyo' | 'vinyl' | 'cassette' | 'neon'
+export type PaletteName = 'amber' | 'paper' | 'contrast' | 'tokyo' | 'vinyl' | 'cassette' | 'neon'
 
 /** One palette: what it is called on screen. What it looks like is the swatch, not a sentence. */
 export interface Palette {
@@ -38,7 +38,7 @@ export interface Palette {
  * spectrum's ramp with it, in `lib/spectrum-themes`, so the colour is chosen here and once.
  */
 export const PALETTES: Palette[] = [
-    { name: 'maneki', label: 'Maneki' },
+    { name: 'amber', label: 'Amber' },
     { name: 'paper', label: 'Paper' },
     { name: 'contrast', label: 'Contrast' },
     { name: 'tokyo', label: 'Tokyo' },
@@ -47,7 +47,13 @@ export const PALETTES: Palette[] = [
     { name: 'neon', label: 'Neon' },
 ]
 
-export const DEFAULT_PALETTE: PaletteName = 'maneki'
+export const DEFAULT_PALETTE: PaletteName = 'amber'
+
+/**
+ * Names a palette was once stored under, and the palette each is now. The default was called
+ * `maneki` before the look came from sokkel-ui, which names it for how it looks.
+ */
+export const RENAMED_PALETTES: Readonly<Record<string, PaletteName>> = { maneki: 'amber' }
 
 /** Where the chosen palette is kept, and the key the inline script in index.html reads. */
 export const PALETTE_STORAGE_KEY = 'maneki.palette'
@@ -72,6 +78,7 @@ export function isPaletteName(candidate: string | null): candidate is PaletteNam
 export function storedPalette(): PaletteName {
     try {
         const stored = localStorage.getItem(PALETTE_STORAGE_KEY)
+        if (stored !== null && stored in RENAMED_PALETTES) return RENAMED_PALETTES[stored]
         return isPaletteName(stored) ? stored : DEFAULT_PALETTE
     } catch {
         return DEFAULT_PALETTE

@@ -62,7 +62,7 @@ export default function App() {
                     <span className="flex size-16 shrink-0 items-center justify-center rounded-2xl bg-terminal-accent text-terminal">
                         <Cat className="size-9" aria-hidden />
                     </span>
-                    <span className="text-wordmark">maneki</span>
+                    <span className="text-brand-name">maneki</span>
                 </div>
                 <p className="font-mono text-xs tracking-[0.18em] text-terminal-muted uppercase">
                     Connecting

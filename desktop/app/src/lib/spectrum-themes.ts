@@ -48,7 +48,7 @@ export const SPECTRUM_THEMES: readonly SpectrumThemeEntry[] = [
  * The ramp each palette carries, read off the accent that palette is drawn around in index.css.
  *
  * WHICH RAMP AND WHY, one line each, because the reason is the whole point of the table:
- *  - maneki, the app's own amber at hue 80, burns: `fire` runs amber to red through the accent
+ *  - amber, the app's own default at hue 80, burns: `fire` runs amber to red through the accent
  *    it already is, and a stage that reads as heat is what the default should look like.
  *  - paper is a printed page and its amber is the ink on it, so it carries `accent`: one colour,
  *    the palette's own, rather than a ramp shouting over a palette drawn to be quiet.
@@ -64,7 +64,7 @@ export const SPECTRUM_THEMES: readonly SpectrumThemeEntry[] = [
  *    wheel the accent leaves unspent, which is what makes the two read as lit.
  */
 export const PALETTE_RAMPS: Record<PaletteName, SpectrumTheme> = {
-    maneki: 'fire',
+    amber: 'fire',
     paper: 'accent',
     contrast: 'mono',
     tokyo: 'ice',

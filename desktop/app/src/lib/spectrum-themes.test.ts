@@ -55,7 +55,7 @@ describe('the ramp a palette carries', () => {
     })
 
     test("burns for the app's own palette, which is what a stage is for", () => {
-        expect(rampForPalette('maneki')).toBe('fire')
+        expect(rampForPalette('amber')).toBe('fire')
     })
 
     test('follows the accent where the palette is too quiet to carry a ramp', () => {

@@ -23,6 +23,11 @@ const LIBRARY_PARTS: { part: string; use: string; marks: RegExp[] }[] = [
             /from '@\/hooks\/use-store'/,
         ],
     },
+    {
+        part: 'the look: Tailwind, the tokens and the palettes',
+        use: '@winterop-com/sokkel-ui/styles.css and its themes/<name>.css, imported by index.css',
+        marks: [/^@import 'tailwindcss'/m, /^@theme\b/m, /^(html(\.dark)?)?\[data-theme='[a-z]+'\][^{]*\{/m],
+    },
 ]
 
 const SRC = fileURLToPath(new URL('..', import.meta.url))
@@ -31,7 +36,7 @@ function sources(dir: string): string[] {
     return readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
         const path = join(dir, entry.name)
         if (entry.isDirectory()) return sources(path)
-        return /\.tsx?$/.test(entry.name) && !entry.name.endsWith('.test.ts') ? [path] : []
+        return /\.(tsx?|css)$/.test(entry.name) && !entry.name.endsWith('.test.ts') ? [path] : []
     })
 }
 

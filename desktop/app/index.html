@@ -17,12 +17,14 @@
              */
             ;(function () {
                 var root = document.documentElement
-                var palette = 'maneki'
+                var palette = 'amber'
                 var density = 'comfortable'
                 var scale = 1
                 try {
-                    var names = ['maneki', 'paper', 'contrast', 'tokyo', 'vinyl', 'cassette', 'neon']
+                    var names = ['amber', 'paper', 'contrast', 'tokyo', 'vinyl', 'cassette', 'neon']
                     var stored = localStorage.getItem('maneki.palette')
+                    // The default palette was stored as 'maneki' before it took sokkel-ui's name.
+                    if (stored === 'maneki') stored = 'amber'
                     if (names.indexOf(stored) !== -1) palette = stored
                     if (localStorage.getItem('maneki.density') === 'compact') density = 'compact'
                     var size = Number(localStorage.getItem('maneki.font-scale'))

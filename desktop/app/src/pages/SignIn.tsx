@@ -194,7 +194,7 @@ export function SignIn() {
                         <p className="text-sm tracking-[0.18em] text-primary-ink uppercase">
                             Welcome to maneki
                         </p>
-                        <h2 className="text-display font-semibold tracking-tight">Sign in</h2>
+                        <h2 className="text-welcome-title">Sign in</h2>
                         <p className="text-sm text-muted-foreground">
                             {typing
                                 ? 'Say where the server is, and who you are.'

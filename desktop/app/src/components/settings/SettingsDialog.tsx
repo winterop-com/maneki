@@ -509,10 +509,11 @@ const SWATCH_STRIPS = ['bg-background', 'bg-card', 'bg-border', 'bg-foreground',
  * One card per palette, and the card is the radio.
  *
  * WHAT A PALETTE LOOKS LIKE IS THE SWATCH, NOT A SENTENCE. Each card scopes itself with
- * `data-palette`, which index.css hangs that palette's own token block off, so the five strips
- * are the real ground, surface, line, ink and accent -- in the appearance in force, and right
- * without anybody copying a colour when a token moves. Under them is the ramp the palette
- * carries, because the spectrum's colour comes with the palette and is not chosen anywhere else.
+ * `data-theme-scope`, which sokkel-ui's theme files hang that palette's own token block off, so
+ * the five strips are the real ground, surface, line, ink and accent -- in the appearance in
+ * force, and right without anybody copying a colour when a token moves. Under them is the ramp
+ * the palette carries, because the spectrum's colour comes with the palette and is not chosen
+ * anywhere else.
  *
  * A RADIOGROUP, WITH THE ARROWS CHOOSING. One tab stop for the group, the arrows move and
  * choose, Space and Enter choose what has focus. That is the stock behaviour of a radio group,
@@ -567,7 +568,7 @@ function PaletteSwatches({ value, onChoose }: { value: PaletteName; onChoose: (n
                         }}
                     >
                         <span
-                            data-palette={palette.name}
+                            data-theme-scope={palette.name}
                             className="flex h-8 overflow-hidden rounded-sm border border-border forced-color-adjust-none"
                         >
                             {SWATCH_STRIPS.map((strip) => (
@@ -578,7 +579,7 @@ function PaletteSwatches({ value, onChoose }: { value: PaletteName; onChoose: (n
                             way, so the palette that paints in its own accent rather than a ramp
                             shows that accent here, and the card is the whole choice. */}
                         <span
-                            data-palette={palette.name}
+                            data-theme-scope={palette.name}
                             className="h-2 rounded-sm forced-color-adjust-none"
                             style={ramp(themeStops(rampForPalette(palette.name), 'var(--primary)'))}
                         />
