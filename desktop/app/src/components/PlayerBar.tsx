@@ -10,6 +10,7 @@ import { StarButton } from '@winterop-com/sokkel-ui/StarButton'
 import { SoundVisualizer } from '@winterop-com/sokkel-ui/media/SoundVisualizer'
 import { useShortcutRegistry } from '@winterop-com/sokkel-ui/hooks/use-shortcuts'
 import { useStore, useStoreValue } from '@winterop-com/sokkel-ui/hooks/use-store'
+import { useThemeName } from '@winterop-com/sokkel-ui/hooks/use-theme-name'
 import { books as booksApi } from '@/lib/api'
 import { announced } from '@/lib/liner'
 import { closeLyrics, lyricsOpen, NO_LYRICS, openLyrics, readLyrics } from '@/lib/lyrics'
@@ -41,7 +42,7 @@ import { soundRampFor } from '@/lib/spectrum-themes'
 import { starMarks, starredNow, toggleStar } from '@/lib/star'
 import { coverUrl } from '@/lib/subsonic'
 import { spectrumDelayMs } from '@/lib/sync'
-import { paletteStore } from '@/lib/theme'
+import { DEFAULT_PALETTE, isPaletteName } from '@/lib/theme'
 import {
     BAR_SIZE_DEFAULT,
     barSize,
@@ -94,8 +95,11 @@ export function PlayerBar() {
         spectrumReadable(player.station !== null, undefined, session.phase !== 'radio')
     const style = useStore(visualizerStyle)
     const effect = useStore(spectrumEffect)
-    // The ramp is the palette's, not a choice of its own: see `lib/spectrum-themes`.
-    const ramp = soundRampFor(useStore(paletteStore))
+    // The ramp is the palette's, not a choice of its own: see `lib/spectrum-themes`. It is read
+    // off the palette the document wears, the one the full-screen view takes its colours from, so
+    // the bars and the buttons around them can never be two palettes.
+    const worn = useThemeName()
+    const ramp = soundRampFor(isPaletteName(worn) ? worn : DEFAULT_PALETTE)
     const delay = useStore(spectrumDelayMs)
     const size = useStore(barSize)
     const stage = useStore(stageOpen)
