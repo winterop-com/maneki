@@ -16,7 +16,6 @@
  * worth a test; the store is the one line that has to be shared.
  */
 
-import { layerOpen } from '@winterop-com/sokkel-ui/lib/shortcuts'
 import { createStore } from '@winterop-com/sokkel-ui/lib/stored'
 
 /**
@@ -63,11 +62,39 @@ export function setDialogOpen(name: DialogName, standing: boolean): void {
 /**
  * Whether a bare key belongs to a dialog rather than to the app.
  *
- * The named ones, and whatever dialog or menu the document has open: the frame's shortcuts
- * list is the library's, held inside its shell, and is seen here the way the library sees it.
+ * The named ones, and whatever modal dialog the document has open: the frame's shortcuts list
+ * is the library's, held inside its shell, and is seen here by its open popup.
  */
 export function dialogUp(): boolean {
-    return anyOpen(dialogsOpen.get()) || layerOpen()
+    return anyOpen(dialogsOpen.get()) || (typeof document !== 'undefined' && dialogStanding(document))
+}
+
+/**
+ * Whether a modal dialog is standing open in `doc`. Base UI marks an open popup `data-open`; the
+ * player's fullscreen view carries no such mark and is the stage, not a dialog.
+ */
+export function dialogStanding(doc: Pick<Document, 'querySelector'>): boolean {
+    return (
+        doc.querySelector(
+            '[role="dialog"][data-open]:not([aria-modal="false"]), [role="alertdialog"][data-open]:not([aria-modal="false"])',
+        ) !== null
+    )
+}
+
+/**
+ * Whether the palette may open with `over` standing on top of the page, as the shell asks.
+ *
+ * Over nothing, when the app's own rules allow it; over the library search, which the palette
+ * replaces (the shell's opening closes it); over anything else, never.
+ */
+export function mayOpenPaletteOver(over: Element | null, standing: Standing): boolean {
+    if (over === null) return mayOpen('palette', standing)
+    return searchOverlay(over)
+}
+
+/** Whether a layer is the library search, whose box carries `data-search-overlay`. */
+export function searchOverlay(layer: Pick<Element, 'querySelector'>): boolean {
+    return layer.querySelector('[data-search-overlay]') !== null
 }
 
 /** What a key would open over the app. */

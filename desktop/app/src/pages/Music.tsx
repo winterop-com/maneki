@@ -2,7 +2,7 @@ import { ChevronLeft, ChevronRight, ListPlus, Play, Star, Volume2 } from 'lucide
 import { Fragment, useEffect, useMemo, useState } from 'react'
 import { NavLink, useNavigate, useParams } from 'react-router'
 
-import { CoverArt } from '@/components/CoverArt'
+import { Artwork } from '@winterop-com/sokkel-ui-media/Artwork'
 import { AlbumDownloadButton, Downloads } from '@/pages/Downloads'
 import { AddToPlaylistDialog, type Adding } from '@/components/PlaylistDialogs'
 import { Skeleton } from '@/components/Skeleton'
@@ -942,8 +942,8 @@ export function Cover({
     src?: string | null
 }) {
     const src = local ?? coverUrl(credentials, art, size)
-    if (!src) return <CoverArt id={id} className={className} />
-    return <img src={src} alt="" loading="lazy" className={cn('aspect-square object-cover', className)} />
+    // The drawn cover stands until the sleeve has loaded, and stays where there is none.
+    return <Artwork src={src ?? undefined} seed={id} className={cn('aspect-square h-auto', className)} />
 }
 
 export function Notice({ children }: { children: React.ReactNode }) {

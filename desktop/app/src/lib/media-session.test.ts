@@ -1,14 +1,6 @@
-import { afterEach, describe, expect, test, vi } from 'vitest'
+import { describe, expect, test, vi } from 'vitest'
 
-import {
-    claimMediaSession,
-    identity,
-    installMediaSession,
-    needsPosition,
-    nowPlaying,
-    type Told,
-    windowTitle,
-} from '@/lib/media-session'
+import { nowPlaying, playerSession, screenSession, windowTitle } from '@/lib/media-session'
 import type { PlayerState, PlayingBook } from '@/lib/player'
 
 function state(change: Partial<PlayerState>): PlayerState {
@@ -95,86 +87,61 @@ describe('what the OS is shown', () => {
             artist: 'NRK P3',
         })
     })
-
-    test('changes identity with the chapter, so the OS hears about each one once', () => {
-        const first = identity(nowPlaying(state({ book, positionS: 10 }), null))
-        expect(identity(nowPlaying(state({ book, positionS: 20 }), null))).toBe(first)
-        expect(identity(nowPlaying(state({ book, positionS: 700 }), null))).not.toBe(first)
-        expect(identity(null)).toBe('')
-    })
 })
 
-describe('when the OS needs the position again', () => {
-    const playing: Told = { positionS: 10, atMs: 0, playing: true, rate: 1 }
+describe('what the OS controls do', () => {
+    const song = { id: 'tr_1', title: 'Eple', artist: 'Röyksopp', album: 'Melody A.M.' }
 
-    test('is the first time', () => {
-        expect(needsPosition(null, playing)).toBe(true)
+    test('a track has every control, its position and its length', () => {
+        const info = playerSession(state({ queue: [song], index: 0, positionS: 30, durationS: 200 }), null)
+        expect(info?.duration).toBe(200)
+        expect(info?.position).toBe(30)
+        expect(Object.keys(info?.handlers ?? {}).toSorted()).toEqual(
+            [
+                'nexttrack',
+                'pause',
+                'play',
+                'previoustrack',
+                'seekbackward',
+                'seekforward',
+                'seekto',
+            ].toSorted(),
+        )
     })
 
-    test('is not while playback runs where the OS is extrapolating it to', () => {
-        expect(needsPosition(playing, { ...playing, positionS: 15, atMs: 5000 })).toBe(false)
+    test('a book tells the OS its reading speed', () => {
+        expect(playerSession(state({ book, durationS: 3600 }), null)?.rate).toBe(1.5)
     })
 
-    test('is after a seek, which the OS could not have guessed', () => {
-        expect(needsPosition(playing, { ...playing, positionS: 60, atMs: 5000 })).toBe(true)
+    test('a station offers play and pause alone, and no position', () => {
+        const station = { id: 'st_1', name: 'NRK P3', streamUrl: 'https://host/p3' }
+        const info = playerSession(state({ station }), null)
+        expect(info?.duration).toBeUndefined()
+        expect(Object.keys(info?.handlers ?? {}).toSorted()).toEqual(['pause', 'play'])
     })
 
-    test('is when playback starts or stops, or the speed changes', () => {
-        expect(needsPosition(playing, { ...playing, playing: false })).toBe(true)
-        expect(needsPosition(playing, { ...playing, rate: 1.5 })).toBe(true)
-    })
-
-    test('follows the speed it was told, so a book at 1.5x is not re-sent every tick', () => {
-        const fast: Told = { ...playing, rate: 1.5 }
-        expect(needsPosition(fast, { ...fast, positionS: 17.5, atMs: 5000 })).toBe(false)
-    })
-
-    test('stands still while paused', () => {
-        const paused: Told = { ...playing, playing: false }
-        expect(needsPosition(paused, { ...paused, atMs: 60_000 })).toBe(false)
+    test('nothing playing tells the OS nothing', () => {
+        expect(playerSession(state({}), null)).toBeNull()
     })
 })
 
 describe('a video on screen holds the OS controls', () => {
-    afterEach(() => {
-        vi.unstubAllGlobals()
-    })
-
     test('the lock screen shows the video, and its pause pauses the video, not the album', () => {
         // While a film played, the OS still showed the paused station, and a media key started
         // the station and stopped the film.
-        const handlers = new Map<string, () => void>()
-        const media = {
-            metadata: null as MediaMetadata | null,
-            playbackState: 'none',
-            setActionHandler: (action: string, run: () => void) => handlers.set(action, run),
-            setPositionState: () => undefined,
-        }
-        vi.stubGlobal('navigator', { mediaSession: media })
-        vi.stubGlobal(
-            'MediaMetadata',
-            class {
-                title: string
-                constructor(init: { title: string }) {
-                    this.title = init.title
-                }
-            },
-        )
-        installMediaSession()
         const pause = vi.fn()
-        const release = claimMediaSession({
+        const info = screenSession({
             title: 'Emissary',
             artwork: null,
             play: vi.fn(),
             pause,
             playing: () => true,
         })
-        expect(media.metadata?.title).toBe('Emissary')
-        expect(media.playbackState).toBe('playing')
-        handlers.get('pause')?.()
+        expect(info.title).toBe('Emissary')
+        expect(info.playing).toBe(true)
+        info.handlers?.pause?.()
         expect(pause).toHaveBeenCalledOnce()
-        release()
-        expect(media.metadata?.title ?? null).not.toBe('Emissary')
+        expect(info.handlers?.nexttrack).toBeUndefined()
     })
 })
 

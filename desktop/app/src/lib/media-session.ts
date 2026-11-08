@@ -4,18 +4,17 @@
  *
  * THE KEYS ON THE KEYBOARD ARE THE OS'S, NOT THE PAGE'S. Play/pause, next and previous never
  * arrive as key presses; the OS sends them to whichever app last said it was playing media,
- * and a page says so through the Media Session API. Without this, the keys start Apple Music
- * while maneki is playing, and the Now Playing widget names nothing.
- *
- * WHAT IS PURE IS SEPARATE, as in `lib/desktop`. What to show, which keys apply and when the
- * OS needs a fresh position are decisions about the player's state, and they are the part worth
- * a test. The installer is the one place that touches `navigator.mediaSession`.
- *
- * THE OS IS TOLD WHEN SOMETHING CHANGED, NOT ON EVERY TICK. The player publishes four times a
- * second; the OS extrapolates a playing position by itself, so it is given a new one only when
- * the track changes, playback starts or stops, or the position jumps (a seek, a chapter).
+ * and a page says so through the Media Session API. Telling it, and telling the position again
+ * only when it strays, is sokkel-ui-media's `useMediaSession`. What is maneki's is here: what a
+ * track, a chapter or a station is shown as, a screen with a video claiming the controls, and
+ * the window's title.
  */
 
+import { useEffect, useState } from 'react'
+
+import { useMediaSession, type MediaSessionInfo } from '@winterop-com/sokkel-ui-media/use-media-session'
+import { useStore } from '@winterop-com/sokkel-ui/hooks/use-store'
+import { createStore } from '@winterop-com/sokkel-ui/lib/stored'
 import { books as booksApi } from '@/lib/api'
 import { chapterAt } from '@/lib/book-timeline'
 import { announced } from '@/lib/liner'
@@ -23,13 +22,9 @@ import { next, playerStore, previous, seek, skipBy, SKIP_S, toggle, type PlayerS
 import { sessionStore } from '@/lib/session'
 import { keptCover } from '@/lib/offline'
 import { coverUrl } from '@/lib/subsonic'
-import { createStore } from '@winterop-com/sokkel-ui/lib/stored'
 
 /** The size the OS is asked to draw the artwork at; the widget and the lock screen are small. */
 const ARTWORK_SIZE = 512
-
-/** How far the position may wander from where the OS thinks it is before it is told again. */
-const DRIFT_S = 1.5
 
 /** What the OS shows, and which of its controls mean anything for it. */
 export interface NowPlaying {
@@ -87,31 +82,48 @@ export function nowPlaying(state: PlayerState, artwork: string | null): NowPlayi
     }
 }
 
-/** One string per distinct thing shown, so the OS is told about a new one exactly once. */
-export function identity(shown: NowPlaying | null): string {
-    if (shown === null) return ''
-    return [shown.title, shown.artist, shown.album, shown.artwork ?? ''].join('\u0000')
-}
-
-/** Where the OS was last told the position was, and when. */
-export interface Told {
-    positionS: number
-    atMs: number
-    playing: boolean
-    rate: number
+/** The artwork as the OS takes it, at the size it draws it. */
+function pictures(artwork: string | null): MediaSessionInfo['artwork'] {
+    return artwork === null
+        ? undefined
+        : [{ src: artwork, sizes: `${String(ARTWORK_SIZE)}x${String(ARTWORK_SIZE)}` }]
 }
 
 /**
- * Whether the OS needs the position again.
- *
- * It does when playback started or stopped, when the speed changed, and when the position is
- * not where the OS has been extrapolating it to: a seek, a skip, a chapter jump.
+ * The player as the OS is told it, or null when nothing plays. A station offers play and pause
+ * alone: it has no position, and nothing before or after it.
  */
-export function needsPosition(told: Told | null, now: Told): boolean {
-    if (told === null) return true
-    if (told.playing !== now.playing || told.rate !== now.rate) return true
-    const elapsedS = told.playing ? ((now.atMs - told.atMs) / 1000) * told.rate : 0
-    return Math.abs(told.positionS + elapsedS - now.positionS) > DRIFT_S
+export function playerSession(state: PlayerState, artwork: string | null): MediaSessionInfo | null {
+    const shown = nowPlaying(state, artwork)
+    if (shown === null) return null
+    const { playing } = state
+    return {
+        title: shown.title,
+        artist: shown.artist,
+        album: shown.album,
+        artwork: pictures(shown.artwork),
+        playing,
+        duration: shown.seekable ? state.durationS : undefined,
+        position: shown.seekable ? Math.min(state.positionS, state.durationS) : undefined,
+        rate: state.book?.speed ?? 1,
+        skip: SKIP_S,
+        handlers: {
+            play: () => {
+                if (!playerStore.get().playing) toggle()
+            },
+            pause: () => {
+                if (playerStore.get().playing) toggle()
+            },
+            ...(shown.steps ? { nexttrack: next, previoustrack: previous } : {}),
+            ...(shown.seekable
+                ? {
+                      seekto: seek,
+                      seekbackward: (seconds: number) => skipBy(-seconds),
+                      seekforward: (seconds: number) => skipBy(seconds),
+                  }
+                : {}),
+        },
+    }
 }
 
 /** The artwork for what is playing, at the size the OS draws it. */
@@ -154,6 +166,16 @@ export function claimMediaSession(media: ScreenMedia): () => void {
     }
 }
 
+/** A claiming screen as the OS is told it: its title and picture, and play and pause alone. */
+export function screenSession(screen: ScreenMedia): MediaSessionInfo {
+    return {
+        title: screen.title,
+        artwork: pictures(screen.artwork),
+        playing: screen.playing(),
+        handlers: { play: screen.play, pause: screen.pause },
+    }
+}
+
 /** How often a claimed session's play state is told again, since the player does not say. */
 const CLAIM_POLL_MS = 1000
 
@@ -175,126 +197,27 @@ export function windowTitle(
 
 const APP_TITLE = 'maneki'
 
-/** Tell the OS about the player from now on. Installed once, from `main`. */
-export function installMediaSession(): void {
-    const media = typeof navigator === 'undefined' ? undefined : navigator.mediaSession
-    if (!media) return
+/** Tell the OS about the player, or the screen that claimed it, for as long as this is mounted. */
+export function useNowPlaying(): void {
+    const state = useStore(playerStore)
+    const screen = useStore(screenMedia)
+    // A claiming screen's player does not say when it pauses, so it is asked again each second.
+    const [, setAsked] = useState(0)
+    useEffect(() => {
+        if (screen === null) return
+        const poll = setInterval(() => setAsked((count) => count + 1), CLAIM_POLL_MS)
+        return () => clearInterval(poll)
+    }, [screen])
 
-    // Each control is set once and asks the player what it means at the moment it is pressed,
-    // so a key pressed during a station does nothing rather than something stale.
-    const handle = (action: MediaSessionAction, run: (details: MediaSessionActionDetails) => void) => {
-        try {
-            media.setActionHandler(action, run)
-        } catch {
-            // An action this browser does not know: the rest still work.
-        }
-    }
-    // While a screen holds the session its controls are the screen's: see `claimMediaSession`.
-    const claimed = () => screenMedia.get()
-    handle('play', () => {
-        const screen = claimed()
-        if (screen !== null) screen.play()
-        else if (!playerStore.get().playing) toggle()
-    })
-    handle('pause', () => {
-        const screen = claimed()
-        if (screen !== null) screen.pause()
-        else if (playerStore.get().playing) toggle()
-    })
-    handle('nexttrack', () => {
-        if (claimed() === null && !playerStore.get().station) next()
-    })
-    handle('previoustrack', () => {
-        if (claimed() === null && !playerStore.get().station) previous()
-    })
-    handle('seekto', (details) => {
-        if (claimed() === null && !playerStore.get().station && details.seekTime !== undefined)
-            seek(details.seekTime)
-    })
-    handle('seekbackward', (details) => {
-        if (claimed() === null && !playerStore.get().station) skipBy(-(details.seekOffset ?? SKIP_S))
-    })
-    handle('seekforward', (details) => {
-        if (claimed() === null && !playerStore.get().station) skipBy(details.seekOffset ?? SKIP_S)
-    })
+    useMediaSession(screen === null ? playerSession(state, artworkFor(state)) : screenSession(screen))
 
-    let shownAs = ''
-    let told: Told | null = null
-
-    const sync = () => {
-        const screen = claimed()
-        if (screen !== null) {
-            const key = `screen:${screen.title}`
-            if (key !== shownAs) {
-                shownAs = key
-                told = null
-                media.metadata = new MediaMetadata({
-                    title: screen.title,
-                    artwork: screen.artwork
-                        ? [{ src: screen.artwork, sizes: `${String(ARTWORK_SIZE)}x${String(ARTWORK_SIZE)}` }]
-                        : [],
-                })
-            }
-            media.playbackState = screen.playing() ? 'playing' : 'paused'
-            if (typeof document !== 'undefined')
-                document.title = windowTitle({ title: screen.title, artist: '' })
-            return
-        }
-        const state = playerStore.get()
-        const shown = nowPlaying(state, artworkFor(state))
-        if (typeof document !== 'undefined') {
-            // The book is the album of a chapter (see `nowPlaying`); a record's album stays out.
-            document.title = windowTitle(shown && state.book ? { ...shown, book: shown.album } : shown)
-        }
-        const key = identity(shown)
-        if (key !== shownAs) {
-            shownAs = key
-            told = null
-            media.metadata =
-                shown === null
-                    ? null
-                    : new MediaMetadata({
-                          title: shown.title,
-                          artist: shown.artist,
-                          album: shown.album,
-                          artwork: shown.artwork
-                              ? [
-                                    {
-                                        src: shown.artwork,
-                                        sizes: `${String(ARTWORK_SIZE)}x${String(ARTWORK_SIZE)}`,
-                                    },
-                                ]
-                              : [],
-                      })
-        }
-        media.playbackState = shown === null ? 'none' : state.playing ? 'playing' : 'paused'
-        if (shown === null || !shown.seekable || state.durationS <= 0) return
-        const now: Told = {
-            positionS: Math.min(state.positionS, state.durationS),
-            atMs: Date.now(),
-            playing: state.playing,
-            rate: state.book?.speed ?? 1,
-        }
-        if (!needsPosition(told, now)) return
-        told = now
-        try {
-            media.setPositionState({
-                duration: state.durationS,
-                position: now.positionS,
-                playbackRate: now.rate,
-            })
-        } catch {
-            // A position the browser will not take (a duration still settling): the next sync tries again.
-            told = null
-        }
-    }
-
-    playerStore.subscribe(sync)
-    screenMedia.subscribe(sync)
-    sync()
-    if (typeof setInterval === 'function') {
-        setInterval(() => {
-            if (claimed() !== null) sync()
-        }, CLAIM_POLL_MS)
-    }
+    const shown = screen === null ? nowPlaying(state, null) : null
+    // The book is the album of a chapter (see `nowPlaying`); a record's album stays out.
+    const title =
+        screen !== null
+            ? windowTitle({ title: screen.title, artist: '' })
+            : windowTitle(shown && state.book ? { ...shown, book: shown.album } : shown)
+    useEffect(() => {
+        document.title = title
+    }, [title])
 }

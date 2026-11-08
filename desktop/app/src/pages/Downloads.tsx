@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router'
 import { toast } from 'sonner'
 
-import { CoverArt } from '@/components/CoverArt'
+import { Artwork } from '@winterop-com/sokkel-ui-media/Artwork'
 import { Button } from '@/components/ui/button'
 import { byteSize } from '@/lib/format'
 import {
@@ -146,18 +146,11 @@ export function Downloads({
                                 onClick={() => navigate(`/music/album/${entry.album.id}`)}
                                 className="group flex w-full min-w-0 flex-col gap-2.5 rounded-lg text-left focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none"
                             >
-                                {entry.coverUrl === null ? (
-                                    <CoverArt
-                                        id={entry.album.id}
-                                        className="aspect-square w-full rounded-lg"
-                                    />
-                                ) : (
-                                    <img
-                                        src={entry.coverUrl}
-                                        alt=""
-                                        className="aspect-square w-full rounded-lg bg-secondary object-cover"
-                                    />
-                                )}
+                                <Artwork
+                                    src={entry.coverUrl ?? undefined}
+                                    seed={entry.album.id}
+                                    className="aspect-square h-auto w-full rounded-lg bg-secondary"
+                                />
                                 <span className="min-w-0">
                                     <span className="block truncate text-sm font-medium">
                                         {entry.album.name}

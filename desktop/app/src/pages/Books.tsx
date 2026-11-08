@@ -1,10 +1,11 @@
 import { Check, ChevronLeft, Play } from 'lucide-react'
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useNavigate, useParams, useSearchParams } from 'react-router'
 
 import { Spinner } from '@/components/Spinner'
 import { Skeleton } from '@/components/Skeleton'
-import { CoverArt } from '@/components/CoverArt'
+import { Artwork } from '@winterop-com/sokkel-ui-media/Artwork'
+import { ChapterList } from '@winterop-com/sokkel-ui-media/ChapterList'
 import { Segmented } from '@/components/Segmented'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -12,7 +13,7 @@ import { useScrollMemory } from '@/hooks/use-scroll-memory'
 import { useStoreValue } from '@winterop-com/sokkel-ui/hooks/use-store'
 import { books as booksApi } from '@/lib/api'
 import { chapterAt } from '@/lib/book-timeline'
-import { clock, duration, progressRatio, remaining } from '@/lib/format'
+import { duration, progressRatio, remaining } from '@/lib/format'
 import { playBook, playerStore, type PlayerState } from '@/lib/player'
 import type { BookDetail, BookSummary, CollectionSummary, GroupSummary } from '@/lib/types'
 import { cn } from '@/lib/utils'
@@ -21,7 +22,7 @@ import { cn } from '@/lib/utils'
 const SCAN_POLL_MS = 2000
 
 /**
- * The three facts this screen reads off the player.
+ * The facts this screen reads off the player.
  *
  * Module scope, so each is one stable function, and one fact each rather than the whole store:
  * the player publishes four times a second while something plays, and a chapter list that
@@ -31,6 +32,7 @@ const SCAN_POLL_MS = 2000
 const selectBookId = (state: PlayerState) => state.book?.id ?? null
 const selectChapterIndex = (state: PlayerState) =>
     state.book === null ? -1 : chapterAt(state.book.chapter_list, state.positionS)
+const selectPlaying = (state: PlayerState) => state.playing
 
 export function BooksPage() {
     const { bookId } = useParams()
@@ -397,6 +399,7 @@ function Book({ id }: { id: string }) {
     const navigate = useNavigate()
     const playingId = useStoreValue(playerStore, selectBookId)
     const chapterIndex = useStoreValue(playerStore, selectChapterIndex)
+    const playing = useStoreValue(playerStore, selectPlaying)
 
     useEffect(() => {
         // An answer that comes back after the reader has moved on is not this page's.
@@ -413,19 +416,6 @@ function Book({ id }: { id: string }) {
             live = false
         }
     }, [id, attempt])
-
-    // OPENED ON THE BOOK THAT IS PLAYING, THE LIST SHOWS WHERE IT IS. Resumed in chapter 301 of 498,
-    // the row was lit far below the fold. Once per book, not on every chapter change, so a list
-    // somebody is scrolling is not pulled back.
-    const chapters = useRef<HTMLOListElement | null>(null)
-    const shownFor = useRef<string | null>(null)
-    useEffect(() => {
-        if (!book || playingId !== book.id || shownFor.current === book.id) return
-        const row = chapters.current?.querySelector('[aria-current="true"]')
-        if (!row) return
-        shownFor.current = book.id
-        row.scrollIntoView({ block: 'center' })
-    })
 
     if (refusal) {
         return (
@@ -498,41 +488,28 @@ function Book({ id }: { id: string }) {
                 )}
             </div>
 
+            {/* A row plays from itself: picking a chapter of a book that is not playing starts
+                it there, rather than seeking a player that was playing something else. */}
             {book.chapter_list.length > 0 && (
-                <ol ref={chapters} className="min-h-0 flex-1 overflow-y-auto rounded-lg border">
-                    {book.chapter_list.map((chapter, index) => {
-                        // A row plays from itself. Seeking a player that was not playing this
-                        // book is what the old screen did, and it is why a chapter click could
-                        // look like it did nothing at all.
-                        const current = playingThis && index === chapterIndex
-                        return (
-                            <li key={`${chapter.start_s}-${chapter.title}`}>
-                                <button
-                                    type="button"
-                                    data-plays
-                                    onClick={() => {
-                                        playBook(book, chapter.start_s)
-                                    }}
-                                    aria-current={current ? 'true' : undefined}
-                                    className={cn(
-                                        'row-hover flex min-h-finger w-full min-w-0 items-center gap-3 px-3 text-left text-sm',
-                                        current && 'bg-muted font-medium',
-                                    )}
-                                >
-                                    <span className="w-8 shrink-0 text-xs text-muted-foreground">
-                                        {index + 1}
-                                    </span>
-                                    <span className="min-w-0 flex-1 truncate" title={chapter.title}>
-                                        {chapter.title}
-                                    </span>
-                                    <span className="shrink-0 font-mono text-xs text-muted-foreground">
-                                        {clock(chapter.start_s)}
-                                    </span>
-                                </button>
-                            </li>
-                        )
-                    })}
-                </ol>
+                <ChapterList
+                    chapters={book.chapter_list.map((chapter) => ({
+                        title: chapter.title,
+                        start: chapter.start_s,
+                    }))}
+                    duration={book.duration_s}
+                    // The chapter's own start rather than the clock, so the list draws again when
+                    // the chapter turns and not four times a second.
+                    position={
+                        playingThis && chapterIndex >= 0
+                            ? book.chapter_list[chapterIndex]?.start_s
+                            : undefined
+                    }
+                    playing={playingThis && playing}
+                    onSeek={(at) => {
+                        playBook(book, at)
+                    }}
+                    className="min-h-0 flex-1 overflow-y-auto"
+                />
             )}
 
             {book.description && (
@@ -559,7 +536,7 @@ const BOOK_COVER = 640
 
 function Cover({ book, size, className }: { book: BookSummary; size: number; className?: string }) {
     if (!book.has_cover) {
-        return <CoverArt id={book.id} className={className} />
+        return <Artwork seed={book.id} className={cn('aspect-square h-auto', className)} />
     }
     return (
         <img

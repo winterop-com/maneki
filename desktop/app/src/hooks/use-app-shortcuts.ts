@@ -18,7 +18,7 @@ import { dialogUp, mayOpen, menuStanding, type Standing } from '@/lib/dialogs'
 import { toggleRail } from '@/lib/panels'
 import { lyricsOpen, toggleLyrics } from '@/lib/lyrics'
 import { muteKeyClaim, stageKeyClaim, transportClaim, volumeKeysClaim } from '@/lib/screen-keys'
-import { openSearch, searchOpen } from '@/lib/search'
+import { searchOpen } from '@/lib/search'
 import { sessionStore } from '@/lib/session'
 import {
     adjustsVolume,
@@ -27,7 +27,6 @@ import {
     focusedFieldOf,
     type FocusedField,
     opensLyrics,
-    opensSearch,
     opensStage,
     REPEAT_KEY,
     seeks,
@@ -58,8 +57,8 @@ export function standingNow(): Standing {
  *
  * All it does is describe the press and the focused element to `lib/shortcuts`, which decides.
  * Bound on the document rather than on the shell, so a chord works with focus anywhere --
- * inside a dialog, on the page's own body. The palette's chord and `?` are not here: sokkel-ui's
- * shell binds them.
+ * inside a dialog, on the page's own body. The palette's chord, `?` and `/` are not here: sokkel-ui's
+ * shell binds the first two, and the top bar's search field takes `/`.
  *
  * THE TRANSPORT IS BOUND HERE AS WELL, because what is playing is the app's rather than any one
  * screen's: Space pauses the album while somebody is reading a book's chapter list, which is
@@ -95,12 +94,6 @@ export function useAppShortcuts(): void {
             // and shortcuts dialogs, where a key that opened a second surface would be two
             // things at once in a place that can hold one. `dialogUp` sees the frame's own.
             if (searchOpen.get() || dialogUp()) return
-            if (opensSearch(press, focused())) {
-                event.preventDefault()
-                // Radio-only has no library to search: the key is left alone there.
-                if (sessionStore.get().phase !== 'radio' && mayOpen('search', standingNow())) openSearch()
-                return
-            }
             // What is playing is what somebody is looking at. A screen with a video on it
             // claims these three while it is open, so Space stops the picture rather than the
             // album nobody is listening to, and the same keys mean the queue everywhere else.

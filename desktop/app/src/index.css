@@ -2,6 +2,7 @@
    palettes this app offers. What follows is the client's own: rules for parts it still draws
    itself, and the brand pane. */
 @import '@winterop-com/sokkel-ui/styles.css';
+@import '@winterop-com/sokkel-ui-media/styles.css';
 @import '@winterop-com/sokkel-ui/themes/amber.css';
 @import '@winterop-com/sokkel-ui/themes/paper.css';
 @import '@winterop-com/sokkel-ui/themes/contrast.css';

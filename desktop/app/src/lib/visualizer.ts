@@ -1,47 +1,46 @@
 /**
- * Whether the spectrum is drawn, and what one frame of it looks like.
+ * Whether the spectrum is drawn, which drawing it is, what the stage does to it, and how tall the
+ * player bar is.
  *
- * THE DECISION IS A STORE AND THE DRAWING IS A PURE FUNCTION. What a component does with an
- * analyser -- 60 frames a second of canvas calls -- cannot be tested, but the part worth
- * getting right can: how a frequency spread of bytes becomes the bars somebody sees. So
- * `bars()` takes the bytes and gives back heights between 0 and 1, and the canvas only paints
- * them.
- *
- * THE LOW END IS WHERE THE MUSIC IS. An FFT spreads its bins linearly over the whole range, so
- * more than half of them are above 10kHz, where almost nothing happens: a linear reading is a
- * wall of bars on the left and a flat line across the rest. The bins are folded into bands that
- * widen as they climb, which is roughly how hearing is spaced and what makes the thing move.
- *
- * FOUR DRAWINGS OF THE SAME FRAME. Bars and mirror are the same heights stood on the floor or
- * about the middle; ridge is those tops joined into a curve; scope leaves the spectrum alone and
- * plots the waveform itself. Each is a function from what the analyser handed over to geometry,
- * so the canvas is a loop over points and the shape of the thing has tests.
+ * The drawing itself is sokkel-ui's `SoundVisualizer`, in the player bar and its fullscreen
+ * view; what is kept here is the choices somebody makes about it, and which engines can hear a
+ * live station at all.
  */
 
+import type { SoundAlign, SoundEffect, SoundKind } from '@winterop-com/sokkel-ui/media/sound'
+import { rowsHeightFor } from '@winterop-com/sokkel-ui-media/MediaBar'
 import { createStore } from '@winterop-com/sokkel-ui/lib/stored'
 
 /** Where the choice is kept between visits. */
 export const VISUALIZER_KEY = 'maneki.visualizer'
 
-/** How many bars are drawn. Enough to read as a spectrum, few enough to stay bars. */
-export const BAND_COUNT = 32
-
-/** Which drawing the spectrum is. */
-export type VisualizerStyle = 'bars' | 'mirror' | 'ridge' | 'scope'
+/** Which drawing the spectrum is: the library's kinds, and the bars about the middle. */
+export type VisualizerStyle = SoundKind | 'mirror'
 
 /** The drawings, in the order the control lays them out and the cycle steps through them. */
-export const VISUALIZER_STYLES: readonly VisualizerStyle[] = ['bars', 'mirror', 'ridge', 'scope']
+export const VISUALIZER_STYLES: readonly VisualizerStyle[] = ['spectrum', 'mirror', 'area', 'wave', 'ring']
 
-/** What each drawing is called. One word each, because the control is a row of four. */
+/** What each drawing is called. One word each, because the control is a row of them. */
 export const VISUALIZER_STYLE_LABELS: Record<VisualizerStyle, string> = {
-    bars: 'Bars',
+    spectrum: 'Bars',
     mirror: 'Mirror',
-    ridge: 'Ridge',
-    scope: 'Scope',
+    area: 'Area',
+    wave: 'Wave',
+    ring: 'Ring',
+}
+
+/** How the library draws a style: Mirror is its bars standing about the middle. */
+export function soundLook(style: VisualizerStyle): { kind: SoundKind; align: SoundAlign } {
+    return style === 'mirror' ? { kind: 'spectrum', align: 'center' } : { kind: style, align: 'bottom' }
+}
+
+/** The style a kind picked in the fullscreen view means: the one in use while it is that kind. */
+export function styleForKind(kind: SoundKind, current: VisualizerStyle): VisualizerStyle {
+    return soundLook(current).kind === kind ? current : kind
 }
 
 /** The drawing a fresh browser gets: the one the bar has always had. */
-export const DEFAULT_STYLE: VisualizerStyle = 'bars'
+export const DEFAULT_STYLE: VisualizerStyle = 'spectrum'
 
 function readFlag(fallback: boolean): boolean {
     try {
@@ -113,8 +112,8 @@ export function isVisualizerStyle(candidate: string | null): candidate is Visual
 }
 
 /**
- * Which drawing the canvases paint. NOT KEPT BETWEEN VISITS: every launch starts on the plain
- * column bars, and a switch to another drawing lasts until the app is closed. A drawing chosen
+ * Which drawing the fullscreen view paints. NOT KEPT BETWEEN VISITS: every launch starts on the
+ * plain bars, and a switch to another drawing lasts until the app is closed. A drawing chosen
  * once and saved came back on every launch as a surprise, long after it was picked.
  */
 export const visualizerStyle = createStore<VisualizerStyle>(DEFAULT_STYLE)
@@ -126,7 +125,7 @@ export function setVisualizerStyle(style: VisualizerStyle): void {
 /** The drawing after this one, wrapping at the end. A pure step, so the cycle has a test. */
 export function nextStyle(current: VisualizerStyle): VisualizerStyle {
     const at = VISUALIZER_STYLES.indexOf(current)
-    return VISUALIZER_STYLES[(at + 1) % VISUALIZER_STYLES.length]
+    return VISUALIZER_STYLES[(at + 1) % VISUALIZER_STYLES.length]!
 }
 
 /** Step to the next drawing and answer what it is, for the control and the palette row. */
@@ -142,10 +141,9 @@ export function cycleVisualizerStyle(): VisualizerStyle {
  * AN EFFECT IS CHOSEN, NEVER IMPOSED. A bloom under every bar reads as heat to one person and
  * as a smeared screen to the next, so it is one of a short list somebody picks from, kept
  * between visits like the drawing itself, and the list starts on nothing. Only the stage
- * applies it: a strip an inch tall has no room for a glow, and the pane on the panel is read
- * beside a track list rather than looked at.
+ * applies it: the bar's faint backdrop is read behind words rather than looked at.
  */
-export type SpectrumEffect = 'none' | 'glow' | 'trails'
+export type SpectrumEffect = SoundEffect
 
 export const SPECTRUM_EFFECTS: readonly SpectrumEffect[] = ['none', 'glow', 'trails']
 
@@ -188,121 +186,66 @@ export function setSpectrumEffect(effect: string): SpectrumEffect {
     return chosen
 }
 
-/** Where the height of the panel's spectrum pane is kept between visits. */
-export const SPECTRUM_HEIGHT_KEY = 'maneki.spectrumHeight'
+/**
+ * How tall the player bar has been dragged, in pixels. The pixels somebody dragged it to are
+ * kept; the bar itself never takes less than its one line or more than half the window.
+ */
+export const BAR_SIZE_KEY = 'maneki.playerBarSize'
+export const BAR_SIZE_MAX = 360
 
-/** Shorter than this is a strip saying sound is coming out, which the player bar already is. */
-export const SPECTRUM_MIN_HEIGHT = 72
+/** Where an undragged bar starts: grown, with the 158 px cover the client before this one opened with. */
+export const BAR_COVER_DEFAULT = 158
+export const BAR_SIZE_DEFAULT = rowsHeightFor(BAR_COVER_DEFAULT)
 
-/** Taller than this and the cover and the words above it are off the top of the panel. */
-export const SPECTRUM_MAX_HEIGHT = 420
+/**
+ * The previous bar's key: the room above its controls, whose cover was that room plus the
+ * controls' row, 158 px at its default room of 112.
+ */
+export const OLD_BAR_ROOM_KEY = 'maneki.playerBarRoom'
+const OLD_ROOM_TO_COVER = BAR_COVER_DEFAULT - 112
 
-/** What the client this is restored from opened at. */
-export const SPECTRUM_DEFAULT_HEIGHT = 132
-
-/** Hold a dragged height inside what the panel can actually draw. */
-export function clampSpectrumHeight(height: number): number {
-    return Math.min(SPECTRUM_MAX_HEIGHT, Math.max(SPECTRUM_MIN_HEIGHT, Math.round(height)))
+export function clampBarSize(size: number): number {
+    if (!Number.isFinite(size)) return BAR_SIZE_DEFAULT
+    return Math.round(Math.min(BAR_SIZE_MAX, Math.max(0, size)))
 }
 
-function readHeight(): number {
+/** The height that gives the old bar's room the same cover, for carrying a dragged height over. */
+export function sizeFromRoom(room: number): number {
+    return clampBarSize(rowsHeightFor(room + OLD_ROOM_TO_COVER))
+}
+
+function readBarSize(): number {
     try {
-        const stored = Number(localStorage.getItem(SPECTRUM_HEIGHT_KEY))
-        return Number.isFinite(stored) && stored > 0 ? clampSpectrumHeight(stored) : SPECTRUM_DEFAULT_HEIGHT
+        const stored = localStorage.getItem(BAR_SIZE_KEY)
+        if (stored !== null) return clampBarSize(Number(stored))
+        // Carried over once from the previous bar, then kept under the new key.
+        const room = localStorage.getItem(OLD_BAR_ROOM_KEY)
+        if (room === null || !Number.isFinite(Number(room))) return BAR_SIZE_DEFAULT
+        const size = sizeFromRoom(Number(room))
+        localStorage.setItem(BAR_SIZE_KEY, String(size))
+        localStorage.removeItem(OLD_BAR_ROOM_KEY)
+        return size
     } catch {
-        return SPECTRUM_DEFAULT_HEIGHT
+        return BAR_SIZE_DEFAULT
     }
 }
 
-/**
- * How tall the panel's spectrum pane is.
- *
- * PX-INTENT, the way every dragged edge in this shell is kept -- see `lib/panels`. What
- * somebody dragged this to was a decision about how much of the panel the spectrum is worth
- * beside the cover, and a fraction would re-decide it every time the window changed height.
- * Read out of storage as the store is built, so the pane opens at its settled size rather than
- * snapping into it on the first paint.
- */
-export const spectrumHeight = createStore(readHeight())
+export const barSize = createStore(readBarSize())
 
-export function setSpectrumHeight(height: number): void {
-    const held = clampSpectrumHeight(height)
+export function setBarSize(size: number): void {
+    const held = clampBarSize(size)
     try {
-        localStorage.setItem(SPECTRUM_HEIGHT_KEY, String(held))
-    } catch {
-        // Storage denied: the height holds for as long as this document is open.
-    }
-    spectrumHeight.set(held)
-}
-
-/**
- * How much room above its controls the player bar has been given, in pixels.
- *
- * THE BAR IS THE SPECTRUM'S HOME. The room above the controls is the spectrum across the width
- * of the window, which is what the client before this one drew there, and it is always there:
- * dragged shorter it is a strip, dragged taller it is a band, never nothing and never anywhere
- * else. The pixels somebody dragged it to are kept.
- */
-export const BAR_ROOM_KEY = 'maneki.playerBarRoom'
-export const BAR_ROOM_MAX = 320
-/** The least the room can be: enough for a spectrum to read as one, never nothing. */
-export const BAR_ROOM_MIN = 72
-/**
- * Where an undragged bar starts. The sleeve beside the room is the room's height plus the
- * controls', so this is also how big the cover is: at the least it was a 118 px thumbnail.
- * Kept under `LINER_ROOM`, so a first start is the strip and not the liner notes.
- */
-export const BAR_ROOM_DEFAULT = 112
-
-export function clampBarRoom(room: number): number {
-    if (!Number.isFinite(room)) return BAR_ROOM_DEFAULT
-    return Math.round(Math.min(BAR_ROOM_MAX, Math.max(BAR_ROOM_MIN, room)))
-}
-
-/** The controls' row under the room and the bar's top border, which the share has to leave for. */
-const BAR_FOOT = 47
-
-/** The most of a window's height the whole bar may take: the page keeps the rest. */
-const BAR_WINDOW_SHARE = 0.4
-
-/**
- * The room the bar is drawn with in a window this tall.
- *
- * THE DRAGGED HEIGHT IS KEPT, AND DRAWN ONLY WHERE IT FITS. A bar dragged tall on a desktop and
- * seen in a short window left the page 33 px, and on a phone turned on its side it covered the
- * header. The bar is drawn at most two fifths of the window; the height somebody chose comes
- * back when the window can hold it.
- */
-export function roomInWindow(room: number, windowHeight: number): number {
-    const most = Math.floor(windowHeight * BAR_WINDOW_SHARE) - BAR_FOOT
-    return Math.max(BAR_ROOM_MIN, Math.min(room, most))
-}
-
-function readBarRoom(): number {
-    try {
-        const stored = localStorage.getItem(BAR_ROOM_KEY)
-        return stored === null ? BAR_ROOM_DEFAULT : clampBarRoom(Number(stored))
-    } catch {
-        return BAR_ROOM_DEFAULT
-    }
-}
-
-export const barRoom = createStore(readBarRoom())
-
-export function setBarRoom(room: number): void {
-    const held = clampBarRoom(room)
-    try {
-        localStorage.setItem(BAR_ROOM_KEY, String(held))
+        localStorage.setItem(BAR_SIZE_KEY, String(held))
     } catch {
         // Storage denied: the height holds for as long as this document is open.
     }
-    barRoom.set(held)
+    barSize.set(held)
 }
 
 /**
- * Whether the spectrum is over the whole screen.
+ * Whether the player's fullscreen view is up.
  *
- * NOT KEPT BETWEEN VISITS, unlike whether the strip is drawn. The stage is something somebody
+ * NOT KEPT BETWEEN VISITS, unlike whether the spectrum is drawn. The stage is something somebody
  * puts on for as long as they are looking at it, and an app that opened behind a full-screen
  * canvas because of what happened yesterday is an app somebody has to escape before using.
  */
@@ -318,267 +261,4 @@ export function closeStage(): void {
 
 export function toggleStage(): void {
     stageOpen.update((open) => !open)
-}
-
-/**
- * One frame, as heights between 0 and 1.
- *
- * Each band averages the bins it covers rather than taking their peak: a peak makes every band
- * jump to the loudest bin in it and the whole spectrum flickers, while an average moves the way
- * the music does. Bands are laid out on a curve, so the first few cover a handful of bins each
- * and the last cover hundreds.
- *
- * A BAND NARROWER THAN A BIN IS READ BETWEEN TWO OF THEM. The curve gives the low end more bands
- * than it has bins, and a band that took the one bin it starts in drew the same height as its
- * neighbours: the bass was a staircase of runs of equal bars. Such a band reads the curve
- * between the two bins either side of its middle instead, so neighbours differ the way the
- * sound does.
- *
- * Silence is all zeroes, and that is a flat row of nothing rather than a special case: a bar of
- * zero height is drawn as the floor.
- */
-export function bars(frequencies: Uint8Array, bands = BAND_COUNT): number[] {
-    if (frequencies.length === 0 || bands <= 0) return []
-    const usable = usableBins(frequencies.length)
-    const heights: number[] = []
-    for (let band = 0; band < bands; band += 1) {
-        const start = edgeAt(band, bands, usable)
-        const end = edgeAt(band + 1, bands, usable)
-        const level =
-            end - start < 1 ? between(frequencies, (start + end) / 2, usable) : mean(frequencies, start, end)
-        heights.push(Math.min(1, (level / 255) * tilt(band, bands)))
-    }
-    return heights
-}
-
-/** The average of the whole bins from `start` up to `end`, never fewer than one. */
-function mean(frequencies: Uint8Array, start: number, end: number): number {
-    const from = Math.floor(start)
-    const to = Math.max(from + 1, Math.floor(end))
-    let total = 0
-    for (let bin = from; bin < to; bin += 1) total += frequencies[bin] ?? 0
-    return total / (to - from)
-}
-
-/** The level at a point on the bin scale, drawn straight between the two nearest bin middles. */
-function between(frequencies: Uint8Array, at: number, usable: number): number {
-    const position = Math.min(usable - 1, Math.max(0, at - 0.5))
-    const below = Math.floor(position)
-    const above = Math.min(usable - 1, below + 1)
-    const lean = position - below
-    return (frequencies[below] ?? 0) * (1 - lean) + (frequencies[above] ?? 0) * lean
-}
-
-/**
- * The exponent of the curve the bins are folded on: how much of the picture the low end gets.
- *
- * 1.7 is the client before this one, and it is the difference between a spectrum and a wall.
- * A steeper curve packs the first bands so tightly that a kick drum is half the screen and
- * everything above two kilohertz is a row of stubs on the right.
- */
-export const CURVE = 1.7
-
-/**
- * How much of the analyser's range the bands are laid over: the bottom 55%, which at a 44.1 kHz
- * rate is everything below about 12 kHz.
- *
- * The analyser reads to the Nyquist limit, and above 12 kHz a mastered record has almost
- * nothing an FFT this coarse can show, so bands laid over the whole range left the right half
- * of the stage a row of stubs whatever was playing. Stopping where the music stops is what
- * lets a spectrum fill the width it was given.
- */
-export const CEILING = 0.55
-
-/** How many of the analyser's bins the bands are laid over: see `CEILING`. */
-function usableBins(bins: number): number {
-    return Math.max(1, Math.floor(bins * CEILING))
-}
-
-/**
- * Where one band starts on the bin scale, on a curve that gives the low end most of the bars.
- *
- * A fraction rather than a whole bin, so a band narrower than one can tell where inside it lies.
- * The first bin is left out: it is the analyser's reading of everything from silence up to a
- * few tens of hertz, below anything a speaker plays, and the first bands all sat inside it as
- * a run of equal bars.
- */
-function edgeAt(band: number, bands: number, usable: number): number {
-    const floor = usable > 1 ? 1 : 0
-    return Math.min(usable, floor + (usable - floor) * (band / bands) ** CURVE)
-}
-
-/**
- * A gentle lean against the low end: 0.75 at the first band, 1.0 at the last.
- *
- * Music is bass-heavy, so without this the left bars saturate and the right ones look
- * anaemic. The figures are the old client's, which were tuned by looking.
- */
-export function tilt(band: number, bands: number): number {
-    if (bands <= 1) return 1
-    return 0.75 + 0.25 * (band / (bands - 1))
-}
-
-/** How fast a bar rises to a louder frame, and how slowly it falls to a quieter one. */
-export const ATTACK = 0.5
-export const RELEASE = 0.18
-
-/**
- * One frame's heights, settled against the last frame's.
- *
- * FAST ATTACK, SLOW RELEASE. A bar that jumped to every frame's reading would flicker with the
- * FFT; one that eased both ways would smear every transient. So a bar rises most of the way to
- * a louder reading at once and falls back gently, which is what makes a drum hit read as a hit.
- * `previous` may be shorter or longer than `target` (a band count just changed); what is
- * missing starts from the floor.
- */
-export function settle(previous: readonly number[], target: readonly number[]): number[] {
-    return target.map((wanted, index) => {
-        const current = previous[index] ?? 0
-        const ease = wanted > current ? ATTACK : RELEASE
-        return current + (wanted - current) * ease
-    })
-}
-
-/** A place on the canvas, in the units the canvas is set up in. */
-export interface Point {
-    x: number
-    y: number
-}
-
-/** How wide a bar is and how far the next one is, for a canvas of this width. */
-export interface BarLayout {
-    bar: number
-    gap: number
-}
-
-/**
- * Where the bars go across a given width.
- *
- * THE GAP IS A SHARE OF THE SLOT RATHER THAN A NUMBER OF PIXELS. Two pixels between bars is
- * right on a 112px strip and invisible across a whole screen, so the gap is a fifth of what one
- * band was given, with two pixels as the floor -- which is what the strip lands on anyway. Bars
- * are made slim by there being many of them, never by widening the gap.
- */
-export function barLayout(width: number, count: number): BarLayout {
-    if (count <= 0) return { bar: 0, gap: 0 }
-    const gap = Math.max(2, Math.floor((width / count) * 0.18))
-    return { bar: Math.max(1, (width - gap * (count - 1)) / count), gap }
-}
-
-/** How many places each smoothed segment of the ridge is drawn through. */
-const RIDGE_STEPS = 4
-
-/**
- * The band tops as one flowing curve, in canvas units.
- *
- * THE BARS MELTED INTO A LINE. The same heights the bars are drawn from, joined through the
- * midpoints between neighbours: a quadratic through a midpoint cannot overshoot the band either
- * side of it, which a Catmull-Rom spline through the tops themselves does -- and an overshoot on
- * a spectral spike is a curve that dips below the floor on the way back down.
- *
- * The curve is flattened here rather than handed to the canvas as control points, so what the
- * smoothing actually does is something a test can read. The caller closes the shape down to the
- * floor and fills it.
- */
-export function ridgePoints(
-    frequencies: Uint8Array,
-    width: number,
-    height: number,
-    bands = BAND_COUNT,
-): Point[] {
-    return ridgeFromTops(bars(frequencies, bands), width, height)
-}
-
-/** The same curve from heights already worked out, which is what a settled frame is. */
-export function ridgeFromTops(tops: readonly number[], width: number, height: number): Point[] {
-    if (tops.length === 0 || width <= 0 || height <= 0) return []
-    const at = (index: number): Point => ({
-        x: tops.length === 1 ? width / 2 : (index / (tops.length - 1)) * width,
-        y: height - Math.min(1, Math.max(0, tops[index])) * height,
-    })
-    const first = at(0)
-    if (tops.length === 1)
-        return [
-            { x: 0, y: first.y },
-            { x: width, y: first.y },
-        ]
-
-    const line: Point[] = [first]
-    let from = first
-    for (let index = 0; index < tops.length - 1; index += 1) {
-        const control = at(index)
-        const next = at(index + 1)
-        const to = { x: (control.x + next.x) / 2, y: (control.y + next.y) / 2 }
-        for (let step = 1; step <= RIDGE_STEPS; step += 1) {
-            line.push(quadratic(from, control, to, step / RIDGE_STEPS))
-        }
-        from = to
-    }
-    line.push(at(tops.length - 1))
-    return line
-}
-
-/** One place along the quadratic from `from` to `to` bending towards `control`. */
-function quadratic(from: Point, control: Point, to: Point, t: number): Point {
-    const rest = 1 - t
-    return {
-        x: rest * rest * from.x + 2 * rest * t * control.x + t * t * to.x,
-        y: rest * rest * from.y + 2 * rest * t * control.y + t * t * to.y,
-    }
-}
-
-/**
- * The waveform itself, as a trace about the middle.
- *
- * NOT A SPECTRUM AT ALL. Every other drawing here reads the FFT; this one reads the samples the
- * analyser was handed, where 128 is silence and the distance either side of it is the pressure.
- * It is the one drawing that shows a shape somebody could recognise from an oscilloscope, which
- * is the whole reason it is offered.
- */
-export function scopePoints(timeDomain: Uint8Array, width: number, height: number): Point[] {
-    if (timeDomain.length === 0 || width <= 0 || height <= 0) return []
-    const middle = height / 2
-    if (timeDomain.length === 1)
-        return [
-            { x: 0, y: middle },
-            { x: width, y: middle },
-        ]
-    const points: Point[] = []
-    for (let index = 0; index < timeDomain.length; index += 1) {
-        const level = (timeDomain[index] - 128) / 128
-        points.push({
-            x: (index / (timeDomain.length - 1)) * width,
-            y: Math.min(height, Math.max(0, middle - level * middle)),
-        })
-    }
-    return points
-}
-
-/** How loud a bin may be and still count as nothing, out of 255. */
-export const IDLE_LEVEL = 2
-
-/** How far off the middle a sample may be and still count as nothing, out of 128. */
-export const FLAT_LEVEL = 2
-
-/**
- * Whether this frame is worth painting at all.
- *
- * A TRACK GAP IS A HUNDRED FRAMES OF NOTHING. The loop keeps its own bookkeeping -- it still
- * asks for the next frame, still reads the analyser, still pushes into the delay line -- but
- * clearing the canvas and drawing a row of bars nobody can see is a paint a laptop pays for
- * every sixtieth of a second while the music is between tracks.
- */
-export function isIdle(frequencies: Uint8Array, threshold = IDLE_LEVEL): boolean {
-    for (const level of frequencies) {
-        if (level > threshold) return false
-    }
-    return true
-}
-
-/** The same question of a waveform, where nothing is the middle rather than the floor. */
-export function isFlat(timeDomain: Uint8Array, threshold = FLAT_LEVEL): boolean {
-    for (const sample of timeDomain) {
-        if (Math.abs(sample - 128) > threshold) return false
-    }
-    return true
 }

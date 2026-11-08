@@ -68,6 +68,110 @@ const LIBRARY_PARTS: { part: string; use: string; marks: RegExp[] }[] = [
         use: "the Shell's `desktop`, which marks the strips and hands a press to the window",
         marks: [/\binstallWindowDrag\b/, /-webkit-app-region:\s*drag\s*;/],
     },
+    {
+        part: 'the player bar',
+        use: '@winterop-com/sokkel-ui-media/MediaBar over the player store',
+        marks: [
+            /aria-label="Position"/,
+            /\bfunction VolumeGlyph\b/,
+            /\bfunction useDragSize\b/,
+            /\bfunction bandsFor\b/,
+        ],
+    },
+    {
+        part: "the player's fullscreen view",
+        use: "MediaBar's own fullscreen view, held open by `stageOpen` and `lyricsOpen`",
+        marks: [/\bfunction FullscreenVisualizer\b/, /\bfunction LyricsOverlay\b/],
+    },
+    {
+        part: 'the spectrum drawing',
+        use: '@winterop-com/sokkel-ui/media/SoundVisualizer on the player analyser',
+        marks: [
+            /\bfunction useSpectrum\b/,
+            /\bfunction ridgeFromTops\b/,
+            /\bfunction scopePoints\b/,
+            /\bfunction paintColumns\b/,
+        ],
+    },
+    {
+        part: 'the lyrics parser and view',
+        use: '@winterop-com/sokkel-ui-media/lrc and Lyrics',
+        marks: [/\bfunction fromText\b/, /\bfunction lineAt\b/, /\bconst TIMESTAMP = /],
+    },
+    {
+        part: 'the media session',
+        use: '@winterop-com/sokkel-ui-media/use-media-session',
+        marks: [/\bsetActionHandler\(/, /\bsetPositionState\(/, /\bfunction installMediaSession\b/],
+    },
+    {
+        part: 'the play order, shuffle and repeat',
+        use: '@winterop-com/sokkel-ui-media/queue',
+        marks: [
+            /\bfunction buildOrder\b/,
+            /\bfunction afterSkip\b/,
+            /\bfunction reorderAround\b/,
+            /\bfunction nextRepeat\b/,
+        ],
+    },
+    {
+        part: 'the book timeline arithmetic',
+        use: '@winterop-com/sokkel-ui-media/timeline and chapters, read through lib/book-timeline',
+        marks: [/wanted < file\.offset_s/, /\(file\?\.offset_s \?\? 0\)/],
+    },
+    {
+        part: 'the drawn cover',
+        use: '@winterop-com/sokkel-ui-media/Artwork with `seed`',
+        marks: [/\bfunction CoverArt\b/, /\bfunction coverFace\b/, /from '@\/lib\/covers'/],
+    },
+    {
+        part: "a book's chapter list",
+        use: '@winterop-com/sokkel-ui-media/ChapterList',
+        marks: [/<ol ref=\{chapters\}/],
+    },
+    {
+        part: "the library's private modules",
+        use: 'the public parts only: Shell, hooks/use-shortcuts, MediaBar and its rowsHeightFor',
+        marks: [
+            /from '@winterop-com\/sokkel-ui\/lib\/shortcuts'/,
+            /from '@winterop-com\/sokkel-ui\/shell-context'/,
+            /from '@winterop-com\/sokkel-ui-media\/bar-growth'/,
+        ],
+    },
+    {
+        part: "the top bar's search field",
+        use: "@winterop-com/sokkel-ui/SearchField in TopBar's `search`, which binds `/`",
+        marks: [/\bfunction SearchBox\b/, /from '@\/components\/SearchBox'/],
+    },
+    {
+        part: "the shell's shortcuts and content key",
+        use: "the Shell's `shortcutsOpen` and `contentKey`",
+        marks: [/\bfunction ShellBridge\b/, /\bShellShortcuts\b/, /<div key=\{recovered\}/],
+    },
+    {
+        part: "the palette's term filter and scheme and palette rows",
+        use: 'the Shell\'s `paletteFilter="terms"` and lib/commands\' appearanceCommands',
+        marks: [/\bfunction filterActions\b/, /id: `appearance:palette-/, /id: `appearance:\$\{mode\}`/],
+    },
+    {
+        part: "the spectrum's ramp, mirror and stage effects",
+        use: "SoundVisualizer's `ramp`, `align` and `effect`",
+        marks: [
+            /\bfunction themeGradient\b/,
+            /\bfunction themeSweep\b/,
+            /\bcreateLinearGradient\(/,
+            /\.shadowBlur = /,
+        ],
+    },
+    {
+        part: "the bar's frame clock",
+        use: "MediaBar's `getPosition`, and use-frame-position for the deck's readout",
+        marks: [/requestAnimationFrame\(tick\)/],
+    },
+    {
+        part: "the fullscreen view's star",
+        use: "@winterop-com/sokkel-ui/StarButton in MediaBar's `fullscreenActions`",
+        marks: [/aria-label=\{starred \? 'Unstar this track'/],
+    },
 ]
 
 const SRC = fileURLToPath(new URL('..', import.meta.url))

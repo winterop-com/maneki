@@ -142,7 +142,13 @@ export function SearchOverlay() {
             description={SEARCH_DESCRIPTION}
             className="top-[15vh] w-full p-0 shadow-2xl sm:max-w-[768px]"
         >
-            <Command shouldFilter={false} label={SEARCH_TITLE} className="p-0">
+            <Command
+                shouldFilter={false}
+                label={SEARCH_TITLE}
+                className="p-0"
+                // How the frame's palette knows it may open over this and replace it; see `searchOverlay`.
+                data-search-overlay=""
+            >
                 <CommandInput
                     placeholder={SEARCH_PLACEHOLDER}
                     value={query}

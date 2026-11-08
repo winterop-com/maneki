@@ -10,7 +10,8 @@
  * Pure, so the rules are checked in Node; `lib/player` does the fetching.
  */
 
-import { afterSkip, type Repeat } from '@/lib/queue'
+import { queueNext } from '@winterop-com/sokkel-ui-media/queue'
+import type { Repeat } from '@/lib/queue'
 
 /** A track larger than this is streamed rather than held in memory: a long mix, a live set. */
 export const PRELOAD_MAX_BYTES = 60 * 1024 * 1024
@@ -30,8 +31,8 @@ export function songToPreload(
     repeat: Repeat,
 ): string | null {
     if (orderAt < 0) return null
-    const at = afterSkip(order, orderAt, repeat)
-    if (at === null || at === orderAt) return null
+    const at = queueNext({ items: queue, order, at: orderAt, shuffle: false, repeat })?.at
+    if (at === undefined || at === orderAt) return null
     const index = order[at]
     const current = order[orderAt]
     if (index === undefined || index === current) return null

@@ -4,10 +4,8 @@ import { HashRouter } from 'react-router'
 
 import App from '@/App'
 import { Toaster } from '@/components/ui/sonner'
-import { installMediaSession } from '@/lib/media-session'
+import { useNowPlaying } from '@/lib/media-session'
 import '@/index.css'
-
-installMediaSession()
 
 // A browser keeps its own copy of the app (`service-worker.js`), so with the server out of
 // reach a reload still opens on what was downloaded. The desktop shells carry the app on disk.
@@ -26,11 +24,18 @@ if (
  * has no server to answer it and a reload lands on a blank window. A hash
  * route is the same string in all three shells.
  */
+/** The OS's media keys and Now Playing, and the window's title, for the whole app. */
+function NowPlaying() {
+    useNowPlaying()
+    return null
+}
+
 createRoot(document.getElementById('root')!).render(
     <StrictMode>
         <HashRouter>
             <App />
         </HashRouter>
+        <NowPlaying />
         <Toaster richColors />
     </StrictMode>,
 )

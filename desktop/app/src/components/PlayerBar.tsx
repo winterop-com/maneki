@@ -1,33 +1,24 @@
-import {
-    Pause,
-    Play,
-    Repeat,
-    Repeat1,
-    RotateCcw,
-    RotateCw,
-    Shuffle,
-    SkipBack,
-    SkipForward,
-    Volume1,
-    Volume2,
-    VolumeX,
-} from 'lucide-react'
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState, type ComponentProps } from 'react'
 import { NavLink, useLocation } from 'react-router'
 
-import { CoverArt } from '@/components/CoverArt'
 import { LcdDisplay } from '@/components/LcdDisplay'
-import { Button } from '@/components/ui/button'
-import { useDragSize } from '@/hooks/use-drag-size'
-import { useSmallScreen } from '@/hooks/use-small-screen'
-import { useSpectrum } from '@/hooks/use-spectrum'
+import { Spinner } from '@/components/Spinner'
+import { Artwork } from '@winterop-com/sokkel-ui-media/Artwork'
+import { Lyrics } from '@winterop-com/sokkel-ui-media/Lyrics'
+import { MediaBar } from '@winterop-com/sokkel-ui-media/MediaBar'
+import type { ParsedLyrics } from '@winterop-com/sokkel-ui-media/lrc'
+import { useFramePosition } from '@winterop-com/sokkel-ui-media/use-frame-position'
+import { StarButton } from '@winterop-com/sokkel-ui/StarButton'
+import { SoundVisualizer } from '@winterop-com/sokkel-ui/media/SoundVisualizer'
+import { useShortcutRegistry } from '@winterop-com/sokkel-ui/hooks/use-shortcuts'
 import { useStore, useStoreValue } from '@winterop-com/sokkel-ui/hooks/use-store'
 import { books as booksApi } from '@/lib/api'
-import { clock, songLine } from '@/lib/format'
 import { nowPlayingFace } from '@/lib/lcd'
-import { announced, LINER_ROOM, linerByline, linerEyebrow, linerTitle, linerTitlePx } from '@/lib/liner'
+import { announced } from '@/lib/liner'
+import { closeLyrics, lyricsOpen, NO_LYRICS, openLyrics, readLyrics } from '@/lib/lyrics'
 import {
     bookStepCount,
+    bookStops,
     currentChapter,
     currentSong,
     cycleRepeat,
@@ -42,158 +33,95 @@ import {
     SKIP_S,
     skipBy,
     SPEEDS,
+    spectrum,
     toggle,
     toggleMuted,
     toggleShuffle,
 } from '@/lib/player'
-import { REPEAT_LABELS } from '@/lib/queue'
 import { sessionStore } from '@/lib/session'
 import { offlineStore } from '@/lib/offline'
+import { soundRampFor } from '@/lib/spectrum-themes'
+import { starMarks, starredNow, toggleStar } from '@/lib/star'
 import { coverUrl } from '@/lib/subsonic'
+import { spectrumDelayMs } from '@/lib/sync'
+import { paletteStore } from '@/lib/theme'
 import {
-    BAR_ROOM_MAX,
-    BAR_ROOM_MIN,
-    barRoom,
-    clampBarRoom,
+    BAR_SIZE_DEFAULT,
+    barSize,
+    closeStage,
     openStage,
-    roomInWindow,
-    setBarRoom,
+    setBarSize,
+    setVisualizerStyle,
+    soundLook,
+    spectrumEffect,
     spectrumReadable,
+    stageOpen,
+    styleForKind,
     visualizerShown,
+    visualizerStyle,
 } from '@/lib/visualizer'
-import { cn } from '@/lib/utils'
 import { barOnScreen } from '@/lib/watching'
 
-export const RESIZE_BAR_LABEL = 'Resize the player bar'
 export const RETRY_LABEL = 'Retry'
-
-/** How far one arrow key moves the bar's edge. */
-const KEYBOARD_STEP = 16
-
-/**
- * How wide one bar and its gap are, in pixels, across the bar's spectrum.
- *
- * THE COUNT FOLLOWS THE WIDTH. A fixed count across a window is a wall of blocks on a wide one
- * and a comb on a narrow one; what stays the same is how wide a bar is to the eye, so the
- * count is the width over that, held between what still reads as a spectrum and what the
- * analyser has bins for.
- */
-const BAR_PITCH = 11
-const FEWEST_BANDS = 48
-/** The room's horizontal padding, which the canvas does not span. */
-const ROOM_PADDING = 24
-const MOST_BANDS = 192
-
-/** How many bars fit a canvas this wide at the pitch above. */
-export function bandsFor(width: number): number {
-    return Math.max(FEWEST_BANDS, Math.min(MOST_BANDS, Math.round(width / BAR_PITCH)))
-}
-
-/** The controls' row, in pixels: `--spacing-shell-foot`, which the sleeve is sized against. */
-const FOOT = 46
-export const STAGE_LABEL = 'Put the spectrum over the whole screen'
+export const LYRICS_READING = 'Loading the lyrics'
+export const LYRICS_NONE = 'No words for this track.'
 
 /**
- * What is playing, along the foot of every screen.
+ * What is playing, along the foot of every screen: sokkel-ui-media's `MediaBar` over the player
+ * store.
  *
  * Drawn only once something has been played: an empty transport under every screen is a row of
  * dead controls.
  *
- * THE PROGRESS LINE IS ALWAYS THERE, THE SCRUBBER IS NOT. A 390px screen has no room for a
- * slider between the title and the transport, but "how far through this is" is the one fact a
- * transport must always show, so it is drawn as a hairline across the top edge of the bar at
- * every width, and the slider with its two clocks appears where there is room to drag it.
+ * THREE SOURCES, ONE BAR. A record steps by track and shuffles and repeats. A book steps by
+ * chapter, jumps fifteen seconds either way and is read at a speed, and has no use for shuffle
+ * or repeat. A station is live: nothing to scrub, skip or step to.
  *
- * A STATION HAS NO POSITION. It has no length, nothing to skip to and nothing to scrub, so the
- * skip buttons are disabled and the line and the clocks are not drawn at all rather than drawn
- * as zeroes.
- *
- * AND A BOOK IS DRAWN ON THIS BAR AND NO OTHER. It used to have a transport of its own on its
- * own screen, which is how somebody ended up with two now-playings and a chapter list that
- * seeked whichever of them was silent. What a book needs that a record does not -- the two
- * fifteen-second jumps, a reading speed -- joins the same row, and what it has no use for --
- * shuffle, repeat -- leaves it: a book is one thing read in one order.
+ * The bar's own fullscreen view is the stage and the lyrics, held in `stageOpen` and
+ * `lyricsOpen` so the keys and the palette open them too. It is a surface of the app's own, so
+ * the shell's keys (`?`, `/`) stay quiet over it.
  */
 export function PlayerBar() {
     const player = useStore(playerStore)
-    // A station on an engine that cannot hear one has no spectrum to draw: see `spectrumReadable`.
     const session = useStore(sessionStore)
     // A downloaded album's cover is this device's, there whether or not the server is.
-    // Selected whole: the lookup by the playing album happens below, where the track is known.
     const keptAlbums = useStoreValue(offlineStore, (state) => state.albums)
+    // A station on an engine that cannot hear one has no spectrum to draw: see `spectrumReadable`.
     const spectrumShown =
         useStore(visualizerShown) &&
         spectrumReadable(player.station !== null, undefined, session.phase !== 'radio')
-    // THE BAR IS DRAGGED TALLER AND THE ROOM IS THE SPECTRUM. The grip is the bar's top edge;
-    // pulling it up gives the room above the controls more height, and the spectrum is drawn
-    // across the whole of it, always along the foot: never elsewhere, never a second copy.
-    const dragged = useStore(barRoom)
-    // Under a picture the bar is the strip or nothing: see `barOnScreen`.
-    const fits = barOnScreen(useLocation().pathname, player.playing)
-    // Drawn at what was dragged where the window can hold it; see `roomInWindow`.
-    const windowHeight = useWindowHeight()
-    const room = fits === 'strip' ? BAR_ROOM_MIN : roomInWindow(dragged, windowHeight)
-    // THE DRAG WRITES A HEIGHT ONTO THE ELEMENT IT IS GIVEN, so it is given the room and not
-    // the bar: handed the bar, it forced the whole of it to the room's height mid-drag and the
-    // controls spilled out under the status bar.
-    const bar = useRef<HTMLDivElement | null>(null)
-    const { dragging, beginResize } = useDragSize('y', room, -1, setBarRoom, clampBarRoom, bar)
-    // The room is measured for its band count, and re-measured as the window and the rail
-    // move; a change restarts the drawing loop at the new count, which is one frame. The room
-    // rather than the canvas, because the room is always there and the canvas is not.
-    const [bands, setBands] = useState(() =>
-        bandsFor(typeof window === 'undefined' ? 1280 : window.innerWidth),
-    )
-    const wide = useSpectrum(spectrumShown && player.playing, bands)
-    useEffect(() => {
-        const element = bar.current
-        if (element === null) return
-        const watcher = new ResizeObserver(() => {
-            setBands(bandsFor(element.clientWidth - ROOM_PADDING))
-        })
-        watcher.observe(element)
-        return () => {
-            watcher.disconnect()
-        }
-    }, [])
-    // THE SCRUBBER MOVES EVERY FRAME, NOT FOUR TIMES A SECOND. The store publishes the position
-    // on the element's own timeupdate, which is a quarter-second step; a thumb that jumps a
-    // quarter second at a time reads as a stutter. So the input is uncontrolled and a frame
-    // loop writes the element's clock into it while a track plays, standing off while it is
-    // being dragged so the hand is not fought.
-    const scrubber = useRef<HTMLInputElement | null>(null)
-    const scrubbing = useRef(false)
-    const playing = player.playing
-    useEffect(() => {
-        if (!playing) return
-        let request = 0
-        const tick = () => {
-            request = requestAnimationFrame(tick)
-            const input = scrubber.current
-            if (input === null || scrubbing.current) return
-            input.value = String(positionNow())
-        }
-        request = requestAnimationFrame(tick)
-        return () => {
-            cancelAnimationFrame(request)
-        }
-    }, [playing])
-    // A seek or a paused store still lands on the input: what is written between frames.
-    useEffect(() => {
-        const input = scrubber.current
-        if (input !== null && !scrubbing.current) input.value = String(player.positionS)
-    }, [player.positionS])
+    const style = useStore(visualizerStyle)
+    const effect = useStore(spectrumEffect)
+    // The ramp is the palette's, not a choice of its own: see `lib/spectrum-themes`.
+    const ramp = soundRampFor(useStore(paletteStore))
+    const delay = useStore(spectrumDelayMs)
+    const size = useStore(barSize)
+    const stage = useStore(stageOpen)
+    const lyricsUp = useStore(lyricsOpen)
     const face = useStore(nowPlayingFace)
-    const small = useSmallScreen()
+    const marks = useStore(starMarks)
+    const registry = useShortcutRegistry()
+    useEffect(() => {
+        registry.surface('stage', stage)
+        registry.surface('lyrics', lyricsUp)
+        return () => {
+            registry.surface('stage', false)
+            registry.surface('lyrics', false)
+        }
+    }, [registry, stage, lyricsUp])
+    // Under a picture the bar is the line or nothing: see `barOnScreen`.
+    const fits = barOnScreen(useLocation().pathname, player.playing)
+    // The analyser on the player's own audio graph, which `spectrum` builds once something has
+    // played and answers with from then on; null before that.
+    const tap = spectrumShown ? spectrum() : null
+
     const song = currentSong()
     const station = player.station
     const book = player.book
     const chapter = currentChapter()
     if (!song && !station && !book) return null
     // A track's cover and its stream are the music server's, so there is nothing to draw
-    // without one. A book is maneki's own, and a server with books and no music still has a
-    // transport.
-    // A station plays with no server too (listening without one), so it keeps its bar.
+    // without one. A book is maneki's own, and a station plays with no server too.
     if (!book && !station && !session.music) return null
     if (fits === 'none') return null
 
@@ -208,505 +136,208 @@ export function PlayerBar() {
           : station && session.music
             ? coverUrl(session.music, station.coverArt, 600)
             : null
+    const seed = book?.id ?? song?.albumId ?? song?.id ?? station?.id ?? ''
     const duration = player.durationS || song?.duration || 0
-    const through = duration > 0 ? Math.min(1, player.positionS / duration) : 0
-    // The chapter is what is playing and the book is what it is out of, which is the same
-    // shape as a track and its artist. A book with no chapter marks is its own title.
-    const title = book ? (chapter?.title ?? book.title) : (song?.title ?? station?.name)
-    const beneath = book
-        ? chapter
-            ? `${book.title} · ${book.author}`
-            : book.author
-        : station
-          ? announced(player.stationTitle, station.name) || 'Live'
-          : song
-            ? songLine(song)
-            : undefined
 
     // The title is a way back to what it is from: the book, or the record.
-    const named = book ? (
+    const title = book ? (
         <NavLink to={`/books/${book.id}`} className="control-link">
-            {title}
+            {chapter?.title ?? book.title}
         </NavLink>
     ) : song?.albumId ? (
         <NavLink to={`/music/album/${song.albumId}`} className="control-link">
             {song.title}
         </NavLink>
     ) : (
-        title
+        (song?.title ??
+        (station && player.stationTitle ? announced(player.stationTitle, station.name) : station?.name))
     )
-    // LINER NOTES ONCE THE ROOM IS TALL ENOUGH TO HOLD THEM. Below `LINER_ROOM`, on a small
-    // screen and in the deck face (which is its own way of saying the same facts) the bar stays
-    // the strip it always was. See `lib/liner`.
-    const liner = !small && room >= LINER_ROOM && (face === 'standard' || book !== null)
-    const titlePx = linerTitlePx(room)
-
-    // On a phone the room above the transport holds the title and the timeline; see the room.
-    const phoneRoom = small && !liner
-    // On a phone too: the palette that carried the speeds there opens only from a keyboard, and
-    // five buttons beside the cover leave no room in the transport, so it sits by the title.
-    const speedSelect = book && (
-        <select
-            aria-label="Reading speed"
-            value={book.speed}
-            onChange={(event) => {
-                setSpeed(Number(event.target.value))
-            }}
-            className={cn('shrink-0 rounded-md border bg-field px-2 text-xs', phoneRoom ? 'h-finger' : 'h-8')}
-        >
-            {SPEEDS.map((speed) => (
-                <option key={speed} value={speed}>
-                    {speed}x
-                </option>
-            ))}
-        </select>
-    )
-    const titleBlock = (
-        <div className={phoneRoom ? 'min-w-0' : 'min-w-0 flex-1 md:max-w-64'}>
-            <p className="truncate text-sm" title={title}>
-                {named}
-            </p>
-            {/* A station that has announced what it is playing says that; one that has
-                        not says it is live, which is the only other true thing about it.
-
-                        AND A SOURCE THAT DIED TAKES THAT LINE. Why it went quiet is the only
-                        thing anybody wants off this bar at that moment, it is one line either
-                        way so the strip does not move, and it is where the eye already is. */}
-            {player.refusal === null ? (
-                <p className="truncate text-xs text-muted-foreground" title={beneath}>
-                    {beneath}
-                </p>
-            ) : (
-                <p className="flex min-w-0 items-baseline gap-2 text-xs">
-                    <span className="truncate text-critical-ink" title={player.refusal}>
-                        {player.refusal}
-                    </span>
-                    {/* Beside the sentence it answers: a refusal is most often the
-                                            network, and the same source asked again usually plays. */}
-                    <button
-                        type="button"
-                        onClick={retry}
-                        className="control-link shrink-0 text-primary-ink underline-offset-2 hover:underline"
-                    >
-                        {RETRY_LABEL}
-                    </button>
-                </p>
-            )}
-        </div>
-    )
-    const scrubberRow = (
-        <div
-            className={cn(
-                phoneRoom
-                    ? 'flex min-w-0 items-center gap-2'
-                    : 'hidden min-w-0 flex-1 items-center gap-2 md:flex',
-                station && 'invisible',
-            )}
-        >
-            <span className="shrink-0 font-mono text-xs text-muted-foreground tabular-nums">
-                {clock(player.positionS)}
+    // A SOURCE THAT DIED TAKES THE ARTIST'S LINE. Why it went quiet is the only thing anybody
+    // wants off this bar at that moment, and it is where the eye already is.
+    const refusal = player.refusal !== null && (
+        <span className="inline-flex min-w-0 items-baseline gap-2">
+            <span className="truncate text-critical-ink" title={player.refusal}>
+                {player.refusal}
             </span>
-            <input
-                ref={scrubber}
-                type="range"
-                aria-label="Position"
-                min={0}
-                max={Math.max(1, duration)}
-                step="any"
-                defaultValue={player.positionS}
-                onPointerDown={() => {
-                    scrubbing.current = true
-                }}
-                onPointerUp={() => {
-                    scrubbing.current = false
-                }}
-                onChange={(event) => {
-                    seek(Number(event.target.value))
-                }}
-                className="w-full accent-primary"
-            />
-            <span className="shrink-0 font-mono text-xs text-muted-foreground tabular-nums">
-                {clock(duration)}
-            </span>
-        </div>
+            {/* Beside the sentence it answers: a refusal is most often the network, and the
+                same source asked again usually plays. */}
+            <button
+                type="button"
+                onClick={retry}
+                className="control-link shrink-0 text-primary-ink underline-offset-2 hover:underline"
+            >
+                {RETRY_LABEL}
+            </button>
+        </span>
     )
+    const artist = book
+        ? book.author
+        : station
+          ? player.stationTitle
+              ? station.name
+              : undefined
+          : (song?.artist ?? undefined)
+    const album = book ? (chapter ? book.title : undefined) : (song?.album ?? undefined)
+    // A book with nowhere to step to offers no step; see `bookStepCount`.
+    const bookSteps = book !== null && bookStepCount(book) >= 2
+    // THE DECK FACE IS A MUSIC FACE: a chapter of a novel is not a track, an artist and a number.
+    const deck = face === 'lcd' && !book
+    const fullscreen = stage || lyricsUp
+    // The bar's backdrop is the plain bars; the chosen drawing and its effect are the stage's.
+    const look = fullscreen ? soundLook(style) : soundLook('spectrum')
+    const starred = song !== null && starredNow(marks, song)
 
     return (
-        <div
-            data-shell-strip="player"
-            className="relative flex shrink-0 flex-col border-t border-border-strong bg-sidebar"
-        >
-            {fits === 'full' && (
-                <div
-                    role="separator"
-                    aria-orientation="horizontal"
-                    aria-label={RESIZE_BAR_LABEL}
-                    aria-valuenow={room}
-                    aria-valuemin={BAR_ROOM_MIN}
-                    aria-valuemax={BAR_ROOM_MAX}
-                    tabIndex={0}
-                    data-dragging={dragging}
-                    onPointerDown={beginResize}
-                    onKeyDown={(event) => {
-                        if (event.key === 'ArrowUp') setBarRoom(room + KEYBOARD_STEP)
-                        else if (event.key === 'ArrowDown') setBarRoom(room - KEYBOARD_STEP)
-                        else return
-                        event.preventDefault()
-                    }}
-                    className="resize-handle resize-handle-pane absolute inset-x-0 -top-1 z-10 h-2 cursor-row-resize touch-none"
-                    // Over the bar's top edge, not in its flow: the shared `.resize-handle` rule sets
-                    // `position: relative` and beat the class, adding 8 px to every bar.
-                    style={{ position: 'absolute' }}
-                />
-            )}
-            {/* THE DOCK: one sleeve on the left the whole height of the bar, and beside it the
-                spectrum over the controls, as the client before this one drew it. The sleeve
-                grows with the room, because it is the room's height plus the controls'. */}
-            <div className="flex min-w-0">
-                <div
-                    style={{ width: room + FOOT, height: room + FOOT }}
-                    className="shrink-0 overflow-hidden bg-muted"
-                >
-                    {sleeve ? (
-                        <img src={sleeve} alt="" className="size-full object-cover" />
-                    ) : (
-                        <CoverArt
-                            id={book?.id ?? song?.albumId ?? song?.id ?? station?.id ?? ''}
-                            className="size-full"
-                        />
-                    )}
-                </div>
-                <div className="flex min-w-0 flex-1 flex-col">
-                    {liner ? (
-                        <div style={{ height: room }} className="relative shrink-0 overflow-hidden">
-                            {/* The spectrum is the backdrop here rather than the subject: faint enough
-                                to read the title over, and still the way to the stage. */}
-                            {spectrumShown && (
-                                <button
-                                    type="button"
-                                    aria-label={STAGE_LABEL}
-                                    onClick={openStage}
-                                    className="absolute inset-0 block px-5 pt-4 opacity-20 transition-opacity hover:opacity-30 focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none"
-                                >
-                                    <canvas ref={wide} aria-hidden className="size-full text-primary" />
-                                </button>
-                            )}
-                            {/* The text layer lets presses through to the backdrop, except on what is
-                                itself a control: the title's link, Retry and the timeline. */}
-                            <div className="pointer-events-none relative flex h-full flex-col justify-end gap-3 px-5 pb-2">
-                                <div className="flex items-end gap-6">
-                                    <div className="min-w-0">
-                                        <p className="truncate text-xs tracking-[0.16em] text-primary-ink uppercase">
-                                            {linerEyebrow(player)}
-                                        </p>
-                                        <p
-                                            className="pointer-events-auto truncate font-semibold tracking-tight"
-                                            style={{ fontSize: titlePx, lineHeight: 1.15 }}
-                                            title={linerTitle(player)}
-                                        >
-                                            {station ? linerTitle(player) : named}
-                                        </p>
-                                        {player.refusal === null ? (
-                                            <p
-                                                className="truncate text-muted-foreground"
-                                                style={{ fontSize: Math.max(14, Math.round(titlePx * 0.45)) }}
-                                            >
-                                                {linerByline(player)}
-                                            </p>
-                                        ) : (
-                                            <p className="pointer-events-auto flex min-w-0 items-baseline gap-3 text-sm">
-                                                <span
-                                                    className="truncate text-critical-ink"
-                                                    title={player.refusal}
-                                                >
-                                                    {player.refusal}
-                                                </span>
-                                                <button
-                                                    type="button"
-                                                    onClick={retry}
-                                                    className="control-link shrink-0 text-primary-ink underline-offset-2 hover:underline"
-                                                >
-                                                    {RETRY_LABEL}
-                                                </button>
-                                            </p>
-                                        )}
-                                    </div>
-                                </div>
-                                {!station && (
-                                    <div className="pointer-events-auto flex items-center gap-3">
-                                        <span className="shrink-0 font-mono text-xs text-muted-foreground tabular-nums">
-                                            {clock(player.positionS)}
-                                        </span>
-                                        <input
-                                            ref={scrubber}
-                                            type="range"
-                                            aria-label="Position"
-                                            min={0}
-                                            max={Math.max(1, duration)}
-                                            step="any"
-                                            defaultValue={player.positionS}
-                                            onPointerDown={() => {
-                                                scrubbing.current = true
-                                            }}
-                                            onPointerUp={() => {
-                                                scrubbing.current = false
-                                            }}
-                                            onChange={(event) => {
-                                                seek(Number(event.target.value))
-                                            }}
-                                            className="h-2 w-full cursor-pointer accent-primary"
-                                        />
-                                        <span className="shrink-0 font-mono text-xs text-muted-foreground tabular-nums">
-                                            {clock(duration)}
-                                        </span>
-                                    </div>
-                                )}
-                            </div>
-                        </div>
-                    ) : phoneRoom ? (
-                        // ON A PHONE THE ROOM IS THE TITLE AND THE TIMELINE. Beside five buttons in a
-                        // phone's width a book's title was "1." over "C.", and the scrubber and the
-                        // clocks were not drawn at all; up here they have the whole width.
-                        <div
-                            style={{ height: room }}
-                            className="flex shrink-0 flex-col justify-center gap-1 px-3"
-                        >
-                            {book ? (
-                                <div className="flex min-w-0 items-center gap-2">
-                                    <div className="min-w-0 flex-1">{titleBlock}</div>
-                                    {speedSelect}
-                                </div>
-                            ) : (
-                                titleBlock
-                            )}
-                            {!station && scrubberRow}
-                        </div>
-                    ) : spectrumShown ? (
-                        <button
-                            type="button"
-                            aria-label={STAGE_LABEL}
-                            onClick={openStage}
-                            style={{ height: room }}
-                            className="block w-full shrink-0 px-3 pt-2 focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none"
-                        >
-                            <canvas ref={wide} aria-hidden className="size-full text-primary" />
-                        </button>
-                    ) : (
-                        <div style={{ height: room }} className="shrink-0" />
-                    )}
-                    <div
-                        className={cn(
-                            'relative flex h-shell-foot items-center gap-3 px-3',
-                            phoneRoom && 'justify-center',
-                        )}
-                    >
-                        {/* The hairline stands in for the scrubber where the scrubber does not fit, and
-                nowhere else: both at once is the same fact drawn twice. */}
-                        {!station && !phoneRoom && (
-                            <div
-                                aria-hidden
-                                className="pointer-events-none absolute inset-x-0 top-0 h-0.5 bg-primary transition-[width] duration-200 md:hidden"
-                                style={{ width: `${String(through * 100)}%` }}
-                            />
-                        )}
-
-                        {/* THE DECK FACE REPLACES THE TITLE BLOCK AND THE SCRUBBER, AND NOTHING ELSE. It says
-                what both of them said -- what is playing, and how far through -- so drawing the
-                two together would be the same facts twice at two sizes. The transport stays
-                where it is: what the buttons do does not change with the face.
-
-                AND IT IS A MUSIC FACE. Its window is a track, an artist and a track number read
-                the way a hi-fi reads them, and a chapter of a novel is none of those -- so a
-                book is drawn in the app's own voice whichever face was chosen. */}
-                        {liner || phoneRoom ? null : face === 'lcd' && !book ? (
-                            <LcdDisplay
-                                song={song}
-                                station={station}
-                                stationTitle={player.stationTitle}
-                                positionS={player.positionS}
-                                durationS={duration}
-                                playing={player.playing}
-                                muted={player.muted}
-                                volume={player.volume}
-                            />
-                        ) : (
-                            titleBlock
-                        )}
-
-                        <div className="flex items-center gap-1" data-transport>
-                            {/* Shuffle and repeat sit beside the transport they change, and are drawn as
-                    pressed rather than as a different glyph: what they do is a state the
-                    queue is in, not an action. A station has no queue to be in one, and a book
-                    is one thing read in one order -- neither is offered the controls, and a
-                    book is not offered them disabled either, because they are not a thing a
-                    book can be missing. */}
-                            {!book && (
-                                <>
-                                    <Button
-                                        variant="ghost"
-                                        size="icon-sm"
-                                        aria-label="Shuffle the queue"
-                                        aria-pressed={player.shuffle}
-                                        onClick={toggleShuffle}
-                                        disabled={station !== null}
-                                        className={cn(
-                                            'hidden sm:inline-flex',
-                                            player.shuffle && 'text-primary',
-                                        )}
-                                    >
-                                        <Shuffle className="size-4" aria-hidden />
-                                    </Button>
-                                    <Button
-                                        variant="ghost"
-                                        size="icon-sm"
-                                        aria-label={REPEAT_LABELS[player.repeat]}
-                                        aria-pressed={player.repeat !== 'off'}
-                                        onClick={cycleRepeat}
-                                        disabled={station !== null}
-                                        className={cn(
-                                            'hidden sm:inline-flex',
-                                            player.repeat !== 'off' && 'text-primary',
-                                        )}
-                                    >
-                                        {player.repeat === 'one' ? (
-                                            <Repeat1 className="size-4" aria-hidden />
-                                        ) : (
-                                            <Repeat className="size-4" aria-hidden />
-                                        )}
-                                    </Button>
-                                </>
-                            )}
-                            {/* THE TWO JUMPS ARE A BOOK'S, and they stand outside the chapter steps rather
-                    than replacing them: fifteen seconds is for the sentence somebody missed,
-                    a chapter is for the part of the book they are in. A record has no use for
-                    either, so it is not given a control that would only mean "scrub a bit". */}
-                            {book && (
-                                <Button
-                                    variant="ghost"
-                                    size="icon-sm"
-                                    aria-label={`Back ${String(SKIP_S)} seconds`}
-                                    onClick={() => {
-                                        skipBy(-SKIP_S)
-                                    }}
-                                >
-                                    <RotateCcw className="size-4" aria-hidden />
-                                </Button>
-                            )}
-                            <Button
-                                variant="ghost"
-                                size="icon-sm"
-                                aria-label={book ? 'Previous chapter' : 'Previous'}
-                                // On the narrowest phones a book keeps its two jumps and play; chapters are
-                                // a tap away on its page, and five buttons would push one off the edge.
-                                className={cn(book && 'max-[359px]:hidden')}
-                                onClick={previous}
-                                // A book with nowhere to step to offers no step; see `bookStepCount`.
-                                disabled={station !== null || (book !== null && bookStepCount(book) < 2)}
-                            >
-                                <SkipBack className="size-4" aria-hidden />
-                            </Button>
-                            <Button
-                                size="icon-sm"
-                                aria-label={player.playing ? 'Pause' : 'Play'}
-                                onClick={toggle}
-                            >
-                                {player.playing ? (
-                                    <Pause className="size-4" aria-hidden />
-                                ) : (
-                                    <Play className="size-4" aria-hidden />
-                                )}
-                            </Button>
-                            <Button
-                                variant="ghost"
-                                size="icon-sm"
-                                aria-label={book ? 'Next chapter' : 'Next'}
-                                // On the narrowest phones a book keeps its two jumps and play; chapters are
-                                // a tap away on its page, and five buttons would push one off the edge.
-                                className={cn(book && 'max-[359px]:hidden')}
-                                onClick={next}
-                                // A book with nowhere to step to offers no step; see `bookStepCount`.
-                                disabled={station !== null || (book !== null && bookStepCount(book) < 2)}
-                            >
-                                <SkipForward className="size-4" aria-hidden />
-                            </Button>
-                            {book && (
-                                <Button
-                                    variant="ghost"
-                                    size="icon-sm"
-                                    aria-label={`Forward ${String(SKIP_S)} seconds`}
-                                    onClick={() => {
-                                        skipBy(SKIP_S)
-                                    }}
-                                >
-                                    <RotateCw className="size-4" aria-hidden />
-                                </Button>
-                            )}
-                        </div>
-
-                        {/* Not hidden with a class: two controls with one accessible name is two of them in
-                the document, and a slider nobody can see is still a slider somebody lands on.
-                A book is drawn in the standard face whatever was chosen, so it keeps the
-                slider the face would have replaced. */}
-                        {/* In liner notes the timeline is up in the room, so the row keeps the
-                            transport on the left and the rest on the right. */}
-                        {liner && <div className="flex-1" />}
-                        {!liner && !phoneRoom && (face === 'standard' || book !== null) && scrubberRow}
-
-                        {/* HOW FAST IT IS READ IS A BOOK'S ALONE. Music at 1.25x is a novelty; a narrator
-                at 1.25x is how a lot of people listen to every book they own, so the choice is
-                on the transport rather than behind a settings pane -- and it is offered only
-                where it means something. On a phone it sits beside the title instead. */}
-                        {book && !phoneRoom && speedSelect}
-
-                        {/* The strip is the way to the stage with a pointer, as the F key is without one. It is
-                drawn only while the spectrum is: `Visualizer` answers nothing when it is off, and a
-                button around nothing is an empty stop in the tab order with a name and no face. */}
-
-                        <div className="hidden shrink-0 items-center gap-1 md:flex">
-                            <Button
-                                variant="ghost"
-                                size="icon-sm"
-                                aria-label={player.muted ? 'Unmute' : 'Mute'}
-                                aria-pressed={player.muted}
-                                onClick={toggleMuted}
-                            >
-                                <VolumeGlyph muted={player.muted} volume={player.volume} />
-                            </Button>
-                            <input
-                                type="range"
-                                aria-label="Volume"
-                                min={0}
-                                max={100}
-                                value={Math.round((player.muted ? 0 : player.volume) * 100)}
-                                onChange={(event) => {
-                                    setVolume(Number(event.target.value) / 100)
-                                }}
-                                className="w-20 accent-primary"
-                            />
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
+        <MediaBar
+            title={title}
+            artist={refusal || artist}
+            subtitle={refusal || undefined}
+            album={refusal ? undefined : album}
+            year={song?.year}
+            trackNumber={song && player.queue.length > 1 ? player.index + 1 : undefined}
+            trackCount={song && player.queue.length > 1 ? player.queue.length : undefined}
+            artwork={sleeve ? <Artwork src={sleeve} seed={seed} /> : undefined}
+            placeholderSeed={seed}
+            playing={player.playing}
+            onPlayingChange={(wanted) => {
+                if (wanted !== player.playing) toggle()
+            }}
+            // `lib/player` claims the sound for its element through `lib/sound`, which the video
+            // player shares; a second claim here would be a second arbiter.
+            exclusive={false}
+            position={player.positionS}
+            // The element's clock read every frame, so the scrubber glides rather than steps.
+            getPosition={positionNow}
+            duration={duration}
+            onSeek={seek}
+            live={station !== null}
+            chapters={book && bookSteps ? bookStops(book) : undefined}
+            onPrevious={station || (book && !bookSteps) ? undefined : previous}
+            onNext={station || (book && !bookSteps) ? undefined : next}
+            skip={book ? SKIP_S : undefined}
+            onSkip={book ? skipBy : undefined}
+            rate={book?.speed ?? 1}
+            rates={SPEEDS}
+            onRateChange={book ? setSpeed : undefined}
+            visualizer={
+                spectrumShown && tap !== null ? (
+                    <SoundVisualizer
+                        source={tap}
+                        playing={player.playing}
+                        kind={look.kind}
+                        align={look.align}
+                        ramp={ramp}
+                        color={ramp === undefined ? 'primary' : undefined}
+                        effect={fullscreen ? effect : 'none'}
+                        delay="auto"
+                        delayOffset={delay}
+                        label="Spectrum"
+                    />
+                ) : undefined
+            }
+            visualizerKind={soundLook(style).kind}
+            onVisualizerKindChange={(kind) => {
+                setVisualizerStyle(styleForKind(kind, style))
+            }}
+            volume={player.volume}
+            onVolumeChange={setVolume}
+            muted={player.muted}
+            onMutedChange={toggleMuted}
+            shuffle={player.shuffle}
+            onShuffleChange={song ? toggleShuffle : undefined}
+            repeat={player.repeat}
+            onRepeatChange={
+                song
+                    ? () => {
+                          cycleRepeat()
+                      }
+                    : undefined
+            }
+            face={
+                deck ? (
+                    <LcdFace
+                        song={song}
+                        station={station}
+                        stationTitle={player.stationTitle}
+                        positionS={player.positionS}
+                        durationS={duration}
+                        playing={player.playing}
+                        muted={player.muted}
+                        volume={player.volume}
+                    />
+                ) : undefined
+            }
+            fullscreenActions={
+                song && session.music ? (
+                    <StarButton
+                        starred={starred}
+                        onStarredChange={() => {
+                            toggleStar(session.music ?? undefined, song)
+                        }}
+                        words={{ star: 'Star this track', unstar: 'Unstar this track' }}
+                    />
+                ) : undefined
+            }
+            // Under a picture the bar is its one line: the bar holds no less than that.
+            size={fits === 'strip' ? 0 : size}
+            onSizeChange={setBarSize}
+            resizable={fits === 'full'}
+            defaultSize={BAR_SIZE_DEFAULT}
+            fullscreen={fullscreen}
+            onFullscreenChange={(open) => {
+                if (open) {
+                    openStage()
+                    return
+                }
+                closeStage()
+                closeLyrics()
+            }}
+            lyrics={song ? <PlayerLyrics /> : undefined}
+            lyricsShown={lyricsUp}
+            onLyricsShownChange={(shown) => {
+                if (shown) {
+                    openLyrics()
+                    return
+                }
+                // Hiding the words leaves the view up, on the spectrum.
+                openStage()
+                closeLyrics()
+            }}
+        />
     )
 }
 
-/** Loud, quiet or silent: the glyph says which without anybody reading a number. */
-function VolumeGlyph({ muted, volume }: { muted: boolean; volume: number }) {
-    if (muted || volume === 0) return <VolumeX className="size-4" aria-hidden />
-    if (volume < 0.5) return <Volume1 className="size-4" aria-hidden />
-    return <Volume2 className="size-4" aria-hidden />
+/** The deck's readout, its elapsed time read off the element every frame as the scrubber's is. */
+function LcdFace({ positionS, playing, ...rest }: ComponentProps<typeof LcdDisplay>) {
+    const position = useFramePosition(positionS, positionNow, playing)
+    return <LcdDisplay {...rest} positionS={position} playing={playing} />
 }
 
-/** The window's height, kept as it is resized or a phone is turned. */
-function useWindowHeight(): number {
-    const [height, setHeight] = useState(() => (typeof window === 'undefined' ? 900 : window.innerHeight))
+const selectSongId = (state: { queue: { id: string }[]; index: number; book: unknown }) =>
+    state.book === null ? (state.queue[state.index]?.id ?? null) : null
+const selectPositionS = (state: { positionS: number }) => state.positionS
+
+/**
+ * The words of the track playing, for the fullscreen view. Mounted only while they are shown,
+ * and asked for again on every change of track: what is on screen while that is in flight is
+ * the sentence saying so, rather than the previous song's chorus.
+ */
+function PlayerLyrics() {
+    const credentials = useStore(sessionStore).music
+    const songId = useStoreValue(playerStore, selectSongId)
+    const positionS = useStoreValue(playerStore, selectPositionS)
+    const [answer, setAnswer] = useState<{ songId: string; words: ParsedLyrics } | null>(null)
+
     useEffect(() => {
-        const measure = () => setHeight(window.innerHeight)
-        window.addEventListener('resize', measure)
-        return () => {
-            window.removeEventListener('resize', measure)
-        }
-    }, [])
-    return height
+        if (!credentials || songId === null) return
+        const asked = currentSong()
+        if (asked === null) return
+        readLyrics(credentials, asked)
+            .then((found) => setAnswer({ songId: asked.id, words: found }))
+            .catch(() => setAnswer({ songId: asked.id, words: NO_LYRICS }))
+    }, [credentials, songId])
+
+    const words = answer !== null && answer.songId === songId ? answer.words : null
+    if (words === null) return <Spinner label={LYRICS_READING} />
+    return <Lyrics lyrics={words} position={positionS} onSeek={seek} words={{ none: LYRICS_NONE }} />
 }

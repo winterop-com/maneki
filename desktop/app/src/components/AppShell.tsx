@@ -7,11 +7,8 @@ import {
     ListMusic,
     LogIn,
     LogOut,
-    Monitor,
-    Moon,
     Pause,
     PanelLeft,
-    Palette,
     Play,
     Maximize2,
     MicVocal,
@@ -26,47 +23,33 @@ import {
     SkipBack,
     SkipForward,
     Star,
-    Sun,
     Volume1,
     Volume2,
     VolumeX,
 } from 'lucide-react'
-import {
-    Suspense,
-    lazy,
-    useCallback,
-    useContext,
-    useEffect,
-    useMemo,
-    useRef,
-    useState,
-    type ReactNode,
-} from 'react'
+import { Suspense, lazy, useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router'
 
 import { AccountMenu } from '@winterop-com/sokkel-ui/AccountMenu'
 import type { PaletteCommand, PaletteGroup } from '@winterop-com/sokkel-ui/CommandPalette'
 import { Rail, type RailEntry, type RailGroup } from '@winterop-com/sokkel-ui/Rail'
 import { SchemeToggle } from '@winterop-com/sokkel-ui/SchemeToggle'
-import { Shell } from '@winterop-com/sokkel-ui/Shell'
-import { ShellShortcuts } from '@winterop-com/sokkel-ui/shell-context'
+import { SearchField } from '@winterop-com/sokkel-ui/SearchField'
+import { Shell, type ShortcutGroup } from '@winterop-com/sokkel-ui/Shell'
 import { StatusItem, StatusLine } from '@winterop-com/sokkel-ui/StatusLine'
 import { TopBar } from '@winterop-com/sokkel-ui/TopBar'
 import { useScheme } from '@winterop-com/sokkel-ui/hooks/use-scheme'
-import { useShortcutRegistry } from '@winterop-com/sokkel-ui/hooks/use-shortcuts'
 import { useStore, useStoreValue } from '@winterop-com/sokkel-ui/hooks/use-store'
-import type { ShortcutGroup } from '@winterop-com/sokkel-ui/lib/shortcuts'
+import { appearanceCommands } from '@winterop-com/sokkel-ui/lib/commands'
 import { ConnectionBanner } from '@/components/ConnectionBanner'
-import { FullscreenVisualizer } from '@/components/FullscreenVisualizer'
-import { LyricsOverlay } from '@/components/LyricsOverlay'
 import { PlayerBar } from '@/components/PlayerBar'
 import { SearchOverlay, SEARCH_TITLE } from '@/components/SearchOverlay'
 import { standingNow, useAppShortcuts } from '@/hooks/use-app-shortcuts'
 import { serverHost } from '@/lib/account'
 import { recoveries } from '@/lib/connection'
 import { desktopWindow } from '@/lib/desktop'
-import { mayOpen, setDialogOpen } from '@/lib/dialogs'
-import { lyricsOpen, openLyrics } from '@/lib/lyrics'
+import { mayOpenPaletteOver, setDialogOpen } from '@/lib/dialogs'
+import { openLyrics } from '@/lib/lyrics'
 import { entriesFor, homePath, marks, sectionsFor } from '@/lib/nav'
 import {
     RAIL_MAX_WIDTH,
@@ -95,20 +78,15 @@ import {
     toggleMuted,
     toggleShuffle,
 } from '@/lib/player'
-import { nextRepeat, REPEAT_LABELS } from '@/lib/queue'
+import { REPEAT_LABELS } from '@/lib/queue'
+import { nextRepeat } from '@winterop-com/sokkel-ui-media/queue'
 import { screenStatus } from '@/lib/screen-status'
 import { closeSearch, openSearch } from '@/lib/search'
 import { isAdmin, sessionStore, signOut } from '@/lib/session'
 import { applePlatform, SEEK_STEP_S, shortcuts, VOLUME_STEP } from '@/lib/shortcuts'
 import { toggleStar } from '@/lib/star'
-import { choosePalette, MODE_LABELS, MODES, PALETTES } from '@/lib/theme'
-import {
-    cycleVisualizerStyle,
-    openStage,
-    stageOpen,
-    toggleVisualizer,
-    visualizerShown,
-} from '@/lib/visualizer'
+import { choosePalette, paletteStore, PALETTES } from '@/lib/theme'
+import { cycleVisualizerStyle, openStage, toggleVisualizer, visualizerShown } from '@/lib/visualizer'
 
 /** The facts the shell reads off the player. Module scope, so each is one stable function. */
 const selectPlaying = (state: { playing: boolean }) => state.playing
@@ -122,6 +100,7 @@ const selectChapterCount = (state: { book: { chapter_list: unknown[] } | null })
 
 export const SIGN_OUT_LABEL = 'Sign out'
 export const SIGN_IN_LABEL = 'Sign in to a server'
+export const SEARCH_BOX_PLACEHOLDER = 'Search'
 
 /** The palette's headings, in the order the app's own groups are listed. */
 const GO_GROUP = 'Go to'
@@ -129,6 +108,8 @@ const GO_GROUP = 'Go to'
 const PLAYBACK_GROUP = 'Playback'
 const VIEW_GROUP = 'View'
 const APPEARANCE_GROUP = 'Appearance'
+/** The palette's own heading for the palettes, which the library calls themes. */
+const PALETTE_GROUP = 'Palette'
 const SESSION_GROUP = 'Session'
 
 /**
@@ -180,15 +161,12 @@ export function AppShell({ children }: { children: ReactNode }) {
     const spectrum = useStore(visualizerShown)
     const navigate = useNavigate()
     const { pathname } = useLocation()
-    const { setScheme } = useScheme()
+    const { scheme, setScheme } = useScheme()
+    const chosenPalette = useStore(paletteStore)
     const [settingsOpen, setSettingsOpen] = useState(false)
     const [settingsAsked, setSettingsAsked] = useState(false)
     const [paletteOpen, setPaletteOpen] = useState(false)
-    // The shell holds the shortcuts dialog; the palette's row reaches it through `ShellBridge`.
-    const openShortcuts = useRef<(() => void) | undefined>(undefined)
-    const holdShortcuts = useCallback((open: (() => void) | undefined) => {
-        openShortcuts.current = open
-    }, [])
+    const [shortcutsOpen, setShortcutsOpen] = useState(false)
     const caps = session.capabilities ?? null
     // Listening without a server: no library to search, no spectrum to draw, no account to leave.
     const radioOnly = session.phase === 'radio'
@@ -207,8 +185,9 @@ export function AppShell({ children }: { children: ReactNode }) {
     useEffect(() => setDialogOpen('settings', settingsOpen), [settingsOpen])
     useEffect(() => setDialogOpen('palette', paletteOpen), [paletteOpen])
 
-    // One surface at a time: the palette opens over nothing else; see `mayOpen`.
-    const mayOpenPalette = useCallback(() => mayOpen('palette', standingNow()), [])
+    // One surface at a time: the palette opens over nothing else but the search it replaces;
+    // see `mayOpenPaletteOver`.
+    const mayOpenPalette = useCallback((over: Element | null) => mayOpenPaletteOver(over, standingNow()), [])
     const choosePaletteOpen = useCallback((open: boolean) => {
         // Two modals stacked is one scrim over the thing the other is about.
         if (open) closeSearch()
@@ -225,6 +204,7 @@ export function AppShell({ children }: { children: ReactNode }) {
                     label: entry.label,
                     icon: entry.icon,
                     href: entry.path,
+                    keywords: [entry.hint],
                     // What is marked is `lib/nav`'s decision, not the router's; see `marks`.
                     active: marks(entry.path, pathname),
                 })),
@@ -232,18 +212,24 @@ export function AppShell({ children }: { children: ReactNode }) {
         [caps, pathname],
     )
 
+    // Radio-only draws no search field, so `/` answers nothing there.
     const keys = useMemo<ShortcutGroup[]>(
-        () => [{ title: SHORTCUTS_GROUP, shortcuts: shortcuts(apple) }],
-        [apple],
+        () => [
+            {
+                title: SHORTCUTS_GROUP,
+                shortcuts: shortcuts(apple).filter((one) => !radioOnly || one.id !== 'search'),
+            },
+        ],
+        [apple, radioOnly],
     )
 
     const palette = useMemo<PaletteGroup[]>(() => {
         const pages: PaletteCommand[] = entriesFor(caps).map((entry) => ({
             id: `go:${entry.path}`,
             label: entry.label,
-            hint: entry.hint,
             icon: entry.icon,
-            keywords: [entry.path],
+            // Found by what the place holds, never drawn: the rows read as places.
+            keywords: [entry.path, entry.hint],
             onSelect: () => {
                 void navigate(entry.path)
             },
@@ -486,43 +472,39 @@ export function AppShell({ children }: { children: ReactNode }) {
                 icon: Keyboard,
                 keywords: ['keys', 'chords', 'help'],
                 onSelect: () => {
-                    openShortcuts.current?.()
+                    setShortcutsOpen(true)
                 },
             },
         ]
         const appearance: PaletteCommand[] = [
-            ...MODES.map((mode) => ({
-                id: `appearance:${mode}`,
-                label: MODE_LABELS[mode],
-                icon: mode === 'light' ? Sun : mode === 'dark' ? Moon : Monitor,
-                keywords: ['theme', 'appearance', mode],
-                onSelect: () => {
-                    setScheme(mode)
-                },
-            })),
             {
                 id: 'appearance:spectrum-style',
                 label: 'Next spectrum style',
                 icon: AudioLines,
                 // Every style, not the one that happens to be next: a row found by typing
                 // "scope" is a row that answers whichever style is in front of somebody.
-                keywords: ['spectrum', 'visualiser', 'visualizer', 'bars', 'mirror', 'ridge', 'scope'],
+                keywords: ['spectrum', 'visualiser', 'visualizer', 'bars', 'area', 'wave', 'ring', 'scope'],
                 onSelect: () => {
                     cycleVisualizerStyle()
                 },
             },
-            // The palette carries the spectrum's ramp, so this is the one colour row there is:
-            // what used to be a list of ramps here is a list of palettes.
-            ...PALETTES.map((one) => ({
-                id: `appearance:palette-${one.name}`,
-                label: `Palette: ${one.label}`,
-                icon: Palette,
-                keywords: ['palette', 'theme', 'colour', 'color', 'spectrum', one.name],
-                onSelect: () => {
-                    choosePalette(one.name)
-                },
-            })),
         ]
+        // The scheme and the palette through maneki's own callbacks, so the palette stays under
+        // maneki's key. The palette carries the spectrum's ramp: it is the one colour choice.
+        const look = appearanceCommands(
+            {
+                scheme,
+                onSchemeChange: setScheme,
+                theme: chosenPalette,
+                onThemeChange: (name) => {
+                    choosePalette(name)
+                },
+            },
+            {
+                themes: PALETTES.map((one) => ({ value: one.name, label: one.label })),
+                words: { theme: PALETTE_GROUP },
+            },
+        )
         const leaving: PaletteCommand[] = [
             {
                 id: 'session:sign-out',
@@ -537,6 +519,7 @@ export function AppShell({ children }: { children: ReactNode }) {
             { title: PLAYBACK_GROUP, commands: transport },
             { title: VIEW_GROUP, commands: view },
             { title: APPEARANCE_GROUP, commands: appearance },
+            ...look,
             { title: SESSION_GROUP, commands: leaving },
         ]
     }, [
@@ -544,6 +527,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         bookId,
         caps,
         chapterCount,
+        chosenPalette,
         collapsed,
         music,
         navigate,
@@ -553,6 +537,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         radioOnly,
         repeat,
         shuffle,
+        scheme,
         station,
         setScheme,
         spectrum,
@@ -571,9 +556,12 @@ export function AppShell({ children }: { children: ReactNode }) {
                     <Rail
                         mark={<Cat className="size-4" aria-hidden />}
                         name="maneki"
+                        markHref={homePath(caps)}
                         groups={rail}
                         collapsed={collapsed}
+                        // A collapsed rail drags open from its edge, as an expanded one resizes.
                         onCollapsedChange={setRailCollapsed}
+                        resizable
                         size={width}
                         onSizeChange={setRailWidth}
                         minSize={RAIL_MIN_WIDTH}
@@ -586,14 +574,19 @@ export function AppShell({ children }: { children: ReactNode }) {
                                 where={host === '' ? undefined : host}
                                 collapsed={collapsed}
                                 onSettings={openSettings}
-                                onSignOut={signOut}
-                                words={{ signOut: radioOnly ? SIGN_IN_LABEL : SIGN_OUT_LABEL }}
+                                scheme={scheme}
+                                onSchemeChange={setScheme}
+                                // Radio-only has no account to leave: leaving it is signing in.
+                                onSignOut={radioOnly ? undefined : signOut}
+                                onSignIn={radioOnly ? signOut : undefined}
+                                words={{ signOut: SIGN_OUT_LABEL, signIn: SIGN_IN_LABEL }}
                             />
                         }
                     />
                 }
                 top={
                     <TopBar
+                        search={radioOnly ? undefined : <LibrarySearchField />}
                         actions={
                             <>
                                 {caps !== null && (
@@ -624,22 +617,23 @@ export function AppShell({ children }: { children: ReactNode }) {
                 paletteOpen={paletteOpen}
                 onPaletteOpenChange={choosePaletteOpen}
                 mayOpenPalette={mayOpenPalette}
+                paletteFilter="terms"
                 shortcuts={keys}
+                shortcutsOpen={shortcutsOpen}
+                onShortcutsOpenChange={setShortcutsOpen}
                 desktop={desktopWindow()}
+                // Keyed on the server coming back, so a screen that failed while it was gone
+                // loads again instead of keeping the sentence; see `recoveries`.
+                contentKey={recovered}
             >
-                <ShellBridge onShortcuts={holdShortcuts} />
-                {/* Keyed on the server coming back, so a screen that failed while it was gone
-                    loads again instead of keeping the sentence; see `recoveries`. As tall as the
-                    content, so a screen that fills the height it was given still can. */}
-                <div key={recovered} className="flex h-full w-full flex-col">
-                    {children}
-                </div>
+                {/* As tall as the content, so a screen that fills the height it was given (the
+                    watch and video screens grow with `flex-1`) still can. */}
+                <div className="flex h-full w-full flex-col">{children}</div>
             </Shell>
 
-            {/* Outside the shell's content, which contains what is fixed inside it: these cover
-                the whole window, and make everything beside them inert while they stand. */}
-            <FullscreenVisualizer />
-            <LyricsOverlay />
+            {/* Outside the shell's content, which contains what is fixed inside it: it covers
+                the whole window, and makes everything beside it inert while it stands. The
+                spectrum and the lyrics are the player bar's own fullscreen view. */}
             <SearchOverlay />
             {settingsAsked && (
                 <Suspense fallback={null}>
@@ -670,29 +664,37 @@ function railLink(entry: RailEntry, children: ReactNode, className: string): Rea
 }
 
 /**
- * What the shell holds that the app reaches from outside it.
+ * The library search, where the client this replaces put it: a field at the start of the top bar,
+ * which `/` focuses.
  *
- * The shortcuts dialog is the shell's, and the palette's row for it is built out here. The stage
- * and the lyrics are the app's own full-screen views, so the shell's keys (the palette's chord
- * and `?`) stay quiet over them, as `mayOpen` says no dialog stacks on either.
+ * A DOOR RATHER THAN A BOX. What answers the question is the overlay, so this field holds nothing
+ * ever: a press on it, Enter or ArrowDown in it, or a letter typed into it opens the overlay, the
+ * letter going with it. Focus alone opens nothing, so tabbing past it throws up no dialog.
  */
-function ShellBridge({ onShortcuts }: { onShortcuts: (open: (() => void) | undefined) => void }) {
-    const showShortcuts = useContext(ShellShortcuts)
-    const registry = useShortcutRegistry()
-    const stage = useStore(stageOpen)
-    const lyrics = useStore(lyricsOpen)
-    useEffect(() => {
-        onShortcuts(showShortcuts)
-    }, [onShortcuts, showShortcuts])
-    useEffect(() => {
-        registry.surface('stage', stage)
-        registry.surface('lyrics', lyrics)
-        return () => {
-            registry.surface('stage', false)
-            registry.surface('lyrics', false)
-        }
-    }, [registry, stage, lyrics])
-    return null
+function LibrarySearchField() {
+    return (
+        <div
+            onPointerDown={(event) => {
+                event.preventDefault()
+                openSearch('')
+            }}
+        >
+            <SearchField
+                value=""
+                onChange={openSearch}
+                placeholder={SEARCH_BOX_PLACEHOLDER}
+                shortcut
+                inputProps={{
+                    onKeyDown: (event) => {
+                        if (event.key === 'Enter' || event.key === 'ArrowDown') {
+                            event.preventDefault()
+                            openSearch('')
+                        }
+                    },
+                }}
+            />
+        </div>
+    )
 }
 
 /** Where a reader with no address of their own lands, which the router asks for. */

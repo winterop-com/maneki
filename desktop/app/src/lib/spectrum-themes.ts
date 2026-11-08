@@ -17,8 +17,7 @@
  * quiet enough to want one ink on the page carries.
  *
  * THE STOPS RUN FROM THE FLOOR UP, quiet colour first, because that is the order somebody reads
- * a bar in. Which end of the gradient each lands on is the painter's, and it is not the same
- * end for a spectrum drawn up the canvas as for a scope drawn across it.
+ * a bar in, and the order `SoundVisualizer` takes a ramp in.
  */
 
 import type { PaletteName } from '@/lib/theme'
@@ -90,83 +89,11 @@ export function themeStops(theme: SpectrumTheme, accent: string): readonly strin
     return found.stops
 }
 
-/** The little a canvas gradient has to be for this module to fill one, so a test can watch. */
-export interface ColourStops {
-    addColorStop: (offset: number, colour: string) => void
-}
-
-/** The little a canvas context has to be to make one. */
-export interface GradientMaker<G extends ColourStops> {
-    createLinearGradient: (x0: number, y0: number, x1: number, y1: number) => G
-}
-
 /**
- * Gradients already built, per context, per theme, per size, per accent.
- *
- * ONE GRADIENT A FRAME AT MOST, NEVER ONE PER BAR. Building a gradient is the expensive call in
- * a canvas frame, and the client this replaces was allocating one for every bar of every frame
- * until it started keying them. A gradient down the whole canvas is a pure function of the
- * theme, the height and the accent, so it is built once and handed back until one of those
- * three moves -- and a bar's colour then says how loud it is, which is what an analyser is read
- * for.
- *
- * Held against the context rather than in one map for the app, so the strip's gradients go when
- * the strip does and the two canvases cannot hand each other a gradient the other one made.
+ * The ramp a palette hands sokkel-ui's `SoundVisualizer`, quiet first as it reads them: the
+ * palette's stops, or nothing for one that follows the accent and is inked in `primary` alone.
  */
-const built = new WeakMap<object, Map<string, ColourStops>>()
-
-/** Up the canvas: the quiet colour on the floor, the loud one at the top. */
-export function themeGradient<G extends ColourStops>(
-    theme: SpectrumTheme,
-    context: GradientMaker<G>,
-    height: number,
-    accent: string,
-): G {
-    return gradient(theme, context, 'up', height, accent)
-}
-
-/**
- * Across the canvas: the quiet colour on the left, the loud one on the right.
- *
- * The scope is a line about the middle rather than a height, so a ramp up the canvas would
- * paint the same trace two colours depending on which way the wave happened to go.
- */
-export function themeSweep<G extends ColourStops>(
-    theme: SpectrumTheme,
-    context: GradientMaker<G>,
-    width: number,
-    accent: string,
-): G {
-    return gradient(theme, context, 'across', width, accent)
-}
-
-function gradient<G extends ColourStops>(
-    theme: SpectrumTheme,
-    context: GradientMaker<G>,
-    axis: 'up' | 'across',
-    size: number,
-    accent: string,
-): G {
-    const held = built.get(context) ?? new Map<string, ColourStops>()
-    built.set(context, held)
-    const key = `${axis}:${theme}:${Math.round(size)}:${accent}`
-    const known = held.get(key)
-    if (known !== undefined) return known as G
-    const made =
-        axis === 'up'
-            ? context.createLinearGradient(0, 0, 0, size)
-            : context.createLinearGradient(0, 0, size, 0)
-    const stops = themeStops(theme, accent)
-    if (stops.length === 1) {
-        made.addColorStop(0, stops[0])
-        made.addColorStop(1, stops[0])
-    } else {
-        stops.forEach((colour, index) => {
-            const along = index / (stops.length - 1)
-            // Up the canvas, zero is the top: the last stop is the loudest and belongs there.
-            made.addColorStop(axis === 'up' ? 1 - along : along, colour)
-        })
-    }
-    held.set(key, made)
-    return made
+export function soundRampFor(palette: PaletteName): readonly string[] | undefined {
+    const stops = SPECTRUM_THEMES.find((one) => one.name === rampForPalette(palette))?.stops ?? []
+    return stops.length === 0 ? undefined : stops
 }

@@ -279,20 +279,6 @@ export function starsCurrent(press: KeyPress, focused: FocusedField | null): boo
 }
 
 /**
- * Whether this press opens the search over the whole library.
- *
- * `/`, which is what every app with a search box binds, matched as the character for the reason
- * `*` is: it is Shift and the 7 on a Norwegian layout and a key of its own on a US one. It is
- * refused while something is being typed into, where a slash is a slash -- including inside the
- * search it opened.
- */
-export function opensSearch(press: KeyPress, focused: FocusedField | null): boolean {
-    if (press.key !== SEARCH_KEY) return false
-    if (press.ctrlKey || press.metaKey || press.altKey) return false
-    return !isTypingField(focused)
-}
-
-/**
  * Whether this press puts the words of what is playing on screen.
  *
  * `l` for lyrics, bare, beside the other listening letters -- it is reached for while a track

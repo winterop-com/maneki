@@ -5,7 +5,6 @@ import {
     applePlatform,
     isTypingField,
     opensLyrics,
-    opensSearch,
     opensStage,
     SEEK_STEP_S,
     seeks,
@@ -232,13 +231,6 @@ describe('the rest of the listening keys', () => {
         expect(starsCurrent(press('*', { ctrlKey: true }), null)).toBe(false)
     })
 
-    test('the slash opens the search, and typed into a box it is a slash', () => {
-        expect(opensSearch(press('/'), null)).toBe(true)
-        // Including inside the search it opened, where the box already has the focus.
-        expect(opensSearch(press('/'), TEXT_BOX)).toBe(false)
-        expect(opensSearch(press('/', { metaKey: true }), null)).toBe(false)
-    })
-
     test('l puts the words on screen, bare and outside a box', () => {
         expect(opensLyrics(press('l'), null)).toBe(true)
         expect(opensLyrics(press('L'), null)).toBe(true)
@@ -247,12 +239,11 @@ describe('the rest of the listening keys', () => {
     })
 
     test('no two of them answer the same press', () => {
-        for (const key of ['m', 'l', '*', '/', 'ArrowLeft', 'ArrowUp']) {
+        for (const key of ['m', 'l', '*', 'ArrowLeft', 'ArrowUp']) {
             const answered = [
                 togglesMute(press(key), null),
                 opensLyrics(press(key), null),
                 starsCurrent(press(key), null),
-                opensSearch(press(key), null),
                 seeks(press(key), null) !== null,
                 adjustsVolume(press(key), null) !== null,
             ].filter(Boolean)

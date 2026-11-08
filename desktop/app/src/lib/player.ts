@@ -36,14 +36,15 @@ import {
     type Station,
 } from '@/lib/subsonic'
 import {
-    afterSkip,
-    afterTrack,
-    beforeTrack,
-    buildOrder,
+    createQueue,
     nextRepeat,
-    reorderAround,
-    type Repeat,
-} from '@/lib/queue'
+    queueEnded,
+    queueNext,
+    queuePrevious,
+    queueShuffle,
+    type Queue,
+} from '@winterop-com/sokkel-ui-media/queue'
+import type { Repeat } from '@/lib/queue'
 import { connectionStore } from '@/lib/connection'
 import { offlineSongIds, offlineStore, offlineTrack } from '@/lib/offline'
 import { sendPlay } from '@/lib/outbox'
@@ -81,7 +82,7 @@ export interface PlayerState {
      * The order the queue is played in: positions into `queue`, shuffled or not.
      *
      * Kept apart from the queue itself so the panel can draw the album's own order while
-     * playback follows another one -- see `lib/queue`.
+     * playback follows another one: see sokkel-ui-media's `queue`.
      */
     order: number[]
     /** Where in `order` playback is; -1 when nothing has been played yet. */
@@ -425,6 +426,12 @@ function patch(change: Partial<PlayerState>): void {
     playerStore.set({ ...state(), ...change })
 }
 
+/** The store's queue as the library's queue helpers take it. */
+function queueOf(): Queue<Song> {
+    const { queue, order, orderAt, shuffle, repeat } = state()
+    return { items: queue, order, at: orderAt, shuffle, repeat }
+}
+
 export function currentSong(): Song | null {
     const { queue, index, book } = state()
     // A book is not a track: everything that asks for the song asks in order to draw a title, a
@@ -683,7 +690,7 @@ export function play(songs: Song[], startIndex = 0): void {
     leaveBook()
     claimSound(silence)
     const at = Math.min(Math.max(0, startIndex), songs.length - 1)
-    const order = buildOrder(songs.length, at, state().shuffle)
+    const order = [...createQueue(songs, { start: at, shuffle: state().shuffle }).order]
     patch({ queue: songs, order, station: null, book: null, stationTitle: '' })
     load(at, true, order.indexOf(at))
 }
@@ -910,7 +917,7 @@ let bookDone = false
  * Its chapters, where it has them; where it has none, the files it is made of, which are a
  * disc or an hour each and are the only division the book actually carries.
  */
-function bookStops(book: Pick<PlayingBook, 'chapter_list' | 'files'>): number[] {
+export function bookStops(book: Pick<PlayingBook, 'chapter_list' | 'files'>): number[] {
     if (book.chapter_list.length > 0) return book.chapter_list.map((chapter) => chapter.start_s)
     return book.files.map((file) => file.offset_s)
 }
@@ -1079,25 +1086,25 @@ function releaseStation(player: HTMLAudioElement): void {
 }
 
 export function next(): void {
-    const { order, orderAt, station, book, repeat } = state()
+    const { station, book } = state()
     if (station) return // a station has nothing to skip to
     if (book) {
         stepBook(1)
         return
     }
-    const moved = afterSkip(order, orderAt, repeat)
-    // Nothing after the last track under repeat off: stay put, as `afterSkip` says. Marking the
-    // player stopped here left the bar saying so while the element played on, and Play then
-    // paused the track it claimed was not playing.
-    if (moved === null) return
+    const moved = queueNext(queueOf())?.at
+    // Nothing after the last track under repeat off: stay put. Marking the player stopped here
+    // left the bar saying so while the element played on, and Play then paused the track it
+    // claimed was not playing.
+    if (moved === undefined) return
     loadAt(moved, true)
 }
 
-/** What a track ending does, which is not the same as pressing skip -- see `lib/queue`. */
+/** What a track ending does, which is not the same as pressing skip: repeat-one replays it. */
 function onEnded(): void {
-    const { order, orderAt, repeat } = state()
-    const moved = afterTrack(order, orderAt, repeat)
-    if (moved === null) {
+    const { orderAt } = state()
+    const moved = queueEnded(queueOf())?.at
+    if (moved === undefined) {
         patch({ playing: false })
         return
     }
@@ -1112,7 +1119,7 @@ function onEnded(): void {
 }
 
 export function previous(): void {
-    const { order, orderAt, station, book, repeat } = state()
+    const { station, book } = state()
     if (station) return
     if (book) {
         stepBook(-1)
@@ -1124,8 +1131,8 @@ export function previous(): void {
         seek(0)
         return
     }
-    const moved = beforeTrack(order, orderAt, repeat)
-    if (moved === null) seek(0)
+    const moved = queuePrevious(queueOf())?.at
+    if (moved === undefined) seek(0)
     else loadAt(moved, true)
 }
 
@@ -1142,8 +1149,8 @@ export function toggleShuffle(): void {
         patch({ shuffle: wanted })
         return
     }
-    const rebuilt = reorderAround(order, orderAt, wanted)
-    patch({ shuffle: wanted, order: rebuilt.order, orderAt: rebuilt.at })
+    const rebuilt = queueShuffle(queueOf(), wanted)
+    patch({ shuffle: wanted, order: [...rebuilt.order], orderAt: rebuilt.at })
     // What comes next has changed, so the track fetched for it is asked again.
     if (!state().book && !state().station) scheduleAhead()
 }
