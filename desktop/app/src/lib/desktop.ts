@@ -13,12 +13,15 @@
  *
  * FULLSCREEN IS THE SHELL'S WHERE THERE IS ONE. The HTML5 Fullscreen API fills the window a
  * page is in, which inside a desktop shell is the shell's own window with its chrome still
- * around it; asking the shell instead is what takes the whole display. A browser tab has no
- * shell to ask and gets the standard API, so a caller never has to know which it got.
+ * around it; asking the shell instead is what takes the whole display. The window's call and
+ * its state are handed to sokkel-ui's `desktop`, whose `lib/fullscreen` is what every part
+ * goes full screen through; a browser tab hands it nothing and gets the standard API.
  *
  * WHAT IS PURE IS SEPARATE. Deciding which shell a user agent describes and which addresses are
  * worth probing are the two decisions worth a test, and neither needs a window to make.
  */
+
+import { useEffect, useMemo, useState } from 'react'
 
 import type { DesktopWindow } from '@winterop-com/sokkel-ui/lib/desktop'
 
@@ -70,6 +73,7 @@ export function probeOrigins(shell: ShellKind, origin: string): string[] {
 interface TauriWindow {
     setFullscreen?: (on: boolean) => Promise<void>
     isFullscreen?: () => Promise<boolean>
+    onResized?: (handler: () => void) => Promise<() => void>
     startDragging?: () => Promise<void>
 }
 
@@ -82,6 +86,8 @@ interface TauriGlobal {
 interface ElectronBridge {
     setFullscreen: (on: boolean) => Promise<boolean>
     isFullscreen: () => Promise<boolean>
+    /** The window's 'enter-full-screen' and 'leave-full-screen', however it got there. */
+    onFullscreenChange?: (listener: (on: boolean) => void) => () => void
 }
 
 /**
@@ -135,38 +141,11 @@ function electronBridge(): ElectronBridge | null {
     return bridge && typeof bridge.setFullscreen === 'function' ? bridge : null
 }
 
-/**
- * Fill the display.
- *
- * Answers whether it worked, so a caller can fall back to its own in-page stage rather than
- * leaving somebody looking at a window that did not change. A shell whose bridge is missing or
- * refuses is the browser case, and takes the standard API.
- */
-export async function requestNativeFullscreen(): Promise<boolean> {
+/** Put the window in its own full screen, or take it out. */
+function setWindowFullscreen(on: boolean): Promise<unknown> {
     const tauri = tauriWindow()
-    if (tauri?.setFullscreen) {
-        await tauri.setFullscreen(true)
-        return isNativeFullscreen()
-    }
-    const bridge = electronBridge()
-    if (bridge) return bridge.setFullscreen(true)
-    if (typeof document === 'undefined' || document.fullscreenElement !== null) return true
-    await document.documentElement.requestFullscreen()
-    return true
-}
-
-/** Give the display back. */
-export async function exitNativeFullscreen(): Promise<boolean> {
-    const tauri = tauriWindow()
-    if (tauri?.setFullscreen) {
-        await tauri.setFullscreen(false)
-        return !(await isNativeFullscreen())
-    }
-    const bridge = electronBridge()
-    if (bridge) return !(await bridge.setFullscreen(false))
-    if (typeof document === 'undefined' || document.fullscreenElement === null) return true
-    await document.exitFullscreen()
-    return true
+    if (tauri?.setFullscreen) return tauri.setFullscreen(on)
+    return electronBridge()?.setFullscreen(on) ?? Promise.resolve()
 }
 
 /**
@@ -186,13 +165,36 @@ export async function startNativeWindowDrag(): Promise<boolean> {
     return true
 }
 
-/** Whether the display is filled, asked of whoever is holding it. */
-export async function isNativeFullscreen(): Promise<boolean> {
-    const tauri = tauriWindow()
-    if (tauri?.isFullscreen) return tauri.isFullscreen()
+/**
+ * Follow the window in and out of its own full screen, however it got there: the library's call,
+ * the green button, the menu. Answers with the way to stop.
+ *
+ * Electron says so with the window's own events. Tauri has none for it, so a resize, which every
+ * change of full screen is, is the cue to ask; the last resize of the animation answers true.
+ */
+function followWindowFullscreen(listener: (on: boolean) => void): () => void {
     const bridge = electronBridge()
-    if (bridge) return bridge.isFullscreen()
-    return typeof document !== 'undefined' && document.fullscreenElement !== null
+    if (bridge?.onFullscreenChange) return bridge.onFullscreenChange(listener)
+    const tauri = tauriWindow()
+    if (!tauri?.onResized || !tauri.isFullscreen) return () => undefined
+    const read = (): void => {
+        tauri.isFullscreen?.().then(listener, () => {
+            // A window that will not say is left where the library last put it.
+        })
+    }
+    const stop: { unlisten: (() => void) | null; done: boolean } = { unlisten: null, done: false }
+    tauri.onResized(read).then(
+        (unlisten) => {
+            if (stop.done) unlisten()
+            else stop.unlisten = unlisten
+        },
+        () => undefined,
+    )
+    read()
+    return () => {
+        stop.done = true
+        stop.unlisten?.()
+    }
 }
 
 /**
@@ -201,15 +203,32 @@ export async function isNativeFullscreen(): Promise<boolean> {
  * Both shells hide the native title bar, so the frame's top strip is the title bar. On macOS the
  * window's traffic lights are drawn over its start, which `index.html` says with `data-platform`
  * before the first paint. Tauri's WKWebView ignores `app-region`, so there a press on the strip
- * is handed to the window here.
+ * is handed to the window here. Full screen is the window's own, through `setFullscreen`, and
+ * `fullscreen` is what the caller last heard from it.
  */
-export function desktopWindow(): DesktopWindow | undefined {
+export function desktopWindow(fullscreen = false): DesktopWindow | undefined {
     const shell = currentShell()
     if (shell === 'browser') return undefined
     return {
         trafficLights: document.documentElement.dataset.platform === 'darwin',
+        fullscreen,
+        setFullscreen: fullscreenWindow,
         onWindowDrag: shell === 'tauri' ? dragWindow : undefined,
     }
+}
+
+/** `desktopWindow`, with `fullscreen` following the window as it changes. */
+export function useDesktopWindow(): DesktopWindow | undefined {
+    const [fullscreen, setFullscreen] = useState(false)
+    useEffect(() => followWindowFullscreen(setFullscreen), [])
+    return useMemo(() => desktopWindow(fullscreen), [fullscreen])
+}
+
+function fullscreenWindow(on: boolean): void {
+    setWindowFullscreen(on).catch((error: unknown) => {
+        // The library already covers the window with the part, and leaving takes it off again.
+        console.warn('the window did not change its full screen', error)
+    })
 }
 
 function dragWindow(): void {

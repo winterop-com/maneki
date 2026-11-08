@@ -12,7 +12,6 @@ import { SCREEN_GROUP } from '@/lib/nav'
 import { useStore } from '@winterop-com/sokkel-ui/hooks/use-store'
 import { claimMediaSession } from '@/lib/media-session'
 import { youtube as youtubeApi } from '@/lib/api'
-import { inDesktopShell } from '@/lib/desktop'
 import { clock } from '@/lib/format'
 import { claimMuteKey, claimStageKey, claimTransport, claimVolumeKeys } from '@/lib/screen-keys'
 import { clearScreenStatus, setScreenStatus, type StatusTone } from '@/lib/screen-status'
@@ -674,15 +673,6 @@ function Watch({ id }: { id: string }) {
             carried.current = null
         }
     }, [])
-    // Whether a desktop shell has filled the display with its window: while it has, the
-    // player pins itself over the whole app, since the window's own chrome would otherwise
-    // stay around the picture. See the local watch screen, which does the same.
-    const [filled, setFilled] = useState(false)
-    const filledNow = useRef(false)
-    const onFilled = useCallback((on: boolean) => {
-        filledNow.current = on
-        setFilled(on)
-    }, [])
     useEffect(
         () =>
             claimStageKey(() => {
@@ -747,12 +737,6 @@ function Watch({ id }: { id: string }) {
                 ctrlKey: event.ctrlKey,
                 metaKey: event.metaKey,
                 altKey: event.altKey,
-            }
-            if (event.key === 'Escape' && filledNow.current) {
-                event.preventDefault()
-                event.stopPropagation()
-                player.current?.toggleFullscreen()
-                return
             }
             // `s`, `r` and `l` are the queue's -- shuffle, repeat and a song's words -- and
             // each of them reached past the video to an album nobody was listening to. There
@@ -840,13 +824,7 @@ function Watch({ id }: { id: string }) {
                 // The player takes the whole of the screen, as the local one does: the box is
                 // the room left under the heading, and the player keeps the picture's shape
                 // inside it rather than the box dictating a 16:9 that runs off the foot.
-                <div
-                    className={
-                        filled && inDesktopShell()
-                            ? 'fixed inset-0 z-[60] flex bg-black'
-                            : 'flex min-h-0 flex-1 overflow-hidden rounded-lg bg-black'
-                    }
-                >
+                <div className="flex min-h-0 flex-1 overflow-hidden rounded-lg bg-black">
                     <VideoPlayer
                         key={height}
                         src={youtubeApi.hlsUrl(id, height === AUTO_HEIGHT ? undefined : height)}
@@ -854,7 +832,6 @@ function Watch({ id }: { id: string }) {
                         poster={youtubeApi.posterUrl(id)}
                         autoplay={pausedFor !== `${id}:${String(height)}`}
                         onReady={onReady}
-                        onFullscreenChange={onFilled}
                         onError={(message) => {
                             setResolved({ key: id, value: video, refusal: message })
                         }}

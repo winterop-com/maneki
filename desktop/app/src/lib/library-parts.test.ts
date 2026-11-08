@@ -172,6 +172,17 @@ const LIBRARY_PARTS: { part: string; use: string; marks: RegExp[] }[] = [
         use: "@winterop-com/sokkel-ui/StarButton in MediaBar's `fullscreenActions`",
         marks: [/aria-label=\{starred \? 'Unstar this track'/],
     },
+    {
+        part: 'full screen through the desktop shell',
+        use: "the Shell's `desktop.setFullscreen` and `desktop.fullscreen`, and @winterop-com/sokkel-ui/lib/fullscreen",
+        marks: [
+            /\bfunction requestNativeFullscreen\b/,
+            /\bfunction exitNativeFullscreen\b/,
+            /\bfunction isNativeFullscreen\b/,
+            /filled && inDesktopShell\(\)/,
+            /document\.documentElement\.requestFullscreen\(/,
+        ],
+    },
 ]
 
 const SRC = fileURLToPath(new URL('..', import.meta.url))

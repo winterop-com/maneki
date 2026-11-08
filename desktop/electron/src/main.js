@@ -138,6 +138,15 @@ function createWindow() {
   mainWindow.on("move", scheduleSave);
   mainWindow.on("close", saveBounds);
 
+  // The renderer follows the window in and out of full screen, however it got
+  // there: its own call, the green button or the menu. See `onFullscreenChange`
+  // in preload.js.
+  const tellFullscreen = (on) => () => {
+    if (!mainWindow.isDestroyed()) mainWindow.webContents.send("desktop:fullscreen", on);
+  };
+  mainWindow.on("enter-full-screen", tellFullscreen(true));
+  mainWindow.on("leave-full-screen", tellFullscreen(false));
+
   // The SPA is a Vite build now (no in-browser Babel). Three load paths:
   if (app.isPackaged) {
     // Packaged: electron-builder ships the built dist via extraResources

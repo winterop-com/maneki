@@ -13,4 +13,11 @@ const { contextBridge, ipcRenderer } = require("electron");
 contextBridge.exposeInMainWorld("__manekiDesktop", {
   setFullscreen: (on) => ipcRenderer.invoke("desktop:setFullscreen", !!on),
   isFullscreen: () => ipcRenderer.invoke("desktop:isFullscreen"),
+  // Calls `listener` with the window's full screen each time it changes; answers
+  // with the way to stop.
+  onFullscreenChange: (listener) => {
+    const forward = (_evt, on) => listener(!!on);
+    ipcRenderer.on("desktop:fullscreen", forward);
+    return () => ipcRenderer.removeListener("desktop:fullscreen", forward);
+  },
 });

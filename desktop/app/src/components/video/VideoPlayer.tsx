@@ -1,12 +1,13 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 
-import { Button } from '@/components/ui/button'
 import {
-    exitNativeFullscreen,
-    inDesktopShell,
-    isNativeFullscreen,
-    requestNativeFullscreen,
-} from '@/lib/desktop'
+    enterFullscreen,
+    exitFullscreen,
+    fullscreenElement,
+    subscribeFullscreen,
+} from '@winterop-com/sokkel-ui/lib/fullscreen'
+import { Button } from '@/components/ui/button'
+import { inDesktopShell } from '@/lib/desktop'
 import { claimSound, registerSilencer } from '@/lib/sound'
 import type { PlaybackSample } from '@/lib/video'
 
@@ -88,13 +89,12 @@ export interface VideoPlayerProps {
 /**
  * FULL SCREEN IS ASKED OF WHOEVER CAN ACTUALLY GIVE IT.
  *
- * Three things can fill a screen and only one of them is right per home. Inside a desktop shell
- * it is the shell: the HTML5 API fills the window the page is in, which there is the shell's own
- * window with its chrome still around it, so what somebody gets is a slightly larger picture in
- * the same frame. In a browser tab it is video.js's own `requestFullscreen`, which is the vendor
- * prefixes, the iOS case where only the video element can go full screen, and the player's own
- * `fullscreenchange` event -- all of which a bare `element.requestFullscreen()` is missing, and
- * which is why the button did nothing on a webview.
+ * Inside a desktop shell it is the window's own, through sokkel-ui's `lib/fullscreen`, which the
+ * Shell was handed the window's call for: the player covers the window and the window fills the
+ * display. See `throughTheShell`. In a browser tab it is video.js's own `requestFullscreen`,
+ * which is the vendor prefixes, the iOS case where only the video element can go full screen,
+ * and the player's own `fullscreenchange` event -- all of which a bare
+ * `element.requestFullscreen()` is missing.
  *
  * AND SOMETIMES NOBODY WILL GIVE IT, WHICH IS NOT A BUG HERE. The Fullscreen API needs
  * transient user activation, and a Chromium started under automation -- `--headless`, a
@@ -105,21 +105,47 @@ export interface VideoPlayerProps {
  * not something to put a banner over the picture for.
  */
 async function fill(live: Player): Promise<boolean> {
-    if (inDesktopShell()) {
-        const already = await isNativeFullscreen()
-        return already ? !(await exitNativeFullscreen()) : await requestNativeFullscreen()
-    }
     // AND IN A BROWSER, NOT BEFORE THERE IS A PICTURE. With the poster still up there is no
     // decoded frame and no source loaded, and `requestFullscreen` on the player root falls
     // through to the poster image -- which Chrome answers by opening the image, which is `f`
     // before play appearing to throw somebody out of the app. There is nothing to fill yet.
-    if (started(live) === false) return false
+    if (!inDesktopShell() && !started(live)) return false
     if (live.isFullscreen() === true) {
         await live.exitFullscreen()
         return false
     }
     await live.requestFullscreen()
     return true
+}
+
+/**
+ * In a desktop shell, the player's own ways into full screen -- its control bar button, a
+ * double click, `fill` -- go through the library, and the player is told when the library lets
+ * it go: Escape, or the window leaving by its own way. Answers with the way to stop.
+ */
+function throughTheShell(live: Player): () => void {
+    const root = live.el()
+    live.requestFullscreen = () => {
+        enterFullscreen(root)
+        return Promise.resolve()
+    }
+    live.exitFullscreen = () => {
+        exitFullscreen(root)
+        return Promise.resolve()
+    }
+    const follow = (): void => {
+        const on = fullscreenElement() === root
+        if (live.isFullscreen() === on) return
+        // The setter keeps the player's class and its button; the event is one video.js fires
+        // itself only for a prefixed API.
+        live.isFullscreen(on)
+        live.trigger('fullscreenchange')
+    }
+    const stop = subscribeFullscreen(follow)
+    return () => {
+        stop()
+        exitFullscreen(root)
+    }
 }
 
 /**
@@ -138,9 +164,6 @@ const STALL_PATIENCE_MS = 5000
 
 /** One recovery per window per player: the reload can itself fail, and a loop is worse. */
 const RECOVERY_COOLDOWN_MS = 8000
-
-/** How often a filled desktop window is asked whether it is still filled -- see the poll below. */
-const FILLED_POLL_MS = 1000
 
 /** What the stage is shaped like before the first frame has been decoded. */
 const DEFAULT_ASPECT = 16 / 9
@@ -180,9 +203,6 @@ export function VideoPlayer({
     const [videojs, setVideojs] = useState<VideoJs | null>(null)
     const [refusal, setRefusal] = useState<string | null>(null)
     const [aspect, setAspect] = useState<number | null>(null)
-    // Whether the picture is filling the screen, which this component has to know as well as
-    // say: it is what the poll below is armed by. See `report`.
-    const [filled, setFilled] = useState(false)
 
     // What the player has to be pointed at, readable from a handler that was registered once.
     const source = useRef({ src, kind })
@@ -195,36 +215,8 @@ export function VideoPlayer({
 
     /** The one way the picture is ever said to be filling the screen, or to have stopped. */
     const report = useCallback((on: boolean): void => {
-        setFilled(on)
         told.current.onFullscreenChange?.(on)
     }, [])
-
-    /**
-     * A WINDOW THAT LEFT FULL SCREEN BY ITSELF SAYS NOTHING.
-     *
-     * Native window fullscreen is the shell's, not the document's, so nothing fires a
-     * `fullscreenchange` when somebody presses the green button or the Escape macOS answers
-     * itself -- and the screen around this player goes on believing it is filled, which is the
-     * picture still pinned over the whole app with the window back in its frame around it.
-     * There is no event to listen for, so the window is asked, about once a second, and only
-     * while it is supposed to be filled: nothing polls on any other screen or in a browser tab.
-     */
-    useEffect(() => {
-        if (!filled || !inDesktopShell()) return
-        const timer = setInterval(() => {
-            void isNativeFullscreen().then(
-                (on) => {
-                    if (!on) report(false)
-                },
-                () => {
-                    // A shell that will not answer is not a reason to unpin the picture.
-                },
-            )
-        }, FILLED_POLL_MS)
-        return () => {
-            clearInterval(timer)
-        }
-    }, [filled, report])
 
     /**
      * Point the player at the source it has.
@@ -316,6 +308,7 @@ export function VideoPlayer({
             controlBar: { subsCapsButton: true, skipButtons: { forward: 10, backward: 10 } },
         })
         player.current = built
+        const shell = inDesktopShell() ? throughTheShell(built) : null
 
         try {
             const settings = (built as unknown as { textTrackSettings?: CaptionSettings }).textTrackSettings
@@ -498,24 +491,10 @@ export function VideoPlayer({
             cancelStall()
             document.removeEventListener('visibilitychange', onVisible)
             unregister()
-            /**
-             * LEAVING THE PLAYER LEAVES FULL SCREEN.
-             *
-             * A shell asked to fill the display holds it until it is asked not to, and nothing
-             * about a navigation tells it anything -- so Back out of a film left the window
-             * over the whole screen with the library sitting in it, which reads as an app that
-             * will not close. The browser has nothing to undo here: its own fullscreen ends
-             * with the element that was in it.
-             */
-            if (inDesktopShell()) {
-                void isNativeFullscreen()
-                    .then(async (on) => {
-                        if (on) await exitNativeFullscreen()
-                    })
-                    .catch(() => {
-                        // A shell that will not say is a shell that will not be told either.
-                    })
-            }
+            // LEAVING THE PLAYER LEAVES FULL SCREEN. A window asked to fill the display holds it
+            // until it is told otherwise, and Back out of a film would leave it there. A
+            // browser's own full screen ends with the element that was in it.
+            shell?.()
             // And the screen is told, because a screen that outlives one player -- the YouTube
             // one rebuilds it to change quality -- would otherwise go on pinning a picture over
             // an app whose window is back in its frame.

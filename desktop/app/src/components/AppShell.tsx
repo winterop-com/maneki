@@ -47,7 +47,7 @@ import { SearchOverlay, SEARCH_TITLE } from '@/components/SearchOverlay'
 import { standingNow, useAppShortcuts } from '@/hooks/use-app-shortcuts'
 import { serverHost } from '@/lib/account'
 import { recoveries } from '@/lib/connection'
-import { desktopWindow } from '@/lib/desktop'
+import { useDesktopWindow } from '@/lib/desktop'
 import { mayOpenPaletteOver, setDialogOpen } from '@/lib/dialogs'
 import { openLyrics } from '@/lib/lyrics'
 import { entriesFor, homePath, marks, sectionsFor } from '@/lib/nav'
@@ -172,6 +172,8 @@ export function AppShell({ children }: { children: ReactNode }) {
     const radioOnly = session.phase === 'radio'
     const music = session.music ?? null
     const apple = applePlatform(navigator.userAgent)
+    // The window's own full screen, which every part that goes full screen is handed by the Shell.
+    const desktop = useDesktopWindow()
 
     const openSettings = useCallback(() => {
         setSettingsAsked(true)
@@ -621,7 +623,7 @@ export function AppShell({ children }: { children: ReactNode }) {
                 shortcuts={keys}
                 shortcutsOpen={shortcutsOpen}
                 onShortcutsOpenChange={setShortcutsOpen}
-                desktop={desktopWindow()}
+                desktop={desktop}
                 // Keyed on the server coming back, so a screen that failed while it was gone
                 // loads again instead of keeping the sentence; see `recoveries`.
                 contentKey={recovered}

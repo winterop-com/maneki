@@ -11,7 +11,6 @@ import { clock } from '@/lib/format'
 import { useCommands } from '@winterop-com/sokkel-ui/hooks/use-commands'
 import { SCREEN_GROUP } from '@/lib/nav'
 import { useStore } from '@winterop-com/sokkel-ui/hooks/use-store'
-import { inDesktopShell } from '@/lib/desktop'
 import { claimMuteKey, claimStageKey, claimTransport, claimVolumeKeys } from '@/lib/screen-keys'
 import { clearScreenStatus, setScreenStatus } from '@/lib/screen-status'
 import {
@@ -98,12 +97,6 @@ function Watch({ id }: { id: string }) {
     const listed = !theater && beside.length > 1
     const [stats, setStats] = useState(false)
     const [filled, setFilled] = useState(false)
-    // Read by the key handler, which is bound once and would otherwise hold the first value.
-    const filledNow = useRef(false)
-    const onFilled = useCallback((on: boolean) => {
-        filledNow.current = on
-        setFilled(on)
-    }, [])
     const player = useRef<VideoHandle | null>(null)
     const navigate = useNavigate()
 
@@ -457,15 +450,6 @@ function Watch({ id }: { id: string }) {
                           role: element.getAttribute('role'),
                       }
                     : null
-            // IN A SHELL, ESCAPE IS THE WAY BACK. A browser leaves element fullscreen on
-            // Escape by itself; a desktop window that was asked to fill the display does
-            // not, and a picture pinned over the whole app with no way out is a trap.
-            if (event.key === 'Escape' && filledNow.current) {
-                event.preventDefault()
-                event.stopPropagation()
-                player.current?.toggleFullscreen()
-                return
-            }
             if (togglesTheater(press, focused)) {
                 event.preventDefault()
                 event.stopPropagation()
@@ -623,28 +607,19 @@ function Watch({ id }: { id: string }) {
             </div>
 
             <div className="flex min-h-0 flex-1 flex-col lg:flex-row">
-                {/* FULL SCREEN IN A SHELL IS THE WINDOW'S, SO THE PICTURE PINS ITSELF. A browser
-                    puts the video element alone on the display; a desktop shell can only fill
-                    the display with its window, and the rail, the bars and the list would stay
-                    around the picture. So while the shell says it is filled, this column stands
-                    over the whole window instead, which is what the old client did too. */}
                 {/* UNDER THE BREAKPOINT THE PICTURE KEEPS ITS SHAPE AND THE LIST SCROLLS UNDER IT.
                     Both were left to flex, and a season's list took the height: Chromium squeezed
                     the picture to a strip, WebKit drew the list over it. With a list below, the
                     player is a 16:9 box and the list has the rest. */}
                 <div
-                    className={
-                        filled && inDesktopShell()
-                            ? 'fixed inset-0 z-[60] flex flex-col bg-black'
-                            : cn(
-                                  'relative flex min-w-0 flex-col',
-                                  listed
-                                      ? // On a phone on its side the 16:9 box is taller than the screen, and the
-                                        // controls fell below it: the box is capped to what the window has.
-                                        'aspect-video max-h-[calc(100dvh-9rem)] w-full shrink-0 lg:aspect-auto lg:max-h-none lg:min-h-0 lg:w-auto lg:flex-1 lg:shrink'
-                                      : 'min-h-0 flex-1',
-                              )
-                    }
+                    className={cn(
+                        'relative flex min-w-0 flex-col',
+                        listed
+                            ? // On a phone on its side the 16:9 box is taller than the screen, and the
+                              // controls fell below it: the box is capped to what the window has.
+                              'aspect-video max-h-[calc(100dvh-9rem)] w-full shrink-0 lg:aspect-auto lg:max-h-none lg:min-h-0 lg:w-auto lg:flex-1 lg:shrink'
+                            : 'min-h-0 flex-1',
+                    )}
                 >
                     {video !== null && (
                         <VideoPlayer
@@ -655,7 +630,7 @@ function Watch({ id }: { id: string }) {
                             autoplay
                             onEnded={onEnded}
                             onPause={stopEncoding}
-                            onFullscreenChange={onFilled}
+                            onFullscreenChange={setFilled}
                             onReady={onReady}
                         />
                     )}
