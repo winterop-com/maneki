@@ -189,12 +189,11 @@ function Browser({ path }: { path: string }) {
     useEffect(() => {
         const videos = browse?.videos ?? []
         if (videos.length === 0) return
-        let live = true
-        let timer: ReturnType<typeof setTimeout>
+        const poll = { live: true, timer: undefined as ReturnType<typeof setTimeout> | undefined }
         const look = async (): Promise<void> => {
             try {
                 const answer = await videoApi.thumbnailsReady()
-                if (!live) return
+                if (!poll.live) return
                 const ready = new Set(answer.ready)
                 setTokens((held) => {
                     let changed = false
@@ -211,12 +210,12 @@ function Browser({ path }: { path: string }) {
             } catch {
                 // A poll that failed is one the next tick asks again.
             }
-            if (live) timer = setTimeout(() => void look(), THUMB_POLL_MS)
+            if (poll.live) poll.timer = setTimeout(() => void look(), THUMB_POLL_MS)
         }
         void look()
         return () => {
-            live = false
-            clearTimeout(timer)
+            poll.live = false
+            clearTimeout(poll.timer)
         }
     }, [browse])
 

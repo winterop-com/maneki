@@ -306,25 +306,25 @@ function Shelf() {
      * while it is still reading.
      */
     useEffect(() => {
-        let live = true
-        let timer: ReturnType<typeof setTimeout>
+        const poll = { live: true, timer: undefined as ReturnType<typeof setTimeout> | undefined }
 
         const load = async (): Promise<void> => {
             try {
                 const [listed, status] = await Promise.all([booksApi.list(), booksApi.scanStatus()])
-                if (!live) return
+                if (!poll.live) return
                 setBooks(listed)
                 setScanning(status.scanning)
-                if (status.scanning) timer = setTimeout(() => void load(), SCAN_POLL_MS)
+                if (status.scanning) poll.timer = setTimeout(() => void load(), SCAN_POLL_MS)
             } catch (error) {
-                if (live) setRefusal(error instanceof Error ? error.message : 'The server did not answer.')
+                if (poll.live)
+                    setRefusal(error instanceof Error ? error.message : 'The server did not answer.')
             }
         }
 
         void load()
         return () => {
-            live = false
-            clearTimeout(timer)
+            poll.live = false
+            clearTimeout(poll.timer)
         }
     }, [attempt])
 

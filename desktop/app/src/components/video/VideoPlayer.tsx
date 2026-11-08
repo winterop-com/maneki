@@ -397,9 +397,9 @@ export function VideoPlayer({
          * teardown that also ran this would be the screen's own unmount cancel twice over, on a
          * handler the screen may already have swapped for the next video's.
          */
-        let going = false
+        const going = { now: false }
         const onPaused = (): void => {
-            if (going) return
+            if (going.now) return
             told.current.onPause?.()
         }
 
@@ -424,15 +424,15 @@ export function VideoPlayer({
             }
         }
 
-        let stall: ReturnType<typeof setTimeout> | null = null
+        const stall: { timer: ReturnType<typeof setTimeout> | null } = { timer: null }
         const armStall = (): void => {
-            if (stall !== null) clearTimeout(stall)
-            stall = setTimeout(nudge, STALL_PATIENCE_MS)
+            if (stall.timer !== null) clearTimeout(stall.timer)
+            stall.timer = setTimeout(nudge, STALL_PATIENCE_MS)
         }
         const cancelStall = (): void => {
-            if (stall === null) return
-            clearTimeout(stall)
-            stall = null
+            if (stall.timer === null) return
+            clearTimeout(stall.timer)
+            stall.timer = null
         }
         const onVisible = (): void => {
             if (document.visibilityState === 'visible') nudge()
@@ -494,7 +494,7 @@ export function VideoPlayer({
         })
 
         return () => {
-            going = true
+            going.now = true
             cancelStall()
             document.removeEventListener('visibilitychange', onVisible)
             unregister()
