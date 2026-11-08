@@ -121,11 +121,6 @@ jobs:
         with:
           ref: ${{ github.event.inputs.tag || github.ref }}
 
-      - name: Node
-        uses: actions/setup-node@v7
-        with:
-          node-version: 20
-
       - name: Bun
         uses: oven-sh/setup-bun@v2
         with:
@@ -146,9 +141,11 @@ jobs:
         # Disable auto-discovery so electron-builder never tries to sign.
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: "false"
+        # Bun installs and runs it, as everywhere else; electron-builder's own
+        # CLI still runs on the Node the runner image ships.
         run: |
-          npm ci || npm install
-          npx --no-install electron-builder --publish never
+          bun install
+          bun run build
 
       - name: Upload Electron bundles to the release
         uses: softprops/action-gh-release@v3
