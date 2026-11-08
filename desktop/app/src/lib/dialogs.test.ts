@@ -95,28 +95,31 @@ describe('a menu standing open', () => {
     })
 })
 
+/** A layer wearing `slot` as its `data-slot`, or none. */
+function layer(slot: string | null) {
+    return {
+        closest: (selector: string) => (slot !== null && selector.includes(`"${slot}"`) ? {} : null),
+    } as unknown as Element
+}
+
 describe('the palette over a layer', () => {
     // The search's results are a popover, which the shell counts as a layer: Cmd+K from the
     // field replaces them, and nothing else that stands over the page.
-    const results = { querySelector: () => ({ id: 'r1-results' }) } as unknown as Element
-    const settings = { querySelector: () => null } as unknown as Element
-    const field = { getAttribute: () => 'r1-results' }
-    const page = { querySelectorAll: () => [field] } as unknown as Document
+    const results = layer('search-results')
     const standing = { dialog: false, stage: false, lyrics: false, song: false }
 
     test("opens over the library search's results, which it replaces", () => {
-        expect(mayOpenPaletteOver(results, standing, page)).toBe(true)
+        expect(mayOpenPaletteOver(results, standing)).toBe(true)
     })
 
-    test('opens over no other layer, such as Settings', () => {
-        expect(mayOpenPaletteOver(settings, standing, page)).toBe(false)
-        const noField = { querySelectorAll: () => [] } as unknown as Document
-        expect(mayOpenPaletteOver(results, standing, noField)).toBe(false)
+    test('opens over no other layer, such as Settings or another popover', () => {
+        expect(mayOpenPaletteOver(layer(null), standing)).toBe(false)
+        expect(mayOpenPaletteOver(layer('popover-content'), standing)).toBe(false)
     })
 
     test('keeps to the app rules over nothing: not over the stage or the lyrics', () => {
-        expect(mayOpenPaletteOver(null, standing, page)).toBe(true)
-        expect(mayOpenPaletteOver(null, { ...standing, stage: true }, page)).toBe(false)
-        expect(mayOpenPaletteOver(null, { ...standing, lyrics: true }, page)).toBe(false)
+        expect(mayOpenPaletteOver(null, standing)).toBe(true)
+        expect(mayOpenPaletteOver(null, { ...standing, stage: true })).toBe(false)
+        expect(mayOpenPaletteOver(null, { ...standing, lyrics: true })).toBe(false)
     })
 })

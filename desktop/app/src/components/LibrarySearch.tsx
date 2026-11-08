@@ -31,7 +31,7 @@ export const SEARCH_PLACEHOLDER = 'Search'
 export const SEARCH_RESULTS = 'In the library'
 export const SEARCH_EMPTY = 'Nothing in the library answers to that'
 export const SEARCH_ASKING = 'Searching.'
-export const SEARCH_FAILED = 'The server did not answer the search'
+export const SEARCH_TOO_SHORT = (min: number) => `Type ${String(min)} characters or more to search`
 
 /** The mark each kind of row wears, so the three shelves are told apart at a glance. */
 const GLYPHS = { artist: User, album: Disc3, track: Music2 }
@@ -50,7 +50,8 @@ export interface LibrarySearchSource {
  * there is no library to ask (radio-only).
  *
  * THE QUESTION IS ASKED ONCE PER PAUSE, not once per keystroke, and an answer to a query somebody
- * has typed past never lands: both are `Search`'s, given `SEARCH_DEBOUNCE_MS` and `SEARCH_MIN`.
+ * has typed past never lands: both are `Search`'s and the palette's, given `SEARCH_DEBOUNCE_MS`
+ * and `SEARCH_MIN`.
  *
  * A TRACK PLAYS ITS ALBUM FROM THERE, AND OPENS IT, which is what picking a track does everywhere
  * else in this app. It costs one `getAlbum`, and a track whose album cannot be read plays alone.
@@ -115,7 +116,12 @@ function resultOf(credentials: Credentials, row: SearchRow): SearchResult {
 /** The same search in the frame's palette, so one box finds what to do and what there is. */
 export function paletteSearchOf(source: LibrarySearchSource | null): PaletteSearch | undefined {
     if (source === null) return undefined
-    return { ...source, minQuery: SEARCH_MIN, words: { searching: SEARCH_ASKING } }
+    return {
+        ...source,
+        minQuery: SEARCH_MIN,
+        debounce: SEARCH_DEBOUNCE_MS,
+        words: { searching: SEARCH_ASKING },
+    }
 }
 
 /**
@@ -174,7 +180,9 @@ export function LibrarySearch({
                     results: SEARCH_RESULTS,
                     searching: SEARCH_ASKING,
                     empty: () => SEARCH_EMPTY,
-                    failed: () => SEARCH_FAILED,
+                    // The server's own sentence, as the sign-in shows its refusal.
+                    failed: (reason) => reason,
+                    tooShort: SEARCH_TOO_SHORT,
                 }}
             />
         </div>

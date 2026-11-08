@@ -88,29 +88,14 @@ export function dialogStanding(doc: Pick<Document, 'querySelector'>): boolean {
  * palette replaces (the shell's opening closes them); over anything else, never. The results are
  * a popover, which the shell counts as a layer, so Cmd+K from the field is asked about them.
  */
-export function mayOpenPaletteOver(
-    over: Element | null,
-    standing: Standing,
-    doc: Pick<Document, 'querySelectorAll'> = document,
-): boolean {
+export function mayOpenPaletteOver(over: Pick<Element, 'closest'> | null, standing: Standing): boolean {
     if (over === null) return mayOpen('palette', standing)
-    return searchResults(over, doc)
+    return searchResults(over)
 }
 
-/**
- * Whether a layer is the library search's results: the list the top bar's search field controls.
- *
- * sokkel-ui's `Search` marks its field (`data-slot="search"`) but not its popover, so the popover
- * is known by the list its field names in `aria-controls`.
- */
-export function searchResults(
-    layer: Pick<Element, 'querySelector'>,
-    doc: Pick<Document, 'querySelectorAll'>,
-): boolean {
-    const list = layer.querySelector('[role="listbox"][id]')
-    if (list === null) return false
-    const fields = Array.from(doc.querySelectorAll('[data-slot="search"] [aria-controls]'))
-    return fields.some((field) => field.getAttribute('aria-controls') === list.id)
+/** Whether a layer is the library search's results: sokkel-ui's `Search` marks its popover so. */
+export function searchResults(layer: Pick<Element, 'closest'>): boolean {
+    return layer.closest('[data-slot="search-results"]') !== null
 }
 
 /** What a key would open over the app. */

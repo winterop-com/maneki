@@ -214,6 +214,11 @@ const LIBRARY_PARTS: { part: string; use: string; marks: RegExp[] }[] = [
             /autoComplete="current-password"/,
         ],
     },
+    {
+        part: "the search results' popover, told apart by its own mark",
+        use: 'the popover\'s `data-slot="search-results"` from @winterop-com/sokkel-ui/Search',
+        marks: [/\[aria-controls\]/, /\[role="listbox"\]\[id\]/],
+    },
 ]
 
 const SRC = fileURLToPath(new URL('..', import.meta.url))
