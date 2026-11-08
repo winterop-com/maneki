@@ -62,6 +62,14 @@ updates:
   # registry, because a variable there would be read as an empty token. It is
   # never bumped here: each sokkel-ui version is taken on purpose, in a change
   # that adopts what it brings.
+  #
+  # With that registry, Dependabot has written public packages into bun.lock
+  # with npm.pkg.github.com addresses (#113), which the PR's own CI cannot
+  # fetch. `make app-gate` checks for that first and says how to fix it
+  # (desktop/app/lockfile-registry.ts).
+  #
+  # video.js is held on 8: version 10 has no captions settings dialog and
+  # needs hls.js for MPEG-TS. Patches and minors of 8 still come through.
   - package-ecosystem: "bun"
     directory: "/desktop/app"
     registries:
@@ -70,6 +78,8 @@ updates:
       interval: "weekly"
     ignore:
       - dependency-name: "@winterop-com/*"
+      - dependency-name: "video.js"
+        update-types: ["version-update:semver-major"]
     groups:
       app:
         patterns: ["*"]
