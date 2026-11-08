@@ -7,7 +7,6 @@ import {
     clampBarSize,
     sizeFromRoom,
     soundLook,
-    styleForKind,
     liveSpectrumReadable,
     nextStyle,
     spectrumReadable,
@@ -104,11 +103,5 @@ describe('the drawings the library does not name', () => {
     test('Mirror is the bars about the middle', () => {
         expect(soundLook('mirror')).toEqual({ kind: 'spectrum', align: 'center' })
         expect(soundLook('ring')).toEqual({ kind: 'ring', align: 'bottom' })
-    })
-
-    test('picking the kind in use keeps the style, and another kind is that kind', () => {
-        expect(styleForKind('spectrum', 'mirror')).toBe('mirror')
-        expect(styleForKind('area', 'mirror')).toBe('area')
-        expect(styleForKind('spectrum', 'wave')).toBe('spectrum')
     })
 })

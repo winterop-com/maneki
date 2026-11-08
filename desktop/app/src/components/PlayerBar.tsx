@@ -46,6 +46,7 @@ import {
     BAR_SIZE_DEFAULT,
     barSize,
     closeStage,
+    isVisualizerStyle,
     openStage,
     setBarSize,
     setVisualizerStyle,
@@ -53,11 +54,15 @@ import {
     spectrumEffect,
     spectrumReadable,
     stageOpen,
-    styleForKind,
+    VISUALIZER_STYLE_LABELS,
+    VISUALIZER_STYLES,
     visualizerShown,
     visualizerStyle,
 } from '@/lib/visualizer'
 import { barOnScreen } from '@/lib/watching'
+
+/** The stage picker's choices: the app's spectrum styles, as Settings lists them. */
+const VISUALIZER_OPTIONS = VISUALIZER_STYLES.map((id) => ({ id, label: VISUALIZER_STYLE_LABELS[id] }))
 
 export const RETRY_LABEL = 'Retry'
 export const LYRICS_READING = 'Loading the lyrics'
@@ -229,9 +234,11 @@ export function PlayerBar() {
                     />
                 ) : undefined
             }
-            visualizerKind={soundLook(style).kind}
-            onVisualizerKindChange={(kind) => {
-                setVisualizerStyle(styleForKind(kind, style))
+            // The stage's picker offers the app's own styles, Settings' list, so the two agree.
+            visualizerOptions={VISUALIZER_OPTIONS}
+            visualizerOption={style}
+            onVisualizerOptionChange={(id) => {
+                if (isVisualizerStyle(id)) setVisualizerStyle(id)
             }}
             volume={player.volume}
             onVolumeChange={setVolume}

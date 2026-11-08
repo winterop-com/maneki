@@ -34,11 +34,6 @@ export function soundLook(style: VisualizerStyle): { kind: SoundKind; align: Sou
     return style === 'mirror' ? { kind: 'spectrum', align: 'center' } : { kind: style, align: 'bottom' }
 }
 
-/** The style a kind picked in the fullscreen view means: the one in use while it is that kind. */
-export function styleForKind(kind: SoundKind, current: VisualizerStyle): VisualizerStyle {
-    return soundLook(current).kind === kind ? current : kind
-}
-
 /** The drawing a fresh browser gets: the one the bar has always had. */
 export const DEFAULT_STYLE: VisualizerStyle = 'spectrum'
 
