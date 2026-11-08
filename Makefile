@@ -151,7 +151,8 @@ app-fmt:
 
 app-gate:
 	@echo ">>> Checking the client (format, lint, types, tests)"
-	@cd desktop/app && (test -d node_modules || bun install --frozen-lockfile) \
+	@cd desktop/app && bun lockfile-registry.ts \
+		&& (test -d node_modules || bun install --frozen-lockfile) \
 		&& bun run fmt:check && bun run lint && bun run typecheck && bun run test
 
 # The client goes into the wheel, which serves it at "/".
