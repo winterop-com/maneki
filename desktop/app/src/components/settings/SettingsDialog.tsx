@@ -9,16 +9,6 @@ import { Input } from '@/components/ui/input'
 import { Kbd, KbdGroup } from '@/components/ui/kbd'
 import { useStore } from '@winterop-com/sokkel-ui/hooks/use-store'
 import { APP_VERSION } from '@/lib/app-version'
-import {
-    chooseLcdTint,
-    chooseNowPlaying,
-    LCD_TINT_LABELS,
-    LCD_TINTS,
-    lcdTint,
-    NOW_PLAYING_FACES,
-    NOW_PLAYING_LABELS,
-    nowPlayingFace,
-} from '@/lib/lcd'
 import { playerStore, setVolume, spectrumContext, toggleMuted } from '@/lib/player'
 import {
     chooseDensity,
@@ -248,47 +238,11 @@ function GeneralPane({ rows }: { rows: SettingsRow[] }) {
     const auto = Math.round(outputDelayMs(graph))
     const density = useStore(densityStore)
     const fontScale = useStore(fontScaleStore)
-    const face = useStore(nowPlayingFace)
-    const tint = useStore(lcdTint)
     const upNext = useStore(autoplayNext)
 
     return (
         <div>
             {rows.map((row) => {
-                if (row.id === 'general:now-playing') {
-                    return (
-                        <Row key={row.id} row={row}>
-                            <Segmented
-                                label="Now playing"
-                                value={face}
-                                options={NOW_PLAYING_FACES.map((one) => ({
-                                    value: one,
-                                    label: NOW_PLAYING_LABELS[one],
-                                }))}
-                                onChoose={chooseNowPlaying}
-                            />
-                        </Row>
-                    )
-                }
-                if (row.id === 'general:lcd-tint') {
-                    return (
-                        <Row key={row.id} row={row}>
-                            {/* Shut while the standard face is chosen rather than hidden: a row
-                                that came and went as another row was answered would be a pane
-                                that reflows under the hand answering it. */}
-                            <Segmented
-                                label="LCD tint"
-                                value={tint}
-                                disabled={face !== 'lcd'}
-                                options={LCD_TINTS.map((one) => ({
-                                    value: one,
-                                    label: LCD_TINT_LABELS[one],
-                                }))}
-                                onChoose={chooseLcdTint}
-                            />
-                        </Row>
-                    )
-                }
                 if (row.id === 'general:density') {
                     return (
                         <Row key={row.id} row={row}>

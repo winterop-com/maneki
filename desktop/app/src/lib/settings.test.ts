@@ -60,7 +60,6 @@ describe('the settings registry', () => {
         expect(described).toEqual([
             'general:visualizer',
             'general:spectrum-delay',
-            'general:now-playing',
             'general:density',
             'general:font-scale',
             'general:autoplay-next',

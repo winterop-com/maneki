@@ -1,19 +1,16 @@
-import { useEffect, useState, type ComponentProps } from 'react'
+import { useEffect, useState } from 'react'
 import { NavLink, useLocation } from 'react-router'
 
-import { LcdDisplay } from '@/components/LcdDisplay'
 import { Spinner } from '@/components/Spinner'
 import { Artwork } from '@winterop-com/sokkel-ui-media/Artwork'
 import { Lyrics } from '@winterop-com/sokkel-ui-media/Lyrics'
 import { MediaBar } from '@winterop-com/sokkel-ui-media/MediaBar'
 import type { ParsedLyrics } from '@winterop-com/sokkel-ui-media/lrc'
-import { useFramePosition } from '@winterop-com/sokkel-ui-media/use-frame-position'
 import { StarButton } from '@winterop-com/sokkel-ui/StarButton'
 import { SoundVisualizer } from '@winterop-com/sokkel-ui/media/SoundVisualizer'
 import { useShortcutRegistry } from '@winterop-com/sokkel-ui/hooks/use-shortcuts'
 import { useStore, useStoreValue } from '@winterop-com/sokkel-ui/hooks/use-store'
 import { books as booksApi } from '@/lib/api'
-import { nowPlayingFace } from '@/lib/lcd'
 import { announced } from '@/lib/liner'
 import { closeLyrics, lyricsOpen, NO_LYRICS, openLyrics, readLyrics } from '@/lib/lyrics'
 import {
@@ -98,7 +95,6 @@ export function PlayerBar() {
     const size = useStore(barSize)
     const stage = useStore(stageOpen)
     const lyricsUp = useStore(lyricsOpen)
-    const face = useStore(nowPlayingFace)
     const marks = useStore(starMarks)
     const registry = useShortcutRegistry()
     useEffect(() => {
@@ -180,8 +176,6 @@ export function PlayerBar() {
     const album = book ? (chapter ? book.title : undefined) : (song?.album ?? undefined)
     // A book with nowhere to step to offers no step; see `bookStepCount`.
     const bookSteps = book !== null && bookStepCount(book) >= 2
-    // THE DECK FACE IS A MUSIC FACE: a chapter of a novel is not a track, an artist and a number.
-    const deck = face === 'lcd' && !book
     const fullscreen = stage || lyricsUp
     // The bar's backdrop is the plain bars; the chosen drawing and its effect are the stage's.
     const look = fullscreen ? soundLook(style) : soundLook('spectrum')
@@ -253,20 +247,6 @@ export function PlayerBar() {
                       }
                     : undefined
             }
-            face={
-                deck ? (
-                    <LcdFace
-                        song={song}
-                        station={station}
-                        stationTitle={player.stationTitle}
-                        positionS={player.positionS}
-                        durationS={duration}
-                        playing={player.playing}
-                        muted={player.muted}
-                        volume={player.volume}
-                    />
-                ) : undefined
-            }
             fullscreenActions={
                 song && session.music ? (
                     <StarButton
@@ -305,12 +285,6 @@ export function PlayerBar() {
             }}
         />
     )
-}
-
-/** The deck's readout, its elapsed time read off the element every frame as the scrubber's is. */
-function LcdFace({ positionS, playing, ...rest }: ComponentProps<typeof LcdDisplay>) {
-    const position = useFramePosition(positionS, positionNow, playing)
-    return <LcdDisplay {...rest} positionS={position} playing={playing} />
 }
 
 const selectSongId = (state: { queue: { id: string }[]; index: number; book: unknown }) =>

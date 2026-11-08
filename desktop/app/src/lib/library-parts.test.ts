@@ -164,7 +164,7 @@ const LIBRARY_PARTS: { part: string; use: string; marks: RegExp[] }[] = [
     },
     {
         part: "the bar's frame clock",
-        use: "MediaBar's `getPosition`, and use-frame-position for the deck's readout",
+        use: "MediaBar's `getPosition`",
         marks: [/requestAnimationFrame\(tick\)/],
     },
     {
