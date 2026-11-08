@@ -6,6 +6,7 @@ import {
     closeSearch,
     openSearch,
     rankOf,
+    searchAsked,
     searchOpen,
     searchSeed,
     shelveResults,
@@ -128,7 +129,7 @@ describe('the order inside a shelf', () => {
 })
 
 describe('opening the search', () => {
-    test('carries what was typed into the strip over to the box', () => {
+    test('puts what it was opened with in the field', () => {
         openSearch('röyk')
         expect(searchOpen.get()).toBe(true)
         expect(searchSeed.get()).toBe('röyk')
@@ -139,6 +140,14 @@ describe('opening the search', () => {
         openSearch()
         expect(searchOpen.get()).toBe(true)
         expect(searchSeed.get()).toBe('')
+        closeSearch()
+    })
+
+    test('asks the field for focus each time something else opens it', () => {
+        const before = searchAsked.get()
+        openSearch()
+        openSearch()
+        expect(searchAsked.get()).toBe(before + 2)
         closeSearch()
     })
 })

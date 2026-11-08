@@ -183,6 +183,16 @@ const LIBRARY_PARTS: { part: string; use: string; marks: RegExp[] }[] = [
             /document\.documentElement\.requestFullscreen\(/,
         ],
     },
+    {
+        part: 'the library search and its results',
+        use: "@winterop-com/sokkel-ui/Search in TopBar's `search`, and the Shell's `paletteSearch`",
+        marks: [
+            /\bfunction SearchOverlay\b/,
+            /\bfunction LibrarySearchField\b/,
+            /from '@\/components\/SearchOverlay'/,
+            /data-search-overlay/,
+        ],
+    },
 ]
 
 const SRC = fileURLToPath(new URL('..', import.meta.url))

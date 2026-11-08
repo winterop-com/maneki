@@ -34,7 +34,6 @@ import { AccountMenu } from '@winterop-com/sokkel-ui/AccountMenu'
 import type { PaletteCommand, PaletteGroup } from '@winterop-com/sokkel-ui/CommandPalette'
 import { Rail, type RailEntry, type RailGroup } from '@winterop-com/sokkel-ui/Rail'
 import { SchemeToggle } from '@winterop-com/sokkel-ui/SchemeToggle'
-import { SearchField } from '@winterop-com/sokkel-ui/SearchField'
 import { Shell, type ShortcutGroup } from '@winterop-com/sokkel-ui/Shell'
 import { StatusItem, StatusLine } from '@winterop-com/sokkel-ui/StatusLine'
 import { TopBar } from '@winterop-com/sokkel-ui/TopBar'
@@ -43,7 +42,7 @@ import { useStore, useStoreValue } from '@winterop-com/sokkel-ui/hooks/use-store
 import { appearanceCommands } from '@winterop-com/sokkel-ui/lib/commands'
 import { ConnectionBanner } from '@/components/ConnectionBanner'
 import { PlayerBar } from '@/components/PlayerBar'
-import { SearchOverlay, SEARCH_TITLE } from '@/components/SearchOverlay'
+import { LibrarySearch, paletteSearchOf, SEARCH_TITLE, useLibrarySearch } from '@/components/LibrarySearch'
 import { standingNow, useAppShortcuts } from '@/hooks/use-app-shortcuts'
 import { serverHost } from '@/lib/account'
 import { recoveries } from '@/lib/connection'
@@ -100,7 +99,6 @@ const selectChapterCount = (state: { book: { chapter_list: unknown[] } | null })
 
 export const SIGN_OUT_LABEL = 'Sign out'
 export const SIGN_IN_LABEL = 'Sign in to a server'
-export const SEARCH_BOX_PLACEHOLDER = 'Search'
 
 /** The palette's headings, in the order the app's own groups are listed. */
 const GO_GROUP = 'Go to'
@@ -174,6 +172,10 @@ export function AppShell({ children }: { children: ReactNode }) {
     const apple = applePlatform(navigator.userAgent)
     // The window's own full screen, which every part that goes full screen is handed by the Shell.
     const desktop = useDesktopWindow()
+    // Radio-only has no library to search: no field, and nothing of it in the palette.
+    const library = useLibrarySearch()
+    const librarySearch = radioOnly ? null : library
+    const paletteSearch = useMemo(() => paletteSearchOf(librarySearch), [librarySearch])
 
     const openSettings = useCallback(() => {
         setSettingsAsked(true)
@@ -187,8 +189,8 @@ export function AppShell({ children }: { children: ReactNode }) {
     useEffect(() => setDialogOpen('settings', settingsOpen), [settingsOpen])
     useEffect(() => setDialogOpen('palette', paletteOpen), [paletteOpen])
 
-    // One surface at a time: the palette opens over nothing else but the search it replaces;
-    // see `mayOpenPaletteOver`.
+    // One surface at a time: the palette opens over nothing else but the search's results, which
+    // it replaces; see `mayOpenPaletteOver`.
     const mayOpenPalette = useCallback((over: Element | null) => mayOpenPaletteOver(over, standingNow()), [])
     const choosePaletteOpen = useCallback((open: boolean) => {
         // Two modals stacked is one scrim over the thing the other is about.
@@ -412,7 +414,9 @@ export function AppShell({ children }: { children: ReactNode }) {
                           label: SEARCH_TITLE,
                           icon: Search,
                           keywords: ['find', 'artist', 'album', 'track', 'song'],
-                          onSelect: openSearch,
+                          onSelect: () => {
+                              openSearch()
+                          },
                       },
                   ]),
             // The words are a track's, so the row is offered while there is one. A station has
@@ -588,7 +592,16 @@ export function AppShell({ children }: { children: ReactNode }) {
                 }
                 top={
                     <TopBar
-                        search={radioOnly ? undefined : <LibrarySearchField />}
+                        search={
+                            librarySearch === null ? undefined : (
+                                // On a phone the field gives way to the palette's button, and the
+                                // palette, which finds the library too, is where the row leads.
+                                <LibrarySearch
+                                    source={librarySearch}
+                                    onUnreachable={() => choosePaletteOpen(true)}
+                                />
+                            )
+                        }
                         actions={
                             <>
                                 {caps !== null && (
@@ -619,6 +632,7 @@ export function AppShell({ children }: { children: ReactNode }) {
                 paletteOpen={paletteOpen}
                 onPaletteOpenChange={choosePaletteOpen}
                 mayOpenPalette={mayOpenPalette}
+                paletteSearch={paletteSearch}
                 paletteFilter="terms"
                 shortcuts={keys}
                 shortcutsOpen={shortcutsOpen}
@@ -633,10 +647,7 @@ export function AppShell({ children }: { children: ReactNode }) {
                 <div className="flex h-full w-full flex-col">{children}</div>
             </Shell>
 
-            {/* Outside the shell's content, which contains what is fixed inside it: it covers
-                the whole window, and makes everything beside it inert while it stands. The
-                spectrum and the lyrics are the player bar's own fullscreen view. */}
-            <SearchOverlay />
+            {/* The spectrum and the lyrics are the player bar's own fullscreen view. */}
             {settingsAsked && (
                 <Suspense fallback={null}>
                     <SettingsDialog open={settingsOpen} onOpenChange={setSettingsOpen} />
@@ -662,40 +673,6 @@ function railLink(entry: RailEntry, children: ReactNode, className: string): Rea
         >
             {children}
         </Link>
-    )
-}
-
-/**
- * The library search, where the client this replaces put it: a field at the start of the top bar,
- * which `/` focuses.
- *
- * A DOOR RATHER THAN A BOX. What answers the question is the overlay, so this field holds nothing
- * ever: a press on it, Enter or ArrowDown in it, or a letter typed into it opens the overlay, the
- * letter going with it. Focus alone opens nothing, so tabbing past it throws up no dialog.
- */
-function LibrarySearchField() {
-    return (
-        <div
-            onPointerDown={(event) => {
-                event.preventDefault()
-                openSearch('')
-            }}
-        >
-            <SearchField
-                value=""
-                onChange={openSearch}
-                placeholder={SEARCH_BOX_PLACEHOLDER}
-                shortcut
-                inputProps={{
-                    onKeyDown: (event) => {
-                        if (event.key === 'Enter' || event.key === 'ArrowDown') {
-                            event.preventDefault()
-                            openSearch('')
-                        }
-                    },
-                }}
-            />
-        </div>
     )
 }
 

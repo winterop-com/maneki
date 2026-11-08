@@ -5,6 +5,7 @@ import {
     dialogsOpen,
     dialogUp,
     mayOpen,
+    mayOpenPaletteOver,
     menuStanding,
     setDialogOpen,
     withDialog,
@@ -91,5 +92,31 @@ describe('a menu standing open', () => {
         const without = { querySelector: () => null }
         expect(menuStanding(withMenu)).toBe(true)
         expect(menuStanding(without)).toBe(false)
+    })
+})
+
+describe('the palette over a layer', () => {
+    // The search's results are a popover, which the shell counts as a layer: Cmd+K from the
+    // field replaces them, and nothing else that stands over the page.
+    const results = { querySelector: () => ({ id: 'r1-results' }) } as unknown as Element
+    const settings = { querySelector: () => null } as unknown as Element
+    const field = { getAttribute: () => 'r1-results' }
+    const page = { querySelectorAll: () => [field] } as unknown as Document
+    const standing = { dialog: false, stage: false, lyrics: false, song: false }
+
+    test("opens over the library search's results, which it replaces", () => {
+        expect(mayOpenPaletteOver(results, standing, page)).toBe(true)
+    })
+
+    test('opens over no other layer, such as Settings', () => {
+        expect(mayOpenPaletteOver(settings, standing, page)).toBe(false)
+        const noField = { querySelectorAll: () => [] } as unknown as Document
+        expect(mayOpenPaletteOver(results, standing, noField)).toBe(false)
+    })
+
+    test('keeps to the app rules over nothing: not over the stage or the lyrics', () => {
+        expect(mayOpenPaletteOver(null, standing, page)).toBe(true)
+        expect(mayOpenPaletteOver(null, { ...standing, stage: true }, page)).toBe(false)
+        expect(mayOpenPaletteOver(null, { ...standing, lyrics: true }, page)).toBe(false)
     })
 })

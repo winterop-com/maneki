@@ -4,7 +4,7 @@
  * THE SHELVING AND THE RANKING ARE PURE, because they are what can quietly be wrong: a query
  * that finds an album but buries it under eight tracks, a name typed without its marks that
  * finds nothing, an empty box that shows the last answer. All three are decided here and
- * checked in Node, and the overlay only draws the answer.
+ * checked in Node, and sokkel-ui's `Search` in the top bar only draws the answer.
  *
  * FOLDED ON BOTH SIDES, the way `Music` filters artists. "royk" has to rank Röyksopp first: the
  * server's own index is built with the marks removed, so a client that ranked on the raw string
@@ -21,7 +21,7 @@ import type { SearchResult } from '@/lib/subsonic'
 import { createStore } from '@winterop-com/sokkel-ui/lib/stored'
 
 /**
- * Whether the search is on screen.
+ * Whether the search's results are open under the top bar's field.
  *
  * Not kept between visits, like the stage and unlike the spectrum: it is opened to ask one
  * question, and an app that opened behind a search box because of yesterday is an app somebody
@@ -30,20 +30,20 @@ import { createStore } from '@winterop-com/sokkel-ui/lib/stored'
 export const searchOpen = createStore(false)
 
 /**
- * What the box opens holding.
- *
- * THE STRIP'S FIELD IS A DOOR RATHER THAN A BOX. Somebody typing into the top strip is asking
- * the library a question, and the answer is this overlay -- so the letters already typed are
- * carried over rather than typed again into a second field. It is a store because the two are
- * not inside one another: the field is in the shell's header and the overlay is at the foot of
- * the same tree, and everything else that opens the search hands over nothing and gets an empty
- * box, which is what it was.
+ * What the field holds. A store, so the palette's row can open the field with a query in it.
  */
 export const searchSeed = createStore('')
+
+/**
+ * How many times something other than the field asked for it, which the field answers by taking
+ * focus: the palette's "Search the library" row.
+ */
+export const searchAsked = createStore(0)
 
 export function openSearch(query = ''): void {
     searchSeed.set(query)
     searchOpen.set(true)
+    searchAsked.update((asked) => asked + 1)
 }
 
 export function closeSearch(): void {
@@ -77,10 +77,13 @@ export interface SearchRow {
     title: string
     /** The line under the title. Empty where the row has nothing more to say about itself. */
     subtitle: string
+    /** The cover the server holds for an artist or an album, drawn as maneki's grids draw it. */
+    art?: string
 }
 
-/** One shelf: its heading and its rows, best first. */
+/** One shelf: its kind, its heading and its rows, best first. */
 export interface SearchShelf {
+    kind: ResultKind
     label: string
     rows: SearchRow[]
 }
@@ -111,24 +114,29 @@ export function shelveResults(found: SearchResult | null, query: string): Search
     const needle = fold(query.trim())
     const shelves: SearchShelf[] = [
         {
+            kind: 'artist',
             label: ARTISTS_SHELF,
             rows: best(found.artists, needle, ARTIST_LIMIT, (artist) => ({
                 kind: 'artist',
                 id: artist.id,
                 title: artist.name,
                 subtitle: albumCount(artist.albumCount),
+                art: artist.coverArt,
             })),
         },
         {
+            kind: 'album',
             label: ALBUMS_SHELF,
             rows: best(found.albums, needle, ALBUM_LIMIT, (album) => ({
                 kind: 'album',
                 id: album.id,
                 title: album.name,
                 subtitle: joined([album.artist, album.year === undefined ? '' : String(album.year)]),
+                art: album.coverArt,
             })),
         },
         {
+            kind: 'track',
             label: TRACKS_SHELF,
             rows: best(found.songs, needle, TRACK_LIMIT, (song) => ({
                 kind: 'track',
