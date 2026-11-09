@@ -8,8 +8,11 @@ import {
     type VideoPlayerHandle,
     type VideoTrack,
 } from '@winterop-com/sokkel-ui/media/VideoPlayer'
-import { crossOriginVideo, videoSource } from '@/components/video/source'
-import { StatsOverlay, STATS_LABEL } from '@/components/video/StatsOverlay'
+import { Artwork } from '@winterop-com/sokkel-ui-media/Artwork'
+import { UpNext } from '@winterop-com/sokkel-ui-media/UpNext'
+import { VideoStatsOverlay } from '@winterop-com/sokkel-ui-media/VideoStatsOverlay'
+import { videoSource } from '@/components/video/source'
+import { useStreamStats } from '@/hooks/use-stream-stats'
 import { Button } from '@/components/ui/button'
 import { claimMediaSession } from '@/lib/media-session'
 import { video as videoApi } from '@/lib/api'
@@ -39,7 +42,12 @@ import {
     preferredSubtitles,
     resolutionLabel,
     resumeAt,
+    sampleOf,
+    sessionFor,
     STALL_AFTER_MS,
+    STREAM_TONE,
+    streamRows,
+    streamVerdict,
     subtitleLabel,
     subtitleNote,
     watchHref,
@@ -68,6 +76,7 @@ const CAPTION_DEFAULTS = { size: 0.5 }
 const SAVE_EVERY_S = 10
 
 export const THEATER_LABEL = 'Hide the list beside the video'
+export const STATS_LABEL = 'Show the stream stats'
 export const FULLSCREEN_LABEL = 'Put the video over the whole screen'
 export const LEAVE_FULLSCREEN_LABEL = 'Leave full screen'
 
@@ -534,11 +543,15 @@ function Watch({ id }: { id: string }) {
         [id, tracks],
     )
 
+    // The player's half of the stats, and the server's: transcode speed, encoder, pool, segments.
     const reading = useVideoStats(player, { enabled: stats })
+    const frame = useStreamStats(stats)
 
     if (refusal !== null) return <Notice>{refusal}</Notice>
 
     const upNext = ended ? around.next : null
+    // The verdict is the overlay's headline and the server's facts its rows under the player's.
+    const verdict = streamVerdict(sampleOf(reading), sessionFor(frame, id))
 
     const meta = [
         video === null || video.duration_s === null ? null : clock(video.duration_s),
@@ -629,7 +642,9 @@ function Watch({ id }: { id: string }) {
                     {video !== null && resume !== null && (
                         <VideoPlayer
                             ref={player}
-                            videoRef={crossOriginVideo}
+                            // The server is another origin in a desktop shell, and a cross-origin
+                            // `<track>` is only loaded with CORS.
+                            crossOrigin="anonymous"
                             source={videoSource(videoApi.hlsUrl(video.id))}
                             poster={videoApi.posterUrl(video.id, posterToken)}
                             tracks={subtitles}
@@ -645,33 +660,40 @@ function Watch({ id }: { id: string }) {
                             stallAfter={STALL_AFTER_MS}
                             keys={false}
                             className="aspect-auto min-h-0 flex-1 rounded-none"
-                            // Inside what fills the screen, in a browser and a desktop shell alike.
+                            // Both stay inside what fills the screen, in a browser and a desktop shell alike.
                             overlay={
-                                stats || upNext !== null ? (
-                                    // Under the screen's own strip while theater floats it over the picture.
-                                    <div
-                                        className={cn(
-                                            'flex flex-col items-start gap-2',
-                                            theater && !filled && 'mt-12',
-                                        )}
-                                    >
-                                        {stats && (
-                                            <StatsOverlay
-                                                videoId={video.id}
-                                                stats={reading}
-                                                onClose={toggleStats}
-                                            />
-                                        )}
-                                        {upNext !== null && (
-                                            <UpNext
-                                                title={episodeName(upNext.name, besideNames)}
-                                                countdown={autoplay}
-                                                onPlay={playNext}
-                                                onDismiss={() => setEnded(false)}
-                                            />
-                                        )}
-                                    </div>
+                                stats ? (
+                                    <VideoStatsOverlay
+                                        stats={reading}
+                                        headline={verdict.text}
+                                        tone={STREAM_TONE[verdict.level]}
+                                        rows={streamRows(frame, video.id)}
+                                        onClose={toggleStats}
+                                        words={{ close: 'Close the stream stats' }}
+                                        // Under the screen's own strip while theater floats it over the picture.
+                                        className={cn(theater && !filled && 'mt-12')}
+                                    />
                                 ) : undefined
+                            }
+                            // Dims the whole picture; with autoplay off it waits for a press.
+                            cover={
+                                upNext === null ? undefined : (
+                                    <UpNext
+                                        title={episodeName(upNext.name, besideNames)}
+                                        cover={
+                                            <Artwork
+                                                src={videoApi.thumbnailUrl(upNext.id)}
+                                                seed={upNext.id}
+                                                wide
+                                            />
+                                        }
+                                        placeholderSeed={upNext.id}
+                                        countdown={autoplay ? UP_NEXT_SECONDS : undefined}
+                                        onPlay={playNext}
+                                        onCancel={() => setEnded(false)}
+                                        words={{ cancel: 'Stay' }}
+                                    />
+                                )
                             }
                         />
                     )}
@@ -724,64 +746,6 @@ function Watch({ id }: { id: string }) {
                         </ul>
                     </aside>
                 )}
-            </div>
-        </div>
-    )
-}
-
-/**
- * What comes after this one, offered rather than simply done.
- *
- * A SEASON IS A RUN AND THE END OF AN EPISODE IS THE MIDDLE OF IT, so the folder's next video
- * starts by itself after a few seconds. The card is what makes that a thing somebody agreed to
- * rather than something the screen did while they were getting up: it says which episode, it
- * counts down where they can see it, and Stay puts it away and leaves the picture where it is.
- *
- * WITH AUTOPLAY OFF THE CARD STILL STANDS, and waits instead of counting. The offer is worth
- * making either way -- what the setting decides is whether it answers itself.
- */
-function UpNext({
-    title,
-    countdown,
-    onPlay,
-    onDismiss,
-}: {
-    title: string
-    countdown: boolean
-    onPlay: () => void
-    onDismiss: () => void
-}) {
-    const [left, setLeft] = useState(UP_NEXT_SECONDS)
-
-    useEffect(() => {
-        if (!countdown) return
-        const timer = setInterval(() => {
-            setLeft((seconds) => seconds - 1)
-        }, 1000)
-        return () => {
-            clearInterval(timer)
-        }
-    }, [countdown])
-
-    useEffect(() => {
-        if (countdown && left <= 0) onPlay()
-    }, [countdown, left, onPlay])
-
-    return (
-        <div className="w-80 max-w-full rounded-lg border bg-card p-4 text-card-foreground shadow-md">
-            <p className="truncate text-sm" title={title}>
-                Up next: <span className="font-medium">{title}</span>
-            </p>
-            {countdown && (
-                <p className="mt-1 text-xs text-muted-foreground">Playing in {Math.max(0, left)}s</p>
-            )}
-            <div className="mt-3 flex items-center gap-2">
-                <Button size="sm" onClick={onPlay}>
-                    Play
-                </Button>
-                <Button size="sm" variant="outline" onClick={onDismiss}>
-                    Stay
-                </Button>
             </div>
         </div>
     )

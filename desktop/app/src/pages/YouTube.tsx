@@ -6,7 +6,7 @@ import { Skeleton } from '@/components/Skeleton'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { crossOriginVideo, videoSource } from '@/components/video/source'
+import { videoSource } from '@/components/video/source'
 import { VideoPlayer, type VideoPlayerHandle } from '@winterop-com/sokkel-ui/media/VideoPlayer'
 import { useCommands } from '@winterop-com/sokkel-ui/hooks/use-commands'
 import { SCREEN_GROUP } from '@/lib/nav'
@@ -821,7 +821,8 @@ function Watch({ id }: { id: string }) {
                     <VideoPlayer
                         key={height}
                         ref={player}
-                        videoRef={crossOriginVideo}
+                        // With CORS, as on Watch: the server is another origin in a desktop shell.
+                        crossOrigin="anonymous"
                         source={videoSource(
                             youtubeApi.hlsUrl(id, height === AUTO_HEIGHT ? undefined : height),
                         )}

@@ -13,6 +13,7 @@
  */
 
 import type { VideoStats } from '@winterop-com/sokkel-ui/media/video-stats'
+import type { VideoStatsRow, VideoStatsTone } from '@winterop-com/sokkel-ui-media/VideoStatsOverlay'
 
 import type {
     VideoBrowse,
@@ -604,6 +605,43 @@ export function streamVerdict(
         }
     }
     return { level: 'buffering', text: `buffering, ${buffered.toFixed(0)}s ahead` }
+}
+
+/** The ink a verdict is drawn in. Buffering is information; only a stall is a fault. */
+export const STREAM_TONE: Record<StreamLevel, VideoStatsTone> = {
+    healthy: 'good',
+    buffering: 'warning',
+    stalled: 'critical',
+    idle: 'neutral',
+}
+
+/**
+ * The server's half of the stats, as rows under the player's own: how fast this video is
+ * transcoded, by which encoder, how loaded the pool is, the segments made, and the other streams.
+ */
+export function streamRows(frame: VideoStatsFrame | null, videoId: string): VideoStatsRow[] {
+    const session = sessionFor(frame, videoId)
+    const budget = frame?.budget ?? null
+    const ratio = session?.avg_realtime_ratio ?? null
+    return [
+        { label: 'Transcode', value: ratio === null ? '-' : `${ratio.toFixed(2)}x realtime` },
+        { label: 'Encoder', value: encoderOf(session) ?? '-' },
+        {
+            label: 'Encoder load',
+            value:
+                budget === null
+                    ? '-'
+                    : `${String(budget.foreground_in_flight)}fg / ${String(budget.background_in_flight)}bg / ${String(budget.max_workers)}`,
+        },
+        {
+            label: 'Segments',
+            value:
+                session === null
+                    ? '-'
+                    : `${String(session.transcodes_done)} of ${String(session.segments_total)}`,
+        },
+        { label: 'Other streams', value: frame === null ? '-' : String(otherStreams(frame, videoId)) },
+    ]
 }
 
 /**

@@ -240,6 +240,25 @@ const LIBRARY_PARTS: { part: string; use: string; marks: RegExp[] }[] = [
         marks: [/getVideoPlaybackQuality\(/, /\bvhs\?\.bandwidth\b/],
     },
     {
+        part: "a video's Up next",
+        use: "@winterop-com/sokkel-ui-media/UpNext in VideoPlayer's `cover`",
+        marks: [/\bfunction UpNext\b/, /Playing in \{/],
+    },
+    {
+        part: 'the stream stats overlay',
+        use: "@winterop-com/sokkel-ui-media/VideoStatsOverlay with `headline`, `tone` and `rows`, in VideoPlayer's `overlay`",
+        marks: [/\bfunction StatsOverlay\b/, /from '@\/components\/video\/StatsOverlay'/],
+    },
+    {
+        part: "the player's CORS for subtitles",
+        use: "VideoPlayer's `crossOrigin`",
+        marks: [
+            /\b(element|video)\??\.crossOrigin = /,
+            /\bfunction crossOriginVideo\b/,
+            /\bvideoRef=\{crossOrigin/,
+        ],
+    },
+    {
         part: 'one sound at a time',
         use: '@winterop-com/sokkel-ui/media/one-sound, whose claim the VideoPlayer shares',
         marks: [/from '@\/lib\/sound'/, /\bfunction registerSilencer\b/, /\bfunction forgetSilencers\b/],

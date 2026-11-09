@@ -14,12 +14,3 @@ const NATIVE = typeof navigator !== 'undefined' && playsHlsItself(navigator.user
 export function videoSource(url: string): VideoSource {
     return hlsSource(url, { native: NATIVE })
 }
-
-/**
- * The player's element asks for its subtitles with CORS, as the server is another origin in a
- * desktop shell and a cross-origin `<track>` without it is never loaded. Set through the player's
- * `videoRef`, which runs before a track is shown and so before it is fetched.
- */
-export function crossOriginVideo(element: HTMLVideoElement | null): void {
-    if (element !== null) element.crossOrigin = 'anonymous'
-}

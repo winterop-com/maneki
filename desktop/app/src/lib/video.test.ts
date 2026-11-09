@@ -36,6 +36,8 @@ import {
     sessionFor,
     started,
     STARTED_AFTER_S,
+    STREAM_TONE,
+    streamRows,
     streamVerdict,
     subtitleKey,
     subtitleLabel,
@@ -502,6 +504,40 @@ describe('stats frames', () => {
         expect(encoderOf(withRecent)).toBe('h264_videotoolbox')
         expect(encoderOf(session())).toBeNull()
         expect(encoderOf(null)).toBeNull()
+    })
+
+    it('says the server half as rows under the player half', () => {
+        const mine = {
+            ...frame,
+            sessions: [
+                session({
+                    video_id: 'mine',
+                    transcodes_done: 3,
+                    segments_total: 10,
+                    avg_realtime_ratio: 0.42,
+                }),
+            ],
+        }
+        expect(streamRows(mine, 'mine')).toEqual([
+            { label: 'Transcode', value: '0.42x realtime' },
+            { label: 'Encoder', value: '-' },
+            { label: 'Encoder load', value: '1fg / 0bg / 4' },
+            { label: 'Segments', value: '3 of 10' },
+            { label: 'Other streams', value: '0' },
+        ])
+    })
+
+    it('dashes every server fact before the first frame', () => {
+        expect(streamRows(null, 'mine').every((row) => row.value === '-')).toBe(true)
+    })
+
+    it('inks only a stall as a fault', () => {
+        expect(STREAM_TONE).toEqual({
+            healthy: 'good',
+            buffering: 'warning',
+            stalled: 'critical',
+            idle: 'neutral',
+        })
     })
 })
 
