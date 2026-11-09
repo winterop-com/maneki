@@ -3,8 +3,8 @@
  *
  * PURE, so the parts that can quietly be wrong are checked in Node: which id a row answers with,
  * which address a chosen row opens, which row an address chooses, and which search results the
- * tree may show. sokkel-ui's `Tree` draws the rows, opens them and loads them; the screen in
- * `pages/MusicLibrary` holds the albums loaded so far.
+ * tree may show. sokkel-ui's `Tree` draws the rows, opens them and loads them, in the rail's
+ * body; `lib/music-library` holds the albums loaded so far.
  *
  * AN ARTIST AND AN ALBUM ARE TOLD APART BY THE ROW'S ID. The tree is one list of ids, and a
  * Subsonic server is free to give an artist and an album the same one, so each is prefixed with
@@ -140,4 +140,17 @@ export function searchTrails(
         if (listed !== undefined) trails.push({ node: albumNode(album), ancestors: [artistNode(listed)] })
     }
     return trails
+}
+
+/**
+ * What an address opens in the library, or null where it is not the library: `/music` is the
+ * artists, `/music/artist/:id` an artist and `/music/album/:id` an album. Favourites and Downloads
+ * sit under `/music` too, but are places of their own and draw no tree.
+ */
+export function musicRoute(pathname: string): { artistId?: string; albumId?: string } | null {
+    const found = /^\/music(?:\/(artist|album)\/([^/]+))?\/?$/.exec(pathname)
+    if (found === null) return null
+    const [, kind, id] = found
+    if (kind === undefined || id === undefined) return {}
+    return kind === 'artist' ? { artistId: id } : { albumId: id }
 }

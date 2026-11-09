@@ -1,16 +1,17 @@
 import { ChevronLeft, ChevronRight, ListPlus, Play, Star, Volume2 } from 'lucide-react'
-import { Fragment, useEffect, useMemo, useRef, useState } from 'react'
+import { Fragment, useEffect, useMemo, useState } from 'react'
 import { NavLink, useNavigate, useParams } from 'react-router'
 
 import { Artwork } from '@winterop-com/sokkel-ui-media/Artwork'
-import { SplitPane, useSplitPane } from '@winterop-com/sokkel-ui/SplitPane'
-import { LibraryTree } from '@/components/LibraryTree'
 import { AlbumDownloadButton, Downloads } from '@/pages/Downloads'
 import { AddToPlaylistDialog, type Adding } from '@/components/PlaylistDialogs'
 import { Skeleton } from '@/components/Skeleton'
 import { Button } from '@/components/ui/button'
 import { useScrollMemory } from '@/hooks/use-scroll-memory'
+import { useSmallScreen } from '@/hooks/use-small-screen'
 import { NETWORK_REFUSAL } from '@/lib/connection'
+import { musicLibraryStore, readLibrary, type ArtistIndex } from '@/lib/music-library'
+import { railCollapsed } from '@/lib/panels'
 import { offlineAlbum, offlineStore } from '@/lib/offline'
 import { useCommands } from '@winterop-com/sokkel-ui/hooks/use-commands'
 import { useStore, useStoreValue } from '@winterop-com/sokkel-ui/hooks/use-store'
@@ -21,7 +22,6 @@ import { play, playerStore } from '@/lib/player'
 import { sessionStore } from '@/lib/session'
 import { Segmented } from '@/components/Segmented'
 import {
-    articlesOf,
     jumpLetters,
     sectionsByLetter,
     SORT_LABELS,
@@ -35,10 +35,7 @@ import {
     getAlbum,
     getArtist,
     getArtistCredit,
-    getArtists,
-    getMusicFolders,
     getStarred,
-    musicFolderOf,
     type Album,
     type Artist,
     type Credentials,
@@ -68,25 +65,11 @@ export function MusicPage({ view }: { view?: 'starred' | 'downloaded' } = {}) {
     return <MusicLibrary credentials={session.music} artistId={artistId} albumId={albumId} />
 }
 
-/** The music folder's artists, and the articles the server files them by. */
-interface Library {
-    artists: Artist[]
-    articles: string[]
-}
-
 /**
- * The library browsed from a tree: the artists and their albums in the pane at the start, and
- * the page the address opened beside it.
- *
- * THE ADDRESS DECIDES BOTH PANES. `/music` is the artists, `/music/artist/:id` an artist and
- * `/music/album/:id` an album, chosen in the tree and drawn beside it. On a phone the split
- * shows one pane: the tree until something is chosen, then what was chosen, whose page offers
- * the way back.
- *
- * THE MUSIC FOLDER ONLY. maneki serves audiobooks as a second folder, and their authors are
- * artists to the Subsonic grammar: without saying which folder this screen means, a library
- * with 195 books lists sixty authors among the musicians. Read once here, for the tree and for
- * the artists beside it.
+ * The page the library's address opens: `/music` is the artists, `/music/artist/:id` an artist
+ * and `/music/album/:id` an album. The rail holds the tree of them (`useLibraryBody`), so the page
+ * takes the rest of the width. The artists come from `lib/music-library`, read once for the tree
+ * and the wall alike.
  */
 function MusicLibrary({
     credentials,
@@ -97,88 +80,31 @@ function MusicLibrary({
     artistId?: string
     albumId?: string
 }) {
-    const [library, setLibrary] = useState<Library | null>(null)
-    const [refusal, setRefusal] = useState<string | null>(null)
+    const { index, refusal } = useStore(musicLibraryStore)
     const keepsAlbums = useStoreValue(offlineStore, (state) => Object.keys(state.albums).length > 0)
 
+    // Asked again on each visit, so a library refused while the server was gone is read once it is back.
     useEffect(() => {
-        let live = true
-        const read = async () => {
-            const folders = await getMusicFolders(credentials).catch(() => [])
-            const answered = await getArtists(credentials, musicFolderOf(folders))
-            if (!live) return
-            setLibrary({ artists: answered.artists, articles: articlesOf(answered.ignoredArticles) })
-        }
-        read().catch((error: Error) => {
-            if (live) setRefusal(error.message)
-        })
-        return () => {
-            live = false
-        }
+        readLibrary(credentials)
     }, [credentials])
 
-    const chosen = albumId !== undefined || artistId !== undefined
+    if (albumId) return <AlbumScreen credentials={credentials} id={albumId} />
+    if (artistId) return <ArtistScreen credentials={credentials} id={artistId} />
     // NO SERVER, BUT ALBUMS KEPT HERE: those are what can be played, so they are what is shown.
-    if (!chosen && refusal === NETWORK_REFUSAL && keepsAlbums) {
+    if (refusal === NETWORK_REFUSAL && keepsAlbums && index === null) {
         return <Downloads credentials={credentials} serverGone />
     }
-
-    const tree = refusal ? (
-        <Notice>{refusal}</Notice>
-    ) : library === null ? (
-        <div className="p-2">
-            <Skeleton rows={12} />
-        </div>
-    ) : library.artists.length === 0 ? (
-        <Notice>No artists.</Notice>
-    ) : (
-        <LibraryTree
-            credentials={credentials}
-            artists={library.artists}
-            articles={library.articles}
-            artistId={artistId}
-            albumId={albumId}
-        />
-    )
-    const detail = albumId ? (
-        <AlbumScreen credentials={credentials} id={albumId} />
-    ) : artistId ? (
-        <ArtistScreen credentials={credentials} id={artistId} />
-    ) : (
-        <Artists credentials={credentials} library={library} refusal={refusal} />
-    )
-
-    return (
-        <SplitPane
-            id="music.library"
-            defaultShare={0.26}
-            minShare={0.15}
-            maxShare={0.5}
-            narrow={chosen ? 'second' : 'first'}
-            words={{ resize: 'Resize the library tree' }}
-            first={tree}
-            second={
-                // ONE SCROLL PER PAGE. Keyed on the address, so an album opened from a long
-                // artist page starts at its top rather than where the artist was left.
-                <div
-                    key={albumId ? `album:${albumId}` : artistId ? `artist:${artistId}` : 'artists'}
-                    data-scroll-area
-                    className="h-full min-h-0 overflow-y-auto"
-                >
-                    {detail}
-                </div>
-            }
-        />
-    )
+    return <Artists credentials={credentials} library={index} refusal={index === null ? refusal : null} />
 }
 
 /**
- * Whether a page in the library's split stands alone, as on a phone: then its heading carries
- * the way back to the tree, which a page beside the tree leaves to the tree.
+ * Whether a library page stands alone: on a phone, or with the rail drawn as icons, the tree is
+ * not beside it, so its heading carries the way back and the trail.
  */
 function useStandsAlone(): boolean {
-    const split = useSplitPane()
-    return split === null || split.alone !== null
+    const small = useSmallScreen()
+    const collapsed = useStore(railCollapsed)
+    return small || collapsed
 }
 
 /** Everything this account starred, across artists, albums and tracks. */
@@ -332,11 +258,11 @@ function Favourites({ credentials }: { credentials: Credentials }) {
 }
 
 /**
- * Everyone in the library, as a wall of pictures: what `/music` shows beside the tree.
+ * Everyone in the library, as a wall of pictures: what `/music` shows beside the rail's tree.
  *
  * ORDERED BY THE NAME MINUS ITS ARTICLE, which is what the server's `ignoredArticles` is for.
  * The order itself is a choice somebody makes once and keeps. Finding somebody by name is the
- * tree's field, so the wall has none of its own.
+ * field over the rail's tree, so the wall has none of its own.
  */
 function Artists({
     credentials,
@@ -344,15 +270,14 @@ function Artists({
     refusal,
 }: {
     credentials: Credentials
-    library: Library | null
+    library: ArtistIndex | null
     refusal: string | null
 }) {
     const [sort, setSort] = useState<SortMode>(storedSort)
-    const root = useRef<HTMLDivElement>(null)
     const artists = library?.artists ?? null
     const articles = library?.articles
     // Back from an artist is back where the wall was left: see `useScrollMemory`.
-    useScrollMemory('music:artists', artists !== null && artists.length > 0, root)
+    useScrollMemory('music:artists', artists !== null && artists.length > 0)
     const navigate = useNavigate()
     const ordered = useMemo(() => sortArtists(artists ?? [], sort, articles), [articles, artists, sort])
 
@@ -374,7 +299,7 @@ function Artists({
     const albumTotal = artists.reduce((sum, artist) => sum + (artist.albumCount ?? 0), 0)
 
     return (
-        <div ref={root} className="flex min-h-full shrink-0">
+        <div className="flex min-h-full shrink-0">
             <div className="min-w-0 flex-1 px-4 pt-6 pb-10 sm:px-8">
                 <div className="mb-6 flex flex-wrap items-end justify-between gap-4">
                     <div className="min-w-0">
@@ -508,7 +433,6 @@ function ArtistScreen({ credentials, id }: { credentials: Credentials; id: strin
     })
     const navigate = useNavigate()
     const alone = useStandsAlone()
-    const root = useRef<HTMLDivElement>(null)
 
     // The flag is the other half: without it a slow first read lands on top of a fast second
     // and puts the previous artist back, tag and all. `pages/Video` guards its own reads the
@@ -532,7 +456,7 @@ function ArtistScreen({ credentials, id }: { credentials: Credentials; id: strin
     const data = answered ? held.value : null
     const refusal = answered ? held.refusal : null
     // Back from an album is back where the artist's albums were left.
-    useScrollMemory(`music:artist:${id}`, data !== null, root)
+    useScrollMemory(`music:artist:${id}`, data !== null)
 
     if (refusal) return <Notice>{refusal}</Notice>
     if (!data) {
@@ -544,9 +468,9 @@ function ArtistScreen({ credentials, id }: { credentials: Credentials; id: strin
     }
 
     return (
-        <div ref={root} className="p-4">
-            {/* THE WAY BACK IS THE TREE'S while the tree is beside the page; on a phone, where
-                the page stands alone, the heading carries it. */}
+        <div className="p-4">
+            {/* THE WAY BACK IS THE TREE'S while the rail holds it beside the page; where the page
+                stands alone (`useStandsAlone`), the heading carries it. */}
             <Header
                 title={data.artist.name}
                 onBack={alone ? () => navigate(MUSIC_PATH) : undefined}
@@ -665,6 +589,8 @@ function AlbumScreen({ credentials, id }: { credentials: Credentials; id: string
     const answered = held.key === id
     const data = answered ? held.value : null
     const refusal = answered ? held.refusal : null
+    // An album opens at its top, or where it was left, not where the artist above it was scrolled.
+    useScrollMemory(`music:album:${id}`, data !== null)
 
     // THE WHOLE RECORD, AS ONE THING TO ADD. The header's button and the palette's row say the
     // same sentence, so somebody who reached for either finds the same dialog.
@@ -901,7 +827,7 @@ export function Header({
 }: {
     title: string
     subtitle?: string
-    /** Where Back goes; without it there is no Back, as beside the library's tree. */
+    /** Where Back goes; without it there is no Back, as beside the rail's library tree. */
     onBack?: () => void
     action?: React.ReactNode
     /** Where this screen sits: the places above it, nearest last, each a link back up. */

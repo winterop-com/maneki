@@ -7,6 +7,7 @@ import {
     artistNode,
     artistNodeId,
     libraryNodes,
+    musicRoute,
     nodePath,
     nodeTarget,
     routeChoice,
@@ -188,5 +189,22 @@ describe('searchTrails', () => {
             'ode',
         )
         expect(trails.map((trail) => trail.node.label)).toEqual(['Odelay', 'Sea Change'])
+    })
+})
+
+describe("the library's addresses", () => {
+    test('the artists, an artist and an album are the library', () => {
+        expect(musicRoute('/music')).toEqual({})
+        expect(musicRoute('/music/')).toEqual({})
+        expect(musicRoute('/music/artist/ar-1')).toEqual({ artistId: 'ar-1' })
+        expect(musicRoute('/music/album/al-1')).toEqual({ albumId: 'al-1' })
+    })
+
+    test('Favourites, Downloads and other places draw no tree', () => {
+        expect(musicRoute('/music/starred')).toBeNull()
+        expect(musicRoute('/music/downloaded')).toBeNull()
+        expect(musicRoute('/playlists')).toBeNull()
+        expect(musicRoute('/musical')).toBeNull()
+        expect(musicRoute('/music/artist/ar-1/more')).toBeNull()
     })
 })

@@ -43,6 +43,7 @@ import { appearanceCommands } from '@winterop-com/sokkel-ui/lib/commands'
 import { ConnectionBanner } from '@/components/ConnectionBanner'
 import { PlayerBar } from '@/components/PlayerBar'
 import { LibrarySearch, paletteSearchOf, SEARCH_TITLE, useLibrarySearch } from '@/components/LibrarySearch'
+import { useLibraryBody } from '@/components/LibraryTree'
 import { standingNow, useAppShortcuts } from '@/hooks/use-app-shortcuts'
 import { serverHost } from '@/lib/account'
 import { recoveries } from '@/lib/connection'
@@ -176,6 +177,8 @@ export function AppShell({ children }: { children: ReactNode }) {
     const library = useLibrarySearch()
     const librarySearch = radioOnly ? null : library
     const paletteSearch = useMemo(() => paletteSearchOf(librarySearch), [librarySearch])
+    // In the music library the rail holds its tree, under the rail's own row back to the places.
+    const libraryBody = useLibraryBody()
 
     const openSettings = useCallback(() => {
         setSettingsAsked(true)
@@ -574,6 +577,7 @@ export function AppShell({ children }: { children: ReactNode }) {
                         maxSize={RAIL_MAX_WIDTH}
                         defaultSize={RAIL_WIDTH}
                         renderLink={railLink}
+                        body={libraryBody}
                         foot={
                             <AccountMenu
                                 name={name}
