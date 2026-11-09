@@ -28,11 +28,11 @@ import {
     VolumeX,
 } from 'lucide-react'
 import { Suspense, lazy, useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
-import { Link, useLocation, useNavigate } from 'react-router'
+import { useLocation, useNavigate } from 'react-router'
 
 import { AccountMenu } from '@winterop-com/sokkel-ui/AccountMenu'
 import type { PaletteCommand, PaletteGroup } from '@winterop-com/sokkel-ui/CommandPalette'
-import { Rail, type RailEntry, type RailGroup } from '@winterop-com/sokkel-ui/Rail'
+import { Rail, type RailGroup } from '@winterop-com/sokkel-ui/Rail'
 import { SchemeToggle } from '@winterop-com/sokkel-ui/SchemeToggle'
 import { Shell, type ShortcutGroup } from '@winterop-com/sokkel-ui/Shell'
 import { StatusItem, StatusLine } from '@winterop-com/sokkel-ui/StatusLine'
@@ -576,7 +576,6 @@ export function AppShell({ children }: { children: ReactNode }) {
                         minSize={RAIL_MIN_WIDTH}
                         maxSize={RAIL_MAX_WIDTH}
                         defaultSize={RAIL_WIDTH}
-                        renderLink={railLink}
                         body={libraryBody}
                         foot={
                             <AccountMenu
@@ -658,25 +657,6 @@ export function AppShell({ children }: { children: ReactNode }) {
                 </Suspense>
             )}
         </>
-    )
-}
-
-/**
- * A rail entry as the router's link, so a hash route is followed rather than reloaded.
- *
- * WebKit (the macOS app, Safari) leaves links out of the Tab order unless the reader turned a
- * system setting on, so without `tabIndex` the rail could not be reached from the keyboard.
- */
-function railLink(entry: RailEntry, children: ReactNode, className: string): ReactNode {
-    return (
-        <Link
-            to={entry.href ?? '/'}
-            tabIndex={0}
-            className={className}
-            aria-current={entry.active === true ? 'page' : undefined}
-        >
-            {children}
-        </Link>
     )
 }
 

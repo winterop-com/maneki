@@ -1,6 +1,7 @@
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
-import { HashRouter } from 'react-router'
+import { HashRouter, Link } from 'react-router'
+import { LinkProvider, type RoutedLinkProps } from '@winterop-com/sokkel-ui/Link'
 
 import App from '@/App'
 import { Toaster } from '@/components/ui/sonner'
@@ -30,10 +31,23 @@ function NowPlaying() {
     return null
 }
 
+/**
+ * Every internal link the library draws (the rail's entries and mark among them), as the router's
+ * link, so a hash route is followed rather than reloaded.
+ *
+ * WebKit (the macOS app, Safari) leaves links out of the Tab order unless the reader turned a
+ * system setting on, so without `tabIndex` the rail could not be reached from the keyboard.
+ */
+function routerLink({ href, ...props }: RoutedLinkProps) {
+    return <Link to={href} tabIndex={0} {...props} />
+}
+
 createRoot(document.getElementById('root')!).render(
     <StrictMode>
         <HashRouter>
-            <App />
+            <LinkProvider render={routerLink}>
+                <App />
+            </LinkProvider>
         </HashRouter>
         <NowPlaying />
         <Toaster richColors />
