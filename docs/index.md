@@ -85,6 +85,7 @@ Years of rip-collection wrangling produces an audio library full of:
 
 - Scene-tag noise (`[FLAC]`, `[16Bit-44.1kHz]`, `[somesite.com]`)
 - Multi-disc layouts in 6 different conventions (`CD1`/`CD2`, `Disc 1`/`Disc 2`, `Album (CD1)`/`Album (CD2)`, …)
+- Whole-disc FLAC images with a CUE sheet instead of one file per track
 - Tagless tracks that need filename parsing to recover artist / title
 - Various-Artists rips with `album_artist = "VA"` and the real artist hiding in the filename
 - Cover art that's either missing, low-resolution, or back-cover-by-mistake

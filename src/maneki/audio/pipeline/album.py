@@ -3,12 +3,13 @@
 from __future__ import annotations
 
 import shutil
+import tempfile
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 
 from rich.console import Console
 
-from maneki.audio import convert, naming
+from maneki.audio import convert, cue, naming
 from maneki.audio import cover as cover_mod
 from maneki.audio.convert import OutputFormat
 from maneki.audio.cover import Cover
@@ -63,9 +64,108 @@ def _process_album(
     remove_source: bool,
     input_root: Path,
 ) -> AlbumReport:
+    """Convert one input album, splitting any CUE-sheet disc images into tracks first."""
+    args = (
+        album_dir,
+        output_root,
+        fmt,
+        bitrate,
+        enrich,
+        dry_run,
+        console,
+        ctx,
+        written_dirs,
+        allow_lossy_recompress,
+        workers,
+        cover_max_edge,
+        acoustid_key,
+        overwrite,
+        remove_source,
+        input_root,
+    )
+    images = cue.find_cue_images(album_dir.tracks)
+    if not images:
+        return _convert_album(*args)
+
     warnings: list[str] = []
+    if dry_run:
+        # A dry run never runs ffmpeg, so the image is planned as it stands.
+        for image in images:
+            warnings.append(
+                f"{image.image.name}: CUE image, the real run splits it into {len(image.sheet.tracks)} tracks"
+            )
+        return _convert_album(*args, warnings=warnings)
+
+    with tempfile.TemporaryDirectory(prefix="maneki-cue-") as scratch:
+        by_image: dict[Path, list[Path]] = {}
+        for n, image in enumerate(images, start=1):
+            if ctx.verbose:
+                console.print(f"    [dim]splitting {image.image.name} into {len(image.sheet.tracks)} tracks[/dim]")
+            elif ctx.progress is not None and ctx.tracks_task is not None:
+                ctx.progress.update(
+                    ctx.tracks_task, visible=True, total=1, completed=0, description=f"  splitting {image.image.name}"
+                )
+            try:
+                by_image[image.image] = cue.split_image(image, Path(scratch) / f"image-{n}", workers=workers)
+            except Exception as exc:
+                error = f"could not split CUE image {image.image.name}: {exc}"
+                console.print(f"[red]✗[/red] {album_dir.path.name} — {error}")
+                return AlbumReport(
+                    input_dir=album_dir.path,
+                    output_dir=None,
+                    artist="?",
+                    album=album_dir.path.name,
+                    track_count=0,
+                    cover_source=None,
+                    cover_size="—",
+                    warnings=warnings,
+                    error=error,
+                )
+            warnings.append(f"split CUE image {image.image.name} into {len(by_image[image.image])} tracks")
+
+        paths: list[Path] = []
+        disc_for_track: dict[str, int] = {}
+        for path in album_dir.tracks:
+            disc = album_dir.disc_of(path)
+            for out in by_image.get(path, [path]):
+                paths.append(out)
+                if disc is not None:
+                    disc_for_track[out.as_posix()] = disc
+        read_from = AlbumDir(
+            path=album_dir.path, tracks=paths, disc_for_track=disc_for_track, disc_total=album_dir.disc_total
+        )
+        return _convert_album(*args, read_from=read_from, warnings=warnings)
+
+
+def _convert_album(
+    album_dir: AlbumDir,
+    output_root: Path,
+    fmt: OutputFormat,
+    bitrate: str,
+    enrich: bool,
+    dry_run: bool,
+    console: Console,
+    ctx: ProgressContext,
+    written_dirs: set[str],
+    allow_lossy_recompress: bool,
+    workers: int,
+    cover_max_edge: int,
+    acoustid_key: str | None,
+    overwrite: bool,
+    remove_source: bool,
+    input_root: Path,
+    *,
+    read_from: AlbumDir | None = None,
+    warnings: list[str] | None = None,
+) -> AlbumReport:
+    # `read_from` is the album whose files get read and encoded when that
+    # differs from what is on disk in the input (a CUE image split into a
+    # scratch dir). `album_dir` stays the input album: it names the album,
+    # holds the covers and is what --remove-source deletes.
+    source = read_from or album_dir
+    warnings = warnings if warnings is not None else []
     tracks: list[SourceTrack] = []
-    for path in album_dir.tracks:
+    for path in source.tracks:
         try:
             track = read_source(path)
             # Scrub scene-domain "artists" (`LanzamientosMp3.es` etc.) — vandalism
@@ -83,10 +183,10 @@ def _process_album(
                 track.album = None
             # When discover merged disc subfolders, the folder name is the
             # authoritative disc number — overrides whatever the per-track tag says.
-            disc_from_folder = album_dir.disc_of(path)
+            disc_from_folder = source.disc_of(path)
             if disc_from_folder is not None:
                 track.disc_no = disc_from_folder
-                track.disc_total = album_dir.disc_total
+                track.disc_total = source.disc_total
             # Pre-fill artist/title/track_no from a `NN. Artist - Title.mp3`-style
             # filename when the source tags lack them. Without this, downstream
             # passes (compilation detection, scene-encoded DTT track-number

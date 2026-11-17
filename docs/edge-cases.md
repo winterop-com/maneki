@@ -22,6 +22,17 @@ Mixed-content parents (Ultimate Queen layout: a folder with both `CD1/`/`CD2/` A
 
 Parent-with-audio + disc subfolders (System Of A Down self-titled with duplicate `Disc 1/`/`Disc 2/` subfolders inside the album folder containing the same tracks): drops the disc subfolders, uses the parent's top-level tracks as one album.
 
+## Single-file disc images with a CUE sheet
+
+EAC-style rips often hold a whole disc as one `Album.flac` next to an `Album.cue` (or `Album.flac.cue`) that lists where each track starts. When an album's audio file has a sheet in the same folder that names it and lists two or more tracks, convert splits the image into one FLAC per track in a temporary folder, then converts those like any other album:
+
+- Each track runs from its `INDEX 01` to the next track's `INDEX 01`; the pregap (`INDEX 00`) goes with the track before.
+- Title, performer and ISRC come from the sheet; album, album artist, `REM DATE` and `REM GENRE` from its header. Disc-wide tags in a FLAC image (label, catalogue number) and its embedded pictures are copied onto every track.
+- Sheets are read as UTF-8, falling back to Windows-1252.
+- A sheet with one `FILE` per track describes an already split rip and is ignored.
+- The input folder still names the album, supplies the cover and is what `--remove-source` deletes.
+- `--dry-run` does not split (it never runs ffmpeg); its plan notes how many tracks the real run will produce.
+
 ## Filename-encoded multi-disc
 
 Some rips put the disc + track in the filename rather than a CD subfolder:
