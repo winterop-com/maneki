@@ -1128,6 +1128,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#single-file-disc-images-with-a-cue-sheet" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Single-file disc images with a CUE sheet
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#filename-encoded-multi-disc" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1570,6 +1581,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#single-file-disc-images-with-a-cue-sheet" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Single-file disc images with a CUE sheet
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#filename-encoded-multi-disc" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1872,6 +1894,16 @@
 <p>Single <code>Album/CD1/</code> (no CD2 sibling) is <strong>not</strong> promoted to multi-disc — treated as a regular single-disc album.</p>
 <p>Mixed-content parents (Ultimate Queen layout: a folder with both <code>CD1/</code>/<code>CD2/</code> AND bare albums as siblings) only merge the matching-prefix disc pairs; bare albums stay as-is.</p>
 <p>Parent-with-audio + disc subfolders (System Of A Down self-titled with duplicate <code>Disc 1/</code>/<code>Disc 2/</code> subfolders inside the album folder containing the same tracks): drops the disc subfolders, uses the parent's top-level tracks as one album.</p>
+<h2 id="single-file-disc-images-with-a-cue-sheet">Single-file disc images with a CUE sheet<a class="headerlink" href="#single-file-disc-images-with-a-cue-sheet" title="Permanent link">&para;</a></h2>
+<p>EAC-style rips often hold a whole disc as one <code>Album.flac</code> next to an <code>Album.cue</code> (or <code>Album.flac.cue</code>) that lists where each track starts. When an album's audio file has a sheet in the same folder that names it and lists two or more tracks, convert splits the image into one FLAC per track in a temporary folder, then converts those like any other album:</p>
+<ul>
+<li>Each track runs from its <code>INDEX 01</code> to the next track's <code>INDEX 01</code>; the pregap (<code>INDEX 00</code>) goes with the track before.</li>
+<li>Title, performer and ISRC come from the sheet; album, album artist, <code>REM DATE</code> and <code>REM GENRE</code> from its header. Disc-wide tags in a FLAC image (label, catalogue number) and its embedded pictures are copied onto every track.</li>
+<li>Sheets are read as UTF-8, falling back to Windows-1252.</li>
+<li>A sheet with one <code>FILE</code> per track describes an already split rip and is ignored.</li>
+<li>The input folder still names the album, supplies the cover and is what <code>--remove-source</code> deletes.</li>
+<li><code>--dry-run</code> does not split (it never runs ffmpeg); its plan notes how many tracks the real run will produce.</li>
+</ul>
 <h2 id="filename-encoded-multi-disc">Filename-encoded multi-disc<a class="headerlink" href="#filename-encoded-multi-disc" title="Permanent link">&para;</a></h2>
 <p>Some rips put the disc + track in the filename rather than a CD subfolder:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>Zara Larsson — So Good (Deluxe)/
