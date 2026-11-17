@@ -27,21 +27,21 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # python = the package; javascript-typescript = the SPA + desktop wrappers.
-        language: [python, javascript-typescript]
+        # python = the package; javascript-typescript = the SPA + desktop wrappers;
+        # actions = the workflows themselves; rust = the Tauri shell.
+        language: [python, javascript-typescript, actions, rust]
     steps:
       - name: Checkout
         uses: actions/checkout@v7
 
+      # Every language is read from source, nothing is compiled: building the Tauri
+      # shell would need its system libraries on the runner for no better results.
       - name: Initialize CodeQL
         uses: github/codeql-action/init@v4
         with:
           languages: ${{ matrix.language }}
+          build-mode: none
           queries: security-extended
-
-      # No compile step needed for Python or JS/TS — autobuild is a no-op here.
-      - name: Autobuild
-        uses: github/codeql-action/autobuild@v4
 
       - name: Analyze
         uses: github/codeql-action/analyze@v4
