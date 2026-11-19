@@ -583,8 +583,9 @@ export function AppShell({ children }: { children: ReactNode }) {
                                 where={host === '' ? undefined : host}
                                 collapsed={collapsed}
                                 onSettings={openSettings}
-                                scheme={scheme}
-                                onSchemeChange={setScheme}
+                                // The scheme lives in Settings and the palette, not the menu: its
+                                // Appearance row opens Settings, where Appearance is one panel.
+                                onAppearance={openSettings}
                                 // Radio-only has no account to leave: leaving it is signing in.
                                 onSignOut={radioOnly ? undefined : signOut}
                                 onSignIn={radioOnly ? signOut : undefined}
